@@ -25,6 +25,68 @@ export const sampleDocHtml = () => `
 <ul data-type="taskList"><li data-type="taskItem" data-checked="true"><p>Gửi bản nháp cho ban giám đốc</p></li><li data-type="taskItem" data-checked="false"><p>Cập nhật số liệu tháng 11</p></li></ul>
 `;
 
+export const contractDocHtml = () => `
+<p style="text-align: center"><strong>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</strong><br><em>Độc lập – Tự do – Hạnh phúc</em></p>
+<p style="text-align: center">------------------------</p>
+<h1 style="text-align: center">HỢP ĐỒNG DỊCH VỤ CÔNG NGHỆ</h1>
+<p style="text-align: center"><em>Số: 01/2026/HĐDV-MS</em></p>
+<p><em>Hôm nay, ngày ${new Date().toLocaleDateString('vi-VN')}, tại Văn phòng Công ty, chúng tôi gồm có:</em></p>
+<h2>BÊN A: BÊN YÊU CẦU DỊCH VỤ (KHÁCH HÀNG)</h2>
+<ul>
+  <li><strong>Đơn vị:</strong> CÔNG TY TNHH ĐẦU TƯ & THƯƠNG MẠI MINH SPARK</li>
+  <li><strong>Đại diện:</strong> Ông Bùi Đăng Minh - Chức vụ: Giám đốc</li>
+  <li><strong>Địa chỉ:</strong> Hà Nội, Việt Nam</li>
+  <li><strong>Điện thoại:</strong> (+84) 988 123 456</li>
+</ul>
+<h2>BÊN B: BÊN CUNG CẤP DỊCH VỤ</h2>
+<ul>
+  <li><strong>Đơn vị:</strong> ĐỐI TÁC CÔNG NGHỆ & PHẦN MỀM</li>
+  <li><strong>Đại diện:</strong> Trưởng nhóm giải pháp</li>
+  <li><strong>Lĩnh vực:</strong> Phát triển phần mềm & Giải pháp văn phòng</li>
+</ul>
+<h2>ĐIỀU 1: NỘI DUNG VÀ PHẠM VI CÔNG VIỆC</h2>
+<p>Bên A đồng ý thuê và Bên B đồng ý thực hiện cung cấp giải pháp bộ ứng dụng văn phòng trực tuyến tích hợp đầy đủ công cụ soạn thảo tài liệu chuẩn Word và bảng tính chuẩn Excel.</p>
+<h2>ĐIỀU 2: GIÁ TRỊ HỢP ĐỒNG VÀ PHƯƠNG THỨC THANH TOÁN</h2>
+<table><tbody>
+<tr><th><p>Giai đoạn</p></th><th><p>Nội dung nghiệm thu</p></th><th><p>Tỷ lệ thanh toán</p></th></tr>
+<tr><td><p>Giai đoạn 1</p></td><td><p>Khảo sát, thiết kế giao diện và kiến trúc hệ thống</p></td><td><p>30%</p></td></tr>
+<tr><td><p>Giai đoạn 2</p></td><td><p>Hoàn thiện module Word & Excel, kiểm thử tính năng</p></td><td><p>50%</p></td></tr>
+<tr><td><p>Giai đoạn 3</p></td><td><p>Bàn giao toàn bộ source code và tài liệu kỹ thuật</p></td><td><p>20%</p></td></tr>
+</tbody></table>
+<h2>ĐIỀU 3: CAM KẾT VÀ BẢO HÀNH</h2>
+<p>Bên B cam kết toàn bộ dữ liệu người dùng được bảo vệ an toàn 100% tại máy trạm, mã hoá hoàn toàn chuẩn quân sự ECMA-376 và không rò rỉ ra máy chủ bên thứ ba.</p>
+<p><br></p>
+<table style="border: none"><tbody>
+<tr style="border: none">
+<td style="border: none; text-align: center; width: 50%"><p><strong>ĐẠI DIỆN BÊN A</strong><br><em>(Ký, ghi rõ họ tên)</em></p></td>
+<td style="border: none; text-align: center; width: 50%"><p><strong>ĐẠI DIỆN BÊN B</strong><br><em>(Ký, ghi rõ họ tên)</em></p></td>
+</tr>
+</tbody></table>
+`;
+
+export const meetingMinutesDocHtml = () => `
+<h1 style="text-align: center">BIÊN BẢN CUỘC HỌP GIAO BAN TUẦN</h1>
+<p style="text-align: center"><em>Thời gian: 09:00 - 11:30 | Ngày: ${new Date().toLocaleDateString('vi-VN')}</em></p>
+<h2>1. Thành phần tham dự</h2>
+<ul>
+  <li><strong>Chủ trì:</strong> Bùi Đăng Minh</li>
+  <li><strong>Thư ký:</strong> Ban Văn phòng</li>
+  <li><strong>Thành viên:</strong> Toàn thể kỹ thuật viên và nhân sự vận hành</li>
+</ul>
+<h2>2. Nội dung thảo luận</h2>
+<ol>
+  <li>Đánh giá tiến độ triển khai sản phẩm bộ phần mềm văn phòng Minh Spark Office.</li>
+  <li>Thử nghiệm tính năng nhập xuất tệp Word và Excel bảo mật cao.</li>
+  <li>Kế hoạch tối ưu trải nghiệm người dùng và mở rộng tính năng.</li>
+</ol>
+<h2>3. Kết luận và Phân công hành động</h2>
+<ul data-type="taskList">
+  <li data-type="taskItem" data-checked="true"><p>Hoàn thiện bộ Ribbon đầy đủ tính năng chuẩn Office 365</p></li>
+  <li data-type="taskItem" data-checked="true"><p>Tích hợp bộ giải mã mật khẩu ECMA-376 tự động</p></li>
+  <li data-type="taskItem" data-checked="false"><p>Tập huấn toàn diện cho các phòng ban sử dụng</p></li>
+</ul>
+`;
+
 export const sampleWorkbook = (name: string): WorkbookData => {
   const workbook = emptyWorkbook(name);
   const sheet = workbook.sheets[workbook.sheetOrder[0]];
@@ -68,5 +130,169 @@ export const sampleWorkbook = (name: string): WorkbookData => {
   workbook.sheetOrder.push(second.id);
   workbook.sheets[second.id] = second;
   workbook.id = uid('wb');
+  return workbook;
+};
+
+export const payrollWorkbook = (): WorkbookData => {
+  const workbook = emptyWorkbook('Bảng chấm công & lương');
+  const sheet = workbook.sheets[workbook.sheetOrder[0]];
+  sheet.name = 'Bảng lương T11';
+  workbook.styles = {
+    head: { bl: 1, bg: { rgb: '#1B5E20' }, cl: { rgb: '#FFFFFF' }, ht: 2, vt: 2 },
+    title: { bl: 1, fs: 15, cl: { rgb: '#1B5E20' } },
+    money: { n: { pattern: '#,##0' } },
+    center: { ht: 2, vt: 2 },
+    total: { bl: 1, bg: { rgb: '#E8F5E9' }, n: { pattern: '#,##0' } },
+  };
+
+  sheet.cellData[0] = { 0: { v: 'BẢNG CHẤM CÔNG VÀ THANH TOÁN LƯƠNG NHÂN SỰ', t: 1, s: 'title' } };
+
+  const headers = ['Mã NV', 'Họ và tên', 'Chức vụ', 'Lương cơ bản', 'Ngày công', 'Phụ cấp', 'Tổng thu nhập', 'Thực lĩnh'];
+  sheet.cellData[1] = {};
+  headers.forEach((h, c) => {
+    sheet.cellData[1][c] = { v: h, t: 1, s: 'head' };
+  });
+
+  const staff = [
+    ['MS01', 'Bùi Đăng Minh', 'Giám đốc', 50000000, 26, 5000000],
+    ['MS02', 'Nguyễn Văn An', 'Trưởng phòng Kỹ thuật', 30000000, 25, 3000000],
+    ['MS03', 'Trần Thị Bình', 'Kế toán trưởng', 25000000, 26, 2500000],
+    ['MS04', 'Lê Hoàng Cường', 'Kỹ sư Fullstack', 22000000, 24, 2000000],
+    ['MS05', 'Phạm Minh Đức', 'Chuyên viên Marketing', 18000000, 26, 1500000],
+  ];
+
+  staff.forEach((person, idx) => {
+    const r = idx + 2;
+    sheet.cellData[r] = {
+      0: { v: person[0] as string, t: 1, s: 'center' },
+      1: { v: person[1] as string, t: 1 },
+      2: { v: person[2] as string, t: 1 },
+      3: { v: person[3] as number, t: 2, s: 'money' },
+      4: { v: person[4] as number, t: 2, s: 'center' },
+      5: { v: person[5] as number, t: 2, s: 'money' },
+      6: { f: `=ROUND(D${r+1}*E${r+1}/26+F${r+1},0)`, s: 'money' },
+      7: { f: `=G${r+1}`, s: 'money' },
+    };
+  });
+
+  sheet.cellData[7] = {
+    1: { v: 'TỔNG CỘNG', t: 1, s: 'head' },
+    3: { f: '=SUM(D3:D7)', s: 'total' },
+    5: { f: '=SUM(F3:F7)', s: 'total' },
+    6: { f: '=SUM(G3:G7)', s: 'total' },
+    7: { f: '=SUM(H3:H7)', s: 'total' },
+  };
+
+  sheet.columnData = { 0: { w: 90 }, 1: { w: 180 }, 2: { w: 180 }, 3: { w: 130 }, 4: { w: 100 }, 5: { w: 120 }, 6: { w: 140 }, 7: { w: 140 } };
+  sheet.rowData = { 0: { h: 36 }, 1: { h: 32 } };
+  sheet.mergeData = [{ startRow: 0, endRow: 0, startColumn: 0, endColumn: 7 }];
+  return workbook;
+};
+
+export const salesKpiWorkbook = (): WorkbookData => {
+  const workbook = emptyWorkbook('Báo cáo doanh số & KPI');
+  const sheet = workbook.sheets[workbook.sheetOrder[0]];
+  sheet.name = 'Doanh số 2026';
+  workbook.styles = {
+    head: { bl: 1, bg: { rgb: '#0D47A1' }, cl: { rgb: '#FFFFFF' }, ht: 2, vt: 2 },
+    title: { bl: 1, fs: 15, cl: { rgb: '#0D47A1' } },
+    money: { n: { pattern: '#,##0' } },
+    pct: { n: { pattern: '0.0%' } },
+    center: { ht: 2, vt: 2 },
+    total: { bl: 1, bg: { rgb: '#E3F2FD' }, n: { pattern: '#,##0' } },
+  };
+
+  sheet.cellData[0] = { 0: { v: 'BÁO CÁO DOANH SỐ BÁN HÀNG VÀ TỶ LỆ HOÀN THÀNH KPI', t: 1, s: 'title' } };
+
+  const headers = ['Khu vực', 'Sản phẩm chủ lực', 'Chỉ tiêu KPI', 'Doanh số thực đạt', 'Tỷ lệ hoàn thành', 'Đánh giá'];
+  sheet.cellData[1] = {};
+  headers.forEach((h, c) => {
+    sheet.cellData[1][c] = { v: h, t: 1, s: 'head' };
+  });
+
+  const regions = [
+    ['Miền Bắc', 'Minh Spark Office Pro', 500000000, 580000000],
+    ['Miền Trung', 'Minh Spark Cloud Suite', 250000000, 240000000],
+    ['Miền Nam', 'Minh Spark Enterprise', 800000000, 920000000],
+    ['Thương mại điện tử', 'Bản quyền cá nhân', 150000000, 195000000],
+  ];
+
+  regions.forEach((item, idx) => {
+    const r = idx + 2;
+    sheet.cellData[r] = {
+      0: { v: item[0] as string, t: 1, s: 'center' },
+      1: { v: item[1] as string, t: 1 },
+      2: { v: item[2] as number, t: 2, s: 'money' },
+      3: { v: item[3] as number, t: 2, s: 'money' },
+      4: { f: `=D${r+1}/C${r+1}`, s: 'pct' },
+      5: { f: `=IF(E${r+1}>=1,"Vượt chỉ tiêu","Cần nỗ lực")`, s: 'center' },
+    };
+  });
+
+  sheet.cellData[6] = {
+    0: { v: 'TỔNG CỘNG', t: 1, s: 'head' },
+    2: { f: '=SUM(C3:C6)', s: 'total' },
+    3: { f: '=SUM(D3:D6)', s: 'total' },
+    4: { f: '=D7/C7', s: 'pct' },
+  };
+
+  sheet.columnData = { 0: { w: 140 }, 1: { w: 220 }, 2: { w: 150 }, 3: { w: 150 }, 4: { w: 130 }, 5: { w: 140 } };
+  sheet.rowData = { 0: { h: 36 }, 1: { h: 32 } };
+  sheet.mergeData = [{ startRow: 0, endRow: 0, startColumn: 0, endColumn: 5 }];
+  return workbook;
+};
+
+export const inventoryWorkbook = (): WorkbookData => {
+  const workbook = emptyWorkbook('Quản lý kho hàng');
+  const sheet = workbook.sheets[workbook.sheetOrder[0]];
+  sheet.name = 'Tồn kho';
+  workbook.styles = {
+    head: { bl: 1, bg: { rgb: '#E65100' }, cl: { rgb: '#FFFFFF' }, ht: 2, vt: 2 },
+    title: { bl: 1, fs: 15, cl: { rgb: '#E65100' } },
+    money: { n: { pattern: '#,##0' } },
+    num: { n: { pattern: '#,##0' }, ht: 2 },
+    center: { ht: 2, vt: 2 },
+    total: { bl: 1, bg: { rgb: '#FFF3E0' }, n: { pattern: '#,##0' } },
+  };
+
+  sheet.cellData[0] = { 0: { v: 'BÁO CÁO THEO DÕI HÀNG TỒN KHO & ĐỊNH MỨC AN TOÀN', t: 1, s: 'title' } };
+
+  const headers = ['Mã SKU', 'Tên sản phẩm', 'Đơn vị tính', 'Tồn đầu kỳ', 'Nhập', 'Xuất', 'Tồn cuối kỳ', 'Đơn giá', 'Thành tiền', 'Trạng thái'];
+  sheet.cellData[1] = {};
+  headers.forEach((h, c) => {
+    sheet.cellData[1][c] = { v: h, t: 1, s: 'head' };
+  });
+
+  const products = [
+    ['SP001', 'Màn hình Dell UltraSharp 27"', 'Chiếc', 40, 50, 35, 12500000],
+    ['SP002', 'Bàn phím cơ không dây Pro', 'Chiếc', 120, 80, 95, 2100000],
+    ['SP003', 'Chuột công thái học Master', 'Chiếc', 85, 40, 60, 1850000],
+    ['SP004', 'Tai nghe chống ồn khử tạp âm', 'Bộ', 30, 20, 28, 4500000],
+  ];
+
+  products.forEach((prod, idx) => {
+    const r = idx + 2;
+    sheet.cellData[r] = {
+      0: { v: prod[0] as string, t: 1, s: 'center' },
+      1: { v: prod[1] as string, t: 1 },
+      2: { v: prod[2] as string, t: 1, s: 'center' },
+      3: { v: prod[3] as number, t: 2, s: 'num' },
+      4: { v: prod[4] as number, t: 2, s: 'num' },
+      5: { v: prod[5] as number, t: 2, s: 'num' },
+      6: { f: `=D${r+1}+E${r+1}-F${r+1}`, s: 'num' },
+      7: { v: prod[6] as number, t: 2, s: 'money' },
+      8: { f: `=G${r+1}*H${r+1}`, s: 'money' },
+      9: { f: `=IF(G${r+1}<=25,"Cảnh báo nhập","Ổn định")`, s: 'center' },
+    };
+  });
+
+  sheet.cellData[6] = {
+    1: { v: 'TỔNG CỘNG GIÁ TRỊ TỒN KHO', t: 1, s: 'head' },
+    8: { f: '=SUM(I3:I6)', s: 'total' },
+  };
+
+  sheet.columnData = { 0: { w: 90 }, 1: { w: 220 }, 2: { w: 90 }, 3: { w: 90 }, 4: { w: 80 }, 5: { w: 80 }, 6: { w: 90 }, 7: { w: 120 }, 8: { w: 140 }, 9: { w: 130 } };
+  sheet.rowData = { 0: { h: 36 }, 1: { h: 32 } };
+  sheet.mergeData = [{ startRow: 0, endRow: 0, startColumn: 0, endColumn: 9 }];
   return workbook;
 };

@@ -332,3 +332,71 @@ export async function importDocx(buffer: ArrayBuffer): Promise<string> {
   });
   return result.value;
 }
+
+export function jsonToMarkdown(node?: JSONContent): string {
+  if (!node) return '';
+  if (node.type === 'text') {
+    let text = node.text || '';
+    if (node.marks) {
+      for (const m of node.marks) {
+        if (m.type === 'bold') text = `**${text}**`;
+        if (m.type === 'italic') text = `*${text}*`;
+        if (m.type === 'strike') text = `~~${text}~~`;
+        if (m.type === 'code') text = `\`${text}\``;
+        if (m.type === 'link' && m.attrs?.href) text = `[${text}](${m.attrs.href})`;
+        if (m.type === 'underline') text = `<u>${text}</u>`;
+      }
+    }
+    return text;
+  }
+
+  const inner = (node.content || []).map(jsonToMarkdown).join('');
+
+  switch (node.type) {
+    case 'doc':
+      return (node.content || []).map(jsonToMarkdown).join('\n\n');
+    case 'heading': {
+      const hashes = '#'.repeat(Number(node.attrs?.level) || 1);
+      return `${hashes} ${inner}`;
+    }
+    case 'paragraph':
+      return inner;
+    case 'blockquote':
+      return inner.split('\n').map((line) => `> ${line}`).join('\n');
+    case 'codeBlock':
+      return `\`\`\`${node.attrs?.language || ''}\n${inner}\n\`\`\``;
+    case 'bulletList':
+      return (node.content || []).map((item) => `- ${jsonToMarkdown(item)}`).join('\n');
+    case 'orderedList':
+      return (node.content || []).map((item, idx) => `${idx + 1}. ${jsonToMarkdown(item)}`).join('\n');
+    case 'listItem':
+      return inner;
+    case 'taskList':
+      return (node.content || []).map(jsonToMarkdown).join('\n');
+    case 'taskItem':
+      return `- [${node.attrs?.checked ? 'x' : ' '}] ${inner}`;
+    case 'horizontalRule':
+    case 'pageBreak':
+      return '\n---\n';
+    case 'image':
+      return `![${node.attrs?.alt || 'image'}](${node.attrs?.src || ''})`;
+    case 'table': {
+      const rows = (node.content || []).map((row) =>
+        '| ' + (row.content || []).map((cell) => jsonToMarkdown(cell).replace(/\n/g, ' ')).join(' | ') + ' |'
+      );
+      if (rows.length > 0 && node.content?.[0]?.content?.length) {
+        const colCount = node.content[0].content.length;
+        const divider = '| ' + Array(colCount).fill('---').join(' | ') + ' |';
+        rows.splice(1, 0, divider);
+      }
+      return rows.join('\n');
+    }
+    case 'tableRow':
+      return inner;
+    case 'tableCell':
+    case 'tableHeader':
+      return inner;
+    default:
+      return inner;
+  }
+}

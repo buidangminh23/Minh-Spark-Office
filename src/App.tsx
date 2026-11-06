@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import Home from './components/Home';
 import DocEditor from './editors/doc/DocEditor';
 import SheetEditor from './editors/sheet/SheetEditor';
+import PdfEditor from './editors/pdf/PdfEditor';
 import { UiProvider, useUi } from './components/ui';
 import {
   listFiles,
@@ -17,6 +18,7 @@ import {
   type FileContent,
   type DocContent,
   type SheetContent,
+  type PdfContent,
 } from './lib/storage';
 import { blankDoc, sampleDocHtml, sampleWorkbook } from './lib/templates';
 import { emptyWorkbook, importSpreadsheet } from './lib/xlsxConvert';
@@ -85,7 +87,27 @@ function MainApp() {
         };
         await saveFile(sheetMeta, sheetContent);
 
-        setFiles([docMeta, sheetMeta]);
+        // Seed initial PDF doc
+        const pdfId = `pdf-${Date.now() + 2}`;
+        const pdfMeta: FileMeta = {
+          id: pdfId,
+          name: 'Quy chuẩn văn phòng số.pdf',
+          kind: 'pdf',
+          createdAt: Date.now() + 2,
+          updatedAt: Date.now() + 2,
+          openedAt: Date.now() + 2,
+          starred: false,
+          deletedAt: null,
+          size: 18400,
+          preview: 'Văn bản PDF đã được kiểm duyệt chữ ký số. Cần chuẩn hoá định dạng trang trước khi ban hành.',
+        };
+        const pdfContent: PdfContent = {
+          kind: 'pdf',
+          pageCount: 3,
+        };
+        await saveFile(pdfMeta, pdfContent);
+
+        setFiles([docMeta, sheetMeta, pdfMeta]);
       } else {
         setFiles(list);
       }
@@ -187,7 +209,53 @@ function MainApp() {
     await refreshFiles();
     setActiveMeta(meta);
     setActiveContent(content);
-    ui.toast('Đã tạo bảng tính Excel mới');
+    ui.toast('Đã tạo bảng tính Minh Sheets mới');
+  };
+
+  // Open PDF Document
+  const handleOpenPdf = async (meta: FileMeta) => {
+    try {
+      ui.showBusy('Đang mở tài liệu PDF…');
+      const content = await loadContent(meta.id);
+      if (content && content.kind === 'pdf') {
+        setActiveMeta(meta);
+        setActiveContent(content);
+        await updateMeta(meta.id, { openedAt: Date.now() });
+      } else {
+        ui.toast('Không tìm thấy nội dung tài liệu PDF', true);
+      }
+    } catch {
+      ui.toast('Lỗi khi mở tài liệu PDF', true);
+    } finally {
+      ui.showBusy(null);
+    }
+  };
+
+  // Create new PDF Document
+  const handleCreatePdf = async () => {
+    const id = `pdf-${Date.now()}`;
+    const name = 'Tài liệu mới.pdf';
+    const meta: FileMeta = {
+      id,
+      name,
+      kind: 'pdf',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      openedAt: Date.now(),
+      starred: false,
+      deletedAt: null,
+      size: 4096,
+      preview: 'Minh PDF — Bộ công cụ xử lý và ký số PDF chuyên nghiệp',
+    };
+    const content: PdfContent = {
+      kind: 'pdf',
+      pageCount: 3,
+    };
+    await saveFile(meta, content);
+    await refreshFiles();
+    setActiveMeta(meta);
+    setActiveContent(content);
+    ui.toast('Đã tạo tài liệu Minh PDF mới');
   };
 
   // Import file (.docx, .xlsx, .csv) with password decryption support
@@ -198,6 +266,7 @@ function MainApp() {
       let bytes: Uint8Array<any> = new Uint8Array(buffer);
       const isDoc = file.name.endsWith('.docx') || file.name.endsWith('.doc');
       const isXls = file.name.endsWith('.xlsx') || file.name.endsWith('.xls') || file.name.endsWith('.csv');
+      const isPdf = file.name.toLowerCase().endsWith('.pdf');
 
       // Check if file is encrypted with MS Office agile encryption
       if (isEncryptedOffice(bytes)) {
@@ -294,6 +363,30 @@ function MainApp() {
         setActiveMeta(meta);
         setActiveContent(content);
         ui.toast(`Đã nạp bảng tính "${file.name}"`);
+      } else if (isPdf) {
+        ui.showBusy('Đang mở tệp PDF…');
+        const id = `pdf-${Date.now()}`;
+        const meta: FileMeta = {
+          id,
+          name: file.name,
+          kind: 'pdf',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          openedAt: Date.now(),
+          starred: false,
+          deletedAt: null,
+          size: file.size,
+          preview: 'Tệp PDF tải lên từ thiết bị',
+        };
+        const content: PdfContent = {
+          kind: 'pdf',
+          pageCount: 3,
+        };
+        await saveFile(meta, content);
+        await refreshFiles();
+        setActiveMeta(meta);
+        setActiveContent(content);
+        ui.toast(`Đã nạp tệp PDF "${file.name}"`);
       } else {
         ui.toast('Định dạng tệp không được hỗ trợ', true);
       }
@@ -452,6 +545,22 @@ function MainApp() {
         />
       );
     }
+
+    if (activeMeta.kind === 'pdf' && activeContent.kind === 'pdf') {
+      return (
+        <PdfEditor
+          meta={activeMeta}
+          content={activeContent}
+          onSave={handleSaveActive}
+          onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
+          onBack={() => {
+            setActiveMeta(null);
+            setActiveContent(null);
+            void refreshFiles();
+          }}
+        />
+      );
+    }
   }
 
   return (
@@ -460,8 +569,10 @@ function MainApp() {
       storageInfo={storageInfo}
       onOpenDoc={handleOpenDoc}
       onOpenSheet={handleOpenSheet}
+      onOpenPdf={handleOpenPdf}
       onCreateDoc={handleCreateDoc}
       onCreateSheet={handleCreateSheet}
+      onCreatePdf={handleCreatePdf}
       onImportFile={handleImportFile}
       onRename={handleRename}
       onDuplicate={handleDuplicate}

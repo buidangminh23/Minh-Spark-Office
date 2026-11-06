@@ -20,15 +20,23 @@ import {
 import type { FileMeta } from '../lib/storage';
 import type { WorkbookData } from '../lib/sheetTypes';
 import { formatBytes, relativeTime } from '../lib/download';
-import { sampleDocHtml, sampleWorkbook } from '../lib/templates';
+import {
+  sampleDocHtml,
+  contractDocHtml,
+  meetingMinutesDocHtml,
+  sampleWorkbook,
+  payrollWorkbook,
+} from '../lib/templates';
 
 interface HomeProps {
   files: FileMeta[];
   storageInfo: { usage: number; quota: number } | null;
   onOpenDoc: (file: FileMeta) => void;
   onOpenSheet: (file: FileMeta) => void;
+  onOpenPdf: (file: FileMeta) => void;
   onCreateDoc: (templateHtml?: string) => void;
   onCreateSheet: (templateWorkbook?: WorkbookData) => void;
+  onCreatePdf: () => void;
   onImportFile: (file: File) => void;
   onRename: (file: FileMeta) => void;
   onDuplicate: (file: FileMeta) => void;
@@ -40,15 +48,17 @@ interface HomeProps {
   onImportBackup: (file: File) => void;
 }
 
-type NavCategory = 'all' | 'docs' | 'sheets' | 'starred' | 'trash';
+type NavCategory = 'all' | 'docs' | 'sheets' | 'pdfs' | 'starred' | 'trash';
 
 export default function Home({
   files,
   storageInfo,
   onOpenDoc,
   onOpenSheet,
+  onOpenPdf,
   onCreateDoc,
   onCreateSheet,
+  onCreatePdf,
   onImportFile,
   onRename,
   onDuplicate,
@@ -63,6 +73,7 @@ export default function Home({
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [showCreateMenu, setShowCreateMenu] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
 
   // Filter files based on category and search query
   const filteredFiles = useMemo(() => {
@@ -74,6 +85,7 @@ export default function Home({
         if (file.deletedAt) return false;
         if (category === 'docs' && file.kind !== 'doc') return false;
         if (category === 'sheets' && file.kind !== 'sheet') return false;
+        if (category === 'pdfs' && file.kind !== 'pdf') return false;
         if (category === 'starred' && !file.starred) return false;
       }
 
@@ -89,12 +101,14 @@ export default function Home({
 
   const docCount = useMemo(() => files.filter((f) => !f.deletedAt && f.kind === 'doc').length, [files]);
   const sheetCount = useMemo(() => files.filter((f) => !f.deletedAt && f.kind === 'sheet').length, [files]);
+  const pdfCount = useMemo(() => files.filter((f) => !f.deletedAt && f.kind === 'pdf').length, [files]);
   const starCount = useMemo(() => files.filter((f) => !f.deletedAt && f.starred).length, [files]);
   const trashCount = useMemo(() => files.filter((f) => f.deletedAt).length, [files]);
 
   const handleOpenFile = (file: FileMeta) => {
     if (file.kind === 'doc') onOpenDoc(file);
-    else onOpenSheet(file);
+    else if (file.kind === 'sheet') onOpenSheet(file);
+    else onOpenPdf(file);
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -114,16 +128,161 @@ export default function Home({
   };
 
   return (
-    <div className="app-shell">
+    <div
+      className={`app-shell ${isDragging ? 'is-dragging' : ''}`}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(true);
+      }}
+      onDragEnter={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(true);
+      }}
+      onDragLeave={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+          setIsDragging(false);
+        }
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+        const file = e.dataTransfer.files?.[0];
+        if (file) {
+          onImportFile(file);
+        }
+      }}
+    >
+      {isDragging && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 9999,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            pointerEvents: 'none',
+          }}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: 16,
+              padding: '36px 48px',
+              textAlign: 'center',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
+              border: '2px dashed #2563eb',
+              maxWidth: 440,
+            }}
+          >
+            <Upload size={54} color="#2563eb" style={{ margin: '0 auto 16px', display: 'block' }} />
+            <h2 style={{ fontSize: 20, fontWeight: 700, color: '#0f172a', marginBottom: 8 }}>
+              Thả tệp vào đây để mở ngay
+            </h2>
+            <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.5 }}>
+              Hỗ trợ tệp Minh Docs (<strong>.docx</strong>), Minh Sheets (<strong>.xlsx</strong>, <strong>.xls</strong>), Minh PDF (<strong>.pdf</strong>) và bảng tính <strong>.csv</strong>
+            </p>
+          </div>
+        </div>
+      )}
       {/* Sidebar Navigation */}
       <aside className="sidebar">
-        <div className="brand">
-          <div className="brand-mark">M</div>
-          <div className="brand-text">
-            <div className="brand-name">
-              Minh Spark <span>Office</span>
+        <div
+          className="brand"
+          style={{
+            cursor: 'pointer',
+            padding: '4px 8px',
+            marginBottom: 24,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            userSelect: 'none',
+          }}
+          onClick={() => setCategory('all')}
+          title="Minh Spark Office — Về trang chủ"
+        >
+          {/* Official 3D Isometric Brand Mark */}
+          <div
+            style={{
+              width: 48,
+              height: 48,
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              filter: 'drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35))',
+            }}
+          >
+            <img
+              src="/logo-icon.png"
+              alt="Minh Spark Office"
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'contain',
+                display: 'block',
+              }}
+            />
+          </div>
+
+          {/* Vertical Hairline Divider */}
+          <div
+            style={{
+              width: 1.5,
+              height: 34,
+              background: 'rgba(255, 255, 255, 0.16)',
+              borderRadius: 1,
+              flexShrink: 0,
+            }}
+          />
+
+          {/* Typography */}
+          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+            <div
+              style={{
+                fontSize: 17,
+                fontWeight: 800,
+                color: '#ffffff',
+                letterSpacing: '-0.3px',
+                lineHeight: 1.2,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Minh Spark
             </div>
-            <div className="brand-caption">Bộ ứng dụng văn phòng</div>
+            <div
+              style={{
+                fontSize: 14,
+                fontWeight: 600,
+                color: '#94a3b8',
+                letterSpacing: '0.2px',
+                lineHeight: 1.2,
+                marginTop: 1,
+              }}
+            >
+              Office
+            </div>
+            <div
+              style={{
+                fontSize: 9,
+                fontWeight: 600,
+                color: '#64748b',
+                letterSpacing: '1px',
+                textTransform: 'uppercase',
+                marginTop: 3,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Minh Docs · Sheets · PDF
+            </div>
           </div>
         </div>
 
@@ -150,7 +309,7 @@ export default function Home({
               }}
             >
               <div className="nav-dot docs" />
-              <span>Văn bản Word (.docx)</span>
+              <span>Minh Docs (.docx)</span>
             </button>
             <button
               className="nav-item"
@@ -161,7 +320,18 @@ export default function Home({
               }}
             >
               <div className="nav-dot sheets" />
-              <span>Bảng tính Excel (.xlsx)</span>
+              <span>Minh Sheets (.xlsx)</span>
+            </button>
+            <button
+              className="nav-item"
+              style={{ color: '#ffffff' }}
+              onClick={() => {
+                setShowCreateMenu(false);
+                onCreatePdf();
+              }}
+            >
+              <div className="nav-dot" style={{ background: '#ef4444' }} />
+              <span>Minh PDF (.pdf)</span>
             </button>
           </div>
         )}
@@ -174,7 +344,7 @@ export default function Home({
         >
           <FileText size={16} />
           <span>Tất cả tệp</span>
-          <span className="nav-count">{docCount + sheetCount}</span>
+          <span className="nav-count">{docCount + sheetCount + pdfCount}</span>
         </button>
 
         <button
@@ -182,7 +352,7 @@ export default function Home({
           onClick={() => setCategory('docs')}
         >
           <div className="nav-dot docs" />
-          <span>Văn bản Word</span>
+          <span>Minh Docs</span>
           <span className="nav-count">{docCount}</span>
         </button>
 
@@ -191,8 +361,17 @@ export default function Home({
           onClick={() => setCategory('sheets')}
         >
           <div className="nav-dot sheets" />
-          <span>Bảng tính Excel</span>
+          <span>Minh Sheets</span>
           <span className="nav-count">{sheetCount}</span>
+        </button>
+
+        <button
+          className={`nav-item ${category === 'pdfs' ? 'active' : ''}`}
+          onClick={() => setCategory('pdfs')}
+        >
+          <div className="nav-dot" style={{ background: '#ef4444' }} />
+          <span>Minh PDF</span>
+          <span className="nav-count">{pdfCount}</span>
         </button>
 
         <button
@@ -281,8 +460,8 @@ export default function Home({
           <div className="topbar-right">
             <label className="btn btn-primary" style={{ cursor: 'pointer' }}>
               <Upload size={15} />
-              <span>Mở tệp từ máy (.docx, .xlsx, .csv)…</span>
-              <input type="file" accept=".docx,.xlsx,.xls,.csv" hidden onChange={handleFileUpload} />
+              <span>Mở tệp từ máy (.docx, .xlsx, .pdf, .csv)…</span>
+              <input type="file" accept=".docx,.xlsx,.xls,.csv,.pdf" hidden onChange={handleFileUpload} />
             </label>
           </div>
         </header>
@@ -305,7 +484,7 @@ export default function Home({
                     <Plus size={20} />
                   </div>
                   <div className="template-title">Văn bản trống</div>
-                  <div className="template-desc">Tạo tài liệu Word mới với định dạng chuẩn</div>
+                  <div className="template-desc">Tạo tài liệu Minh Docs mới với định dạng chuẩn</div>
                 </button>
 
                 <button className="template-card" onClick={() => onCreateDoc(sampleDocHtml())}>
@@ -316,12 +495,28 @@ export default function Home({
                   <div className="template-desc">Mẫu báo cáo kinh doanh kèm bảng biểu & chỉ số</div>
                 </button>
 
+                <button className="template-card" onClick={() => onCreateDoc(contractDocHtml())}>
+                  <div className="template-badge doc">
+                    <FileText size={20} />
+                  </div>
+                  <div className="template-title">Hợp đồng kinh tế</div>
+                  <div className="template-desc">Hợp đồng dịch vụ công nghệ chuẩn pháp lý Việt Nam</div>
+                </button>
+
+                <button className="template-card" onClick={() => onCreateDoc(meetingMinutesDocHtml())}>
+                  <div className="template-badge doc">
+                    <FileText size={20} />
+                  </div>
+                  <div className="template-title">Biên bản cuộc họp</div>
+                  <div className="template-desc">Ghi chép giao ban tuần, kết luận và phân công task</div>
+                </button>
+
                 <button className="template-card" onClick={() => onCreateSheet()}>
                   <div className="template-badge sheet">
                     <Plus size={20} />
                   </div>
                   <div className="template-title">Bảng tính trống</div>
-                  <div className="template-desc">Tạo bảng tính Excel mới với lưới dữ liệu mở rộng</div>
+                  <div className="template-desc">Tạo bảng tính Minh Sheets mới với lưới dữ liệu mở rộng</div>
                 </button>
 
                 <button className="template-card" onClick={() => onCreateSheet(sampleWorkbook('Báo cáo ngân sách'))}>
@@ -330,6 +525,22 @@ export default function Home({
                   </div>
                   <div className="template-title">Ngân sách quý IV</div>
                   <div className="template-desc">Bảng tính có sẵn công thức SUM, AVERAGE và phân bổ chi phí</div>
+                </button>
+
+                <button className="template-card" onClick={() => onCreateSheet(payrollWorkbook())}>
+                  <div className="template-badge sheet">
+                    <FileSpreadsheet size={20} />
+                  </div>
+                  <div className="template-title">Bảng lương & Chấm công</div>
+                  <div className="template-desc">Tính toán ngày công, lương thực lĩnh & tự động làm tròn</div>
+                </button>
+
+                <button className="template-card" onClick={() => onCreatePdf()}>
+                  <div className="template-badge" style={{ background: '#fee2e2', color: '#dc2626' }}>
+                    <FileText size={20} />
+                  </div>
+                  <div className="template-title">Minh PDF Tools</div>
+                  <div className="template-desc">Bộ công cụ ký số, tách, ghép, nén & chuyển đổi PDF chuyên nghiệp</div>
                 </button>
               </div>
             </>
@@ -342,10 +553,13 @@ export default function Home({
                 Gần đây
               </button>
               <button className={`filter-tab ${category === 'docs' ? 'active' : ''}`} onClick={() => setCategory('docs')}>
-                Word Docs ({docCount})
+                Minh Docs ({docCount})
               </button>
               <button className={`filter-tab ${category === 'sheets' ? 'active' : ''}`} onClick={() => setCategory('sheets')}>
-                Excel Sheets ({sheetCount})
+                Minh Sheets ({sheetCount})
+              </button>
+              <button className={`filter-tab ${category === 'pdfs' ? 'active' : ''}`} onClick={() => setCategory('pdfs')}>
+                Minh PDF ({pdfCount})
               </button>
               <button className={`filter-tab ${category === 'starred' ? 'active' : ''}`} onClick={() => setCategory('starred')}>
                 Gắn sao ({starCount})
@@ -433,7 +647,7 @@ export default function Home({
                       </td>
                       <td>
                         <span className={`file-tag ${file.kind}`}>
-                          {file.kind === 'doc' ? 'Văn bản Word' : 'Bảng tính Excel'}
+                          {file.kind === 'doc' ? 'Minh Docs' : file.kind === 'sheet' ? 'Minh Sheets' : 'Minh PDF'}
                         </span>
                       </td>
                       <td style={{ color: 'var(--muted)', fontSize: 12 }}>
@@ -501,7 +715,7 @@ export default function Home({
 
                   <div className="template-title" style={{ marginTop: 8 }}>{file.name}</div>
                   <div className="template-desc" style={{ minHeight: 32 }}>
-                    {file.preview || (file.kind === 'doc' ? 'Tài liệu Word' : 'Bảng tính Excel')}
+                    {file.preview || (file.kind === 'doc' ? 'Tài liệu Minh Docs' : file.kind === 'sheet' ? 'Bảng tính Minh Sheets' : 'Tài liệu Minh PDF')}
                   </div>
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--line)', paddingTop: 10, marginTop: 'auto', fontSize: 11, color: 'var(--muted)' }}>

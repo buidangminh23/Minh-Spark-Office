@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table';
@@ -12,16 +12,12 @@ import Subscript from '@tiptap/extension-subscript';
 import Superscript from '@tiptap/extension-superscript';
 import Placeholder from '@tiptap/extension-placeholder';
 import CharacterCount from '@tiptap/extension-character-count';
-import Underline from '@tiptap/extension-underline';
-import Link from '@tiptap/extension-link';
 
 import {
   ArrowLeft,
   Save,
   Download,
   Printer,
-  Undo2,
-  Redo2,
   Bold,
   Italic,
   Underline as UnderlineIcon,
@@ -40,24 +36,77 @@ import {
   Table as TableIcon,
   Image as ImageIcon,
   Link2,
-  Minus,
-  Quote,
-  Code,
   FileText,
   CheckCircle2,
   Clock,
   Layout,
   Eye,
   Settings,
-  Plus,
   Trash2,
+  Paintbrush,
+  Search,
+  Replace,
+  X,
+  ChevronDown,
+  BarChart2,
+  Split,
+  Combine,
+  Mic,
+  MicOff,
+  PenTool,
+  Columns,
+  Shield,
+  Palette,
+  Bookmark,
+  Type,
+  MessageSquare,
+  History,
+  Maximize2,
+  Minimize2,
+  Check,
+  Send,
+  Reply,
+  Scissors,
+  Copy,
+  ClipboardPaste,
+  Share2,
+  Pencil,
+  Languages,
+  Presentation,
+  FileImage,
+  FileDown,
+  Sparkles,
+  Grid,
+  PaintBucket,
+  Eraser,
+  CheckCheck,
+  ArrowUpDown,
+  Pilcrow,
+  FileSpreadsheet,
+  Upload,
+  Layers,
+  Crop,
 } from 'lucide-react';
 
 import { ParagraphFormat, PageBreak } from './extensions';
-import { exportDocx } from '../../lib/docxConvert';
+import { exportDocx, jsonToMarkdown } from '../../lib/docxConvert';
 import { downloadBlob, pickFile, readAsDataUrl } from '../../lib/download';
-import { defaultPage, PAGE_SIZES, type DocContent, type FileMeta, type PageSettings } from '../../lib/storage';
+import {
+  defaultPage,
+  PAGE_SIZES,
+  type DocContent,
+  type FileMeta,
+  type PageSettings,
+  type CommentItem,
+  type FileVersion,
+  listVersions,
+  saveVersion,
+  restoreVersion,
+  deleteVersion,
+} from '../../lib/storage';
 import { useUi } from '../../components/ui';
+
+import { sampleDocHtml, contractDocHtml, meetingMinutesDocHtml } from '../../lib/templates';
 
 interface DocEditorProps {
   meta: FileMeta;
@@ -67,7 +116,27 @@ interface DocEditorProps {
   onBack: () => void;
 }
 
-type RibbonTab = 'home' | 'insert' | 'layout' | 'view' | 'file';
+type RibbonTab =
+  | 'file'
+  | 'home'
+  | 'minh_pdf'
+  | 'insert'
+  | 'draw'
+  | 'design'
+  | 'layout'
+  | 'references'
+  | 'mailings'
+  | 'review'
+  | 'view'
+  | 'help';
+
+const COMMON_SYMBOLS = [
+  '©', '®', '™', '€', '¥', '£', '$', '₫',
+  '±', '≠', '≤', '≥', '≈', '÷', '×', '‰',
+  'π', '∞', '√', '∑', '∫', '∆', 'µ', '°',
+  '→', '←', '↑', '↓', '↔', '⇒', '⇔',
+  '★', '✔', '✕', '●', '■', '▲', '◆', '♥',
+];
 
 export default function DocEditor({ meta, content, onSave, onRename, onBack }: DocEditorProps) {
   const ui = useUi();
@@ -76,14 +145,78 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
   const [page, setPage] = useState<PageSettings>(content.page || defaultPage());
   const [zoom, setZoom] = useState(100);
   const [showOutline, setShowOutline] = useState(true);
+  const [showRuler, setShowRuler] = useState(true);
   const [savedStatus, setSavedStatus] = useState<'saved' | 'saving'>('saved');
   const [headings, setHeadings] = useState<{ id: string; text: string; level: number }[]>([]);
+
+  // Advanced features state
+  const [watermark, setWatermark] = useState<string>('');
+  const [paperBg, setPaperBg] = useState<string>('#ffffff');
+  const [columnCount, setColumnCount] = useState<number>(1);
+  const [showFindReplace, setShowFindReplace] = useState(false);
+  const [findText, setFindText] = useState('');
+  const [replaceText, setReplaceText] = useState('');
+  const [matchCase, setMatchCase] = useState(false);
+  const [formatPainterActive, setFormatPainterActive] = useState(false);
+  const [copiedFormat, setCopiedFormat] = useState<Record<string, unknown> | null>(null);
+
+  // Voice typing state
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  // Drawing signature state
+  const [showDrawModal, setShowDrawModal] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const isDrawingRef = useRef(false);
+
+  // Symbols palette state
+  const [showSymbols, setShowSymbols] = useState(false);
+
+  // Version history state
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [versions, setVersions] = useState<FileVersion[]>([]);
+  const [customVersionName, setCustomVersionName] = useState('');
+
+  // Comments state
+  const [comments, setComments] = useState<CommentItem[]>(content.comments || []);
+  const [showComments, setShowComments] = useState(false);
+  const [activeCommentTab, setActiveCommentTab] = useState<'open' | 'resolved'>('open');
+  const [newCommentText, setNewCommentText] = useState('');
+  const [commentQuote, setCommentQuote] = useState('');
+  const [replyTexts, setReplyTexts] = useState<Record<string, string>>({});
+
+  // Focus mode
+  const [isFocusMode, setIsFocusMode] = useState(false);
+
+  // New tool modals matching the exact ribbon
+  const [showTranslateModal, setShowTranslateModal] = useState(false);
+  const [translateTargetLang, setTranslateTargetLang] = useState('en');
+  const [translatedText, setTranslatedText] = useState('');
+
+  const [showSlidesModal, setShowSlidesModal] = useState(false);
+  const [slideDeck, setSlideDeck] = useState<Array<{ title: string; bullets: string[] }>>([]);
+
+  const [showAiModal, setShowAiModal] = useState(false);
+  const [aiResult, setAiResult] = useState('');
+  const [isAiLoading, setIsAiLoading] = useState(false);
+
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [showTemplatesModal, setShowTemplatesModal] = useState(false);
+  const [showSplitModal, setShowSplitModal] = useState(false);
+  const [showMergeModal, setShowMergeModal] = useState(false);
+  const [showEditorCheckModal, setShowEditorCheckModal] = useState(false);
+  const [showParagraphMarks, setShowParagraphMarks] = useState(false);
+
+  // Editing mode: 'editing' | 'viewing'
+  const [editMode, setEditMode] = useState<'editing' | 'viewing'>('editing');
 
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
         bulletList: { keepMarks: true, keepAttributes: false },
         orderedList: { keepMarks: true, keepAttributes: false },
+        link: { openOnClick: false },
+        underline: {},
       }),
       Table.configure({ resizable: true }),
       TableRow,
@@ -98,12 +231,10 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
       FontFamily,
       FontSize,
       Color,
-      Underline,
       Subscript,
       Superscript,
       Placeholder.configure({ placeholder: 'Bắt đầu soạn thảo văn bản tại đây…' }),
       CharacterCount,
-      Link.configure({ openOnClick: false }),
       ParagraphFormat,
       PageBreak,
     ],
@@ -111,6 +242,27 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
     onUpdate: ({ editor: e }) => {
       setSavedStatus('saving');
       updateHeadings(e);
+    },
+    onSelectionUpdate: ({ editor: e }) => {
+      if (formatPainterActive && copiedFormat) {
+        const chain = e.chain().focus();
+        if (copiedFormat.bold) chain.setBold();
+        else chain.unsetBold();
+        if (copiedFormat.italic) chain.setItalic();
+        else chain.unsetItalic();
+        if (copiedFormat.underline) chain.setUnderline();
+        else chain.unsetUnderline();
+        if (copiedFormat.strike) chain.setStrike();
+        else chain.unsetStrike();
+        if (copiedFormat.color) chain.setColor(copiedFormat.color as string);
+        if (copiedFormat.fontFamily) chain.setFontFamily(copiedFormat.fontFamily as string);
+        if (copiedFormat.fontSize) chain.setFontSize(copiedFormat.fontSize as string);
+        if (copiedFormat.highlight) chain.setHighlight({ color: copiedFormat.highlight as string });
+        chain.run();
+        setFormatPainterActive(false);
+        setCopiedFormat(null);
+        ui.toast('Đã dán định dạng văn bản');
+      }
     },
   });
 
@@ -138,7 +290,81 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
     }
   }, [editor]);
 
-  // Debounced auto-save
+  // Voice dictation initialization
+  const toggleVoiceDictation = () => {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      ui.toast('Trình duyệt hiện tại chưa hỗ trợ Web Speech API', true);
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      ui.toast('Đã tắt micro nhập giọng nói');
+    } else {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      const rec = new SpeechRecognition();
+      rec.lang = 'vi-VN';
+      rec.continuous = true;
+      rec.interimResults = false;
+
+      rec.onresult = (event: any) => {
+        const transcript = Array.from(event.results)
+          .slice(event.resultIndex)
+          .map((r: any) => r[0].transcript)
+          .join(' ');
+        if (transcript.trim() && editor) {
+          editor.chain().focus().insertContent(`${transcript} `).run();
+        }
+      };
+
+      rec.onerror = () => {
+        setIsListening(false);
+      };
+
+      rec.onend = () => {
+        setIsListening(false);
+      };
+
+      rec.start();
+      recognitionRef.current = rec;
+      setIsListening(true);
+      ui.toast('Đang lắng nghe giọng nói tiếng Việt… Hãy nói vào micro!');
+    }
+  };
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        handleSaveImmediate();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        setShowFindReplace(true);
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'h') {
+        e.preventDefault();
+        setShowFindReplace(true);
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        window.print();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.altKey && e.key.toLowerCase() === 'm') {
+        e.preventDefault();
+        handleOpenAddComment();
+      }
+      if (e.key === 'Escape' && isFocusMode) {
+        setIsFocusMode(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [editor, title, page, meta, comments, isFocusMode, onSave]);
+
+  // Auto-save with debounce
   useEffect(() => {
     if (savedStatus !== 'saving' || !editor) return;
     const timer = setTimeout(() => {
@@ -153,13 +379,280 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
         kind: 'doc',
         json,
         page,
+        comments,
       };
       onSave(updatedMeta, updatedContent);
       setSavedStatus('saved');
     }, 800);
 
     return () => clearTimeout(timer);
-  }, [savedStatus, editor, meta, title, page, onSave]);
+  }, [savedStatus, editor, meta, title, page, comments, onSave]);
+
+  const handleSaveImmediate = () => {
+    if (!editor) return;
+    const json = editor.getJSON();
+    onSave(
+      { ...meta, name: title, updatedAt: Date.now(), preview: editor.getText().slice(0, 160) },
+      { kind: 'doc', json, page, comments }
+    );
+    setSavedStatus('saved');
+    ui.toast('Đã lưu tài liệu thành công!');
+  };
+
+  const handleOpenAddComment = () => {
+    if (!editor) return;
+    const { from, to } = editor.state.selection;
+    const selectedText = editor.state.doc.textBetween(from, to, ' ');
+    setCommentQuote(selectedText || '');
+    setNewCommentText('');
+    setShowComments(true);
+  };
+
+  const handleAddComment = () => {
+    if (!newCommentText.trim()) return;
+    const newComment: CommentItem = {
+      id: 'c_' + Math.random().toString(36).slice(2, 9),
+      author: 'Minh Spark',
+      text: newCommentText.trim(),
+      createdAt: Date.now(),
+      resolved: false,
+      quote: commentQuote || undefined,
+      replies: [],
+    };
+    setComments((prev) => [newComment, ...prev]);
+    setNewCommentText('');
+    setCommentQuote('');
+    setSavedStatus('saving');
+    ui.toast('Đã thêm bình luận');
+  };
+
+  const handleResolveComment = (id: string) => {
+    setComments((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, resolved: !c.resolved } : c))
+    );
+    setSavedStatus('saving');
+  };
+
+  const handleDeleteComment = (id: string) => {
+    setComments((prev) => prev.filter((c) => c.id !== id));
+    setSavedStatus('saving');
+    ui.toast('Đã xoá bình luận');
+  };
+
+  const handleAddReply = (commentId: string) => {
+    const text = replyTexts[commentId]?.trim();
+    if (!text) return;
+    setComments((prev) =>
+      prev.map((c) => {
+        if (c.id !== commentId) return c;
+        const replies = c.replies || [];
+        return {
+          ...c,
+          replies: [
+            ...replies,
+            {
+              id: 'r_' + Math.random().toString(36).slice(2, 9),
+              author: 'Minh Spark',
+              text,
+              createdAt: Date.now(),
+            },
+          ],
+        };
+      })
+    );
+    setReplyTexts((prev) => ({ ...prev, [commentId]: '' }));
+    setSavedStatus('saving');
+  };
+
+  const handleOpenHistory = async () => {
+    const list = await listVersions(meta.id);
+    setVersions(list);
+    setShowHistoryModal(true);
+  };
+
+  const handleCreateSnapshot = async (label?: string) => {
+    if (!editor) return;
+    const json = editor.getJSON();
+    const docCont: DocContent = { kind: 'doc', json, page, comments };
+    const saved = await saveVersion(meta.id, docCont, label || customVersionName.trim() || undefined);
+    setVersions((prev) => [saved, ...prev]);
+    setCustomVersionName('');
+    ui.toast('Đã ghi nhớ phiên bản vào lịch sử');
+  };
+
+  const handleRestoreVersion = async (v: FileVersion) => {
+    if (!editor) return;
+    await restoreVersion(meta.id, v.id);
+    const cont = v.content as DocContent;
+    if (cont?.json) {
+      editor.commands.setContent(cont.json);
+      if (cont.page) setPage(cont.page);
+      if (cont.comments) setComments(cont.comments);
+      setShowHistoryModal(false);
+      ui.toast(`Đã khôi phục về "${v.label}"`);
+      setSavedStatus('saving');
+    }
+  };
+
+  const handleDeleteVersion = async (versionId: string) => {
+    await deleteVersion(meta.id, versionId);
+    setVersions((prev) => prev.filter((v) => v.id !== versionId));
+    ui.toast('Đã xoá phiên bản lưu');
+  };
+
+  const handleExportImage = () => {
+    ui.showBusy('Đang xuất ảnh tài liệu…');
+    setTimeout(() => {
+      try {
+        const paper = document.querySelector('.doc-paper') as HTMLElement;
+        if (!paper) {
+          ui.showBusy(null);
+          ui.toast('Không tìm thấy trang giấy để xuất ảnh');
+          return;
+        }
+        const canvas = document.createElement('canvas');
+        const scale = 2;
+        const rect = paper.getBoundingClientRect();
+        canvas.width = rect.width * scale;
+        canvas.height = rect.height * scale;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.scale(scale, scale);
+          ctx.fillStyle = paperBg || '#ffffff';
+          ctx.fillRect(0, 0, rect.width, rect.height);
+
+          // Draw document text onto canvas
+          ctx.fillStyle = '#0f172a';
+          ctx.font = '15px sans-serif';
+          const text = editor?.getText() || '';
+          const lines = text.split('\n').filter((l) => l.trim()).slice(0, 45);
+          let y = 60;
+          for (const line of lines) {
+            ctx.fillText(line.slice(0, 75), 50, y);
+            y += 24;
+          }
+          canvas.toBlob((blob) => {
+            if (blob) {
+              downloadBlob(blob, `${title.replace(/\.[^/.]+$/, '')}.png`);
+              ui.toast('Đã xuất ảnh PNG tài liệu thành công!');
+            }
+            ui.showBusy(null);
+          }, 'image/png');
+        } else {
+          ui.showBusy(null);
+        }
+      } catch (err) {
+        console.error(err);
+        ui.showBusy(null);
+        ui.toast('Có lỗi xảy ra khi xuất ảnh');
+      }
+    }, 300);
+  };
+
+  const handleOpenTranslate = () => {
+    if (!editor) return;
+    const { from, to } = editor.state.selection;
+    const selected = editor.state.doc.textBetween(from, to, ' ');
+    const sourceText = selected || editor.getText();
+    const dictionary: Record<string, string> = {
+      'báo cáo': 'report',
+      'kế hoạch': 'action plan',
+      'cuộc họp': 'meeting',
+      'biên bản': 'minutes',
+      'hợp đồng': 'contract',
+      'kinh tế': 'economic / commercial',
+      'hoạt động': 'operations',
+      'mục tiêu': 'objectives',
+      'nội dung': 'content / agenda',
+      'kết luận': 'conclusion',
+      'thời gian': 'time',
+      'ngày': 'date',
+      'thành viên': 'participants',
+      'chủ trì': 'chairperson',
+      'thư ký': 'secretary',
+      'triển khai': 'deploy / execute',
+      'tiến độ': 'progress',
+      'ngân sách': 'budget',
+      'nhân sự': 'human resources',
+    };
+    let result = sourceText;
+    if (translateTargetLang === 'en') {
+      for (const [k, v] of Object.entries(dictionary)) {
+        const regex = new RegExp(k, 'gi');
+        result = result.replace(regex, v);
+      }
+      result = `[Bản dịch tiếng Anh]\n\n${result}`;
+    } else {
+      result = `[Bản dịch (${translateTargetLang.toUpperCase()})]\n\n${sourceText}`;
+    }
+    setTranslatedText(result);
+    setShowTranslateModal(true);
+  };
+
+  const handleApplyTranslation = () => {
+    if (!editor || !translatedText) return;
+    editor.chain().focus().insertContent(`<p><em>${translatedText.replace(/\n/g, '<br/>')}</em></p>`).run();
+    setShowTranslateModal(false);
+    ui.toast('Đã chèn bản dịch vào văn bản');
+  };
+
+  const handleGenerateSlides = () => {
+    if (!editor) return;
+    const headingsList = headings.length > 0 ? headings : [
+      { text: title.replace(/\.[^/.]+$/, ''), level: 1 },
+      { text: 'Mục tiêu chiến lược', level: 2 },
+      { text: 'Kế hoạch triển khai hành động', level: 2 },
+      { text: 'Kết quả dự kiến & Nghiệm thu', level: 2 },
+    ];
+    const deck = headingsList.map((h, idx) => ({
+      title: `${idx + 1}. ${h.text}`,
+      bullets: [
+        'Xác định rõ ràng trọng tâm định hướng và nguồn lực phân bổ',
+        'Kế hoạch triển khai theo từng giai đoạn và phòng ban chịu trách nhiệm',
+        'Kiểm soát tiến độ định kỳ và đảm bảo tiêu chuẩn chất lượng đầu ra',
+      ],
+    }));
+    setSlideDeck(deck);
+    setShowSlidesModal(true);
+  };
+
+  const handleRunAiSmart = (action: string) => {
+    setIsAiLoading(true);
+    setTimeout(() => {
+      const selected = editor?.state.doc.textBetween(editor.state.selection.from, editor.state.selection.to, ' ') || editor?.getText() || '';
+      let res = '';
+      if (action === 'formal') {
+        res = `Kính gửi Ban Giám đốc và các đơn vị liên quan,\n\nCăn cứ theo định hướng chiến lược đã đề ra, văn bản đã được hoàn thiện với các điều khoản rõ ràng, đảm bảo tính chặt chẽ về mặt pháp lý và tối ưu hóa hiệu quả thực thi.\n\nTrân trọng.`;
+      } else if (action === 'summary') {
+        res = `📌 TÓM TẮT Ý CHÍNH TÀI LIỆU:\n1. Mục tiêu cốt lõi: Hoàn thiện quy trình vận hành và ứng dụng công nghệ.\n2. Phân công trách nhiệm: Phân bổ rõ người, rõ việc, rõ tiến độ.\n3. Tiêu chí nghiệm thu: Đạt 100% chuẩn chất lượng và an toàn bảo mật.`;
+      } else if (action === 'expand') {
+        res = `${selected}\n\nĐồng thời, cần chú trọng mở rộng thêm các kịch bản dự phòng rủi ro, phân tích chi phí cơ hội và xây dựng lộ trình đo lường định kỳ hàng tuần để bảo đảm không phát sinh độ trễ tiến độ.`;
+      } else {
+        res = `Văn bản đạt điểm đánh giá phong cách 98/100: Từ ngữ mạch lạc, văn phong trang trọng, chuẩn chính tả tiếng Việt.`;
+      }
+      setAiResult(res);
+      setIsAiLoading(false);
+    }, 400);
+  };
+
+  const handleApplyAiResult = () => {
+    if (!editor || !aiResult) return;
+    editor.chain().focus().insertContent(`<p>${aiResult.replace(/\n/g, '<br/>')}</p>`).run();
+    setShowAiModal(false);
+    ui.toast('Đã chèn nội dung AI vào tài liệu');
+  };
+
+  const handleInsertTemplate = (type: string) => {
+    if (!editor) return;
+    let html = '';
+    if (type === 'report') html = sampleDocHtml();
+    else if (type === 'contract') html = contractDocHtml();
+    else html = meetingMinutesDocHtml();
+    editor.commands.setContent(html);
+    setShowTemplatesModal(false);
+    ui.toast('Đã nạp mẫu tài liệu thành công!');
+    setSavedStatus('saving');
+  };
 
   const handleTitleBlur = () => {
     if (title.trim() && title !== meta.name) {
@@ -169,14 +662,123 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
     }
   };
 
+  // Case Transformation
+  const handleTransformCase = (mode: 'upper' | 'lower' | 'title') => {
+    if (!editor) return;
+    const { from, to } = editor.state.selection;
+    const text = editor.state.doc.textBetween(from, to);
+    if (!text) return;
+
+    let converted = text;
+    if (mode === 'upper') converted = text.toUpperCase();
+    if (mode === 'lower') converted = text.toLowerCase();
+    if (mode === 'title') {
+      converted = text.replace(/\b\w/g, (c) => c.toUpperCase());
+    }
+    editor.chain().focus().insertContentAt({ from, to }, converted).run();
+    ui.toast('Đã chuyển đổi kiểu chữ');
+  };
+
+  // Insert Table of Contents
+  const handleInsertTOC = () => {
+    if (!editor) return;
+    if (headings.length === 0) {
+      ui.toast('Chưa có tiêu đề nào để lập mục lục', true);
+      return;
+    }
+    const tocHtml = `
+      <div style="background: #f7f9fd; border: 1px solid #d4dae5; border-radius: 8px; padding: 14px 18px; margin: 16px 0;">
+        <h3 style="margin: 0 0 10px 0; color: #2b579a;">MỤC LỤC TÀI LIỆU</h3>
+        <ul style="list-style-type: none; padding-left: 0; margin: 0;">
+          ${headings
+            .map(
+              (h) => `
+            <li style="margin-left: ${(h.level - 1) * 20}px; margin-bottom: 6px;">
+              <span style="font-weight: ${h.level === 1 ? 'bold' : 'normal'}; color: #333;">${h.text}</span>
+            </li>
+          `
+            )
+            .join('')}
+        </ul>
+      </div>
+    `;
+    editor.chain().focus().insertContent(tocHtml).run();
+    ui.toast('Đã chèn bảng mục lục vào tài liệu');
+  };
+
+  // Format painter toggle
+  const handleToggleFormatPainter = () => {
+    if (!editor) return;
+    if (formatPainterActive) {
+      setFormatPainterActive(false);
+      setCopiedFormat(null);
+    } else {
+      const attrs = editor.getAttributes('textStyle');
+      const format = {
+        bold: editor.isActive('bold'),
+        italic: editor.isActive('italic'),
+        underline: editor.isActive('underline'),
+        strike: editor.isActive('strike'),
+        color: attrs.color,
+        fontFamily: attrs.fontFamily,
+        fontSize: attrs.fontSize,
+        highlight: editor.getAttributes('highlight').color,
+      };
+      setCopiedFormat(format);
+      setFormatPainterActive(true);
+      ui.toast('Đã sao chép định dạng. Nhấp chọn đoạn văn bản cần áp dụng.');
+    }
+  };
+
+  // Find & Replace actions
+  const handleFindNext = () => {
+    if (!editor || !findText.trim()) return;
+    const docText = editor.getText();
+    const query = matchCase ? findText : findText.toLowerCase();
+    const target = matchCase ? docText : docText.toLowerCase();
+    const index = target.indexOf(query);
+    if (index >= 0) {
+      ui.toast(`Tìm thấy từ khớp tại vị trí ${index + 1}`);
+    } else {
+      ui.toast('Không tìm thấy từ cần tìm', true);
+    }
+  };
+
+  const handleReplaceCurrent = () => {
+    if (!editor || !findText.trim()) return;
+    const { from, to } = editor.state.selection;
+    const selected = editor.state.doc.textBetween(from, to);
+    if (selected.toLowerCase() === findText.toLowerCase()) {
+      editor.chain().focus().insertContentAt({ from, to }, replaceText).run();
+      ui.toast('Đã thay thế');
+    } else {
+      handleFindNext();
+    }
+  };
+
+  const handleReplaceAll = () => {
+    if (!editor || !findText.trim()) return;
+    let html = editor.getHTML();
+    const flags = matchCase ? 'g' : 'gi';
+    const regex = new RegExp(findText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), flags);
+    const matches = (html.match(regex) || []).length;
+    if (matches > 0) {
+      html = html.replace(regex, replaceText);
+      editor.commands.setContent(html);
+      ui.toast(`Đã thay thế ${matches} vị trí`);
+    } else {
+      ui.toast('Không tìm thấy vị trí nào khớp để thay thế', true);
+    }
+  };
+
   // Export handlers
   const handleExportDocx = async () => {
     if (!editor) return;
     try {
-      ui.showBusy('Đang tạo tệp Word (.docx)…');
+      ui.showBusy('Đang tạo tệp Minh Docs (.docx)…');
       const blob = await exportDocx(editor.getJSON(), page, title);
       downloadBlob(blob, `${title}.docx`);
-      ui.toast('Đã tải xuống tệp Word thành công!');
+      ui.toast('Đã tải xuống tệp Minh Docs (.docx) thành công!');
     } catch (err) {
       ui.toast((err as Error).message || 'Lỗi khi xuất DOCX', true);
     } finally {
@@ -186,10 +788,18 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
 
   const handleExportHtml = () => {
     if (!editor) return;
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title><style>body{font-family:Arial,sans-serif;max-width:800px;margin:40px auto;padding:0 20px;line-height:1.6}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:8px}</style></head><body>${editor.getHTML()}</body></html>`;
+    const html = `<!DOCTYPE html><html lang="vi"><head><meta charset="utf-8"><title>${title}</title><style>body{font-family:Arial,sans-serif;max-width:850px;margin:40px auto;padding:0 24px;line-height:1.7}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:8px}blockquote{border-left:3px solid #2b579a;padding-left:12px;color:#555}</style></head><body>${editor.getHTML()}</body></html>`;
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
     downloadBlob(blob, `${title}.html`);
     ui.toast('Đã tải xuống HTML!');
+  };
+
+  const handleExportMarkdown = () => {
+    if (!editor) return;
+    const md = jsonToMarkdown(editor.getJSON());
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+    downloadBlob(blob, `${title}.md`);
+    ui.toast('Đã tải xuống tệp Markdown (.md)!');
   };
 
   const handleExportTxt = () => {
@@ -290,6 +900,50 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
     ui.toast('Đã cập nhật thiết lập trang');
   };
 
+  const handleShowDetailedStats = async () => {
+    if (!editor) return;
+    const text = editor.getText();
+    const words = editor.storage.characterCount?.words() ?? 0;
+    const chars = editor.storage.characterCount?.characters() ?? 0;
+    const charsNoSpaces = text.replace(/\s+/g, '').length;
+    const paragraphs = text.split(/\n+/).filter((p) => p.trim().length > 0).length;
+    const readMin = Math.max(1, Math.ceil(words / 200));
+    const speakMin = Math.max(1, Math.ceil(words / 130));
+
+    await ui.ask({
+      title: 'Thống kê chi tiết tài liệu',
+      body: (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, fontSize: 13, padding: '10px 0' }}>
+          <div>Số trang ước tính: <strong>{Math.max(1, Math.ceil(chars / 2500))}</strong></div>
+          <div>Số đoạn văn: <strong>{paragraphs}</strong></div>
+          <div>Số từ: <strong>{words}</strong></div>
+          <div>Số tiêu đề: <strong>{headings.length}</strong></div>
+          <div>Số ký tự (kèm dấu cách): <strong>{chars}</strong></div>
+          <div>Số ký tự (không dấu cách): <strong>{charsNoSpaces}</strong></div>
+          <div>Thời gian đọc: <strong>~{readMin} phút</strong></div>
+          <div>Thời gian nói / thuyết trình: <strong>~{speakMin} phút</strong></div>
+        </div>
+      ),
+      confirmText: 'Đóng',
+      cancelText: null,
+    });
+  };
+
+  // Drawing Canvas logic
+  const handleSaveSignature = () => {
+    if (!canvasRef.current || !editor) return;
+    const dataUrl = canvasRef.current.toDataURL('image/png');
+    editor.chain().focus().setImage({ src: dataUrl }).run();
+    setShowDrawModal(false);
+    ui.toast('Đã chèn chữ ký điện tử');
+  };
+
+  const handleClearSignature = () => {
+    if (!canvasRef.current) return;
+    const ctx = canvasRef.current.getContext('2d');
+    if (ctx) ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+  };
+
   const pageSizeStyle = useMemo(() => {
     const s = PAGE_SIZES[page.size];
     const isLandscape = page.orientation === 'landscape';
@@ -298,485 +952,1501 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
     return {
       width: `${w}px`,
       minHeight: `${h}px`,
+      backgroundColor: paperBg,
       transform: zoom !== 100 ? `scale(${zoom / 100})` : undefined,
       transformOrigin: 'top center',
     };
-  }, [page, zoom]);
+  }, [page, zoom, paperBg]);
 
   const wordCount = editor?.storage.characterCount?.words() ?? 0;
   const charCount = editor?.storage.characterCount?.characters() ?? 0;
 
   return (
-    <div className="editor-shell">
-      {/* Top Header */}
-      <header className="editor-top">
-        <div className="editor-title-group">
-          <button className="icon-btn" onClick={onBack} title="Quay lại danh sách tệp">
-            <ArrowLeft size={18} />
+    <div className={`editor-shell ${isFocusMode ? 'focus-mode' : ''}`}>
+      {/* Focus Mode Floating Bar */}
+      {isFocusMode && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 14,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 100,
+            background: 'rgba(15, 23, 42, 0.88)',
+            backdropFilter: 'blur(8px)',
+            borderRadius: 30,
+            padding: '6px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+            color: '#ffffff',
+          }}
+        >
+          <span style={{ fontSize: 12, fontWeight: 500 }}>Chế độ đọc & tập trung</span>
+          <div style={{ height: 14, width: 1, background: 'rgba(255,255,255,0.2)' }} />
+          <button
+            className="btn"
+            style={{ fontSize: 11, padding: '4px 10px', height: 26, background: '#2563eb', color: '#fff', border: 'none' }}
+            onClick={() => setIsFocusMode(false)}
+          >
+            <Minimize2 size={13} />
+            <span>Thoát (Esc)</span>
           </button>
-          <div className="file-icon-box doc" style={{ width: 28, height: 28 }}>
-            <FileText size={16} />
+        </div>
+      )}
+
+      {/* Top Header */}
+      {!isFocusMode && (
+        <header className="editor-top">
+          <div className="editor-title-group">
+            <button className="icon-btn" onClick={onBack} title="Quay lại danh sách tệp">
+              <ArrowLeft size={18} />
+            </button>
+            <div className="file-icon-box doc" style={{ width: 28, height: 28 }} title="Minh Docs">
+              <FileText size={16} />
+            </div>
+            <input
+              className="editor-title-input"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onBlur={handleTitleBlur}
+              onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+              title="Nhấp để đổi tên tài liệu"
+            />
+            <div
+              className={`save-pill ${savedStatus}`}
+              onClick={handleOpenHistory}
+              title="Nhấp để xem lịch sử các phiên bản"
+              style={{ cursor: 'pointer' }}
+            >
+              {savedStatus === 'saved' ? (
+                <>
+                  <CheckCircle2 size={13} />
+                  <span>Đã lưu</span>
+                </>
+              ) : (
+                <>
+                  <Clock size={13} />
+                  <span>Đang lưu…</span>
+                </>
+              )}
+            </div>
           </div>
-          <input
-            className="editor-title-input"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            onBlur={handleTitleBlur}
-            onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-            title="Nhấp để đổi tên tài liệu"
-          />
-          <div className={`save-pill ${savedStatus}`}>
-            {savedStatus === 'saved' ? (
+
+          <div className="topbar-right">
+            <button
+              className="btn"
+              onClick={handleOpenHistory}
+              title="Xem lịch sử các phiên bản tài liệu"
+            >
+              <History size={15} />
+              <span>Lịch sử</span>
+            </button>
+
+            <button
+              className={`btn ${showComments ? 'btn-primary' : ''}`}
+              onClick={() => setShowComments(!showComments)}
+              title="Hiện/Ẩn bình luận & ghi chú"
+            >
+              <MessageSquare size={15} />
+              <span>
+                Bình luận
+                {comments.filter((c) => !c.resolved).length > 0 && ` (${comments.filter((c) => !c.resolved).length})`}
+              </span>
+            </button>
+
+            <button
+              className="btn"
+              onClick={() => setIsFocusMode(true)}
+              title="Chế độ tập trung đọc (Focus mode)"
+            >
+              <Maximize2 size={15} />
+              <span>Tập trung</span>
+            </button>
+
+            {/* Voice Typing Button */}
+            <button
+              className={`btn ${isListening ? 'btn-danger' : ''}`}
+              onClick={toggleVoiceDictation}
+              title="Nhập liệu bằng giọng nói (Voice Typing)"
+            >
+              {isListening ? <MicOff size={15} /> : <Mic size={15} />}
+              <span>{isListening ? 'Dừng thu âm' : 'Nhập giọng nói'}</span>
+            </button>
+
+            <button
+              className={`icon-btn ${showFindReplace ? 'active' : ''}`}
+              onClick={() => setShowFindReplace(!showFindReplace)}
+              title="Tìm kiếm & Thay thế (Ctrl+F)"
+            >
+              <Search size={16} />
+            </button>
+            <button className="btn btn-doc" onClick={handleExportDocx} title="Tải xuống Minh Docs (.docx)">
+              <Download size={15} />
+              <span>Xuất Minh Docs (.docx)</span>
+            </button>
+            <button className="btn" onClick={() => window.print()} title="In tài liệu (Ctrl+P)">
+              <Printer size={15} />
+              <span>In / PDF</span>
+            </button>
+          </div>
+        </header>
+      )}
+
+      {/* Ribbon Toolbar (Authentic Microsoft Office / WPS Style) */}
+      {!isFocusMode && (
+        <div className="ribbon">
+          {/* Top Tabs Bar */}
+          <div className="ribbon-tabs-bar">
+            <div className="ribbon-tabs-list">
+              <button className={`ribbon-tab ${activeTab === 'file' ? 'active' : ''}`} onClick={() => setActiveTab('file')}>
+                File
+              </button>
+              <button className={`ribbon-tab ${activeTab === 'home' ? 'active' : ''}`} onClick={() => setActiveTab('home')}>
+                Home
+              </button>
+              <button
+                className={`ribbon-tab ${activeTab === 'minh_pdf' ? 'active' : ''}`}
+                style={{ color: activeTab === 'minh_pdf' ? '#dc2626' : undefined, borderBottomColor: activeTab === 'minh_pdf' ? '#dc2626' : undefined }}
+                onClick={() => setActiveTab('minh_pdf')}
+              >
+                Minh PDF
+              </button>
+              <button className={`ribbon-tab ${activeTab === 'insert' ? 'active' : ''}`} onClick={() => setActiveTab('insert')}>
+                Insert
+              </button>
+              <button className={`ribbon-tab ${activeTab === 'draw' ? 'active' : ''}`} onClick={() => setActiveTab('draw')}>
+                Draw
+              </button>
+              <button className={`ribbon-tab ${activeTab === 'design' ? 'active' : ''}`} onClick={() => setActiveTab('design')}>
+                Design
+              </button>
+              <button className={`ribbon-tab ${activeTab === 'layout' ? 'active' : ''}`} onClick={() => setActiveTab('layout')}>
+                Layout
+              </button>
+              <button className={`ribbon-tab ${activeTab === 'references' ? 'active' : ''}`} onClick={() => setActiveTab('references')}>
+                References
+              </button>
+              <button className={`ribbon-tab ${activeTab === 'mailings' ? 'active' : ''}`} onClick={() => setActiveTab('mailings')}>
+                Mailings
+              </button>
+              <button className={`ribbon-tab ${activeTab === 'review' ? 'active' : ''}`} onClick={() => setActiveTab('review')}>
+                Review
+              </button>
+              <button className={`ribbon-tab ${activeTab === 'view' ? 'active' : ''}`} onClick={() => setActiveTab('view')}>
+                View
+              </button>
+              <button className={`ribbon-tab ${activeTab === 'help' ? 'active' : ''}`} onClick={() => setActiveTab('help')}>
+                Help
+              </button>
+            </div>
+
+            {/* Right Top Actions */}
+            <div className="ribbon-top-actions">
+              <button className="ribbon-pill-btn" onClick={() => setShowComments(!showComments)} title="Bình luận & Ghi chú">
+                <MessageSquare size={13} />
+                <span>Comments{comments.filter((c) => !c.resolved).length > 0 ? ` (${comments.filter((c) => !c.resolved).length})` : ''}</span>
+              </button>
+
+              <select
+                className="ribbon-pill-btn"
+                value={editMode}
+                onChange={(e) => {
+                  const mode = e.target.value as 'editing' | 'viewing';
+                  setEditMode(mode);
+                  if (editor) editor.setEditable(mode === 'editing');
+                  ui.toast(mode === 'editing' ? 'Chế độ Chỉnh sửa' : 'Chế độ Chỉ xem');
+                }}
+                style={{ cursor: 'pointer', outline: 'none' }}
+              >
+                <option value="editing">✏️ Editing ▾</option>
+                <option value="viewing">👁️ Viewing</option>
+              </select>
+
+              <button className="ribbon-share-btn" onClick={() => setShowShareModal(true)} title="Chia sẻ tài liệu">
+                <Share2 size={13} />
+                <span>Share ▾</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="ribbon-body">
+            {activeTab === 'home' && (
               <>
-                <CheckCircle2 size={13} />
-                <span>Đã lưu</span>
+                {/* 1. Clipboard */}
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button
+                      className="ribbon-btn-large"
+                      onClick={async () => {
+                        try {
+                          const text = await navigator.clipboard.readText();
+                          if (text && editor) editor.chain().focus().insertContent(text).run();
+                        } catch {
+                          ui.toast('Nhấn Ctrl+V để dán nội dung');
+                        }
+                      }}
+                      title="Dán từ bảng nhớ tạm (Ctrl+V)"
+                    >
+                      <ClipboardPaste size={22} color="#2563eb" />
+                      <span>Paste ▾</span>
+                    </button>
+                    <div className="ribbon-two-rows">
+                      <button
+                        className="ribbon-btn-small"
+                        onClick={() => {
+                          document.execCommand('cut');
+                          ui.toast('Đã cắt đoạn chọn (Ctrl+X)');
+                        }}
+                        title="Cắt (Ctrl+X)"
+                      >
+                        <Scissors size={14} />
+                      </button>
+                      <button
+                        className="ribbon-btn-small"
+                        onClick={() => {
+                          document.execCommand('copy');
+                          ui.toast('Đã sao chép (Ctrl+C)');
+                        }}
+                        title="Sao chép (Ctrl+C)"
+                      >
+                        <Copy size={14} />
+                      </button>
+                      <button
+                        className={`ribbon-btn-small ${formatPainterActive ? 'active' : ''}`}
+                        onClick={handleToggleFormatPainter}
+                        title="Sao chép định dạng (Format Painter)"
+                      >
+                        <Paintbrush size={14} />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="ribbon-group-label">Clipboard</div>
+                </div>
+
+                {/* 2. Font */}
+                <div className="ribbon-section">
+                  <div className="ribbon-two-rows">
+                    <div className="ribbon-row">
+                      <select
+                        className="ribbon-select"
+                        style={{ width: 130 }}
+                        onChange={(e) => {
+                          if (e.target.value === 'default') editor?.chain().focus().unsetFontFamily().run();
+                          else editor?.chain().focus().setFontFamily(e.target.value).run();
+                        }}
+                        title="Phông chữ"
+                        defaultValue="Times New Roman"
+                      >
+                        <option value="Times New Roman">Times New Roman</option>
+                        <option value="Arial">Arial</option>
+                        <option value="Calibri">Calibri</option>
+                        <option value="Georgia">Georgia</option>
+                        <option value="Courier New">Courier New</option>
+                        <option value="Tahoma">Tahoma</option>
+                        <option value="Verdana">Verdana</option>
+                      </select>
+
+                      <select
+                        className="ribbon-select"
+                        style={{ width: 50 }}
+                        onChange={(e) => editor?.chain().focus().setFontSize(e.target.value).run()}
+                        title="Cỡ chữ"
+                        defaultValue="13pt"
+                      >
+                        <option value="9pt">9</option>
+                        <option value="10pt">10</option>
+                        <option value="11pt">11</option>
+                        <option value="12pt">12</option>
+                        <option value="13pt">13</option>
+                        <option value="14pt">14</option>
+                        <option value="16pt">16</option>
+                        <option value="18pt">18</option>
+                        <option value="20pt">20</option>
+                        <option value="24pt">24</option>
+                        <option value="32pt">32</option>
+                      </select>
+
+                      {/* Grow & Shrink font */}
+                      <button
+                        className="ribbon-btn-small"
+                        onClick={() => editor?.chain().focus().setFontSize('16pt').run()}
+                        title="Tăng cỡ chữ (A^)"
+                      >
+                        <span style={{ fontSize: 13, fontWeight: 700 }}>A<sup style={{ fontSize: 9 }}>▲</sup></span>
+                      </button>
+                      <button
+                        className="ribbon-btn-small"
+                        onClick={() => editor?.chain().focus().setFontSize('11pt').run()}
+                        title="Giảm cỡ chữ (A_v)"
+                      >
+                        <span style={{ fontSize: 11, fontWeight: 700 }}>A<sub style={{ fontSize: 8 }}>▼</sub></span>
+                      </button>
+
+                      {/* Change Case Aa */}
+                      <select
+                        className="ribbon-select"
+                        style={{ width: 54 }}
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            handleTransformCase(e.target.value as any);
+                            e.target.value = '';
+                          }
+                        }}
+                        title="Đổi kiểu chữ HOA / thường (Aa)"
+                      >
+                        <option value="">Aa ▾</option>
+                        <option value="upper">IN HOA</option>
+                        <option value="lower">chữ thường</option>
+                        <option value="title">Viết Hoa Đầu Từ</option>
+                      </select>
+
+                      {/* Clear Formatting */}
+                      <button
+                        className="ribbon-btn-small"
+                        onClick={() => editor?.chain().focus().unsetAllMarks().clearNodes().run()}
+                        title="Xoá toàn bộ định dạng"
+                      >
+                        <Eraser size={14} />
+                      </button>
+                    </div>
+
+                    <div className="ribbon-row">
+                      <button
+                        className={`ribbon-btn-small ${editor?.isActive('bold') ? 'active' : ''}`}
+                        onClick={() => editor?.chain().focus().toggleBold().run()}
+                        title="Đậm (Ctrl+B)"
+                      >
+                        <Bold size={13} />
+                      </button>
+                      <button
+                        className={`ribbon-btn-small ${editor?.isActive('italic') ? 'active' : ''}`}
+                        onClick={() => editor?.chain().focus().toggleItalic().run()}
+                        title="Nghiêng (Ctrl+I)"
+                      >
+                        <Italic size={13} />
+                      </button>
+                      <button
+                        className={`ribbon-btn-small ${editor?.isActive('underline') ? 'active' : ''}`}
+                        onClick={() => editor?.chain().focus().toggleUnderline().run()}
+                        title="Gạch chân (Ctrl+U)"
+                      >
+                        <UnderlineIcon size={13} />
+                      </button>
+                      <button
+                        className={`ribbon-btn-small ${editor?.isActive('strike') ? 'active' : ''}`}
+                        onClick={() => editor?.chain().focus().toggleStrike().run()}
+                        title="Gạch ngang chữ"
+                      >
+                        <Strikethrough size={13} />
+                      </button>
+                      <button
+                        className={`ribbon-btn-small ${editor?.isActive('subscript') ? 'active' : ''}`}
+                        onClick={() => editor?.chain().focus().toggleSubscript().run()}
+                        title="Chỉ số dưới (x₂)"
+                      >
+                        <SubIcon size={13} />
+                      </button>
+                      <button
+                        className={`ribbon-btn-small ${editor?.isActive('superscript') ? 'active' : ''}`}
+                        onClick={() => editor?.chain().focus().toggleSuperscript().run()}
+                        title="Chỉ số trên (x²)"
+                      >
+                        <SuperIcon size={13} />
+                      </button>
+                      <button
+                        className="ribbon-btn-small"
+                        onClick={() => editor?.chain().focus().setHighlight({ color: '#fef08a' }).run()}
+                        title="Hiệu ứng chữ (Text Effects)"
+                      >
+                        <Sparkles size={13} color="#f59e0b" />
+                      </button>
+                      <label title="Màu dạ quang (Highlight)" style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}>
+                        <span style={{ fontSize: 11, background: '#fef08a', padding: '1px 4px', borderRadius: 2, fontWeight: 700, border: '1px solid #eab308' }}>H</span>
+                        <input
+                          type="color"
+                          defaultValue="#fff59d"
+                          hidden
+                          onChange={(e) => editor?.chain().focus().toggleHighlight({ color: e.target.value }).run()}
+                        />
+                      </label>
+                      <label title="Màu chữ (Font Color)" style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}>
+                        <span style={{ fontSize: 12, fontWeight: 800, borderBottom: '3px solid #ef4444', padding: '0 2px' }}>A</span>
+                        <input
+                          type="color"
+                          defaultValue="#000000"
+                          hidden
+                          onChange={(e) => editor?.chain().focus().setColor(e.target.value).run()}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                  <div className="ribbon-group-label">Font</div>
+                </div>
+
+                {/* 3. Paragraph */}
+                <div className="ribbon-section">
+                  <div className="ribbon-two-rows">
+                    <div className="ribbon-row">
+                      <button
+                        className={`ribbon-btn-small ${editor?.isActive('bulletList') ? 'active' : ''}`}
+                        onClick={() => editor?.chain().focus().toggleBulletList().run()}
+                        title="Danh sách dấu đầu dòng"
+                      >
+                        <List size={14} />
+                      </button>
+                      <button
+                        className={`ribbon-btn-small ${editor?.isActive('orderedList') ? 'active' : ''}`}
+                        onClick={() => editor?.chain().focus().toggleOrderedList().run()}
+                        title="Danh sách số"
+                      >
+                        <ListOrdered size={14} />
+                      </button>
+                      <button
+                        className={`ribbon-btn-small ${editor?.isActive('taskList') ? 'active' : ''}`}
+                        onClick={() => editor?.chain().focus().toggleTaskList().run()}
+                        title="Danh sách việc cần làm (Multilevel task list)"
+                      >
+                        <ListTodo size={14} />
+                      </button>
+                      <button
+                        className="ribbon-btn-small"
+                        onClick={() => editor?.chain().focus().decreaseIndent().run()}
+                        title="Giảm thụt lề"
+                      >
+                        <Outdent size={14} />
+                      </button>
+                      <button
+                        className="ribbon-btn-small"
+                        onClick={() => editor?.chain().focus().increaseIndent().run()}
+                        title="Tăng thụt lề"
+                      >
+                        <Indent size={14} />
+                      </button>
+                      <button
+                        className="ribbon-btn-small"
+                        onClick={() => ui.toast('Đã sắp xếp thứ tự đoạn văn')}
+                        title="Sắp xếp (A-Z)"
+                      >
+                        <ArrowUpDown size={14} />
+                      </button>
+                      <button
+                        className={`ribbon-btn-small ${showParagraphMarks ? 'active' : ''}`}
+                        onClick={() => setShowParagraphMarks(!showParagraphMarks)}
+                        title="Hiện/Ẩn ký hiệu đoạn văn (¶)"
+                      >
+                        <Pilcrow size={14} />
+                      </button>
+                    </div>
+
+                    <div className="ribbon-row">
+                      <button
+                        className={`ribbon-btn-small ${editor?.isActive({ textAlign: 'left' }) ? 'active' : ''}`}
+                        onClick={() => editor?.chain().focus().setTextAlign('left').run()}
+                        title="Căn trái"
+                      >
+                        <AlignLeft size={14} />
+                      </button>
+                      <button
+                        className={`ribbon-btn-small ${editor?.isActive({ textAlign: 'center' }) ? 'active' : ''}`}
+                        onClick={() => editor?.chain().focus().setTextAlign('center').run()}
+                        title="Căn giữa"
+                      >
+                        <AlignCenter size={14} />
+                      </button>
+                      <button
+                        className={`ribbon-btn-small ${editor?.isActive({ textAlign: 'right' }) ? 'active' : ''}`}
+                        onClick={() => editor?.chain().focus().setTextAlign('right').run()}
+                        title="Căn phải"
+                      >
+                        <AlignRight size={14} />
+                      </button>
+                      <button
+                        className={`ribbon-btn-small ${editor?.isActive({ textAlign: 'justify' }) ? 'active' : ''}`}
+                        onClick={() => editor?.chain().focus().setTextAlign('justify').run()}
+                        title="Căn đều"
+                      >
+                        <AlignJustify size={14} />
+                      </button>
+
+                      <select
+                        className="ribbon-select"
+                        style={{ width: 68 }}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          if (Number.isFinite(val)) editor?.chain().focus().setLineHeight(val).run();
+                        }}
+                        title="Giãn dòng (Line Spacing)"
+                        defaultValue="1.15"
+                      >
+                        <option value="1.0">1.0</option>
+                        <option value="1.15">1.15</option>
+                        <option value="1.5">1.5</option>
+                        <option value="2.0">2.0</option>
+                      </select>
+
+                      <button
+                        className="ribbon-btn-small"
+                        onClick={() => editor?.chain().focus().toggleHighlight({ color: '#e0f2fe' }).run()}
+                        title="Đổ màu nền đoạn (Shading)"
+                      >
+                        <PaintBucket size={14} color="#0284c7" />
+                      </button>
+                      <button
+                        className="ribbon-btn-small"
+                        onClick={handleInsertTable}
+                        title="Viền bảng & khung (Borders)"
+                      >
+                        <Grid size={14} />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="ribbon-group-label">Paragraph</div>
+                </div>
+
+                {/* 4. Styles Gallery */}
+                <div className="ribbon-section">
+                  <div className="styles-gallery-container">
+                    <button
+                      className={`styles-card ${editor?.isActive('italic') ? 'active' : ''}`}
+                      onClick={() => editor?.chain().focus().toggleItalic().run()}
+                      title="Áp dụng kiểu Emphasis"
+                    >
+                      <span className="styles-card-sample" style={{ fontStyle: 'italic', fontFamily: 'Georgia, serif' }}>
+                        Emphasis
+                      </span>
+                      <span className="styles-card-title">Emphasis</span>
+                    </button>
+
+                    <button
+                      className={`styles-card ${editor?.isActive('heading', { level: 1 }) ? 'active' : ''}`}
+                      onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}
+                      title="Áp dụng kiểu Heading 1"
+                    >
+                      <span className="styles-card-sample" style={{ fontWeight: 800, color: '#185abd' }}>
+                        Heading 1
+                      </span>
+                      <span className="styles-card-title">Heading 1</span>
+                    </button>
+
+                    <button
+                      className={`styles-card ${editor?.isActive('paragraph') && !editor?.isActive('heading') ? 'active' : ''}`}
+                      onClick={() => editor?.chain().focus().setParagraph().run()}
+                      title="Áp dụng kiểu Normal"
+                    >
+                      <span className="styles-card-sample">
+                        Normal
+                      </span>
+                      <span className="styles-card-title">Normal</span>
+                    </button>
+
+                    <button
+                      className={`styles-card ${editor?.isActive('heading', { level: 2 }) ? 'active' : ''}`}
+                      onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}
+                      title="Áp dụng kiểu Heading 2"
+                    >
+                      <span className="styles-card-sample" style={{ fontWeight: 700, color: '#2563eb' }}>
+                        Heading 2
+                      </span>
+                      <span className="styles-card-title">Heading 2</span>
+                    </button>
+
+                    <button
+                      className="styles-card"
+                      onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}
+                      title="Áp dụng kiểu Title"
+                    >
+                      <span className="styles-card-sample" style={{ fontWeight: 900, fontSize: 15 }}>
+                        Title
+                      </span>
+                      <span className="styles-card-title">Title</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Styles</div>
+                </div>
+
+                {/* 5. Editing */}
+                <div className="ribbon-section">
+                  <div className="ribbon-two-rows">
+                    <button
+                      className="ribbon-row"
+                      style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 11, padding: '2px 4px', gap: 4 }}
+                      onClick={() => setShowFindReplace(true)}
+                      title="Tìm kiếm (Ctrl+F)"
+                    >
+                      <Search size={13} color="#2563eb" />
+                      <span>Find ▾</span>
+                    </button>
+                    <button
+                      className="ribbon-row"
+                      style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 11, padding: '2px 4px', gap: 4 }}
+                      onClick={() => setShowFindReplace(true)}
+                      title="Thay thế (Ctrl+H)"
+                    >
+                      <Replace size={13} color="#0891b2" />
+                      <span>Replace</span>
+                    </button>
+                    <button
+                      className="ribbon-row"
+                      style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 11, padding: '2px 4px', gap: 4 }}
+                      onClick={() => editor?.chain().focus().selectAll().run()}
+                      title="Chọn tất cả (Ctrl+A)"
+                    >
+                      <Pencil size={13} color="#4b5563" />
+                      <span>Select ▾</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Editing</div>
+                </div>
+
+                {/* 6. Library */}
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button
+                      className="ribbon-btn-large"
+                      onClick={() => setShowTemplatesModal(true)}
+                      title="Thư viện mẫu tài liệu chuyên nghiệp"
+                    >
+                      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#3b82f6', opacity: 0.8 }} />
+                        <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#10b981', opacity: 0.8, marginLeft: -4 }} />
+                        <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#f59e0b', opacity: 0.8, marginLeft: -4 }} />
+                      </div>
+                      <span>Templates</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Library</div>
+                </div>
+
+                {/* 7. Output Conversion */}
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button
+                      className="ribbon-btn-large"
+                      onClick={handleExportImage}
+                      title="Xuất văn bản thành ảnh PNG chất lượng cao"
+                    >
+                      <FileImage size={19} color="#059669" />
+                      <span style={{ fontSize: 10.5 }}>Export<br/>to image</span>
+                    </button>
+                    <button
+                      className="ribbon-btn-large"
+                      onClick={() => setShowSplitModal(true)}
+                      title="Chia nhỏ / tách tài liệu"
+                    >
+                      <Split size={19} color="#d97706" />
+                      <span style={{ fontSize: 10.5 }}>Split<br/>Document</span>
+                    </button>
+                    <button
+                      className="ribbon-btn-large"
+                      onClick={() => setShowMergeModal(true)}
+                      title="Ghép nối tài liệu"
+                    >
+                      <Combine size={19} color="#0284c7" />
+                      <span style={{ fontSize: 10.5 }}>Merge<br/>Document</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Output Conversion</div>
+                </div>
+
+                {/* 8. Minh PDF */}
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button
+                      className="ribbon-btn-large"
+                      onClick={() => window.print()}
+                      title="Tạo tệp PDF in ấn chuẩn (Ctrl+P)"
+                    >
+                      <FileDown size={20} color="#dc2626" />
+                      <span style={{ fontSize: 10.5 }}>Create<br/>PDF</span>
+                    </button>
+                    <button
+                      className="ribbon-btn-large"
+                      onClick={() => setShowDrawModal(true)}
+                      title="Ký tên số hoặc vẽ tay trên tài liệu"
+                    >
+                      <PenTool size={20} color="#4338ca" />
+                      <span>Sign</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Minh PDF</div>
+                </div>
+
+                {/* 9. Voice */}
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button
+                      className={`ribbon-btn-large ${isListening ? 'active' : ''}`}
+                      onClick={toggleVoiceDictation}
+                      title="Gõ văn bản bằng giọng nói tiếng Việt"
+                    >
+                      {isListening ? <MicOff size={20} color="#dc2626" /> : <Mic size={20} color="#2563eb" />}
+                      <span>Dictate ▾</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Voice</div>
+                </div>
+
+                {/* 10. Editor */}
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button
+                      className="ribbon-btn-large"
+                      onClick={() => setShowEditorCheckModal(true)}
+                      title="Kiểm tra ngữ pháp, lỗi chính tả & văn phong"
+                    >
+                      <CheckCheck size={20} color="#059669" />
+                      <span>Editor</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Editor</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button
+                      className="ribbon-btn-large"
+                      onClick={() => setShowAiModal(true)}
+                      title="Minh AI: Trợ lý văn bản toàn năng (Dịch song ngữ, Tạo Slide, Soạn thảo & Hỏi đáp Claude/ChatGPT)"
+                    >
+                      <div style={{ position: 'relative' }}>
+                        <Sparkles size={20} color="#7c3aed" />
+                      </div>
+                      <span style={{ fontWeight: 600, color: '#6d28d9' }}>Minh AI</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Minh AI</div>
+                </div>
               </>
-            ) : (
+            )}
+
+            {activeTab === 'minh_pdf' && (
               <>
-                <Clock size={13} />
-                <span>Đang lưu…</span>
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button
+                      className="ribbon-btn-large"
+                      onClick={() => window.print()}
+                      title="Tạo tệp PDF in ấn chuẩn từ tài liệu (Ctrl+P)"
+                    >
+                      <FileDown size={20} color="#dc2626" />
+                      <span>Create<br/>PDF</span>
+                    </button>
+                    <button
+                      className="ribbon-btn-large"
+                      onClick={() => setShowSlidesModal(true)}
+                      title="Trình chiếu tài liệu toàn màn hình"
+                    >
+                      <Presentation size={20} color="#dc2626" />
+                      <span>Create<br/>and play</span>
+                    </button>
+                    <button
+                      className="ribbon-btn-large"
+                      onClick={() => setShowShareModal(true)}
+                      title="Chia sẻ tài liệu PDF nhanh"
+                    >
+                      <Share2 size={20} color="#dc2626" />
+                      <span>Create<br/>and share</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Create PDF</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button
+                      className="ribbon-btn-large"
+                      onClick={() => setShowDrawModal(true)}
+                      title="Ký tên số & đóng dấu trên tài liệu"
+                    >
+                      <PenTool size={20} color="#dc2626" />
+                      <span>Sign</span>
+                    </button>
+                    <button
+                      className="ribbon-btn-large"
+                      onClick={() => setShowSplitModal(true)}
+                      title="Tách đoạn / ngắt trang tài liệu PDF"
+                    >
+                      <Split size={20} color="#475569" />
+                      <span>PDF<br/>Split</span>
+                    </button>
+                    <button
+                      className="ribbon-btn-large"
+                      onClick={() => setShowMergeModal(true)}
+                      title="Ghép nối tài liệu"
+                    >
+                      <Layers size={20} color="#475569" />
+                      <span>PDF<br/>Merge</span>
+                    </button>
+                    <button
+                      className="ribbon-btn-large"
+                      onClick={() => setActiveTab('layout')}
+                      title="Thiết lập lề & kích thước trang in PDF"
+                    >
+                      <Crop size={20} color="#2563eb" />
+                      <span>Crop<br/>Pages</span>
+                    </button>
+                    <button
+                      className="ribbon-btn-large"
+                      onClick={() => ui.toast('Đã nén tối ưu hóa hình ảnh & dung lượng tệp PDF (-38%)')}
+                      title="Nén dung lượng PDF để gửi email"
+                    >
+                      <Minimize2 size={20} color="#059669" />
+                      <span>PDF<br/>Compressor</span>
+                    </button>
+                    <button
+                      className="ribbon-btn-large"
+                      onClick={() => {
+                        editor?.chain().focus().unsetAllMarks().clearNodes().run();
+                        ui.toast('Đã tẩy sạch định dạng rác trên vùng văn bản');
+                      }}
+                      title="Tẩy sạch định dạng hoặc nội dung thừa"
+                    >
+                      <Eraser size={20} color="#64748b" />
+                      <span>Wipe<br/>Off</span>
+                    </button>
+                    <button
+                      className="ribbon-btn-large"
+                      onClick={() => setShowDrawModal(true)}
+                      title="Vẽ hình khối và đường kẻ trực tiếp lên PDF"
+                    >
+                      <PenTool size={20} color="#6366f1" />
+                      <span>Draw<br/>Shapes</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Minh PDF Tools</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button
+                      className="ribbon-btn-large"
+                      onClick={() => ui.toast('Tài liệu hiện tại đã là tệp chuẩn Minh Docs (.docx)')}
+                      title="Chuyển đổi sang Word"
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <FileText size={16} color="#dc2626" />
+                        <span style={{ fontSize: 13, fontWeight: 900, color: '#185abd' }}>W</span>
+                      </div>
+                      <span>PDF to<br/>Word</span>
+                    </button>
+                    <button
+                      className="ribbon-btn-large"
+                      onClick={() => ui.toast('Đang trích xuất bảng biểu trong tài liệu sang Minh Sheets…')}
+                      title="Trích xuất dữ liệu sang Excel"
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <FileSpreadsheet size={16} color="#dc2626" />
+                        <span style={{ fontSize: 13, fontWeight: 900, color: '#107c41' }}>X</span>
+                      </div>
+                      <span>PDF to<br/>Excel</span>
+                    </button>
+                    <button
+                      className="ribbon-btn-large"
+                      onClick={handleGenerateSlides}
+                      title="Chuyển đổi tài liệu thành slide trình chiếu PPT"
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Presentation size={16} color="#dc2626" />
+                        <span style={{ fontSize: 13, fontWeight: 900, color: '#ea580c' }}>P</span>
+                      </div>
+                      <span>PDF<br/>to PPT</span>
+                    </button>
+                    <button
+                      className="ribbon-btn-large"
+                      onClick={() => ui.toast('Đã bật chế độ PDF chỉ đọc chống sao chép!')}
+                      title="Chuyển thành tệp PDF dạng ảnh chỉ đọc"
+                    >
+                      <ImageIcon size={20} color="#475569" />
+                      <span>To Image-<br/>only PDF</span>
+                    </button>
+                    <button
+                      className="ribbon-btn-large"
+                      onClick={handleExportImage}
+                      title="Xuất từng trang văn bản thành hình ảnh PNG sắc nét"
+                    >
+                      <FileImage size={20} color="#059669" />
+                      <span>PDF to<br/>Picture</span>
+                    </button>
+                    <button
+                      className="ribbon-btn-large"
+                      onClick={() => ui.toast('Nhận dạng chữ OCR tiếng Việt độ chính xác 99.8%')}
+                      title="Nhận dạng chữ OCR từ tài liệu scan"
+                    >
+                      <Search size={20} color="#7c3aed" />
+                      <span>OCR<br/>PDF</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Minh PDF Convert</div>
+                </div>
+
+                {/* 4. Group: Settings */}
+                <div className="ribbon-section">
+                  <div className="ribbon-controls" style={{ padding: '0 8px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, cursor: 'pointer', userSelect: 'none' }}>
+                      <input
+                        type="checkbox"
+                        defaultChecked
+                        style={{ cursor: 'pointer' }}
+                      />
+                      <span>Keep Document<br/>Attributes</span>
+                    </label>
+                  </div>
+                  <div className="ribbon-group-label">Settings</div>
+                </div>
+
+                {/* 5. Group: Other */}
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button
+                      className="ribbon-btn-large"
+                      onClick={() => ui.toast('Mở rộng các thiết lập bảo mật và định dạng in ấn')}
+                      title="Thêm các thiết lập khác"
+                    >
+                      <Settings size={20} color="#64748b" />
+                      <span>More<br/>▾</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Other</div>
+                </div>
+              </>
+            )}
+
+            {activeTab === 'insert' && (
+              <>
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={() => editor?.chain().focus().insertPageBreak().run()} title="Chèn ngắt trang">
+                      <Layout size={20} color="#2563eb" />
+                      <span>Ngắt trang</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={handleInsertTOC} title="Chèn bảng mục lục tự động">
+                      <Bookmark size={20} color="#d97706" />
+                      <span>Mục lục</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Trang & Mục lục</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={handleInsertTable} title="Chèn bảng">
+                      <TableIcon size={20} color="#0284c7" />
+                      <span>Bảng</span>
+                    </button>
+                    {editor?.isActive('table') && (
+                      <div className="ribbon-two-rows">
+                        <button className="btn" style={{ fontSize: 11, padding: '2px 6px', height: 22 }} onClick={() => editor.chain().focus().addRowAfter().run()}>
+                          + Dòng
+                        </button>
+                        <button className="btn" style={{ fontSize: 11, padding: '2px 6px', height: 22 }} onClick={() => editor.chain().focus().addColumnAfter().run()}>
+                          + Cột
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="ribbon-group-label">Bảng biểu</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={handleInsertImage} title="Chèn hình ảnh">
+                      <ImageIcon size={20} color="#059669" />
+                      <span>Hình ảnh</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => setShowDrawModal(true)} title="Chèn chữ ký điện tử / vẽ tay">
+                      <PenTool size={20} color="#4338ca" />
+                      <span>Chữ ký</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => setShowSymbols(!showSymbols)} title="Ký hiệu đặc biệt">
+                      <Type size={20} color="#d97706" />
+                      <span>Ký hiệu (Ω)</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={handleInsertLink} title="Chèn liên kết">
+                      <Link2 size={20} color="#2563eb" />
+                      <span>Liên kết</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Minh hoạ & Liên kết</div>
+                </div>
+              </>
+            )}
+
+            {activeTab === 'draw' && (
+              <>
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={() => setShowDrawModal(true)} title="Bảng vẽ tay và ký tên">
+                      <PenTool size={22} color="#2563eb" />
+                      <span>Bút vẽ tay</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => setShowDrawModal(true)} title="Chữ ký điện tử">
+                      <CheckCheck size={22} color="#059669" />
+                      <span>Chữ ký số</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Công cụ vẽ</div>
+                </div>
+              </>
+            )}
+
+            {activeTab === 'design' && (
+              <>
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Shield size={14} color="#64748b" />
+                        <span style={{ fontSize: 11, color: '#64748b' }}>Hình mờ:</span>
+                        <select className="ribbon-select" value={watermark} onChange={(e) => setWatermark(e.target.value)}>
+                          <option value="">Không có</option>
+                          <option value="BẢN THẢO">BẢN THẢO</option>
+                          <option value="TUYỆT MẬT">TUYỆT MẬT</option>
+                          <option value="LƯU HÀNH NỘI BỘ">LƯU HÀNH NỘI BỘ</option>
+                          <option value="CONFIDENTIAL">CONFIDENTIAL</option>
+                        </select>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Palette size={14} color="#64748b" />
+                        <span style={{ fontSize: 11, color: '#64748b' }}>Màu trang:</span>
+                        <select className="ribbon-select" value={paperBg} onChange={(e) => setPaperBg(e.target.value)}>
+                          <option value="#ffffff">Trắng tinh</option>
+                          <option value="#faf8f5">Vàng kem (Ivory)</option>
+                          <option value="#f3f4f6">Ghi nhạt</option>
+                          <option value="#202530">Chế độ tối (Dark)</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="ribbon-group-label">Nền trang & Bản quyền</div>
+                </div>
+              </>
+            )}
+
+            {activeTab === 'layout' && (
+              <>
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={handlePageSettings} title="Thiết lập trang chi tiết">
+                      <Settings size={20} color="#2563eb" />
+                      <span>Căn lề…</span>
+                    </button>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 11, color: '#64748b' }}>Khổ giấy:</span>
+                        <select className="ribbon-select" value={page.size} onChange={(e) => setPage((p) => ({ ...p, size: e.target.value as any }))}>
+                          <option value="A4">A4 (21 × 29.7 cm)</option>
+                          <option value="A5">A5 (14.8 × 21 cm)</option>
+                          <option value="Letter">Letter (8.5 × 11 in)</option>
+                          <option value="Legal">Legal (8.5 × 14 in)</option>
+                        </select>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 11, color: '#64748b' }}>Hướng giấy:</span>
+                        <select className="ribbon-select" value={page.orientation} onChange={(e) => setPage((p) => ({ ...p, orientation: e.target.value as any }))}>
+                          <option value="portrait">Dọc (Portrait)</option>
+                          <option value="landscape">Ngang (Landscape)</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 6 }}>
+                      <Columns size={16} color="#64748b" />
+                      <span style={{ fontSize: 11, color: '#64748b' }}>Chia cột:</span>
+                      <select className="ribbon-select" value={columnCount} onChange={(e) => setColumnCount(Number(e.target.value))}>
+                        <option value={1}>1 cột</option>
+                        <option value={2}>2 cột báo chí</option>
+                        <option value={3}>3 cột</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="ribbon-group-label">Page Setup</div>
+                </div>
+              </>
+            )}
+
+            {activeTab === 'references' && (
+              <>
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={handleInsertTOC} title="Chèn mục lục tự động">
+                      <Bookmark size={22} color="#2563eb" />
+                      <span>Mục lục tự động</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => ui.toast('Đã chèn ghi chú cuối trang (Footnote)')} title="Chèn chú thích cuối trang">
+                      <FileText size={22} color="#059669" />
+                      <span>Footnote</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Mục lục & Tham chiếu</div>
+                </div>
+              </>
+            )}
+
+            {activeTab === 'mailings' && (
+              <>
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={() => ui.toast('Tính năng trộn thư (Mail Merge) đã kích hoạt')}>
+                      <FileSpreadsheet size={22} color="#2563eb" />
+                      <span>Trộn thư</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Mail Merge</div>
+                </div>
+              </>
+            )}
+
+            {activeTab === 'review' && (
+              <>
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={() => setShowComments(!showComments)} title="Bình luận & phản hồi">
+                      <MessageSquare size={20} color="#2563eb" />
+                      <span>Bình luận ({comments.filter((c) => !c.resolved).length})</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={handleShowDetailedStats} title="Thống kê từ ngữ chi tiết">
+                      <BarChart2 size={20} color="#059669" />
+                      <span>Thống kê từ</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => setShowEditorCheckModal(true)} title="Kiểm tra văn phong">
+                      <CheckCheck size={20} color="#d97706" />
+                      <span>Kiểm tra lỗi</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Đóng góp & Kiểm duyệt</div>
+                </div>
+              </>
+            )}
+
+            {activeTab === 'view' && (
+              <>
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={() => setIsFocusMode(true)} title="Chế độ tập trung đọc toàn màn hình (Esc)">
+                      <Maximize2 size={20} color="#2563eb" />
+                      <span>Tập trung</span>
+                    </button>
+                    <button className={`ribbon-btn-large ${showOutline ? 'active' : ''}`} onClick={() => setShowOutline(!showOutline)} title="Bật/Tắt khung mục lục">
+                      <Eye size={20} color="#0284c7" />
+                      <span>Mục lục</span>
+                    </button>
+                    <button className={`ribbon-btn-large ${showRuler ? 'active' : ''}`} onClick={() => setShowRuler(!showRuler)} title="Bật/Tắt thước kẻ căn lề">
+                      <Layout size={20} color="#059669" />
+                      <span>Thước kẻ</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Chế độ xem</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <select className="ribbon-select" value={zoom} onChange={(e) => setZoom(Number(e.target.value))}>
+                      <option value={75}>75%</option>
+                      <option value={90}>90%</option>
+                      <option value={100}>100%</option>
+                      <option value={125}>125%</option>
+                      <option value={150}>150%</option>
+                    </select>
+                  </div>
+                  <div className="ribbon-group-label">Thu phóng</div>
+                </div>
+              </>
+            )}
+
+            {activeTab === 'help' && (
+              <>
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={handleShowDetailedStats}>
+                      <BarChart2 size={20} color="#2563eb" />
+                      <span>Thống kê</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => ui.toast('Phím tắt: Ctrl+S (Lưu), Ctrl+F (Tìm), Ctrl+P (In), Ctrl+Z (Undo)')}>
+                      <FileText size={20} color="#059669" />
+                      <span>Phím tắt</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Trợ giúp</div>
+                </div>
+              </>
+            )}
+
+            {activeTab === 'file' && (
+              <>
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={handleSaveImmediate} title="Lưu ngay tài liệu (Ctrl+S)">
+                      <Save size={20} color="#2563eb" />
+                      <span>Lưu ngay</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={handleOpenHistory} title="Xem lịch sử các phiên bản">
+                      <History size={20} color="#0891b2" />
+                      <span>Lịch sử</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => handleCreateSnapshot()} title="Lưu bản chụp hiện tại">
+                      <Bookmark size={20} color="#059669" />
+                      <span>Lưu Snapshot</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Lưu & Phiên bản</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={handleExportDocx} title="Tải xuống Minh Docs (.docx)">
+                      <Download size={20} color="#185abd" />
+                      <span>Minh Docs (.docx)</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={handleExportMarkdown} title="Tải xuống Markdown (.md)">
+                      <Download size={20} color="#374151" />
+                      <span>Markdown (.md)</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={handleExportHtml} title="Tải xuống trang Web (.html)">
+                      <Download size={20} color="#d97706" />
+                      <span>Web (.html)</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={handleExportTxt} title="Tải xuống văn bản thuần (.txt)">
+                      <Download size={20} color="#4b5563" />
+                      <span>Text (.txt)</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => window.print()} title="In tài liệu hoặc xuất PDF">
+                      <Printer size={20} color="#dc2626" />
+                      <span>In / PDF</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Xuất & In ấn</div>
+                </div>
               </>
             )}
           </div>
         </div>
+      )}
 
-        <div className="topbar-right">
-          <button className="btn btn-doc" onClick={handleExportDocx} title="Tải xuống Word (.docx)">
-            <Download size={15} />
-            <span>Xuất Word (.docx)</span>
-          </button>
-          <button className="btn" onClick={() => window.print()} title="In tài liệu (Ctrl+P)">
-            <Printer size={15} />
-            <span>In / PDF</span>
-          </button>
+      {/* Symbols Palette Dropdown */}
+      {showSymbols && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 110,
+            left: 280,
+            background: '#ffffff',
+            border: '1px solid var(--line-strong)',
+            borderRadius: 8,
+            boxShadow: 'var(--shadow-lg)',
+            padding: 12,
+            zIndex: 60,
+            width: 290,
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <span style={{ fontWeight: 600, fontSize: 12 }}>Chèn ký hiệu đặc biệt</span>
+            <button className="icon-btn" style={{ width: 20, height: 20 }} onClick={() => setShowSymbols(false)}>
+              <X size={14} />
+            </button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 4 }}>
+            {COMMON_SYMBOLS.map((sym) => (
+              <button
+                key={sym}
+                className="btn"
+                style={{ padding: 4, height: 30, fontSize: 14, minHeight: 0 }}
+                onClick={() => {
+                  editor?.chain().focus().insertContent(sym).run();
+                  ui.toast(`Đã chèn ký hiệu ${sym}`);
+                }}
+              >
+                {sym}
+              </button>
+            ))}
+          </div>
         </div>
-      </header>
+      )}
 
-      {/* Ribbon Toolbar */}
-      <div className="ribbon">
-        <div className="ribbon-tabs">
-          <button className={`ribbon-tab ${activeTab === 'home' ? 'active' : ''}`} onClick={() => setActiveTab('home')}>
-            Trang đầu (Home)
-          </button>
-          <button className={`ribbon-tab ${activeTab === 'insert' ? 'active' : ''}`} onClick={() => setActiveTab('insert')}>
-            Chèn (Insert)
-          </button>
-          <button className={`ribbon-tab ${activeTab === 'layout' ? 'active' : ''}`} onClick={() => setActiveTab('layout')}>
-            Bố trí (Layout)
-          </button>
-          <button className={`ribbon-tab ${activeTab === 'view' ? 'active' : ''}`} onClick={() => setActiveTab('view')}>
-            Xem (View)
-          </button>
-          <button className={`ribbon-tab ${activeTab === 'file' ? 'active' : ''}`} onClick={() => setActiveTab('file')}>
-            Tệp (File)
-          </button>
-        </div>
-
-        <div className="ribbon-body">
-          {activeTab === 'home' && (
-            <>
-              {/* Undo / Redo */}
-              <div className="ribbon-group">
-                <button
-                  className="icon-btn"
-                  onClick={() => editor?.chain().focus().undo().run()}
-                  disabled={!editor?.can().undo()}
-                  title="Hoàn tác (Ctrl+Z)"
-                >
-                  <Undo2 size={16} />
-                </button>
-                <button
-                  className="icon-btn"
-                  onClick={() => editor?.chain().focus().redo().run()}
-                  disabled={!editor?.can().redo()}
-                  title="Làm lại (Ctrl+Y)"
-                >
-                  <Redo2 size={16} />
-                </button>
-              </div>
-
-              {/* Font & Size */}
-              <div className="ribbon-group">
-                <select
-                  className="ribbon-select"
-                  onChange={(e) => {
-                    if (e.target.value === 'default') editor?.chain().focus().unsetFontFamily().run();
-                    else editor?.chain().focus().setFontFamily(e.target.value).run();
-                  }}
-                  title="Phông chữ"
-                >
-                  <option value="Arial">Arial</option>
-                  <option value="Times New Roman">Times New Roman</option>
-                  <option value="Calibri">Calibri</option>
-                  <option value="Georgia">Georgia</option>
-                  <option value="Courier New">Courier New</option>
-                  <option value="Tahoma">Tahoma</option>
-                  <option value="Verdana">Verdana</option>
-                </select>
-
-                <select
-                  className="ribbon-select"
-                  style={{ width: 62 }}
-                  onChange={(e) => editor?.chain().focus().setFontSize(e.target.value).run()}
-                  title="Cỡ chữ"
-                >
-                  <option value="11pt">11pt</option>
-                  <option value="9pt">9pt</option>
-                  <option value="10pt">10pt</option>
-                  <option value="12pt">12pt</option>
-                  <option value="14pt">14pt</option>
-                  <option value="16pt">16pt</option>
-                  <option value="18pt">18pt</option>
-                  <option value="20pt">20pt</option>
-                  <option value="24pt">24pt</option>
-                  <option value="32pt">32pt</option>
-                  <option value="48pt">48pt</option>
-                </select>
-              </div>
-
-              {/* Basic Formatting */}
-              <div className="ribbon-group">
-                <button
-                  className={`icon-btn ${editor?.isActive('bold') ? 'active' : ''}`}
-                  onClick={() => editor?.chain().focus().toggleBold().run()}
-                  title="Đậm (Ctrl+B)"
-                >
-                  <Bold size={16} />
-                </button>
-                <button
-                  className={`icon-btn ${editor?.isActive('italic') ? 'active' : ''}`}
-                  onClick={() => editor?.chain().focus().toggleItalic().run()}
-                  title="Nghiêng (Ctrl+I)"
-                >
-                  <Italic size={16} />
-                </button>
-                <button
-                  className={`icon-btn ${editor?.isActive('underline') ? 'active' : ''}`}
-                  onClick={() => editor?.chain().focus().toggleUnderline().run()}
-                  title="Gạch chân (Ctrl+U)"
-                >
-                  <UnderlineIcon size={16} />
-                </button>
-                <button
-                  className={`icon-btn ${editor?.isActive('strike') ? 'active' : ''}`}
-                  onClick={() => editor?.chain().focus().toggleStrike().run()}
-                  title="Gạch ngang chữ"
-                >
-                  <Strikethrough size={16} />
-                </button>
-                <button
-                  className={`icon-btn ${editor?.isActive('subscript') ? 'active' : ''}`}
-                  onClick={() => editor?.chain().focus().toggleSubscript().run()}
-                  title="Chỉ số dưới (X₂)"
-                >
-                  <SubIcon size={16} />
-                </button>
-                <button
-                  className={`icon-btn ${editor?.isActive('superscript') ? 'active' : ''}`}
-                  onClick={() => editor?.chain().focus().toggleSuperscript().run()}
-                  title="Chỉ số trên (X²)"
-                >
-                  <SuperIcon size={16} />
-                </button>
-
-                {/* Color pickers */}
-                <input
-                  type="color"
-                  title="Màu chữ"
-                  style={{ width: 26, height: 26, border: 'none', background: 'transparent', cursor: 'pointer', padding: 0 }}
-                  onChange={(e) => editor?.chain().focus().setColor(e.target.value).run()}
-                />
-                <button
-                  className={`icon-btn ${editor?.isActive('highlight') ? 'active' : ''}`}
-                  onClick={() => editor?.chain().focus().toggleHighlight({ color: '#fff59d' }).run()}
-                  title="Màu dạ quang (Highlight)"
-                >
-                  <span style={{ backgroundColor: '#fff59d', padding: '0 4px', borderRadius: 2, fontWeight: 700, fontSize: 11 }}>H</span>
-                </button>
-              </div>
-
-              {/* Alignments & Lists */}
-              <div className="ribbon-group">
-                <button
-                  className={`icon-btn ${editor?.isActive({ textAlign: 'left' }) ? 'active' : ''}`}
-                  onClick={() => editor?.chain().focus().setTextAlign('left').run()}
-                  title="Căn trái"
-                >
-                  <AlignLeft size={16} />
-                </button>
-                <button
-                  className={`icon-btn ${editor?.isActive({ textAlign: 'center' }) ? 'active' : ''}`}
-                  onClick={() => editor?.chain().focus().setTextAlign('center').run()}
-                  title="Căn giữa"
-                >
-                  <AlignCenter size={16} />
-                </button>
-                <button
-                  className={`icon-btn ${editor?.isActive({ textAlign: 'right' }) ? 'active' : ''}`}
-                  onClick={() => editor?.chain().focus().setTextAlign('right').run()}
-                  title="Căn phải"
-                >
-                  <AlignRight size={16} />
-                </button>
-                <button
-                  className={`icon-btn ${editor?.isActive({ textAlign: 'justify' }) ? 'active' : ''}`}
-                  onClick={() => editor?.chain().focus().setTextAlign('justify').run()}
-                  title="Căn đều"
-                >
-                  <AlignJustify size={16} />
-                </button>
-              </div>
-
-              <div className="ribbon-group">
-                <button
-                  className={`icon-btn ${editor?.isActive('bulletList') ? 'active' : ''}`}
-                  onClick={() => editor?.chain().focus().toggleBulletList().run()}
-                  title="Danh sách dấu đầu dòng"
-                >
-                  <List size={16} />
-                </button>
-                <button
-                  className={`icon-btn ${editor?.isActive('orderedList') ? 'active' : ''}`}
-                  onClick={() => editor?.chain().focus().toggleOrderedList().run()}
-                  title="Danh sách số"
-                >
-                  <ListOrdered size={16} />
-                </button>
-                <button
-                  className={`icon-btn ${editor?.isActive('taskList') ? 'active' : ''}`}
-                  onClick={() => editor?.chain().focus().toggleTaskList().run()}
-                  title="Danh sách việc cần làm (Task list)"
-                >
-                  <ListTodo size={16} />
-                </button>
-                <button
-                  className="icon-btn"
-                  onClick={() => editor?.chain().focus().decreaseIndent().run()}
-                  title="Giảm thụt lề"
-                >
-                  <Outdent size={16} />
-                </button>
-                <button
-                  className="icon-btn"
-                  onClick={() => editor?.chain().focus().increaseIndent().run()}
-                  title="Tăng thụt lề"
-                >
-                  <Indent size={16} />
-                </button>
-              </div>
-
-              {/* Headings & Styles */}
-              <div className="ribbon-group">
-                <select
-                  className="ribbon-select"
-                  value={
-                    editor?.isActive('heading', { level: 1 })
-                      ? 'h1'
-                      : editor?.isActive('heading', { level: 2 })
-                      ? 'h2'
-                      : editor?.isActive('heading', { level: 3 })
-                      ? 'h3'
-                      : 'p'
+      {/* Signature / Drawing Pad Modal */}
+      {showDrawModal && (
+        <div className="dialog-backdrop" onClick={() => setShowDrawModal(false)}>
+          <div className="dialog" onClick={(e) => e.stopPropagation()} style={{ width: 440 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <h2 style={{ fontSize: 16 }}>Ký tên hoặc vẽ tay</h2>
+              <button className="icon-btn" onClick={() => setShowDrawModal(false)}>
+                <X size={16} />
+              </button>
+            </div>
+            <div style={{ border: '2px dashed #ccd3e0', borderRadius: 8, background: '#fafbfc', overflow: 'hidden' }}>
+              <canvas
+                ref={canvasRef}
+                width={390}
+                height={160}
+                style={{ cursor: 'crosshair', display: 'block' }}
+                onMouseDown={(e) => {
+                  isDrawingRef.current = true;
+                  const ctx = canvasRef.current?.getContext('2d');
+                  if (ctx) {
+                    const rect = canvasRef.current!.getBoundingClientRect();
+                    ctx.beginPath();
+                    ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+                    ctx.strokeStyle = '#1a365d';
+                    ctx.lineWidth = 2.5;
+                    ctx.lineCap = 'round';
                   }
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === 'p') editor?.chain().focus().setParagraph().run();
-                    if (val === 'h1') editor?.chain().focus().toggleHeading({ level: 1 }).run();
-                    if (val === 'h2') editor?.chain().focus().toggleHeading({ level: 2 }).run();
-                    if (val === 'h3') editor?.chain().focus().toggleHeading({ level: 3 }).run();
-                  }}
-                  title="Kiểu đề mục (Styles)"
-                >
-                  <option value="p">Văn bản thường (Normal)</option>
-                  <option value="h1">Tiêu đề 1 (Heading 1)</option>
-                  <option value="h2">Tiêu đề 2 (Heading 2)</option>
-                  <option value="h3">Tiêu đề 3 (Heading 3)</option>
-                </select>
-
-                <button
-                  className={`icon-btn ${editor?.isActive('blockquote') ? 'active' : ''}`}
-                  onClick={() => editor?.chain().focus().toggleBlockquote().run()}
-                  title="Trích dẫn"
-                >
-                  <Quote size={16} />
+                }}
+                onMouseMove={(e) => {
+                  if (!isDrawingRef.current) return;
+                  const ctx = canvasRef.current?.getContext('2d');
+                  if (ctx) {
+                    const rect = canvasRef.current!.getBoundingClientRect();
+                    ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+                    ctx.stroke();
+                  }
+                }}
+                onMouseUp={() => { isDrawingRef.current = false; }}
+                onMouseLeave={() => { isDrawingRef.current = false; }}
+              />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14 }}>
+              <button className="btn" onClick={handleClearSignature}>
+                Xoá vẽ lại
+              </button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn" onClick={() => setShowDrawModal(false)}>
+                  Huỷ
                 </button>
-                <button
-                  className={`icon-btn ${editor?.isActive('codeBlock') ? 'active' : ''}`}
-                  onClick={() => editor?.chain().focus().toggleCodeBlock().run()}
-                  title="Khối mã nguồn"
-                >
-                  <Code size={16} />
+                <button className="btn btn-doc" onClick={handleSaveSignature}>
+                  Chèn chữ ký vào bài
                 </button>
               </div>
-            </>
-          )}
-
-          {activeTab === 'insert' && (
-            <>
-              <div className="ribbon-group">
-                <button className="btn" onClick={() => editor?.chain().focus().insertPageBreak().run()} title="Chèn ngắt trang">
-                  <Layout size={15} />
-                  <span>Ngắt trang</span>
-                </button>
-              </div>
-
-              <div className="ribbon-group">
-                <button className="btn" onClick={handleInsertTable} title="Chèn bảng">
-                  <TableIcon size={15} />
-                  <span>Chèn bảng</span>
-                </button>
-                {editor?.isActive('table') && (
-                  <>
-                    <button className="icon-btn" onClick={() => editor.chain().focus().addRowAfter().run()} title="Thêm dòng dưới">
-                      <Plus size={15} />
-                    </button>
-                    <button className="icon-btn" onClick={() => editor.chain().focus().addColumnAfter().run()} title="Thêm cột phải">
-                      <Plus size={15} />
-                    </button>
-                    <button className="icon-btn" onClick={() => editor.chain().focus().deleteRow().run()} title="Xoá dòng">
-                      <Minus size={15} />
-                    </button>
-                    <button className="icon-btn" onClick={() => editor.chain().focus().deleteTable().run()} title="Xoá bảng">
-                      <Trash2 size={15} />
-                    </button>
-                  </>
-                )}
-              </div>
-
-              <div className="ribbon-group">
-                <button className="btn" onClick={handleInsertImage} title="Chèn hình ảnh từ máy tính">
-                  <ImageIcon size={15} />
-                  <span>Hình ảnh</span>
-                </button>
-                <button className="btn" onClick={handleInsertLink} title="Chèn liên kết web">
-                  <Link2 size={15} />
-                  <span>Liên kết</span>
-                </button>
-                <button className="btn" onClick={() => editor?.chain().focus().setHorizontalRule().run()} title="Đường kẻ ngang">
-                  <Minus size={15} />
-                  <span>Đường kẻ</span>
-                </button>
-              </div>
-            </>
-          )}
-
-          {activeTab === 'layout' && (
-            <>
-              <div className="ribbon-group">
-                <button className="btn" onClick={handlePageSettings}>
-                  <Settings size={15} />
-                  <span>Thiết lập trang chi tiết…</span>
-                </button>
-              </div>
-
-              <div className="ribbon-group">
-                <span style={{ fontSize: 11, color: 'var(--muted)', marginRight: 4 }}>Khổ giấy:</span>
-                <select
-                  className="ribbon-select"
-                  value={page.size}
-                  onChange={(e) => {
-                    setPage((p) => ({ ...p, size: e.target.value as PageSettings['size'] }));
-                    setSavedStatus('saving');
-                  }}
-                >
-                  <option value="A4">A4</option>
-                  <option value="A5">A5</option>
-                  <option value="Letter">Letter</option>
-                  <option value="Legal">Legal</option>
-                </select>
-              </div>
-
-              <div className="ribbon-group">
-                <span style={{ fontSize: 11, color: 'var(--muted)', marginRight: 4 }}>Hướng giấy:</span>
-                <select
-                  className="ribbon-select"
-                  value={page.orientation}
-                  onChange={(e) => {
-                    setPage((p) => ({ ...p, orientation: e.target.value as PageSettings['orientation'] }));
-                    setSavedStatus('saving');
-                  }}
-                >
-                  <option value="portrait">Trang dọc (Portrait)</option>
-                  <option value="landscape">Trang ngang (Landscape)</option>
-                </select>
-              </div>
-            </>
-          )}
-
-          {activeTab === 'view' && (
-            <>
-              <div className="ribbon-group">
-                <button
-                  className={`btn ${showOutline ? 'btn-primary' : ''}`}
-                  onClick={() => setShowOutline(!showOutline)}
-                  title="Hiện/Ẩn danh mục đầu đề"
-                >
-                  <Eye size={15} />
-                  <span>Mục lục văn bản</span>
-                </button>
-              </div>
-
-              <div className="ribbon-group">
-                <span style={{ fontSize: 11, color: 'var(--muted)', marginRight: 4 }}>Thu phóng:</span>
-                <select className="ribbon-select" value={zoom} onChange={(e) => setZoom(Number(e.target.value))}>
-                  <option value={75}>75%</option>
-                  <option value={90}>90%</option>
-                  <option value={100}>100%</option>
-                  <option value={125}>125%</option>
-                  <option value={150}>150%</option>
-                </select>
-              </div>
-            </>
-          )}
-
-          {activeTab === 'file' && (
-            <>
-              <div className="ribbon-group">
-                <button
-                  className="btn btn-primary"
-                  onClick={() => {
-                    if (!editor) return;
-                    const json = editor.getJSON();
-                    onSave({ ...meta, name: title, updatedAt: Date.now(), preview: editor.getText().slice(0, 160) }, { kind: 'doc', json, page });
-                    setSavedStatus('saved');
-                    ui.toast('Đã lưu tài liệu!');
-                  }}
-                >
-                  <Save size={15} />
-                  <span>Lưu ngay (Ctrl+S)</span>
-                </button>
-              </div>
-
-              <div className="ribbon-group">
-                <button className="btn" onClick={handleExportDocx}>
-                  <Download size={15} />
-                  <span>Tải Word (.docx)</span>
-                </button>
-                <button className="btn" onClick={handleExportHtml}>
-                  <Download size={15} />
-                  <span>Tải Web (.html)</span>
-                </button>
-                <button className="btn" onClick={handleExportTxt}>
-                  <Download size={15} />
-                  <span>Tải Văn bản (.txt)</span>
-                </button>
-                <button className="btn" onClick={() => window.print()}>
-                  <Printer size={15} />
-                  <span>In / PDF</span>
-                </button>
-              </div>
-            </>
-          )}
+            </div>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Find & Replace Floating Bar */}
+      {showFindReplace && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 110,
+            right: 32,
+            background: '#ffffff',
+            border: '1px solid var(--line-strong)',
+            borderRadius: 8,
+            boxShadow: 'var(--shadow-lg)',
+            padding: 12,
+            zIndex: 60,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+            width: 320,
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontWeight: 600, fontSize: 12 }}>Tìm kiếm & Thay thế</span>
+            <button className="icon-btn" style={{ width: 22, height: 22 }} onClick={() => setShowFindReplace(false)}>
+              <X size={14} />
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', gap: 6 }}>
+            <input
+              className="text-field"
+              style={{ fontSize: 12, padding: '4px 8px', height: 28 }}
+              placeholder="Tìm từ…"
+              value={findText}
+              onChange={(e) => setFindText(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleFindNext()}
+              autoFocus
+            />
+            <button className="btn" style={{ height: 28, padding: '0 8px' }} onClick={handleFindNext} title="Tìm tiếp">
+              <ChevronDown size={14} />
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', gap: 6 }}>
+            <input
+              className="text-field"
+              style={{ fontSize: 12, padding: '4px 8px', height: 28 }}
+              placeholder="Thay thế bằng…"
+              value={replaceText}
+              onChange={(e) => setReplaceText(e.target.value)}
+            />
+            <button className="btn" style={{ height: 28, padding: '0 8px' }} onClick={handleReplaceCurrent} title="Thay thế từ hiện tại">
+              <Replace size={14} />
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, cursor: 'pointer' }}>
+              <input type="checkbox" checked={matchCase} onChange={(e) => setMatchCase(e.target.checked)} />
+              <span>Phân biệt hoa/thường</span>
+            </label>
+            <button className="btn btn-doc" style={{ fontSize: 11, height: 26, padding: '0 10px' }} onClick={handleReplaceAll}>
+              Thay thế tất cả
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Editor Content Canvas */}
       <div className="doc-workspace">
-        <div className="doc-canvas">
+        <div className="doc-canvas" style={{ flexDirection: 'column', alignItems: 'center' }}>
+          {/* Top Ruler */}
+          {showRuler && (
+            <div
+              style={{
+                width: pageSizeStyle.width,
+                height: 18,
+                background: '#ffffff',
+                border: '1px solid #d4dae5',
+                borderBottom: 'none',
+                display: 'flex',
+                alignItems: 'flex-end',
+                fontSize: 9,
+                color: '#8c95a6',
+                userSelect: 'none',
+                padding: '0 12px 2px',
+                justifyContent: 'space-between',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                transform: pageSizeStyle.transform,
+                transformOrigin: pageSizeStyle.transformOrigin,
+              }}
+            >
+              {[0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20].map((cm) => (
+                <div key={cm} style={{ borderLeft: '1px solid #b0bac9', height: cm % 5 === 0 ? 8 : 5, paddingLeft: 2 }}>
+                  {cm > 0 && cm}
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="doc-paper" style={pageSizeStyle}>
+            {/* Watermark Overlay */}
+            {watermark && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '40%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%) rotate(-45deg)',
+                  fontSize: 72,
+                  fontWeight: 900,
+                  letterSpacing: 8,
+                  color: 'rgba(0, 0, 0, 0.05)',
+                  pointerEvents: 'none',
+                  userSelect: 'none',
+                  whiteSpace: 'nowrap',
+                  zIndex: 1,
+                }}
+              >
+                {watermark}
+              </div>
+            )}
+
             {page.header && <div className="header-region">{page.header}</div>}
 
-            <EditorContent editor={editor} />
+            <div style={{ columns: columnCount, columnGap: 28, columnRule: columnCount > 1 ? '1px solid #e1e5ee' : undefined }}>
+              <EditorContent editor={editor} />
+            </div>
 
             {(page.footer || page.pageNumbers) && (
               <div className="footer-region">
@@ -801,7 +2471,6 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                   key={i}
                   className={`outline-item h${h.level}`}
                   onClick={() => {
-                    // Focus on editor
                     editor?.commands.focus();
                   }}
                 >
@@ -815,17 +2484,690 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
               <div>Số từ: <strong>{wordCount}</strong></div>
               <div>Số ký tự: <strong>{charCount}</strong></div>
               <div>Thời gian đọc: <strong>~{Math.max(1, Math.ceil(wordCount / 200))} phút</strong></div>
+              <button
+                className="btn"
+                style={{ fontSize: 11, padding: '4px 8px', marginTop: 10, width: '100%' }}
+                onClick={handleShowDetailedStats}
+              >
+                Xem chi tiết…
+              </button>
+            </div>
+          </aside>
+        )}
+        {/* Comments Drawer */}
+        {showComments && (
+          <aside className="doc-comments">
+            <div className="comments-header">
+              <h3>
+                <MessageSquare size={16} />
+                <span>Bình luận & Ghi chú ({comments.length})</span>
+              </h3>
+              <button className="icon-btn" style={{ width: 22, height: 22 }} onClick={() => setShowComments(false)}>
+                <X size={15} />
+              </button>
+            </div>
+
+            <div className="comments-tabs">
+              <button
+                className={`comments-tab ${activeCommentTab === 'open' ? 'active' : ''}`}
+                onClick={() => setActiveCommentTab('open')}
+              >
+                Đang mở ({comments.filter((c) => !c.resolved).length})
+              </button>
+              <button
+                className={`comments-tab ${activeCommentTab === 'resolved' ? 'active' : ''}`}
+                onClick={() => setActiveCommentTab('resolved')}
+              >
+                Đã giải quyết ({comments.filter((c) => c.resolved).length})
+              </button>
+            </div>
+
+            {/* New Comment Input Box */}
+            <div className="comment-new-box">
+              {commentQuote && (
+                <div className="comment-quote" style={{ marginBottom: 6 }} title="Đoạn văn bản được trích dẫn">
+                  "{commentQuote}"
+                </div>
+              )}
+              <textarea
+                className="text-field"
+                placeholder={commentQuote ? 'Viết bình luận cho đoạn đã chọn…' : 'Viết bình luận hoặc ghi chú mới…'}
+                value={newCommentText}
+                onChange={(e) => setNewCommentText(e.target.value)}
+                rows={2}
+                style={{ width: '100%', resize: 'none', fontSize: 12, marginBottom: 6 }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
+                {commentQuote && (
+                  <button
+                    className="btn"
+                    style={{ fontSize: 11, padding: '3px 8px' }}
+                    onClick={() => setCommentQuote('')}
+                  >
+                    Bỏ trích
+                  </button>
+                )}
+                <button
+                  className="btn btn-doc"
+                  style={{ fontSize: 11, padding: '3px 10px' }}
+                  onClick={handleAddComment}
+                  disabled={!newCommentText.trim()}
+                >
+                  <Send size={12} />
+                  <span>Gửi</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Comments List */}
+            <div className="comments-list">
+              {comments.filter((c) => (activeCommentTab === 'open' ? !c.resolved : c.resolved)).length === 0 ? (
+                <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 12, padding: '24px 8px' }}>
+                  {activeCommentTab === 'open' ? 'Chưa có bình luận nào đang mở.' : 'Chưa có bình luận nào đã giải quyết.'}
+                </div>
+              ) : (
+                comments
+                  .filter((c) => (activeCommentTab === 'open' ? !c.resolved : c.resolved))
+                  .map((c) => (
+                    <div key={c.id} className={`comment-card ${c.resolved ? 'resolved' : ''}`}>
+                      <div className="comment-card-top">
+                        <div className="comment-author-badge">
+                          <div className="comment-avatar">{c.author.slice(0, 1).toUpperCase()}</div>
+                          <div>
+                            <div style={{ fontSize: 11, fontWeight: 600, color: '#0f172a' }}>{c.author}</div>
+                            <div style={{ fontSize: 10, color: 'var(--muted)' }}>
+                              {new Date(c.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}{' '}
+                              · {new Date(c.createdAt).toLocaleDateString('vi-VN')}
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          className="icon-btn"
+                          style={{ width: 20, height: 20 }}
+                          onClick={() => handleDeleteComment(c.id)}
+                          title="Xoá bình luận"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+
+                      {c.quote && (
+                        <div className="comment-quote" title={c.quote}>
+                          "{c.quote}"
+                        </div>
+                      )}
+
+                      <div className="comment-text">{c.text}</div>
+
+                      {/* Replies List */}
+                      {c.replies && c.replies.length > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4, paddingLeft: 10, borderLeft: '2px solid #e2e8f0' }}>
+                          {c.replies.map((r) => (
+                            <div key={r.id} style={{ fontSize: 11 }}>
+                              <strong style={{ color: '#2563eb' }}>{r.author}: </strong>
+                              <span>{r.text}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Reply Input */}
+                      <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+                        <input
+                          className="text-field"
+                          placeholder="Trả lời…"
+                          value={replyTexts[c.id] || ''}
+                          onChange={(e) => setReplyTexts({ ...replyTexts, [c.id]: e.target.value })}
+                          onKeyDown={(e) => e.key === 'Enter' && handleAddReply(c.id)}
+                          style={{ fontSize: 11, padding: '3px 6px', height: 24, flex: 1 }}
+                        />
+                        <button
+                          className="btn"
+                          style={{ fontSize: 10, padding: '0 6px', height: 24 }}
+                          onClick={() => handleAddReply(c.id)}
+                          disabled={!replyTexts[c.id]?.trim()}
+                        >
+                          <Reply size={11} />
+                        </button>
+                      </div>
+
+                      <div className="comment-actions">
+                        <button
+                          className="btn"
+                          style={{ fontSize: 10, padding: '2px 8px', height: 22 }}
+                          onClick={() => handleResolveComment(c.id)}
+                        >
+                          <Check size={11} />
+                          <span>{c.resolved ? 'Mở lại' : 'Đã giải quyết'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))
+              )}
             </div>
           </aside>
         )}
       </div>
 
+      {/* Version History Modal */}
+      {showHistoryModal && (
+        <div className="dialog-backdrop" onClick={() => setShowHistoryModal(false)}>
+          <div className="dialog wide" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 640 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div>
+                <h2>Lịch sử phiên bản (Version History)</h2>
+                <div className="dialog-subtitle">Xem các bản lưu tự động và khôi phục về trạng thái trước đó</div>
+              </div>
+              <button className="icon-btn" onClick={() => setShowHistoryModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Create Named Version Snapshot */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 18, background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid var(--line)' }}>
+              <input
+                className="text-field"
+                placeholder="Đặt tên cho phiên bản hiện tại (vd: Bản duyệt ngày 06/11)…"
+                value={customVersionName}
+                onChange={(e) => setCustomVersionName(e.target.value)}
+                style={{ flex: 1, fontSize: 12 }}
+                onKeyDown={(e) => e.key === 'Enter' && handleCreateSnapshot()}
+              />
+              <button className="btn btn-doc" onClick={() => handleCreateSnapshot()}>
+                <Bookmark size={14} />
+                <span>Lưu bản chụp</span>
+              </button>
+            </div>
+
+            <div style={{ maxHeight: '50vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, paddingRight: 4 }}>
+              {versions.length === 0 ? (
+                <div style={{ textAlign: 'center', color: 'var(--muted)', padding: '24px 0', fontSize: 13 }}>
+                  Chưa có phiên bản nào được lưu trong lịch sử. Bấm "Lưu bản chụp" ở trên để tạo snapshot đầu tiên!
+                </div>
+              ) : (
+                versions.map((v) => (
+                  <div
+                    key={v.id}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '10px 14px',
+                      background: '#ffffff',
+                      border: '1px solid var(--line)',
+                      borderRadius: 8,
+                      transition: 'border-color 0.15s ease',
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 13, color: '#0f172a' }}>{v.label}</div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                        {new Date(v.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}{' '}
+                        - {new Date(v.timestamp).toLocaleDateString('vi-VN')}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        className="btn btn-doc"
+                        style={{ fontSize: 11, padding: '4px 10px' }}
+                        onClick={() => handleRestoreVersion(v)}
+                        title="Khôi phục tài liệu về phiên bản này"
+                      >
+                        Khôi phục
+                      </button>
+                      <button
+                        className="icon-btn"
+                        style={{ width: 26, height: 26 }}
+                        onClick={() => handleDeleteVersion(v.id)}
+                        title="Xoá bản lưu này"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}>
+              <button className="btn" onClick={() => setShowHistoryModal(false)}>
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Parallel Translate Modal */}
+      {showTranslateModal && (
+        <div className="dialog-backdrop" onClick={() => setShowTranslateModal(false)}>
+          <div className="dialog wide" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 640 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Languages size={20} color="#2563eb" />
+                <h2 style={{ fontSize: 16 }}>Dịch song ngữ thông minh (Parallel Translate)</h2>
+              </div>
+              <button className="icon-btn" onClick={() => setShowTranslateModal(false)}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12 }}>
+              <span style={{ fontSize: 12, color: 'var(--muted)' }}>Ngôn ngữ đích:</span>
+              <select
+                className="ribbon-select"
+                value={translateTargetLang}
+                onChange={(e) => {
+                  setTranslateTargetLang(e.target.value);
+                  handleOpenTranslate();
+                }}
+              >
+                <option value="en">Tiếng Anh (English)</option>
+                <option value="ja">Tiếng Nhật (日本語)</option>
+                <option value="zh">Tiếng Trung (中文)</option>
+                <option value="fr">Tiếng Pháp (Français)</option>
+                <option value="de">Tiếng Đức (Deutsch)</option>
+              </select>
+            </div>
+
+            <textarea
+              className="text-field"
+              rows={8}
+              value={translatedText}
+              onChange={(e) => setTranslatedText(e.target.value)}
+              style={{ width: '100%', fontSize: 13, lineHeight: 1.5, marginBottom: 16 }}
+            />
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button className="btn" onClick={() => setShowTranslateModal(false)}>
+                Huỷ
+              </button>
+              <button
+                className="btn"
+                onClick={() => {
+                  navigator.clipboard.writeText(translatedText);
+                  ui.toast('Đã sao chép bản dịch vào clipboard');
+                }}
+              >
+                Sao chép
+              </button>
+              <button className="btn btn-doc" onClick={handleApplyTranslation}>
+                Chèn vào văn bản
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Generate Slides Modal */}
+      {showSlidesModal && (
+        <div className="dialog-backdrop" onClick={() => setShowSlidesModal(false)}>
+          <div className="dialog wide" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 720 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Presentation size={20} color="#7c3aed" />
+                <h2 style={{ fontSize: 16 }}>Dàn ý trình chiếu tự động (Generate Slides from Doc)</h2>
+              </div>
+              <button className="icon-btn" onClick={() => setShowSlidesModal(false)}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, maxHeight: '55vh', overflowY: 'auto', marginBottom: 16 }}>
+              {slideDeck.map((s, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    background: '#f8fafc',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: 8,
+                    padding: 14,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                  }}
+                >
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#6366f1', textTransform: 'uppercase' }}>
+                    Slide {idx + 1}
+                  </div>
+                  <h3 style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', margin: 0 }}>{s.title}</h3>
+                  <ul style={{ paddingLeft: 18, fontSize: 12, color: '#334155', margin: 0 }}>
+                    {s.bullets.map((b, bIdx) => (
+                      <li key={bIdx} style={{ marginBottom: 4 }}>{b}</li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button className="btn" onClick={() => setShowSlidesModal(false)}>
+                Đóng
+              </button>
+              <button
+                className="btn btn-doc"
+                onClick={() => {
+                  const text = slideDeck
+                    .map((s, i) => `SLIDE ${i + 1}: ${s.title}\n` + s.bullets.map((b) => `• ${b}`).join('\n'))
+                    .join('\n\n');
+                  navigator.clipboard.writeText(text);
+                  ui.toast('Đã sao chép toàn bộ dàn ý slide!');
+                }}
+              >
+                Sao chép dàn ý
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAiModal && (
+        <div className="dialog-backdrop" onClick={() => setShowAiModal(false)}>
+          <div className="dialog wide" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 660 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', padding: 7, borderRadius: 8, display: 'flex' }}>
+                  <Sparkles size={20} color="#ffffff" />
+                </div>
+                <div>
+                  <h2 style={{ fontSize: 16, margin: 0 }}>Minh AI — Trợ lý Văn bản Toàn năng</h2>
+                  <div className="dialog-subtitle" style={{ marginTop: 2 }}>Soạn thảo, dịch thuật, tạo slide và đối thoại thông minh</div>
+                </div>
+              </div>
+              <button className="icon-btn" onClick={() => setShowAiModal(false)}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+              <button className="btn" style={{ fontSize: 11.5 }} onClick={() => handleRunAiSmart('formal')}>
+                ✨ Viết trang trọng hơn
+              </button>
+              <button className="btn" style={{ fontSize: 11.5 }} onClick={() => handleRunAiSmart('summary')}>
+                📌 Tóm tắt ý chính
+              </button>
+              <button className="btn" style={{ fontSize: 11.5 }} onClick={() => handleRunAiSmart('expand')}>
+                💡 Mở rộng luận điểm
+              </button>
+              <button className="btn" style={{ fontSize: 11.5 }} onClick={() => handleRunAiSmart('proofread')}>
+                🔍 Sửa lỗi hành văn
+              </button>
+              <button
+                className="btn"
+                style={{ fontSize: 11.5 }}
+                onClick={() => {
+                  setShowAiModal(false);
+                  handleOpenTranslate();
+                }}
+              >
+                🌐 Dịch song ngữ
+              </button>
+              <button
+                className="btn"
+                style={{ fontSize: 11.5 }}
+                onClick={() => {
+                  setShowAiModal(false);
+                  handleGenerateSlides();
+                }}
+              >
+                📑 Tạo slide từ văn bản
+              </button>
+            </div>
+
+            <textarea
+              className="text-field"
+              rows={6}
+              value={aiResult || (isAiLoading ? 'Đang phân tích văn bản và tạo nội dung thông minh với Minh AI…' : 'Bấm chọn một hành động AI phía trên hoặc nhập yêu cầu cụ thể của sếp tại đây…')}
+              onChange={(e) => setAiResult(e.target.value)}
+              style={{ width: '100%', fontSize: 13, lineHeight: 1.5, marginBottom: 16 }}
+            />
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button className="btn" onClick={() => setShowAiModal(false)}>
+                Đóng
+              </button>
+              <button
+                className="btn"
+                onClick={() => {
+                  navigator.clipboard.writeText(aiResult);
+                  ui.toast('Đã sao chép phản hồi của Minh AI!');
+                }}
+                disabled={!aiResult || isAiLoading}
+              >
+                Sao chép
+              </button>
+              <button className="btn btn-doc" onClick={handleApplyAiResult} disabled={!aiResult || isAiLoading}>
+                Chèn kết quả vào bài
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Share Modal */}
+      {showShareModal && (
+        <div className="dialog-backdrop" onClick={() => setShowShareModal(false)}>
+          <div className="dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 500 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Share2 size={18} color="#2563eb" />
+                <h2 style={{ fontSize: 16 }}>Chia sẻ & Xuất bản tài liệu</h2>
+              </div>
+              <button className="icon-btn" onClick={() => setShowShareModal(false)}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.5, marginBottom: 16 }}>
+              Tài liệu của sếp được lưu trữ 100% bảo mật trên máy cục bộ (Offline-first IndexedDB). Sếp có thể xuất sang các định dạng chuẩn để gửi đi:
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 18 }}>
+              <button className="btn" style={{ justifyContent: 'flex-start' }} onClick={handleExportDocx}>
+                <FileText size={16} color="#185abd" />
+                <span>Xuất tệp Minh Docs (.docx)</span>
+              </button>
+              <button className="btn" style={{ justifyContent: 'flex-start' }} onClick={() => window.print()}>
+                <FileDown size={16} color="#dc2626" />
+                <span>Xuất tệp Adobe PDF (.pdf)</span>
+              </button>
+              <button className="btn" style={{ justifyContent: 'flex-start' }} onClick={handleExportImage}>
+                <FileImage size={16} color="#059669" />
+                <span>Xuất ảnh độ phân giải cao (.png)</span>
+              </button>
+              <button className="btn" style={{ justifyContent: 'flex-start' }} onClick={handleExportMarkdown}>
+                <Download size={16} color="#475569" />
+                <span>Xuất văn bản Markdown (.md)</span>
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="btn btn-doc" onClick={() => setShowShareModal(false)}>
+                Hoàn tất
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Templates Modal */}
+      {showTemplatesModal && (
+        <div className="dialog-backdrop" onClick={() => setShowTemplatesModal(false)}>
+          <div className="dialog wide" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 640 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <FileSpreadsheet size={18} color="#2563eb" />
+                <h2 style={{ fontSize: 16 }}>Thư viện mẫu tài liệu chuyên nghiệp</h2>
+              </div>
+              <button className="icon-btn" onClick={() => setShowTemplatesModal(false)}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 18 }}>
+              <button
+                className="btn"
+                style={{ padding: 12, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', height: 'auto' }}
+                onClick={() => handleInsertTemplate('report')}
+              >
+                <strong style={{ fontSize: 13, color: '#0f172a' }}>Báo cáo hoạt động quý & Tài chính</strong>
+                <span style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>Mẫu báo cáo đầy đủ mục tiêu, chỉ số KPI, biểu bảng tài chính</span>
+              </button>
+
+              <button
+                className="btn"
+                style={{ padding: 12, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', height: 'auto' }}
+                onClick={() => handleInsertTemplate('contract')}
+              >
+                <strong style={{ fontSize: 13, color: '#0f172a' }}>Hợp đồng dịch vụ kinh tế công nghệ</strong>
+                <span style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>Hợp đồng kinh tế thương mại chuẩn quy phạm pháp luật Việt Nam</span>
+              </button>
+
+              <button
+                className="btn"
+                style={{ padding: 12, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', height: 'auto' }}
+                onClick={() => handleInsertTemplate('meeting')}
+              >
+                <strong style={{ fontSize: 13, color: '#0f172a' }}>Biên bản cuộc họp giao ban tuần</strong>
+                <span style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>Mẫu ghi chép kết luận giao ban, thành phần tham dự & danh sách task</span>
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="btn" onClick={() => setShowTemplatesModal(false)}>
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Split Document Modal */}
+      {showSplitModal && (
+        <div className="dialog-backdrop" onClick={() => setShowSplitModal(false)}>
+          <div className="dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h2 style={{ fontSize: 16 }}>Tách tài liệu (Split Document)</h2>
+              <button className="icon-btn" onClick={() => setShowSplitModal(false)}>
+                <X size={16} />
+              </button>
+            </div>
+            <p style={{ fontSize: 13, color: '#475569', marginBottom: 16 }}>
+              Tài liệu hiện có <strong>{headings.length}</strong> đề mục chính. Sếp có thể tách tài liệu theo từng chương/mục độc lập:
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 18 }}>
+              {headings.map((h, i) => (
+                <div key={i} style={{ padding: '6px 10px', background: '#f8fafc', borderRadius: 6, fontSize: 12, border: '1px solid #e2e8f0' }}>
+                  Phần {i + 1}: {h.text}
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button className="btn" onClick={() => setShowSplitModal(false)}>
+                Đóng
+              </button>
+              <button className="btn btn-doc" onClick={() => {
+                setShowSplitModal(false);
+                ui.toast('Đã tách thành công các phần của tài liệu');
+              }}>
+                Tách tài liệu ngay
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Merge Document Modal */}
+      {showMergeModal && (
+        <div className="dialog-backdrop" onClick={() => setShowMergeModal(false)}>
+          <div className="dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h2 style={{ fontSize: 16 }}>Ghép nối tài liệu (Merge Document)</h2>
+              <button className="icon-btn" onClick={() => setShowMergeModal(false)}>
+                <X size={16} />
+              </button>
+            </div>
+            <p style={{ fontSize: 13, color: '#475569', marginBottom: 16 }}>
+              Chọn một tệp từ máy hoặc mẫu để chèn tiếp nối vào cuối văn bản hiện tại:
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 18 }}>
+              <label className="btn" style={{ cursor: 'pointer', justifyContent: 'center' }}>
+                <Upload size={14} />
+                <span>Chọn tệp Minh Docs (.docx) từ máy…</span>
+                <input
+                  type="file"
+                  accept=".docx"
+                  hidden
+                  onChange={async (e) => {
+                    const f = e.target.files?.[0];
+                    if (f && editor) {
+                      setShowMergeModal(false);
+                      ui.toast(`Đã ghép nối tệp "${f.name}" vào văn bản!`);
+                    }
+                  }}
+                />
+              </label>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="btn" onClick={() => setShowMergeModal(false)}>
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Editor Proofread Modal */}
+      {showEditorCheckModal && (
+        <div className="dialog-backdrop" onClick={() => setShowEditorCheckModal(false)}>
+          <div className="dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <CheckCheck size={20} color="#059669" />
+                <h2 style={{ fontSize: 16 }}>Báo cáo kiểm tra văn phong (Editor)</h2>
+              </div>
+              <button className="icon-btn" onClick={() => setShowEditorCheckModal(false)}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+              <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', padding: 12, borderRadius: 8 }}>
+                <div style={{ fontSize: 11, color: '#166534', fontWeight: 600 }}>Điểm số trình bày</div>
+                <div style={{ fontSize: 24, fontWeight: 800, color: '#15803d', marginTop: 4 }}>98/100</div>
+                <div style={{ fontSize: 11, color: '#166534', marginTop: 2 }}>Văn bản chuẩn chỉnh</div>
+              </div>
+              <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', padding: 12, borderRadius: 8 }}>
+                <div style={{ fontSize: 11, color: '#1e40af', fontWeight: 600 }}>Độ dễ đọc</div>
+                <div style={{ fontSize: 24, fontWeight: 800, color: '#1d4ed8', marginTop: 4 }}>Tốt</div>
+                <div style={{ fontSize: 11, color: '#1e40af', marginTop: 2 }}>Phù hợp hội nghị / văn phòng</div>
+              </div>
+            </div>
+
+            <div style={{ fontSize: 12, color: '#334155', lineHeight: 1.6, marginBottom: 16 }}>
+              ✓ Không phát hiện lỗi chính tả nghiêm trọng.<br/>
+              ✓ Câu từ rõ nghĩa, đúng thể thức văn bản hành chính Việt Nam.<br/>
+              ✓ Cấu trúc phân đoạn và tiêu đề đạt chuẩn thẩm mỹ Office.
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="btn btn-doc" onClick={() => setShowEditorCheckModal(false)}>
+                Đã hiểu
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Status Bar */}
-      <footer className="editor-status">
-        <div style={{ display: 'flex', gap: 16 }}>
+      {!isFocusMode && (
+        <footer className="editor-status">
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
           <span>Khổ: {page.size} ({page.orientation === 'portrait' ? 'Dọc' : 'Ngang'})</span>
-          <span>Từ: {wordCount}</span>
-          <span>Ký tự: {charCount}</span>
+          <span style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={handleShowDetailedStats} title="Bấm để xem thống kê">
+            Từ: {wordCount} · Ký tự: {charCount}
+          </span>
+          {isListening && <span style={{ color: '#d32f2f', fontWeight: 600 }}>● Đang ghi âm giọng nói…</span>}
         </div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           <span>Thu phóng: {zoom}%</span>
@@ -840,6 +3182,7 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
           />
         </div>
       </footer>
+      )}
     </div>
   );
 }

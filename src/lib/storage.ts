@@ -2,7 +2,17 @@ import { createStore, del, get, set } from 'idb-keyval';
 import type { JSONContent } from '@tiptap/react';
 import type { WorkbookData } from './sheetTypes';
 
-export type FileKind = 'doc' | 'sheet';
+export type FileKind = 'doc' | 'sheet' | 'pdf';
+
+export type CommentItem = {
+  id: string;
+  author: string;
+  text: string;
+  createdAt: number;
+  resolved: boolean;
+  quote?: string;
+  replies?: Array<{ id: string; author: string; text: string; createdAt: number }>;
+};
 
 export type PageSettings = {
   size: 'A4' | 'A5' | 'Letter' | 'Legal';
@@ -13,9 +23,28 @@ export type PageSettings = {
   pageNumbers: boolean;
 };
 
-export type DocContent = { kind: 'doc'; json: JSONContent; page: PageSettings };
+export type DocContent = {
+  kind: 'doc';
+  json: JSONContent;
+  page: PageSettings;
+  comments?: CommentItem[];
+};
 export type SheetContent = { kind: 'sheet'; workbook: WorkbookData };
-export type FileContent = DocContent | SheetContent;
+export type PdfContent = {
+  kind: 'pdf';
+  pdfDataUrl?: string;
+  pageCount?: number;
+  comments?: CommentItem[];
+};
+export type FileContent = DocContent | SheetContent | PdfContent;
+
+export type FileVersion = {
+  id: string;
+  fileId: string;
+  timestamp: number;
+  label: string;
+  content: FileContent;
+};
 
 export type FileMeta = {
   id: string;
@@ -33,6 +62,7 @@ export type FileMeta = {
 const store = createStore('minh-office', 'workspace');
 const INDEX_KEY = 'files-index';
 const contentKey = (id: string) => `content:${id}`;
+const versionsKey = (fileId: string) => `versions:${fileId}`;
 
 export const PAGE_SIZES: Record<PageSettings['size'], { width: number; height: number; label: string }> = {
   A4: { width: 794, height: 1123, label: 'A4 (21 × 29,7 cm)' },
@@ -82,7 +112,51 @@ export async function updateMeta(id: string, patch: Partial<FileMeta>) {
 
 export async function removeFile(id: string) {
   await del(contentKey(id), store);
+  await del(versionsKey(id), store);
   await writeIndex((await listFiles()).filter((file) => file.id !== id));
+}
+
+export async function listVersions(fileId: string): Promise<FileVersion[]> {
+  return (await get<FileVersion[]>(versionsKey(fileId), store)) ?? [];
+}
+
+export async function saveVersion(
+  fileId: string,
+  content: FileContent,
+  label?: string
+): Promise<FileVersion> {
+  const versions = await listVersions(fileId);
+  const now = Date.now();
+  const timeStr = new Date(now).toLocaleTimeString('vi-VN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+  const dateStr = new Date(now).toLocaleDateString('vi-VN');
+  const newVersion: FileVersion = {
+    id: 'v_' + Math.random().toString(36).slice(2, 10),
+    fileId,
+    timestamp: now,
+    label: label || `Bản lưu ${timeStr} (${dateStr})`,
+    content,
+  };
+  const updated = [newVersion, ...versions].slice(0, 30);
+  await set(versionsKey(fileId), updated, store);
+  return newVersion;
+}
+
+export async function restoreVersion(fileId: string, versionId: string): Promise<FileContent | null> {
+  const versions = await listVersions(fileId);
+  const found = versions.find((v) => v.id === versionId);
+  if (!found) return null;
+  await set(contentKey(fileId), found.content, store);
+  return found.content;
+}
+
+export async function deleteVersion(fileId: string, versionId: string): Promise<void> {
+  const versions = await listVersions(fileId);
+  const updated = versions.filter((v) => v.id !== versionId);
+  await set(versionsKey(fileId), updated, store);
 }
 
 export async function exportBackup() {
