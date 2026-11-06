@@ -1,0 +1,529 @@
+import { useState, useMemo } from 'react';
+import {
+  FileText,
+  FileSpreadsheet,
+  Plus,
+  Search,
+  Upload,
+  HardDrive,
+  Download,
+  Trash2,
+  Star,
+  Copy,
+  Edit2,
+  RotateCcw,
+  Sparkles,
+  LayoutGrid,
+  List as ListIcon,
+} from 'lucide-react';
+
+import type { FileMeta } from '../lib/storage';
+import type { WorkbookData } from '../lib/sheetTypes';
+import { formatBytes, relativeTime } from '../lib/download';
+import { sampleDocHtml, sampleWorkbook } from '../lib/templates';
+
+interface HomeProps {
+  files: FileMeta[];
+  storageInfo: { usage: number; quota: number } | null;
+  onOpenDoc: (file: FileMeta) => void;
+  onOpenSheet: (file: FileMeta) => void;
+  onCreateDoc: (templateHtml?: string) => void;
+  onCreateSheet: (templateWorkbook?: WorkbookData) => void;
+  onImportFile: (file: File) => void;
+  onRename: (file: FileMeta) => void;
+  onDuplicate: (file: FileMeta) => void;
+  onToggleStar: (file: FileMeta) => void;
+  onTrash: (file: FileMeta) => void;
+  onRestore: (file: FileMeta) => void;
+  onDeletePermanent: (file: FileMeta) => void;
+  onExportBackup: () => void;
+  onImportBackup: (file: File) => void;
+}
+
+type NavCategory = 'all' | 'docs' | 'sheets' | 'starred' | 'trash';
+
+export default function Home({
+  files,
+  storageInfo,
+  onOpenDoc,
+  onOpenSheet,
+  onCreateDoc,
+  onCreateSheet,
+  onImportFile,
+  onRename,
+  onDuplicate,
+  onToggleStar,
+  onTrash,
+  onRestore,
+  onDeletePermanent,
+  onExportBackup,
+  onImportBackup,
+}: HomeProps) {
+  const [category, setCategory] = useState<NavCategory>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const [showCreateMenu, setShowCreateMenu] = useState(false);
+
+  // Filter files based on category and search query
+  const filteredFiles = useMemo(() => {
+    return files.filter((file) => {
+      // Trash filter
+      if (category === 'trash') {
+        if (!file.deletedAt) return false;
+      } else {
+        if (file.deletedAt) return false;
+        if (category === 'docs' && file.kind !== 'doc') return false;
+        if (category === 'sheets' && file.kind !== 'sheet') return false;
+        if (category === 'starred' && !file.starred) return false;
+      }
+
+      // Search query
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        return file.name.toLowerCase().includes(q) || (file.preview && file.preview.toLowerCase().includes(q));
+      }
+
+      return true;
+    });
+  }, [files, category, searchQuery]);
+
+  const docCount = useMemo(() => files.filter((f) => !f.deletedAt && f.kind === 'doc').length, [files]);
+  const sheetCount = useMemo(() => files.filter((f) => !f.deletedAt && f.kind === 'sheet').length, [files]);
+  const starCount = useMemo(() => files.filter((f) => !f.deletedAt && f.starred).length, [files]);
+  const trashCount = useMemo(() => files.filter((f) => f.deletedAt).length, [files]);
+
+  const handleOpenFile = (file: FileMeta) => {
+    if (file.kind === 'doc') onOpenDoc(file);
+    else onOpenSheet(file);
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      onImportFile(file);
+      e.target.value = '';
+    }
+  };
+
+  const handleBackupUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      onImportBackup(file);
+      e.target.value = '';
+    }
+  };
+
+  return (
+    <div className="app-shell">
+      {/* Sidebar Navigation */}
+      <aside className="sidebar">
+        <div className="brand">
+          <div className="brand-mark">M</div>
+          <div className="brand-text">
+            <div className="brand-name">
+              Minh Spark <span>Office</span>
+            </div>
+            <div className="brand-caption">Bộ ứng dụng văn phòng</div>
+          </div>
+        </div>
+
+        {/* Create Button */}
+        <div className="create-split">
+          <button
+            className="create-main"
+            onClick={() => setShowCreateMenu(!showCreateMenu)}
+            aria-expanded={showCreateMenu}
+          >
+            <span>+ Tạo tài liệu mới</span>
+            <Plus size={16} />
+          </button>
+        </div>
+
+        {showCreateMenu && (
+          <div style={{ background: '#252a35', borderRadius: 8, padding: 6, margin: '-14px 4px 16px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <button
+              className="nav-item"
+              style={{ color: '#ffffff' }}
+              onClick={() => {
+                setShowCreateMenu(false);
+                onCreateDoc();
+              }}
+            >
+              <div className="nav-dot docs" />
+              <span>Văn bản Word (.docx)</span>
+            </button>
+            <button
+              className="nav-item"
+              style={{ color: '#ffffff' }}
+              onClick={() => {
+                setShowCreateMenu(false);
+                onCreateSheet();
+              }}
+            >
+              <div className="nav-dot sheets" />
+              <span>Bảng tính Excel (.xlsx)</span>
+            </button>
+          </div>
+        )}
+
+        <div className="sidebar-label">Danh mục</div>
+
+        <button
+          className={`nav-item ${category === 'all' ? 'active' : ''}`}
+          onClick={() => setCategory('all')}
+        >
+          <FileText size={16} />
+          <span>Tất cả tệp</span>
+          <span className="nav-count">{docCount + sheetCount}</span>
+        </button>
+
+        <button
+          className={`nav-item ${category === 'docs' ? 'active' : ''}`}
+          onClick={() => setCategory('docs')}
+        >
+          <div className="nav-dot docs" />
+          <span>Văn bản Word</span>
+          <span className="nav-count">{docCount}</span>
+        </button>
+
+        <button
+          className={`nav-item ${category === 'sheets' ? 'active' : ''}`}
+          onClick={() => setCategory('sheets')}
+        >
+          <div className="nav-dot sheets" />
+          <span>Bảng tính Excel</span>
+          <span className="nav-count">{sheetCount}</span>
+        </button>
+
+        <button
+          className={`nav-item ${category === 'starred' ? 'active' : ''}`}
+          onClick={() => setCategory('starred')}
+        >
+          <Star size={16} />
+          <span>Được gắn sao</span>
+          <span className="nav-count">{starCount}</span>
+        </button>
+
+        <button
+          className={`nav-item ${category === 'trash' ? 'active' : ''}`}
+          onClick={() => setCategory('trash')}
+        >
+          <Trash2 size={16} />
+          <span>Thùng rác</span>
+          {trashCount > 0 && <span className="nav-count">{trashCount}</span>}
+        </button>
+
+        {/* Bottom Storage & Backup */}
+        <div className="sidebar-bottom">
+          <div className="storage-box">
+            <strong>
+              <span className="storage-dot" />
+              Lưu trữ cục bộ an toàn
+            </strong>
+            <div>
+              {storageInfo ? (
+                <>
+                  Đã dùng {formatBytes(storageInfo.usage)}
+                  <div className="storage-bar">
+                    <div
+                      className="storage-fill"
+                      style={{ width: `${Math.min(100, (storageInfo.usage / (storageInfo.quota || 1)) * 100)}%` }}
+                    />
+                  </div>
+                </>
+              ) : (
+                'IndexedDB khả dụng'
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+              <button
+                className="btn"
+                style={{ fontSize: 11, padding: '4px 8px', flex: 1, minHeight: 28 }}
+                onClick={onExportBackup}
+                title="Tải về bản sao lưu toàn bộ tệp"
+              >
+                <Download size={12} />
+                <span>Sao lưu</span>
+              </button>
+              <label
+                className="btn"
+                style={{ fontSize: 11, padding: '4px 8px', flex: 1, minHeight: 28, cursor: 'pointer' }}
+                title="Khôi phục tệp từ bản sao lưu"
+              >
+                <Upload size={12} />
+                <span>Khôi phục</span>
+                <input type="file" accept=".json" hidden onChange={handleBackupUpload} />
+              </label>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      {/* Main Panel */}
+      <main className="main">
+        {/* Topbar */}
+        <header className="topbar">
+          <div className="search-box">
+            <Search size={16} />
+            <input
+              type="text"
+              placeholder="Tìm kiếm tài liệu, bảng tính… (Ctrl+K)"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchQuery && (
+              <button className="icon-btn" style={{ width: 20, height: 20 }} onClick={() => setSearchQuery('')}>
+                ×
+              </button>
+            )}
+          </div>
+
+          <div className="topbar-right">
+            <label className="btn btn-primary" style={{ cursor: 'pointer' }}>
+              <Upload size={15} />
+              <span>Mở tệp từ máy (.docx, .xlsx, .csv)…</span>
+              <input type="file" accept=".docx,.xlsx,.xls,.csv" hidden onChange={handleFileUpload} />
+            </label>
+          </div>
+        </header>
+
+        {/* Dashboard Content */}
+        <div className="home-content">
+          {category !== 'trash' && !searchQuery && (
+            <>
+              <div className="welcome-section">
+                <div>
+                  <h1>Bắt đầu tạo mới</h1>
+                  <p>Chọn mẫu tài liệu hoặc bảng tính chuyên nghiệp để bắt đầu làm việc ngay</p>
+                </div>
+              </div>
+
+              {/* Templates Gallery */}
+              <div className="templates-grid">
+                <button className="template-card" onClick={() => onCreateDoc()}>
+                  <div className="template-badge doc">
+                    <Plus size={20} />
+                  </div>
+                  <div className="template-title">Văn bản trống</div>
+                  <div className="template-desc">Tạo tài liệu Word mới với định dạng chuẩn</div>
+                </button>
+
+                <button className="template-card" onClick={() => onCreateDoc(sampleDocHtml())}>
+                  <div className="template-badge doc">
+                    <Sparkles size={20} />
+                  </div>
+                  <div className="template-title">Báo cáo hoạt động quý</div>
+                  <div className="template-desc">Mẫu báo cáo kinh doanh kèm bảng biểu & chỉ số</div>
+                </button>
+
+                <button className="template-card" onClick={() => onCreateSheet()}>
+                  <div className="template-badge sheet">
+                    <Plus size={20} />
+                  </div>
+                  <div className="template-title">Bảng tính trống</div>
+                  <div className="template-desc">Tạo bảng tính Excel mới với lưới dữ liệu mở rộng</div>
+                </button>
+
+                <button className="template-card" onClick={() => onCreateSheet(sampleWorkbook('Báo cáo ngân sách'))}>
+                  <div className="template-badge sheet">
+                    <Sparkles size={20} />
+                  </div>
+                  <div className="template-title">Ngân sách quý IV</div>
+                  <div className="template-desc">Bảng tính có sẵn công thức SUM, AVERAGE và phân bổ chi phí</div>
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* Filter Bar */}
+          <div className="filter-bar">
+            <div className="tabs-group">
+              <button className={`filter-tab ${category === 'all' ? 'active' : ''}`} onClick={() => setCategory('all')}>
+                Gần đây
+              </button>
+              <button className={`filter-tab ${category === 'docs' ? 'active' : ''}`} onClick={() => setCategory('docs')}>
+                Word Docs ({docCount})
+              </button>
+              <button className={`filter-tab ${category === 'sheets' ? 'active' : ''}`} onClick={() => setCategory('sheets')}>
+                Excel Sheets ({sheetCount})
+              </button>
+              <button className={`filter-tab ${category === 'starred' ? 'active' : ''}`} onClick={() => setCategory('starred')}>
+                Gắn sao ({starCount})
+              </button>
+              {trashCount > 0 && (
+                <button className={`filter-tab ${category === 'trash' ? 'active' : ''}`} onClick={() => setCategory('trash')}>
+                  Thùng rác ({trashCount})
+                </button>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <button
+                className={`icon-btn ${viewMode === 'list' ? 'active' : ''}`}
+                onClick={() => setViewMode('list')}
+                title="Dạng danh sách"
+              >
+                <ListIcon size={16} />
+              </button>
+              <button
+                className={`icon-btn ${viewMode === 'grid' ? 'active' : ''}`}
+                onClick={() => setViewMode('grid')}
+                title="Dạng lưới thẻ"
+              >
+                <LayoutGrid size={16} />
+              </button>
+            </div>
+          </div>
+
+          {/* Files List / Grid */}
+          {filteredFiles.length === 0 ? (
+            <div className="empty-state">
+              <HardDrive size={36} />
+              <h3>Không tìm thấy tệp nào</h3>
+              <p>
+                {searchQuery
+                  ? `Không có kết quả nào khớp với "${searchQuery}"`
+                  : category === 'trash'
+                  ? 'Thùng rác hiện đang trống.'
+                  : 'Chưa có tài liệu nào. Bấm nút Tạo mới hoặc Tải lên từ máy để bắt đầu.'}
+              </p>
+            </div>
+          ) : viewMode === 'list' ? (
+            <div className="file-table-wrap">
+              <table className="file-table">
+                <thead>
+                  <tr>
+                    <th>Tên tệp</th>
+                    <th>Loại</th>
+                    <th>Cập nhật</th>
+                    <th style={{ textAlign: 'right' }}>Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredFiles.map((file) => (
+                    <tr key={file.id} className="file-row">
+                      <td>
+                        <div className="file-info">
+                          <button
+                            className="icon-btn"
+                            style={{ width: 28, height: 28, color: file.starred ? '#f59e0b' : 'var(--muted)' }}
+                            onClick={() => onToggleStar(file)}
+                            title={file.starred ? 'Bỏ gắn sao' : 'Gắn sao'}
+                          >
+                            <Star size={15} fill={file.starred ? '#f59e0b' : 'none'} />
+                          </button>
+                          <div
+                            className={`file-icon-box ${file.kind}`}
+                            onClick={() => handleOpenFile(file)}
+                            style={{ cursor: 'pointer' }}
+                          >
+                            {file.kind === 'doc' ? <FileText size={18} /> : <FileSpreadsheet size={18} />}
+                          </div>
+                          <div>
+                            <div className="file-name-cell" onClick={() => handleOpenFile(file)}>
+                              {file.name}
+                            </div>
+                            {file.preview && (
+                              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, maxWidth: 450, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {file.preview}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <span className={`file-tag ${file.kind}`}>
+                          {file.kind === 'doc' ? 'Văn bản Word' : 'Bảng tính Excel'}
+                        </span>
+                      </td>
+                      <td style={{ color: 'var(--muted)', fontSize: 12 }}>
+                        {relativeTime(file.updatedAt)}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                          {file.deletedAt ? (
+                            <>
+                              <button className="icon-btn" onClick={() => onRestore(file)} title="Khôi phục tệp">
+                                <RotateCcw size={15} />
+                              </button>
+                              <button
+                                className="icon-btn"
+                                style={{ color: 'var(--accent)' }}
+                                onClick={() => onDeletePermanent(file)}
+                                title="Xoá vĩnh viễn"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button className="icon-btn" onClick={() => onRename(file)} title="Đổi tên">
+                                <Edit2 size={15} />
+                              </button>
+                              <button className="icon-btn" onClick={() => onDuplicate(file)} title="Nhân bản">
+                                <Copy size={15} />
+                              </button>
+                              <button className="icon-btn" onClick={() => onTrash(file)} title="Xoá vào thùng rác">
+                                <Trash2 size={15} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16 }}>
+              {filteredFiles.map((file) => (
+                <div
+                  key={file.id}
+                  className="template-card"
+                  style={{ cursor: 'pointer', minHeight: 140 }}
+                  onClick={() => handleOpenFile(file)}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div className={`template-badge ${file.kind}`}>
+                      {file.kind === 'doc' ? <FileText size={18} /> : <FileSpreadsheet size={18} />}
+                    </div>
+                    <button
+                      className="icon-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleStar(file);
+                      }}
+                    >
+                      <Star size={15} fill={file.starred ? '#f59e0b' : 'none'} color={file.starred ? '#f59e0b' : 'var(--muted)'} />
+                    </button>
+                  </div>
+
+                  <div className="template-title" style={{ marginTop: 8 }}>{file.name}</div>
+                  <div className="template-desc" style={{ minHeight: 32 }}>
+                    {file.preview || (file.kind === 'doc' ? 'Tài liệu Word' : 'Bảng tính Excel')}
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--line)', paddingTop: 10, marginTop: 'auto', fontSize: 11, color: 'var(--muted)' }}>
+                    <span>{relativeTime(file.updatedAt)}</span>
+                    <button
+                      className="icon-btn"
+                      style={{ width: 24, height: 24 }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onTrash(file);
+                      }}
+                      title="Xoá"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}
