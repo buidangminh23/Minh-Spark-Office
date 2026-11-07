@@ -231,9 +231,14 @@ function sha256(buffer) {
 }
 
 async function fetchLive(path) {
-  const response = await fetch(`${SITE}${path}${path.includes('?') ? '&' : '?'}release=${Date.now()}`);
-  if (!response.ok) throw new Error(`${path} returned ${response.status}`);
-  return response;
+  for (let attempt = 1; ; attempt += 1) {
+    const response = await fetch(`${SITE}${path}${path.includes('?') ? '&' : '?'}release=${Date.now()}`);
+    if (response.ok) return response;
+    const transient = response.status === 404 || response.status >= 500;
+    if (!transient || attempt >= LIVE_RETRIES) throw new Error(`${path} returned ${response.status}`);
+    console.log(`${path} returned ${response.status} while the CDN updates; retry ${attempt}/${LIVE_RETRIES}`);
+    await new Promise((done) => setTimeout(done, LIVE_RETRY_MS));
+  }
 }
 
 async function waitForManifest(version) {
