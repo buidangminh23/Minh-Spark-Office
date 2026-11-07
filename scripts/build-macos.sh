@@ -12,7 +12,7 @@ if [ "$(uname -s)" != Darwin ] || [ "$(uname -m)" != arm64 ]; then
   printf '%s\n' 'This build requires an Apple Silicon Mac.' >&2
   exit 1
 fi
-if [ ! -f dist/index.html ] || [ -d dist/downloads ] || [ -d dist/updates ]; then
+if [ ! -f dist/index.html ] || [ -d dist/downloads ] || [ -d dist/updates ] || grep -q 'seo-fallback' dist/index.html; then
   printf '%s\n' 'Provide prepared frontend assets without release downloads in dist/.' >&2
   exit 1
 fi
