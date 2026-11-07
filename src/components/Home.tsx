@@ -28,6 +28,8 @@ import './home.css';
 
 import type { FileKind, FileMeta } from '../lib/storage';
 import type { WorkbookData } from '../lib/sheetTypes';
+import type { PresentationData } from '../lib/slideTypes';
+import { businessPitchPresentation, productLaunchPresentation, blankPresentation } from '../lib/slideTemplates';
 import { relativeTime } from '../lib/download';
 import {
   sampleDocHtml,
@@ -45,9 +47,11 @@ interface HomeProps {
   onOpenDoc: (file: FileMeta) => void;
   onOpenSheet: (file: FileMeta) => void;
   onOpenPdf: (file: FileMeta) => void;
+  onOpenSlide: (file: FileMeta) => void;
   onCreateDoc: (templateHtml?: string) => void;
   onCreateSheet: (templateWorkbook?: WorkbookData) => void;
   onCreatePdf: () => void;
+  onCreateSlide: (template?: PresentationData) => void;
   onImportFile: (file: File) => void;
   onRename: (file: FileMeta) => void;
   onDuplicate: (file: FileMeta) => void;
@@ -65,16 +69,17 @@ type SortOrder = 'recent' | 'oldest' | 'name';
 
 const RECENT_LIMIT = 5;
 const FEATURED_TEMPLATES = 4;
-const IMPORT_ACCEPT = '.docx,.txt,.md,.html,.htm,.xlsx,.xlsm,.xls,.csv,.tsv,.pdf';
+const IMPORT_ACCEPT = '.docx,.txt,.md,.html,.htm,.xlsx,.xlsm,.xls,.csv,.tsv,.pdf,.pptx,.ppt';
 
-const KIND_LABEL: Record<FileKind, string> = { doc: 'Docs', sheet: 'Sheets', pdf: 'PDF' };
-const PRODUCT_NAME: Record<FileKind, string> = { doc: 'Minh Docs', sheet: 'Minh Sheets', pdf: 'Minh PDF' };
+const KIND_LABEL: Record<FileKind, string> = { doc: 'Docs', sheet: 'Sheets', pdf: 'PDF', slide: 'Slides' };
+const PRODUCT_NAME: Record<FileKind, string> = { doc: 'Minh Docs', sheet: 'Minh Sheets', pdf: 'Minh PDF', slide: 'Minh Slides' };
 const VIEW_TITLE: Record<Exclude<View, 'home'>, string> = {
   all: 'Tất cả tệp',
   starred: 'Được gắn sao',
   doc: 'Minh Docs',
   sheet: 'Minh Sheets',
   pdf: 'Minh PDF',
+  slide: 'Minh Slides',
   trash: 'Thùng rác',
 };
 const SORT_LABEL: Record<SortOrder, string> = { recent: 'Mới cập nhật', oldest: 'Cũ nhất', name: 'Tên A → Z' };
@@ -91,6 +96,9 @@ const TEMPLATES: Template[] = [
   { id: 'blank-sheet', title: 'Bảng tính trống', kind: 'sheet', thumb: 'blank-sheet', create: (p) => p.onCreateSheet() },
   { id: 'payroll', title: 'Bảng lương & chấm công', kind: 'sheet', thumb: 'payroll', create: (p) => p.onCreateSheet(payrollWorkbook()) },
   { id: 'cashbook', title: 'Sổ quỹ thu chi', kind: 'sheet', thumb: 'cashbook', create: (p) => p.onCreateSheet(cashbookWorkbook()) },
+  { id: 'pitch', title: 'Chiến lược kinh doanh 2026', kind: 'slide', thumb: 'pitch', create: (p) => p.onCreateSlide(businessPitchPresentation()) },
+  { id: 'product-launch', title: 'Ra mắt sản phẩm mới', kind: 'slide', thumb: 'product-launch', create: (p) => p.onCreateSlide(productLaunchPresentation()) },
+  { id: 'blank-slide', title: 'Bài thuyết trình trống', kind: 'slide', thumb: 'blank-slide', create: (p) => p.onCreateSlide(blankPresentation()) },
 ];
 
 function sortFiles(files: FileMeta[], order: SortOrder) {
@@ -105,7 +113,7 @@ function matchesView(file: FileMeta, view: View) {
   if (view === 'trash') return Boolean(file.deletedAt);
   if (file.deletedAt) return false;
   if (view === 'starred') return file.starred;
-  if (view === 'doc' || view === 'sheet' || view === 'pdf') return file.kind === view;
+  if (view === 'doc' || view === 'sheet' || view === 'pdf' || view === 'slide') return file.kind === view;
   return true;
 }
 
@@ -146,7 +154,7 @@ export default function Home(props: HomeProps) {
 
   const query = searchQuery.trim();
   const isSearching = query.length > 0;
-  const kindFixed = view === 'doc' || view === 'sheet' || view === 'pdf';
+  const kindFixed = view === 'doc' || view === 'sheet' || view === 'pdf' || view === 'slide';
 
   const listedFiles = useMemo(() => {
     const base = files.filter((file) => (isSearching ? !file.deletedAt : matchesView(file, view)) && matchesQuery(file, query));
@@ -170,14 +178,16 @@ export default function Home(props: HomeProps) {
   const openFile = (file: FileMeta) => {
     if (file.kind === 'doc') props.onOpenDoc(file);
     else if (file.kind === 'sheet') props.onOpenSheet(file);
-    else props.onOpenPdf(file);
+    else if (file.kind === 'pdf') props.onOpenPdf(file);
+    else if (file.kind === 'slide') props.onOpenSlide(file);
   };
 
   const create = (kind: FileKind) => {
     setCreateOpen(false);
     if (kind === 'doc') onCreateDoc();
     else if (kind === 'sheet') onCreateSheet();
-    else onCreatePdf();
+    else if (kind === 'pdf') onCreatePdf();
+    else if (kind === 'slide') props.onCreateSlide();
   };
 
   const closeCreate = useCallback(() => setCreateOpen(false), []);
@@ -197,7 +207,7 @@ export default function Home(props: HomeProps) {
 
   const tabs = !kindFixed && (
     <div className="ws-tabs" role="tablist" aria-label="Lọc theo loại tài liệu">
-      {(['all', 'doc', 'sheet', 'pdf'] as KindTab[]).map((tab) => (
+      {(['all', 'doc', 'sheet', 'slide', 'pdf'] as KindTab[]).map((tab) => (
         <button key={tab} role="tab" aria-selected={kindTab === tab} className={kindTab === tab ? 'is-active' : ''} onClick={() => setKindTab(tab)}>
           {tab === 'all' ? 'Tất cả' : KIND_LABEL[tab]}
         </button>
@@ -247,7 +257,7 @@ export default function Home(props: HomeProps) {
           <div className="ws-drop-card">
             <Upload size={48} aria-hidden="true" />
             <h2>Thả tệp vào đây để mở ngay</h2>
-            <p>Hỗ trợ <strong>.docx</strong>, <strong>.xlsx</strong>, <strong>.xls</strong>, <strong>.csv</strong> và <strong>.pdf</strong></p>
+            <p>Hỗ trợ <strong>.docx</strong>, <strong>.xlsx</strong>, <strong>.pptx</strong>, <strong>.csv</strong> và <strong>.pdf</strong></p>
           </div>
         </div>
       )}
@@ -269,7 +279,7 @@ export default function Home(props: HomeProps) {
             </button>
           }
         >
-          {(['doc', 'sheet', 'pdf'] as FileKind[]).map((kind) => (
+          {(['doc', 'sheet', 'slide', 'pdf'] as FileKind[]).map((kind) => (
             <button key={kind} role="menuitem" className="ws-menu-item" onClick={() => create(kind)}>
               <SuiteLogo kind={kind} size={24} />{PRODUCT_NAME[kind]}
             </button>
@@ -281,7 +291,7 @@ export default function Home(props: HomeProps) {
           <NavItem active={view === 'all' && !isSearching} onClick={() => goTo('all')} icon={<File size={20} />}>Tất cả tệp</NavItem>
           <NavItem active={view === 'starred' && !isSearching} onClick={() => goTo('starred')} icon={<Star size={20} />}>Được gắn sao</NavItem>
           <hr />
-          {(['doc', 'sheet', 'pdf'] as FileKind[]).map((kind) => (
+          {(['doc', 'sheet', 'slide', 'pdf'] as FileKind[]).map((kind) => (
             <NavItem key={kind} active={view === kind && !isSearching} onClick={() => goTo(kind)} icon={<SuiteLogo kind={kind} size={26} />}>{PRODUCT_NAME[kind]}</NavItem>
           ))}
           <hr />
@@ -331,6 +341,7 @@ export default function Home(props: HomeProps) {
               <div className="ws-apps">
                 <AppCard kind="doc" title="Minh Docs" desc="Soạn thảo văn bản" action="plus" onClick={() => onCreateDoc()} />
                 <AppCard kind="sheet" title="Minh Sheets" desc="Tạo bảng tính" action="plus" onClick={() => onCreateSheet()} />
+                <AppCard kind="slide" title="Minh Slides" desc="Soạn bài thuyết trình" action="plus" onClick={() => props.onCreateSlide()} />
                 <AppCard kind="pdf" title="Minh PDF" desc="Chỉnh sửa & chuyển đổi" action="arrow" onClick={onCreatePdf} />
               </div>
 

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1254 1254" width="1254" height="1254">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#EB4E1E"/>
+      <stop offset="100%" stop-color="#B82D0E"/>
+    </linearGradient>
+    <linearGradient id="pGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#D1340D"/>
+      <stop offset="100%" stop-color="#A3260C"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="15" dy="20" stdDeviation="25" flood-color="#000000" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+  <!-- Main presentation slide deck card -->
+  <rect x="180" y="180" width="894" height="894" rx="180" fill="url(#bgGrad)"/>
+  <!-- Decorative pie chart -->
+  <path d="M 750 470 L 750 280 A 190 190 0 0 1 938 437 Z" fill="rgba(255,255,255,0.85)"/>
+  <path d="M 750 470 L 938 437 A 190 190 0 0 1 815 648 Z" fill="rgba(255,255,255,0.65)"/>
+  <path d="M 750 470 L 815 648 A 190 190 0 0 1 750 280 Z" fill="rgba(255,255,255,0.4)"/>
+  <!-- Decorative slide bars -->
+  <rect x="560" y="720" width="260" height="36" rx="18" fill="rgba(255,255,255,0.8)"/>
+  <rect x="560" y="780" width="360" height="36" rx="18" fill="rgba(255,255,255,0.7)"/>
+  <rect x="560" y="840" width="180" height="36" rx="18" fill="rgba(255,255,255,0.6)"/>
+  <!-- Front card with P -->
+  <rect x="180" y="340" width="480" height="480" rx="100" fill="url(#pGrad)" filter="url(#shadow)"/>
+  <text x="420" y="685" font-family="'Segoe UI', Roboto, sans-serif" font-size="280" font-weight="bold" fill="#ffffff" text-anchor="middle">P</text>
+</svg>

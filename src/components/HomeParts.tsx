@@ -180,7 +180,7 @@ export function SettingsDialog({ onClose, onExportBackup, onImportBackup }: {
   );
 }
 
-type ThumbVariant = 'report' | 'minutes' | 'budget' | 'gantt' | 'blank-doc' | 'contract' | 'blank-sheet' | 'payroll' | 'cashbook';
+type ThumbVariant = 'report' | 'minutes' | 'budget' | 'gantt' | 'blank-doc' | 'contract' | 'blank-sheet' | 'payroll' | 'cashbook' | 'pitch' | 'product-launch' | 'blank-slide';
 
 const SHEET_HEADERS: Partial<Record<ThumbVariant, string[]>> = {
   budget: ['Hạng mục', 'Dự toán', 'Thực tế', 'Chênh lệch'],
@@ -238,13 +238,33 @@ function ThumbBody({ variant }: { variant: ThumbVariant }) {
       return <><span className="tt-center" /><Lines count={6} widths={[100, 96, 90, 100, 84, 58]} /></>;
     case 'blank-sheet':
       return <div className="tt-grid">{Array.from({ length: 24 }, (_, index) => <i key={index} />)}</div>;
+    case 'pitch':
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <span style={{ height: '6px', width: '60%', background: '#D83B01', borderRadius: '3px' }} />
+          <Lines count={2} widths={[80, 50]} />
+          <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
+            <span style={{ flex: 1, height: '24px', background: '#FDBA74', borderRadius: '3px' }} />
+            <span style={{ flex: 1, height: '24px', background: '#FED7AA', borderRadius: '3px' }} />
+          </div>
+        </div>
+      );
+    case 'product-launch':
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <span style={{ height: '8px', width: '75%', background: '#EA580C', borderRadius: '4px' }} />
+          <Lines count={3} widths={[90, 70, 45]} />
+        </div>
+      );
+    case 'blank-slide':
+      return <Lines count={2} widths={[60, 30]} />;
     default:
       return <Lines count={2} widths={[72, 40]} />;
   }
 }
 
 export function TemplateThumb({ variant, title }: { variant: ThumbVariant; title: string }) {
-  const tone = SHEET_HEADERS[variant] || variant === 'gantt' || variant === 'blank-sheet' ? 'sheet' : 'doc';
+  const tone = SHEET_HEADERS[variant] || variant === 'gantt' || variant === 'blank-sheet' ? 'sheet' : (variant === 'pitch' || variant === 'product-launch' || variant === 'blank-slide' ? 'slide' : 'doc');
   return (
     <div className={`tt-page tt-${tone}`} aria-hidden="true">
       <strong className="tt-title">{title}</strong>

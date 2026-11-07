@@ -2,8 +2,9 @@ import { createStore, del, get, set, update, promisifyRequest, type UseStore } f
 import { createContext, useContext } from 'react';
 import type { JSONContent } from '@tiptap/react';
 import type { WorkbookData } from './sheetTypes';
+import type { PresentationData } from './slideTypes';
 
-export type FileKind = 'doc' | 'sheet' | 'pdf';
+export type FileKind = 'doc' | 'sheet' | 'pdf' | 'slide';
 
 export type CommentItem = {
   id: string;
@@ -139,7 +140,12 @@ export type PdfContent = {
   pageCount?: number;
   comments?: CommentItem[];
 };
-export type FileContent = DocContent | SheetContent | PdfContent;
+export type SlideContent = {
+  kind: 'slide';
+  presentation: PresentationData;
+  comments?: CommentItem[];
+};
+export type FileContent = DocContent | SheetContent | PdfContent | SlideContent;
 
 export type FileVersion = {
   id: string;

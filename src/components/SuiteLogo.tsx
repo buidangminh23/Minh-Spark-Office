@@ -5,6 +5,7 @@ const suiteNames: Record<FileKind, string> = {
   doc: 'Minh Docs',
   sheet: 'Minh Sheets',
   pdf: 'Minh PDF',
+  slide: 'Minh Slides',
 };
 
 export function SuiteLogo({ kind, size = 28, decorative = true }: { kind: FileKind; size?: number; decorative?: boolean }) {

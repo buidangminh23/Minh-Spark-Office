@@ -1,0 +1,185 @@
+import { useState } from 'react';
+import {
+  Plus,
+  Copy,
+  Trash2,
+  ChevronUp,
+  ChevronDown,
+} from 'lucide-react';
+import type { SlideData, SlideLayout } from '../../lib/slideTypes';
+
+interface SlideThumbnailsProps {
+  slides: SlideData[];
+  activeSlideIndex: number;
+  onSelectSlide: (index: number) => void;
+  onAddSlide: (layout: SlideLayout) => void;
+  onDuplicateSlide: (index: number) => void;
+  onDeleteSlide: (index: number) => void;
+  onMoveSlide: (fromIndex: number, toIndex: number) => void;
+}
+
+const LAYOUT_OPTIONS: Array<{ layout: SlideLayout; label: string; desc: string }> = [
+  { layout: 'title', label: 'Trang chiếu Tiêu đề', desc: 'Bìa bài thuyết trình với tiêu đề lớn và phụ đề' },
+  { layout: 'title-content', label: 'Tiêu đề và Nội dung', desc: 'Tiêu đề trang và danh sách các dấu đầu dòng' },
+  { layout: 'section', label: 'Đầu đề Phần', desc: 'Trang ngăn cách giữa các phần nội dung' },
+  { layout: 'two-content', label: 'Hai Nội dung', desc: 'So sánh hoặc trình bày hai cột văn bản' },
+  { layout: 'comparison', label: 'So sánh Phương án', desc: 'Hai cột có tiêu đề phụ rõ ràng' },
+  { layout: 'title-only', label: 'Chỉ Tiêu đề', desc: 'Dành cho chèn biểu đồ hoặc bảng biểu lớn' },
+  { layout: 'content-caption', label: 'Nội dung & Chú thích', desc: 'Khung nội dung chính kèm phần giải thích' },
+  { layout: 'picture-caption', label: 'Hình ảnh & Chú thích', desc: 'Khung ảnh lớn với phần chú dẫn nguồn' },
+  { layout: 'blank', label: 'Trang chiếu Trống', desc: 'Khung vẽ tự do không có bố cục mẫu sẵn' },
+];
+
+export function SlideThumbnails({
+  slides,
+  activeSlideIndex,
+  onSelectSlide,
+  onAddSlide,
+  onDuplicateSlide,
+  onDeleteSlide,
+  onMoveSlide,
+}: SlideThumbnailsProps) {
+  const [layoutMenuOpen, setLayoutMenuOpen] = useState(false);
+
+  return (
+    <aside className="ppt-thumbnails-pane">
+      <div className="ppt-thumb-header">
+        <span>Trang chiếu ({slides.length})</span>
+        <div style={{ position: 'relative' }}>
+          <button
+            className="ppt-add-slide-btn"
+            onClick={() => setLayoutMenuOpen(!layoutMenuOpen)}
+            title="Thêm trang chiếu mới"
+          >
+            <Plus size={14} /> Mới
+          </button>
+
+          {layoutMenuOpen && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                marginTop: '6px',
+                background: '#FFFFFF',
+                borderRadius: '8px',
+                boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
+                border: '1px solid #E2E8F0',
+                width: '260px',
+                zIndex: 100,
+                padding: '6px',
+              }}
+            >
+              <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748B', padding: '6px 8px', textTransform: 'uppercase' }}>
+                Chọn Bố Cục Trang Chiếu
+              </div>
+              {LAYOUT_OPTIONS.map((opt) => (
+                <button
+                  key={opt.layout}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-start',
+                    width: '100%',
+                    padding: '8px',
+                    border: 'none',
+                    background: 'transparent',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#F1F5F9')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                  onClick={() => {
+                    onAddSlide(opt.layout);
+                    setLayoutMenuOpen(false);
+                  }}
+                >
+                  <strong style={{ fontSize: '13px', color: '#1E293B' }}>{opt.label}</strong>
+                  <span style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>{opt.desc}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="ppt-thumbnails-list">
+        {slides.map((slide, idx) => {
+          const isSelected = idx === activeSlideIndex;
+
+          return (
+            <div
+              key={slide.id}
+              className={`ppt-thumb-item ${isSelected ? 'is-selected' : ''}`}
+              onClick={() => onSelectSlide(idx)}
+            >
+              <div className="ppt-thumb-index">{idx + 1}</div>
+
+              <div className="ppt-thumb-card" style={{ background: slide.background.value || '#FFFFFF' }}>
+                {/* Miniature slide preview elements */}
+                <div className="ppt-thumb-preview">
+                  {slide.elements.map((el) => {
+                    return (
+                      <div
+                        key={el.id}
+                        style={{
+                          position: 'absolute',
+                          left: `${el.x}%`,
+                          top: `${el.y}%`,
+                          width: `${el.width}%`,
+                          height: `${el.height}%`,
+                          background: el.type === 'shape' ? (el.fill || '#0284C7') : el.isTitle ? '#D83B01' : '#CBD5E1',
+                          opacity: el.type === 'text' ? 0.8 : 0.6,
+                          borderRadius: el.borderRadius ? `${el.borderRadius / 4}px` : '2px',
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+
+                {/* Hover action buttons */}
+                <div className="ppt-thumb-actions" onClick={(e) => e.stopPropagation()}>
+                  {idx > 0 && (
+                    <button
+                      className="ppt-thumb-mini-btn"
+                      onClick={() => onMoveSlide(idx, idx - 1)}
+                      title="Di chuyển lên trên"
+                    >
+                      <ChevronUp size={14} />
+                    </button>
+                  )}
+                  {idx < slides.length - 1 && (
+                    <button
+                      className="ppt-thumb-mini-btn"
+                      onClick={() => onMoveSlide(idx, idx + 1)}
+                      title="Di chuyển xuống dưới"
+                    >
+                      <ChevronDown size={14} />
+                    </button>
+                  )}
+                  <button
+                    className="ppt-thumb-mini-btn"
+                    onClick={() => onDuplicateSlide(idx)}
+                    title="Nhân bản trang chiếu"
+                  >
+                    <Copy size={13} />
+                  </button>
+                  {slides.length > 1 && (
+                    <button
+                      className="ppt-thumb-mini-btn"
+                      onClick={() => onDeleteSlide(idx)}
+                      title="Xoá trang chiếu"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </aside>
+  );
+}

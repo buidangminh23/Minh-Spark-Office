@@ -13,6 +13,7 @@ import Home from './components/Home';
 import DocEditor from './editors/doc/DocEditor';
 import SheetEditor from './editors/sheet/SheetEditor';
 import PdfEditor from './editors/pdf/PdfEditor';
+import SlideEditor from './editors/slide/SlideEditor';
 import { UiProvider, useUi } from './components/ui';
 import {
   estimateStorage,
@@ -22,8 +23,12 @@ import {
   type DocContent,
   type SheetContent,
   type PdfContent,
+  type SlideContent,
 } from './lib/storage';
 import { blankDoc, sampleDocHtml, sampleWorkbook } from './lib/templates';
+import { blankPresentation, businessPitchPresentation } from './lib/slideTemplates';
+import { importFromPptx } from './lib/pptxImport';
+import type { PresentationData } from './lib/slideTypes';
 import { emptyWorkbook, importSpreadsheet } from './lib/xlsxConvert';
 import { importDocx } from './lib/docxConvert';
 import { extractHtmlBody, importDocxFull, markdownToHtml, textToHtml } from './lib/docxImport';
@@ -202,6 +207,26 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
         };
         await saveFile(pdfMeta, pdfContent);
 
+        // Seed initial Slide presentation
+        const slideId = `slide-${Date.now() + 3}`;
+        const slideMeta: FileMeta = {
+          id: slideId,
+          name: 'Kế hoạch phát triển & Báo cáo quý.pptx',
+          kind: 'slide',
+          createdAt: Date.now() + 3,
+          updatedAt: Date.now() + 3,
+          openedAt: Date.now() + 3,
+          starred: false,
+          deletedAt: null,
+          size: 32000,
+          preview: 'Chiến lược kinh doanh & Tăng trưởng 2026 — Công ty Minh Spark',
+        };
+        const slideContent: SlideContent = {
+          kind: 'slide',
+          presentation: businessPitchPresentation(),
+        };
+        await saveFile(slideMeta, slideContent);
+
         if (initialized.current === storage) setFiles(await listFiles());
       } else {
         if (initialized.current === storage) setFiles(list);
@@ -362,6 +387,54 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
     ui.toast('Đã tạo tài liệu Minh PDF mới');
   };
 
+  // Open Slide Presentation
+  const handleOpenSlide = async (meta: FileMeta) => {
+    try {
+      ui.showBusy('Đang mở bài thuyết trình…');
+      syncedWorkspace(storage)?.setActiveFile(meta.id);
+      const content = await loadContent(meta.id);
+      if (content && content.kind === 'slide') {
+        activeDocument.current = meta;
+        setActiveMeta(meta);
+        setActiveContent(content);
+        await updateMeta(meta.id, { openedAt: Date.now() });
+      } else {
+        ui.toast('Không tìm thấy nội dung bài thuyết trình', true);
+      }
+    } catch {
+      ui.toast('Lỗi khi mở bài thuyết trình', true);
+    } finally {
+      ui.showBusy(null);
+    }
+  };
+
+  // Create new Slide Presentation
+  const handleCreateSlide = async (templatePres?: PresentationData) => {
+    const id = `slide-${Date.now()}`;
+    const name = templatePres?.title || 'Bài thuyết trình mới.pptx';
+    const meta: FileMeta = {
+      id,
+      name,
+      kind: 'slide',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      openedAt: Date.now(),
+      starred: false,
+      deletedAt: null,
+      size: 8192,
+      preview: 'Minh Slides — Bài thuyết trình phong cách Microsoft PowerPoint',
+    };
+    const content: SlideContent = {
+      kind: 'slide',
+      presentation: templatePres || blankPresentation(),
+    };
+    await saveFile(meta, content);
+    await refreshFiles();
+    setActiveMeta(meta);
+    setActiveContent(content);
+    ui.toast('Đã tạo bài thuyết trình Minh Slides mới');
+  };
+
   // Import file (.docx, .xlsx, .csv) with password decryption support
   const handleImportFile = async (file: File) => {
     try {
@@ -372,6 +445,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
       const isText = /\.(txt|md|markdown|html|htm)$/i.test(file.name);
       const isXls = /\.(xlsx|xlsm|xls|csv|tsv)$/i.test(file.name);
       const isPdf = file.name.toLowerCase().endsWith('.pdf');
+      const isPpt = /\.(pptx|ppt)$/i.test(file.name);
 
       // Check if file is encrypted with MS Office agile encryption
       if (isEncryptedOffice(bytes)) {
@@ -508,6 +582,31 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
         setActiveMeta(meta);
         setActiveContent(content);
         ui.toast(`Đã nạp tệp PDF "${file.name}"`);
+      } else if (isPpt) {
+        ui.showBusy('Đang đọc bài thuyết trình…');
+        const presentation = await importFromPptx(bytes.buffer as ArrayBuffer, file.name);
+        const id = `slide-${Date.now()}`;
+        const meta: FileMeta = {
+          id,
+          name: file.name,
+          kind: 'slide',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          openedAt: Date.now(),
+          starred: false,
+          deletedAt: null,
+          size: file.size,
+          preview: `Bài thuyết trình PowerPoint ${presentation.slides.length} trang chiếu`,
+        };
+        const content: SlideContent = {
+          kind: 'slide',
+          presentation,
+        };
+        await saveFile(meta, content);
+        await refreshFiles();
+        setActiveMeta(meta);
+        setActiveContent(content);
+        ui.toast(`Đã nạp bài thuyết trình "${file.name}"`);
       } else {
         ui.toast('Định dạng tệp không được hỗ trợ', true);
       }
@@ -719,6 +818,19 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
       );
     }
 
+    if (activeMeta.kind === 'slide' && activeContent.kind === 'slide') {
+      return (
+        <SlideEditor
+          key={activeMeta.id}
+          meta={activeMeta}
+          content={activeContent}
+          onSave={handleSaveActive}
+          onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
+          onBack={handleCloseEditor}
+        />
+      );
+    }
+
     if (activeMeta.kind === 'pdf' && activeContent.kind === 'pdf') {
       return (
         <PdfEditor
@@ -740,9 +852,11 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
       onOpenDoc={handleOpenDoc}
       onOpenSheet={handleOpenSheet}
       onOpenPdf={handleOpenPdf}
+      onOpenSlide={handleOpenSlide}
       onCreateDoc={handleCreateDoc}
       onCreateSheet={handleCreateSheet}
       onCreatePdf={handleCreatePdf}
+      onCreateSlide={handleCreateSlide}
       onImportFile={handleImportFile}
       onRename={handleRename}
       onDuplicate={handleDuplicate}

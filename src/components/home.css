@@ -986,6 +986,11 @@
   box-shadow: 0 2px 6px rgb(24 32 51 / 6%);
 }
 
+.tt-page.tt-slide {
+  border-color: #ffedd5;
+  background: #fffcf9;
+}
+
 .tt-page > * {
   flex-shrink: 0;
 }

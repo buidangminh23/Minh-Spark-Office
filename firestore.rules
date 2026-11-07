@@ -15,7 +15,7 @@ service cloud.firestore {
         && meta.keys().hasAll(['id', 'name', 'kind', 'createdAt', 'updatedAt', 'openedAt', 'starred', 'deletedAt', 'size', 'preview'])
         && meta.keys().hasOnly(['id', 'name', 'kind', 'createdAt', 'updatedAt', 'openedAt', 'starred', 'deletedAt', 'size', 'preview'])
         && meta.id == id && meta.name is string && meta.name.size() <= 1024
-        && meta.kind in ['doc', 'sheet', 'pdf']
+        && meta.kind in ['doc', 'sheet', 'pdf', 'slide']
         && safeNumber(meta.createdAt) && safeNumber(meta.updatedAt) && safeNumber(meta.openedAt) && safeNumber(meta.size)
         && meta.starred is bool && (meta.deletedAt == null || safeNumber(meta.deletedAt))
         && meta.preview is string && meta.preview.size() <= 8000;

@@ -29,7 +29,7 @@ export function validateCloudMeta(value: unknown, id: string): asserts value is 
   const keys = ['id', 'name', 'kind', 'createdAt', 'updatedAt', 'openedAt', 'starred', 'deletedAt', 'size', 'preview'];
   if (Object.keys(value).length !== keys.length || keys.some((key) => !(key in value))) fail('Unexpected metadata fields');
   if (value.id !== id || !text(value.name, 1024) || !text(value.preview, 8000)) fail('Invalid file metadata');
-  if (!['doc', 'sheet', 'pdf'].includes(String(value.kind))) fail('Invalid file kind');
+  if (!['doc', 'sheet', 'pdf', 'slide'].includes(String(value.kind))) fail('Invalid file kind');
   if (![value.createdAt, value.updatedAt, value.openedAt, value.size].every(finite) || typeof value.starred !== 'boolean') fail('Invalid metadata values');
   if (value.deletedAt !== null && !finite(value.deletedAt)) fail('Invalid deletion timestamp');
 }
@@ -49,9 +49,11 @@ function validateContent(value: unknown, kind: FileMeta['kind']): asserts value 
     if (!object(value.workbook) || !object(value.workbook.sheets) || !Array.isArray(value.workbook.sheetOrder)) fail('Invalid workbook');
     const sheets = value.workbook.sheets;
     if (value.workbook.sheetOrder.some((id) => typeof id !== 'string' || !object(sheets[id]))) fail('Invalid worksheet references');
-  } else {
+  } else if (kind === 'pdf') {
     if (value.pdfDataUrl !== undefined && (typeof value.pdfDataUrl !== 'string' || !value.pdfDataUrl.startsWith('data:application/pdf;base64,'))) fail('Invalid PDF data');
     if (value.pageCount !== undefined && (!Number.isInteger(value.pageCount) || !finite(value.pageCount))) fail('Invalid PDF page count');
+  } else if (kind === 'slide') {
+    if (!object(value.presentation) || !Array.isArray(value.presentation.slides)) fail('Invalid presentation content');
   }
 }
 
