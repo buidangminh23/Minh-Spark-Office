@@ -168,6 +168,14 @@ import {
   renderSheetToPngBlob,
 } from '../../lib/xlsxConvert';
 import { downloadBlob } from '../../lib/download';
+import {
+  DEFAULT_CELL_FONT_FAMILY,
+  DEFAULT_CELL_FONT_SIZE_PT,
+  keepWidestColumn,
+  measureTextWithCanvas,
+  requiredColumnWidthPx,
+  shouldWidenColumn,
+} from './autoFitColumn';
 import { useUi } from '../../components/ui';
 import {
   sampleWorkbook,
@@ -390,6 +398,28 @@ const copyTextSafely = async (text: string): Promise<boolean> => {
   } catch {
     return false;
   }
+};
+
+type UniverApi = ReturnType<typeof createUniver>['univerAPI'];
+type ActiveWorksheet = NonNullable<ReturnType<NonNullable<ReturnType<UniverApi['getActiveWorkbook']>>['getActiveSheet']>>;
+
+const widenColumnToFitCell = (worksheet: ActiveWorksheet, row: number, column: number): boolean => {
+  const cell = worksheet.getRange(row, column, 1, 1);
+  if (cell.isMerged() || cell.getWrap()) return false;
+  const text = cell.getDisplayValue();
+  const style = cell.getCellStyleData();
+  const font = {
+    sizePt: style?.fs ?? DEFAULT_CELL_FONT_SIZE_PT,
+    family: style?.ff ?? DEFAULT_CELL_FONT_FAMILY,
+    bold: style?.bl === 1,
+    italic: style?.it === 1,
+  };
+  const beforePx = worksheet.getColumnWidth(column);
+  if (!shouldWidenColumn(text, requiredColumnWidthPx(text, font, measureTextWithCanvas), beforePx)) return false;
+  worksheet.autoResizeColumns(column, 1);
+  const afterPx = worksheet.getColumnWidth(column);
+  if (afterPx < beforePx) worksheet.setColumnWidth(column, keepWidestColumn(beforePx, afterPx));
+  return true;
 };
 
 const DEFAULT_PRINT_SETTINGS: SheetPrintSettings = {
@@ -881,7 +911,19 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
             setTimeout(() => syncUiFromSelection(), 20);
           }
         });
-        workbookSubsRef.current.push(selectionSub, commandSub);
+        const editEndSub = api.addEvent(api.Event.SheetEditEnded, (params) => {
+          if (!params.isConfirm) return;
+          const { worksheet, row, column } = params;
+          setTimeout(() => {
+            if (univerAPIRef.current !== api) return;
+            try {
+              widenColumnToFitCell(worksheet, row, column);
+            } catch (err) {
+              console.warn('Auto-fit column after edit failed:', err);
+            }
+          }, 0);
+        });
+        workbookSubsRef.current.push(selectionSub, commandSub, editEndSub);
       }
 
       try {
@@ -2658,6 +2700,11 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
       ctx.api.getFormula()?.executeCalculation();
     } catch {
       void 0;
+    }
+    try {
+      widenColumnToFitCell(ctx.fWorksheet, raw.startRow, raw.startColumn);
+    } catch (err) {
+      console.warn('Auto-fit column after formula bar commit failed:', err);
     }
     setSavedStatus('saving');
     setTimeout(() => syncUiFromSelection(), 35);
