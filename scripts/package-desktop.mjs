@@ -17,7 +17,7 @@ const updaterDirectory = join(output, 'updates');
 const downloadsDirectory = join(root, 'public/downloads');
 const manifest = {
   version: config.version,
-  notes: process.env.MINHSPARK_RELEASE_NOTES || 'Căn giữa logo cập nhật và đồng bộ; sửa thanh công cụ, popup và bố cục màn hình hẹp.',
+  notes: process.env.MINHSPARK_RELEASE_NOTES || 'Căn giữa logo; sửa bố cục màn hình hẹp; chuyển nút cập nhật xuống thanh trạng thái để không che tài liệu.',
   pub_date: new Date().toISOString(),
   platforms: {},
 };
