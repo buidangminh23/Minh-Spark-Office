@@ -35,6 +35,21 @@ service cloud.firestore {
             && data.uncompressedBytes >= 1 && data.uncompressedBytes <= 33554432
             && data.sha256.matches('^[a-f0-9]{64}$')));
     }
+    function usageDay() {
+      return int((request.time.toMillis() + 25200000) / 86400000);
+    }
+    function validUsage(data) {
+      return data.keys().hasAll(['day', 'count']) && data.keys().hasOnly(['day', 'count'])
+        && data.day is int && data.day == usageDay() && data.count is int;
+    }
+    match /aiUsage/{uid} {
+      allow read: if owner(uid);
+      allow create: if owner(uid) && validUsage(request.resource.data) && request.resource.data.count == 1;
+      allow update: if owner(uid) && validUsage(request.resource.data)
+        && ((resource.data.day == usageDay() && request.resource.data.count == resource.data.count + 1)
+          || (resource.data.day != usageDay() && request.resource.data.count == 1));
+      allow delete: if false;
+    }
     match /users/{uid}/files/{fileId} {
       allow read: if owner(uid);
       allow create: if owner(uid) && validManifest(request.resource.data, fileId);

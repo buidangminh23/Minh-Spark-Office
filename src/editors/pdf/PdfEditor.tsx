@@ -2,7 +2,10 @@ import { SuiteLogo } from '../../components/SuiteLogo';
 import { saveAccountSnapshot } from '../../lib/accountSnapshots';
 import { useAccount } from '../../components/Authentication';
 import { useWorkspace } from '../../lib/storage';
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { AddinPanel, AddinRibbonButtons } from '../../addins/AddinPane';
+import { pdfHost } from '../../addins/hosts';
+import { getOpenAddin } from '../../addins/store';
 import {
   ArrowLeft,
   FileText,
@@ -197,6 +200,25 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
     setNewCommentText('');
     ui.toast('Đã thêm ghi chú bình luận');
   };
+
+  const pageRef = useRef<HTMLDivElement>(null);
+  const currentPageRef = useRef(currentPage);
+  const commentsRef = useRef(comments);
+  useEffect(() => {
+    currentPageRef.current = currentPage;
+    commentsRef.current = comments;
+  }, [currentPage, comments]);
+  const addinHost = useMemo(() => pdfHost({
+    dataUrl: () => content.pdfDataUrl,
+    pageText: () => pageRef.current?.innerText.trim() ?? '',
+    page: () => currentPageRef.current,
+    notes: () => commentsRef.current.filter((item) => !item.resolved).map((item) => `- ${item.text}`).join('\n'),
+    addNote: (text, author) => {
+      setComments((prev) => [{ id: `cmt-${Date.now()}`, author, text: text.trim(), createdAt: Date.now(), resolved: false }, ...prev]);
+      markDirty();
+      setShowComments(true);
+    },
+  }, title, getOpenAddin), [content.pdfDataUrl, markDirty, title]);
 
   const handleExportPdf = () => {
     const contentText = `%PDF-1.4\n1 0 obj\n<< /Title (${title}) /Author (Minh Spark Office) >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF`;
@@ -556,6 +578,13 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
                 </div>
                 <div className="ribbon-group-label">Other</div>
               </div>
+
+              <div className="ribbon-section">
+                <div className="ribbon-controls">
+                  <AddinRibbonButtons className="ribbon-btn-large" />
+                </div>
+                <div className="ribbon-group-label">Add-in</div>
+              </div>
             </>
           )}
 
@@ -635,6 +664,7 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
         >
           {/* Simulated High-Res PDF Page */}
           <div
+            ref={pageRef}
             style={{
               width: 595 * (zoom / 100),
               minHeight: 842 * (zoom / 100),
@@ -812,6 +842,7 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
             </div>
           </aside>
         )}
+        <AddinPanel host={addinHost} />
       </div>
 
       {/* MODAL 1: Sign Modal */}

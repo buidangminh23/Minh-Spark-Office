@@ -47,6 +47,8 @@ import ReviewExtras, { ReviewPanels } from './ui/ReviewExtras';
 import ViewExtras, { SplitPane, ViewPanels } from './ui/ViewExtras';
 
 import HomeTab from './ui/tabs/HomeTab';
+import { AddinPanel } from '../../addins/AddinPane';
+import { docHost } from '../../addins/hosts';
 import InsertTab from './ui/tabs/InsertTab';
 import { DesignTab, LayoutTab } from './ui/tabs/LayoutTabs';
 import { MailingsTab, ReferencesTab, ReviewTab } from './ui/tabs/ReviewTabs';
@@ -429,6 +431,7 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
   const dims = pageDimensions(page.size, page.orientation);
   const onPages = useCallback((count: number, current: number) => setPages((p) => (p.count === count && p.current === current ? p : { count, current })), []);
   const reading = view.viewMode === 'read';
+  const addinHost = useMemo(() => docHost(editor, title), [editor, title]);
   const openComments = comments.filter((c) => !c.resolved).length;
 
   const renderTab = () => {
@@ -516,6 +519,7 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
           {!reading && <LayoutPanels />}
           {!reading && <ReviewPanels />}
           <ViewPanels />
+          {!reading && <AddinPanel host={addinHost} />}
         </div>
 
         {!reading && <StatusBar page={pages.current} pages={pages.count} />}

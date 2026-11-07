@@ -2,7 +2,14 @@ import { SuiteLogo } from '../../components/SuiteLogo';
 import { saveAccountSnapshot } from '../../lib/accountSnapshots';
 import { useAccount } from '../../components/Authentication';
 import { useWorkspace } from '../../lib/storage';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AddinPanel, AddinRibbonButtons } from '../../addins/AddinPane';
+import { sheetHost } from '../../addins/hosts';
+
+const ADDIN_MAX_ROWS = 300;
+const ADDIN_MAX_COLS = 40;
+const TAB = '\t';
+const LINE_BREAK = '\n';
 import {
   createUniver,
   LocaleType,
@@ -1071,6 +1078,72 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
     }
     return formatA1Range(minR, minC, maxR, maxC);
   }, [getActiveContext]);
+
+  const addinHost = useMemo(() => {
+    const gridText = (startRow: number, startCol: number, values: unknown[][], formulas: string[][]) => {
+      const rows = values.slice(0, ADDIN_MAX_ROWS);
+      const width = Math.min(ADDIN_MAX_COLS, Math.max(0, ...rows.map((row) => row.length)));
+      const header = ['', ...Array.from({ length: width }, (_, c) => colIndexToLetter(startCol + c))].join(TAB);
+      const body = rows.map((row, r) => [String(startRow + r + 1), ...Array.from({ length: width }, (_, c) => {
+        const formula = formulas[r]?.[c];
+        const value = row[c] ?? '';
+        return formula ? `${String(value)} {${formula}}` : String(value);
+      })].join(TAB));
+      return [header, ...body].join(LINE_BREAK);
+    };
+    const readA1 = (a1: string) => {
+      const ctx = getActiveContext();
+      const parsed = parseA1Range(a1);
+      if (!ctx || !parsed) return '';
+      const range = ctx.fWorksheet.getRange(parsed.startRow, parsed.startColumn, Math.min(ADDIN_MAX_ROWS, parsed.endRow - parsed.startRow + 1), Math.min(ADDIN_MAX_COLS, parsed.endColumn - parsed.startColumn + 1));
+      return gridText(parsed.startRow, parsed.startColumn, range.getRawValues() as unknown[][], range.getFormulas());
+    };
+    const selectionA1 = () => {
+      const raw = getActiveContext()?.fRange.getRange();
+      return raw ? formatA1Range(raw.startRow, raw.startColumn, raw.endRow, raw.endColumn) : 'A1';
+    };
+    return sheetHost({
+      sheetName: () => getActiveContext()?.fWorksheet.getSheetName() ?? 'Sheet1',
+      selectionA1,
+      readSelection: () => readA1(selectionA1()),
+      readSheet: () => {
+        const ctx = getActiveContext();
+        if (!ctx) return '';
+        const snap = ctx.fWorkbook.save() as unknown as WorkbookData;
+        const cells = snap.sheets[ctx.fWorksheet.getSheetId()]?.cellData ?? {};
+        let maxR = -1;
+        let maxC = -1;
+        for (const [rk, rowObj] of Object.entries(cells)) {
+          for (const [ck, cell] of Object.entries(rowObj ?? {})) {
+            if (!cell || ((cell.v === undefined || cell.v === null || cell.v === '') && !cell.f)) continue;
+            maxR = Math.max(maxR, Number(rk));
+            maxC = Math.max(maxC, Number(ck));
+          }
+        }
+        return maxR < 0 ? '(empty sheet)' : readA1(formatA1Range(0, 0, maxR, maxC));
+      },
+      writeTable: (rows) => {
+        const ctx = getEditableContext();
+        if (!ctx || !rows.length) return 'Không ghi được';
+        const raw = ctx.fRange.getRange();
+        const width = Math.max(...rows.map((row) => row.length));
+        const normalized = rows.map((row) => Array.from({ length: width }, (_, c) => row[c] ?? ''));
+        ctx.fWorksheet.getRange(raw.startRow, raw.startColumn, normalized.length, width).setValues(normalized);
+        setSavedStatus('saving');
+        syncUiFromSelection();
+        return `Đã ghi ${normalized.length}×${width} ô từ ${formatA1Cell(raw.startRow, raw.startColumn)}`;
+      },
+      writeFormula: (formula) => {
+        const ctx = getEditableContext();
+        if (!ctx) return 'Không ghi được';
+        const raw = ctx.fRange.getRange();
+        ctx.fWorksheet.getRange(raw.startRow, raw.startColumn, 1, 1).setValue(formula);
+        setSavedStatus('saving');
+        syncUiFromSelection();
+        return `Đã đặt vào ${formatA1Cell(raw.startRow, raw.startColumn)}`;
+      },
+    }, title);
+  }, [getActiveContext, getEditableContext, setSavedStatus, syncUiFromSelection, title]);
 
   const readRangeValuesByA1 = useCallback(
     (rangeA1: string): unknown[][] => {
@@ -4290,6 +4363,13 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                   </div>
                   <div className="ribbon-group-label">Trí tuệ AI</div>
                 </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <AddinRibbonButtons className="ribbon-btn-large" />
+                  </div>
+                  <div className="ribbon-group-label">Add-in</div>
+                </div>
               </>
             )}
 
@@ -5528,6 +5608,8 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
           ref={containerRef}
           className={`sheet-container ${!showFormulaBar ? 'sheet-hide-formula-bar' : ''}`}
         />
+
+        <AddinPanel host={addinHost} />
 
         {showComments && (
           <aside className="doc-comments">
