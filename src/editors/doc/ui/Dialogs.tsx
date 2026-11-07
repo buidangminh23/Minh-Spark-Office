@@ -1,0 +1,186 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { BarChart3, Calculator, Keyboard, LayoutTemplate, Omega, PenTool } from 'lucide-react';
+import { readAsDataUrl } from '../../../lib/download';
+import { useDoc } from '../DocContext';
+import { drawChart, textStats } from '../docTools';
+import { DOC_TEMPLATES } from '../docTemplates';
+import Modal from './Modal';
+
+export const SHORTCUTS: [string, string][] = [
+  ['Ctrl+S', 'Lưu ngay'], ['Ctrl+Z / Ctrl+Y', 'Hoàn tác / Làm lại'], ['Ctrl+F', 'Tìm'], ['Ctrl+H', 'Tìm và thay thế'], ['Ctrl+P', 'In / Lưu PDF'],
+  ['Ctrl+B / I / U', 'Đậm / Nghiêng / Gạch chân'], ['Ctrl+Shift+X', 'Gạch ngang'], ['Ctrl+, / Ctrl+.', 'Chỉ số dưới / trên'], ['Ctrl+] / Ctrl+[', 'Tăng / giảm cỡ chữ'],
+  ['Ctrl+L / E / R / J', 'Căn trái / giữa / phải / đều'], ['Ctrl+Alt+0…3', 'Normal / Heading 1–3'], ['Ctrl+Shift+7 / 8 / 9', 'Đánh số / dấu đầu dòng / việc cần làm'],
+  ['Tab / Shift+Tab', 'Thụt lề / bỏ thụt lề'], ['Ctrl+Enter', 'Ngắt trang'], ['Ctrl+K', 'Chèn liên kết'], ['Ctrl+Alt+M', 'Bình luận mới'], ['Ctrl+Alt+F', 'Chú thích cuối trang'],
+  ['Ctrl+Shift+C', 'Chổi định dạng'], ['Ctrl+Shift+V', 'Dán chỉ lấy chữ'], ['Ctrl+Shift+E', 'Bật/tắt theo dõi thay đổi'], ['Ctrl+Shift+G', 'Đếm từ'], ['F7', 'Soát chính tả'],
+  ['Ctrl+\\', 'Xoá định dạng'], ['Ctrl+= / Ctrl+-', 'Phóng to / thu nhỏ'], ['Ctrl+/', 'Danh sách phím tắt'], ['/', 'Menu chèn nhanh ở đầu dòng'], ['Chuột phải', 'Menu ngữ cảnh'], ['Esc', 'Thoát chế độ đọc / đóng hộp thoại'],
+];
+
+export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
+  const [query, setQuery] = useState('');
+  const rows = SHORTCUTS.filter(([key, label]) => `${key} ${label}`.toLowerCase().includes(query.toLowerCase()));
+  return (
+    <Modal title="Phím tắt" icon={<Keyboard size={20} />} onClose={onClose} width={620}>
+      <input className="text-field" placeholder="Tìm phím tắt…" value={query} autoFocus onChange={(e) => setQuery(e.target.value)} />
+      <div className="shortcut-list">
+        {rows.map(([key, label]) => <div key={key} className="shortcut-row"><span>{label}</span><kbd>{key}</kbd></div>)}
+      </div>
+    </Modal>
+  );
+}
+
+const SYMBOL_SETS: Record<string, string[]> = {
+  'Thông dụng': ['©', '®', '™', '§', '¶', '†', '‡', '•', '…', '–', '—', '«', '»', '“', '”', '‘', '’', '°', '№', '℃'],
+  'Tiền tệ': ['₫', '$', '€', '£', '¥', '₩', '₹', '₽', '¢', '₿'],
+  'Toán học': ['±', '×', '÷', '≠', '≈', '≤', '≥', '∞', '√', '∑', '∏', '∫', '∆', '∂', 'π', 'µ', 'Ω', 'α', 'β', 'γ', 'θ', 'λ', '½', '¼', '¾', '²', '³', '‰'],
+  'Mũi tên': ['→', '←', '↑', '↓', '↔', '↕', '⇒', '⇐', '⇔', '➜', '↗', '↘'],
+  'Hình': ['★', '☆', '●', '○', '■', '□', '▲', '△', '◆', '◇', '✔', '✘', '☑', '☐', '♥', '♦', '♣', '♠'],
+  'Biểu tượng': ['😀', '😊', '😂', '😍', '🤔', '👍', '👏', '🙏', '🎉', '🔥', '✅', '❌', '⚠️', '📌', '📎', '📅', '📞', '📧', '💡', '🚀', '⭐', '❤️', '🇻🇳'],
+};
+
+export function SymbolsDialog({ onClose }: { onClose: () => void }) {
+  const { editor } = useDoc();
+  const [tab, setTab] = useState(Object.keys(SYMBOL_SETS)[0]);
+  const [code, setCode] = useState('');
+  const insert = (text: string) => editor.chain().focus().insertContent(text).run();
+  return (
+    <Modal title="Ký hiệu & biểu tượng" icon={<Omega size={20} />} onClose={onClose} width={520}>
+      <div className="symbol-tabs">{Object.keys(SYMBOL_SETS).map((name) => <button key={name} type="button" className={`comments-tab ${tab === name ? 'active' : ''}`} onClick={() => setTab(name)}>{name}</button>)}</div>
+      <div className="symbol-grid">{SYMBOL_SETS[tab].map((s) => <button key={s} type="button" className="symbol-cell" title={`U+${s.codePointAt(0)?.toString(16).toUpperCase()}`} onClick={() => insert(s)}>{s}</button>)}</div>
+      <div className="symbol-code">
+        <input className="text-field" placeholder="Mã Unicode, ví dụ 2605" value={code} onChange={(e) => setCode(e.target.value.replace(/[^0-9a-f]/gi, ''))} />
+        <button className="btn" disabled={!code} onClick={() => { const n = parseInt(code, 16); if (n > 0 && n <= 0x10ffff) insert(String.fromCodePoint(n)); }}>Chèn {code && (() => { try { return String.fromCodePoint(parseInt(code, 16)); } catch { return ''; } })()}</button>
+      </div>
+    </Modal>
+  );
+}
+
+export function WordCountDialog({ onClose }: { onClose: () => void }) {
+  const { editor } = useDoc();
+  const all = useMemo(() => textStats(editor.getText({ blockSeparator: '\n' })), [editor]);
+  const { from, to, empty } = editor.state.selection;
+  const selection = empty ? null : textStats(editor.state.doc.textBetween(from, to, '\n'));
+  const pages = Math.max(1, document.querySelectorAll('.page-sheet').length);
+  const rows: [string, number | string, number | string | null][] = [
+    ['Trang', pages, null],
+    ['Từ', all.words, selection?.words ?? null],
+    ['Ký tự (không dấu cách)', all.charsNoSpaces, selection?.charsNoSpaces ?? null],
+    ['Ký tự (có dấu cách)', all.chars, selection?.chars ?? null],
+    ['Đoạn văn', all.paragraphs, selection?.paragraphs ?? null],
+    ['Câu', all.sentences, selection?.sentences ?? null],
+    ['Thời gian đọc', `~${all.readMinutes} phút`, null],
+    ['Thời gian trình bày', `~${all.speakMinutes} phút`, null],
+    ['Độ dễ đọc (0–100)', all.readability, null],
+  ];
+  return (
+    <Modal title="Đếm từ" icon={<Calculator size={20} />} onClose={onClose} width={440} actions={<button className="btn btn-primary" onClick={onClose}>Đóng</button>}>
+      <table className="stats-table">
+        <thead><tr><th>Thống kê</th><th>Tài liệu</th>{selection && <th>Đoạn chọn</th>}</tr></thead>
+        <tbody>{rows.map(([label, value, sel]) => <tr key={label}><td>{label}</td><td>{typeof value === 'number' ? value.toLocaleString('vi-VN') : value}</td>{selection && <td>{sel === null ? '' : sel.toLocaleString('vi-VN')}</td>}</tr>)}</tbody>
+      </table>
+    </Modal>
+  );
+}
+
+export function TemplatesDialog({ onClose }: { onClose: () => void }) {
+  const ctx = useDoc();
+  const apply = async (html: string, replace: boolean) => {
+    if (replace) {
+      if (!(await ctx.ui.confirm('Thay nội dung hiện tại?', 'Nội dung đang soạn sẽ được thay bằng mẫu. Có thể hoàn tác bằng Ctrl+Z.'))) return;
+      ctx.editor.chain().focus().setContent(html).run();
+      ctx.markDirty();
+    } else {
+      ctx.onNewDocument(html);
+    }
+    onClose();
+  };
+  return (
+    <Modal title="Mẫu tài liệu" icon={<LayoutTemplate size={20} />} onClose={onClose} width={720}>
+      <div className="template-grid">
+        {DOC_TEMPLATES.map((t) => (
+          <div key={t.id} className="template-tile">
+            <div className="template-thumb" dangerouslySetInnerHTML={{ __html: t.html() }} />
+            <strong>{t.name}</strong>
+            <span>{t.description}</span>
+            <div className="template-actions">
+              <button className="btn" onClick={() => void apply(t.html(), false)}>Tạo tệp mới</button>
+              <button className="btn" onClick={() => void apply(t.html(), true)}>Dùng tại đây</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Modal>
+  );
+}
+
+export function ChartDialog({ onClose }: { onClose: () => void }) {
+  const ctx = useDoc();
+  const [kind, setKind] = useState<'bar' | 'line' | 'pie'>('bar');
+  const [title, setTitle] = useState('Doanh thu theo quý');
+  const [raw, setRaw] = useState('Quý I, 120\nQuý II, 150\nQuý III, 135\nQuý IV, 190');
+  const [preview, setPreview] = useState('');
+  const data = useMemo(() => raw.split('\n').map((line) => {
+    const idx = Math.max(line.lastIndexOf(','), line.lastIndexOf('\t'), line.lastIndexOf(';'));
+    return { label: line.slice(0, idx).trim(), value: parseFloat(line.slice(idx + 1).replace(',', '.')) };
+  }).filter((d) => d.label && Number.isFinite(d.value)), [raw]);
+  useEffect(() => {
+    let alive = true;
+    void drawChart(kind, title, data).then(async (blob) => { if (blob && alive) setPreview(await readAsDataUrl(blob)); });
+    return () => { alive = false; };
+  }, [kind, title, data]);
+  return (
+    <Modal title="Chèn biểu đồ" icon={<BarChart3 size={20} />} onClose={onClose} width={760} actions={<><button className="btn" onClick={onClose}>Huỷ</button><button className="btn btn-primary" disabled={!data.length || !preview} onClick={() => { ctx.editor.chain().focus().setImage({ src: preview, alt: title }).run(); onClose(); }}>Chèn biểu đồ</button></>}>
+      <div className="chart-editor">
+        <div className="chart-form">
+          <label className="field"><span className="field-label">Loại</span>
+            <select className="text-field" value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}><option value="bar">Cột</option><option value="line">Đường</option><option value="pie">Tròn</option></select>
+          </label>
+          <label className="field"><span className="field-label">Tiêu đề</span><input className="text-field" value={title} onChange={(e) => setTitle(e.target.value)} /></label>
+          <label className="field"><span className="field-label">Dữ liệu (mỗi dòng: nhãn, giá trị) — dán thẳng từ Excel được</span><textarea className="text-field" rows={8} value={raw} onChange={(e) => setRaw(e.target.value)} /></label>
+        </div>
+        <div className="chart-preview">{preview ? <img src={preview} alt="Xem trước biểu đồ" /> : 'Nhập dữ liệu để xem trước'}</div>
+      </div>
+    </Modal>
+  );
+}
+
+const PEN_COLORS = ['#1a365d', '#000000', '#2b579a', '#d7473c', '#107c41'];
+
+export function SignatureDialog({ onClose }: { onClose: () => void }) {
+  const ctx = useDoc();
+  const canvas = useRef<HTMLCanvasElement | null>(null);
+  const drawing = useRef(false);
+  const [color, setColor] = useState(PEN_COLORS[0]);
+  const [width, setWidth] = useState(2.5);
+  const [dirty, setDirty] = useState(false);
+  const point = (e: React.PointerEvent) => {
+    const rect = canvas.current!.getBoundingClientRect();
+    return { x: ((e.clientX - rect.left) * canvas.current!.width) / rect.width, y: ((e.clientY - rect.top) * canvas.current!.height) / rect.height };
+  };
+  const insert = () => {
+    const c = canvas.current;
+    if (!c) return;
+    const ctx2d = c.getContext('2d')!;
+    const { data, width: w, height: h } = ctx2d.getImageData(0, 0, c.width, c.height);
+    let minX = w; let minY = h; let maxX = 0; let maxY = 0;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (data[(y * w + x) * 4 + 3]) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
+    if (maxX <= minX) return;
+    const crop = document.createElement('canvas');
+    crop.width = maxX - minX + 16;
+    crop.height = maxY - minY + 16;
+    crop.getContext('2d')!.drawImage(c, minX - 8, minY - 8, crop.width, crop.height, 0, 0, crop.width, crop.height);
+    ctx.editor.chain().focus().setImage({ src: crop.toDataURL('image/png'), alt: 'Chữ ký' }).run();
+    onClose();
+  };
+  return (
+    <Modal title="Vẽ tay / ký tên" icon={<PenTool size={20} />} onClose={onClose} width={620} actions={<><button className="btn" onClick={() => { canvas.current?.getContext('2d')?.clearRect(0, 0, 1200, 400); setDirty(false); }}>Xoá vẽ lại</button><button className="btn" onClick={onClose}>Huỷ</button><button className="btn btn-primary" disabled={!dirty} onClick={insert}>Chèn vào tài liệu</button></>}>
+      <div className="pen-toolbar">
+        {PEN_COLORS.map((c) => <button key={c} type="button" className={`color-swatch ${color === c ? 'selected' : ''}`} style={{ background: c }} aria-label={c} onClick={() => setColor(c)} />)}
+        <label>Nét <input type="range" min={1} max={8} step={0.5} value={width} onChange={(e) => setWidth(Number(e.target.value))} /></label>
+      </div>
+      <canvas ref={canvas} width={1120} height={360} className="signature-pad"
+        onPointerDown={(e) => { drawing.current = true; e.currentTarget.setPointerCapture(e.pointerId); const c2 = canvas.current!.getContext('2d')!; const p = point(e); c2.beginPath(); c2.moveTo(p.x, p.y); c2.strokeStyle = color; c2.lineWidth = width * 2; c2.lineCap = 'round'; c2.lineJoin = 'round'; }}
+        onPointerMove={(e) => { if (!drawing.current) return; const c2 = canvas.current!.getContext('2d')!; const p = point(e); c2.lineTo(p.x, p.y); c2.stroke(); setDirty(true); }}
+        onPointerUp={() => { drawing.current = false; }} />
+    </Modal>
+  );
+}

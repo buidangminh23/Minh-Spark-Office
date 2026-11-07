@@ -21,6 +21,16 @@ export type PageSettings = {
   header: string;
   footer: string;
   pageNumbers: boolean;
+  watermark?: string;
+  pageColor?: string;
+  columns?: number;
+  pageBorder?: 'none' | 'single' | 'double' | 'shadow';
+  lineNumbers?: boolean;
+  hyphenate?: boolean;
+  fontFamily?: string;
+  fontSize?: number;
+  differentFirstPage?: boolean;
+  protectHash?: string;
 };
 
 export type DocContent = {
