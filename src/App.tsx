@@ -1,3 +1,4 @@
+import { suiteLogos } from './lib/suiteBranding';
 import { Authentication, useAccount } from './components/Authentication';
 import { createDraftWorkspaceStorage, createWorkspaceStorage, WorkspaceContext, useWorkspace } from './lib/storage';
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
@@ -32,6 +33,13 @@ function MainApp() {
   const [activeMeta, setActiveMeta] = useState<FileMeta | null>(null);
   const [activeContent, setActiveContent] = useState<FileContent | null>(null);
   const [storageInfo, setStorageInfo] = useState<{ usage: number; quota: number } | null>(null);
+
+  const activeKind = activeMeta?.kind;
+
+  useEffect(() => {
+    const favicon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+    if (favicon) favicon.href = activeKind ? suiteLogos[activeKind] : '/logo-icon.png';
+  }, [activeKind]);
 
   const initialized = useRef<typeof storage | null>(null);
   const currentStorage = useRef(storage);

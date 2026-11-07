@@ -32,3 +32,6 @@
   .seo-card { padding: 22px; }
   .seo-page .seo-lead { font-size: 17px; }
 }
+
+.seo-product-logo { display: block; width: 96px; height: 96px; position: relative; overflow: hidden; margin-bottom: 16px; }
+.seo-product-logo img { position: absolute; width: 170%; height: 170%; max-width: none; left: 50%; top: 50%; transform: translate(-50%, -47%); object-fit: contain; }

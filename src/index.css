@@ -612,22 +612,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 }
 
 .file-icon-box {
+  padding: 0;
   width: 34px;
   height: 34px;
   border-radius: 7px;
   display: grid;
   place-items: center;
   flex-shrink: 0;
-}
-
-.file-icon-box.doc {
-  background: var(--doc-soft);
-  color: var(--doc);
-}
-
-.file-icon-box.sheet {
-  background: var(--sheet-soft);
-  color: var(--sheet);
 }
 
 .file-name-cell {
@@ -1942,3 +1933,23 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .account-identity { max-width: 140px; }
 }
 .auth-google img, .google-signin img { flex-shrink: 0; }
+
+.suite-logo {
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.suite-logo img {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 170%;
+  height: 170%;
+  max-width: none;
+  object-fit: contain;
+  transform: translate(-48.6%, -46.9%);
+  pointer-events: none;
+}

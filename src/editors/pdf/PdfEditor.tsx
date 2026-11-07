@@ -1,3 +1,4 @@
+import { SuiteLogo } from '../../components/SuiteLogo';
 import { createWorkspaceStorage } from '../../lib/storage';
 import { useAccount } from '../../components/Authentication';
 import { useWorkspace } from '../../lib/storage';
@@ -222,13 +223,7 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
           <button className="icon-btn" onClick={() => void persistPdf(false).then((saved) => { if (saved) onBack(); })} title="Quay lại danh sách tệp">
             <ArrowLeft size={18} />
           </button>
-          <div
-            className="file-icon-box"
-            style={{ width: 28, height: 28, background: '#fee2e2', color: '#dc2626', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            title="Minh PDF"
-          >
-            <FileText size={16} />
-          </div>
+          <SuiteLogo kind="pdf" size={32} decorative={false} />
           <input
             className="editor-title-input"
             value={title}

@@ -1,3 +1,4 @@
+import { SuiteLogo } from '../../components/SuiteLogo';
 import { createWorkspaceStorage } from '../../lib/storage';
 import { useAccount } from '../../components/Authentication';
 import { useWorkspace } from '../../lib/storage';
@@ -2833,9 +2834,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
             >
               <ArrowLeft size={18} />
             </button>
-            <div className="file-icon-box sheet" style={{ width: 28, height: 28 }}>
-              <FileSpreadsheet size={15} />
-            </div>
+            <SuiteLogo kind="sheet" size={32} decorative={false} />
             <input
               className="editor-title-input"
               value={title}

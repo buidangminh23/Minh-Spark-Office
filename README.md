@@ -35,3 +35,7 @@ Every editor and asynchronous document action captures an immutable workspace in
 Use the existing Vercel project `minh-spark-office`. Set all four Firebase variables in the production environment. Build and deploy a clean, tested commit. Do not deploy the shared working directory while other agents have unfinished changes. This Google authentication release is based on production commit `2f4f173` to retain the full Minh Docs feature set and all 22 export formats.
 
 Google button artwork is the official Firebase UI Google asset from https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg.
+
+## Product logos
+
+The default Minh Docs, Minh Sheets and Minh PDF identities are the approved layered PNG assets in `public/logos/`. Use `SuiteLogo` and the `suiteLogos` mapping in `src/lib/suiteBranding.ts` for product navigation, templates, file types, editor headers and browser favicons. Preserve the separate Office identity in `public/logo-icon.png`. Keep the original transparent artwork unchanged.

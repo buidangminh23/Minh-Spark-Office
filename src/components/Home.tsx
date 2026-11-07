@@ -1,8 +1,8 @@
 import { AccountButton, useAccount } from './Authentication';
+import { SuiteLogo } from './SuiteLogo';
 import { useState, useMemo } from 'react';
 import {
   FileText,
-  FileSpreadsheet,
   Plus,
   Search,
   Upload,
@@ -13,7 +13,6 @@ import {
   Copy,
   Edit2,
   RotateCcw,
-  Sparkles,
   LayoutGrid,
   List as ListIcon,
 } from 'lucide-react';
@@ -312,7 +311,7 @@ export default function Home({
                 onCreateDoc();
               }}
             >
-              <div className="nav-dot docs" />
+              <SuiteLogo kind="doc" size={22} />
               <span>Minh Docs (.docx)</span>
             </button>
             <button
@@ -323,7 +322,7 @@ export default function Home({
                 onCreateSheet();
               }}
             >
-              <div className="nav-dot sheets" />
+              <SuiteLogo kind="sheet" size={22} />
               <span>Minh Sheets (.xlsx)</span>
             </button>
             <button
@@ -334,7 +333,7 @@ export default function Home({
                 onCreatePdf();
               }}
             >
-              <div className="nav-dot" style={{ background: '#ef4444' }} />
+              <SuiteLogo kind="pdf" size={22} />
               <span>Minh PDF (.pdf)</span>
             </button>
           </div>
@@ -355,7 +354,7 @@ export default function Home({
           className={`nav-item ${category === 'docs' ? 'active' : ''}`}
           onClick={() => setCategory('docs')}
         >
-          <div className="nav-dot docs" />
+          <SuiteLogo kind="doc" size={22} />
           <span>Minh Docs</span>
           <span className="nav-count">{docCount}</span>
         </button>
@@ -364,7 +363,7 @@ export default function Home({
           className={`nav-item ${category === 'sheets' ? 'active' : ''}`}
           onClick={() => setCategory('sheets')}
         >
-          <div className="nav-dot sheets" />
+          <SuiteLogo kind="sheet" size={22} />
           <span>Minh Sheets</span>
           <span className="nav-count">{sheetCount}</span>
         </button>
@@ -373,7 +372,7 @@ export default function Home({
           className={`nav-item ${category === 'pdfs' ? 'active' : ''}`}
           onClick={() => setCategory('pdfs')}
         >
-          <div className="nav-dot" style={{ background: '#ef4444' }} />
+          <SuiteLogo kind="pdf" size={22} />
           <span>Minh PDF</span>
           <span className="nav-count">{pdfCount}</span>
         </button>
@@ -487,81 +486,61 @@ export default function Home({
               {/* Templates Gallery */}
               <div className="templates-grid">
                 <button className="template-card" onClick={() => onCreateDoc()}>
-                  <div className="template-badge doc">
-                    <Plus size={20} />
-                  </div>
+                  <SuiteLogo kind="doc" size={36} />
                   <div className="template-title">Văn bản trống</div>
                   <div className="template-desc">Tạo tài liệu Minh Docs mới với định dạng chuẩn</div>
                 </button>
 
                 <button className="template-card" onClick={() => onCreateDoc(sampleDocHtml())}>
-                  <div className="template-badge doc">
-                    <Sparkles size={20} />
-                  </div>
+                  <SuiteLogo kind="doc" size={36} />
                   <div className="template-title">Báo cáo hoạt động quý</div>
                   <div className="template-desc">Mẫu báo cáo kinh doanh kèm bảng biểu & chỉ số</div>
                 </button>
 
                 <button className="template-card" onClick={() => onCreateDoc(contractDocHtml())}>
-                  <div className="template-badge doc">
-                    <FileText size={20} />
-                  </div>
+                  <SuiteLogo kind="doc" size={36} />
                   <div className="template-title">Hợp đồng kinh tế</div>
                   <div className="template-desc">Hợp đồng dịch vụ công nghệ chuẩn pháp lý Việt Nam</div>
                 </button>
 
                 <button className="template-card" onClick={() => onCreateDoc(meetingMinutesDocHtml())}>
-                  <div className="template-badge doc">
-                    <FileText size={20} />
-                  </div>
+                  <SuiteLogo kind="doc" size={36} />
                   <div className="template-title">Biên bản cuộc họp</div>
                   <div className="template-desc">Ghi chép giao ban tuần, kết luận và phân công task</div>
                 </button>
 
                 <button className="template-card" onClick={() => onCreateSheet()}>
-                  <div className="template-badge sheet">
-                    <Plus size={20} />
-                  </div>
+                  <SuiteLogo kind="sheet" size={36} />
                   <div className="template-title">Bảng tính trống</div>
                   <div className="template-desc">Tạo bảng tính Minh Sheets mới với lưới dữ liệu mở rộng</div>
                 </button>
 
                 <button className="template-card" onClick={() => onCreateSheet(sampleWorkbook('Báo cáo ngân sách'))}>
-                  <div className="template-badge sheet">
-                    <Sparkles size={20} />
-                  </div>
+                  <SuiteLogo kind="sheet" size={36} />
                   <div className="template-title">Ngân sách quý IV</div>
                   <div className="template-desc">Bảng tính có sẵn công thức SUM, AVERAGE và phân bổ chi phí</div>
                 </button>
 
                 <button className="template-card" onClick={() => onCreateSheet(payrollWorkbook())}>
-                  <div className="template-badge sheet">
-                    <FileSpreadsheet size={20} />
-                  </div>
+                  <SuiteLogo kind="sheet" size={36} />
                   <div className="template-title">Bảng lương & Chấm công</div>
                   <div className="template-desc">Tính toán ngày công, lương thực lĩnh & tự động làm tròn</div>
                 </button>
 
                 <button className="template-card" onClick={() => onCreateSheet(cashbookWorkbook())}>
-                  <div className="template-badge sheet">
-                    <FileSpreadsheet size={20} />
-                  </div>
+                  <SuiteLogo kind="sheet" size={36} />
                   <div className="template-title">Sổ quỹ Thu Chi</div>
                   <div className="template-desc">Theo dõi phiếu thu, phiếu chi và tồn quỹ luỹ kế theo ngày</div>
                 </button>
 
                 <button className="template-card" onClick={() => onCreateSheet(projectEstimateWorkbook())}>
-                  <div className="template-badge sheet">
-                    <FileSpreadsheet size={20} />
-                  </div>
+                  <SuiteLogo kind="sheet" size={36} />
                   <div className="template-title">Dự toán & Tiến độ dự án</div>
                   <div className="template-desc">Quản lý hạng mục, chi phí giải ngân thực tế & tiến độ %</div>
                 </button>
 
                 <button className="template-card" onClick={() => onCreatePdf()}>
-                  <div className="template-badge" style={{ background: '#fee2e2', color: '#dc2626' }}>
-                    <FileText size={20} />
-                  </div>
+                  <SuiteLogo kind="pdf" size={36} />
                   <div className="template-title">Minh PDF Tools</div>
                   <div className="template-desc">Bộ công cụ ký số, tách, ghép, nén & chuyển đổi PDF chuyên nghiệp</div>
                 </button>
@@ -649,13 +628,9 @@ export default function Home({
                           >
                             <Star size={15} fill={file.starred ? '#f59e0b' : 'none'} />
                           </button>
-                          <div
-                            className={`file-icon-box ${file.kind}`}
-                            onClick={() => handleOpenFile(file)}
-                            style={{ cursor: 'pointer' }}
-                          >
-                            {file.kind === 'doc' ? <FileText size={18} /> : <FileSpreadsheet size={18} />}
-                          </div>
+                          <button className="file-icon-box" onClick={() => handleOpenFile(file)} aria-label={`Mở ${file.name}`}>
+                            <SuiteLogo kind={file.kind} size={34} />
+                          </button>
                           <div>
                             <div className="file-name-cell" onClick={() => handleOpenFile(file)}>
                               {file.name}
@@ -722,9 +697,7 @@ export default function Home({
                   onClick={() => handleOpenFile(file)}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div className={`template-badge ${file.kind}`}>
-                      {file.kind === 'doc' ? <FileText size={18} /> : <FileSpreadsheet size={18} />}
-                    </div>
+                    <SuiteLogo kind={file.kind} size={36} />
                     <button
                       className="icon-btn"
                       onClick={(e) => {

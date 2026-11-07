@@ -1,3 +1,4 @@
+import { SuiteLogo } from '../../components/SuiteLogo';
 import { useAccount } from '../../components/Authentication';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useEditor, type Editor } from '@tiptap/react';
@@ -12,7 +13,7 @@ import Subscript from '@tiptap/extension-subscript';
 import Superscript from '@tiptap/extension-superscript';
 import Placeholder from '@tiptap/extension-placeholder';
 import CharacterCount from '@tiptap/extension-character-count';
-import { ArrowLeft, BookOpen, CheckCircle2, Clock, FileText, History, MessageSquare, Redo2, Save, Search, Share2, Undo2, X } from 'lucide-react';
+import { ArrowLeft, BookOpen, CheckCircle2, Clock, History, MessageSquare, Redo2, Save, Search, Share2, Undo2, X } from 'lucide-react';
 
 import { CommentMark, Footnote, FontSizeStep, LayoutImage, MergeField, PageBreak, ParagraphFormat, ShadedTableCell, ShadedTableHeader } from './extensions';
 import { AutoCorrect, Bibliography, Bookmark, Citation, ColumnSection, CrossRef, DocIndex, DocRefs, EndnoteList, Equation, FigureList, IndexEntry, ListStyles, SmartChip, TableExtras, TableOfContents, TextBox, TextStyleExtras, setRefs } from './extensionsExtra';
@@ -469,7 +470,7 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
             <header className="editor-top">
               <div className="editor-title-group">
                 <button className="icon-btn" onClick={() => { void persist(false).then((saved) => { if (saved) onBack(); }); }} title="Về danh sách tệp" aria-label="Quay lại"><ArrowLeft size={18} /></button>
-                <div className="file-icon-box doc" title="Minh Docs"><FileText size={16} /></div>
+                <SuiteLogo kind="doc" size={32} decorative={false} />
                 <input className="editor-title-input" value={title} aria-label="Tên tài liệu" onChange={(e) => { setTitle(e.target.value); markDirty(); }} onBlur={handleTitleBlur} onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()} />
                 <div className="quick-access">
                   <button className="icon-btn" title="Lưu chính thức (Ctrl+S)" aria-label="Lưu" onClick={saveNow}><Save size={16} /></button>
