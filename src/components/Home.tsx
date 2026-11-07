@@ -30,6 +30,7 @@ import './home.css';
 import type { FileKind, FileMeta } from '../lib/storage';
 import type { WorkbookData } from '../lib/sheetTypes';
 import { formatBytes, relativeTime } from '../lib/download';
+import { isDesktop } from '../lib/desktop';
 import {
   sampleDocHtml,
   contractDocHtml,
@@ -130,6 +131,7 @@ export default function Home(props: HomeProps) {
   const [showAllTemplates, setShowAllTemplates] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const searchInput = useRef<HTMLInputElement>(null);
+  const shell = useRef<HTMLDivElement>(null);
   const isMac = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform);
 
   useEffect(() => {
@@ -157,6 +159,10 @@ export default function Home(props: HomeProps) {
 
   const liveCount = useMemo(() => files.filter((file) => !file.deletedAt).length, [files]);
   const trashCount = useMemo(() => files.filter((file) => file.deletedAt).length, [files]);
+
+  useEffect(() => {
+    shell.current?.scrollIntoView({ block: 'start' });
+  }, [view]);
 
   const goTo = (next: View) => {
     setView(next);
@@ -224,6 +230,7 @@ export default function Home(props: HomeProps) {
 
   return (
     <div
+      ref={shell}
       className="ws-shell"
       onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
       onDragEnter={(e) => { e.preventDefault(); setIsDragging(true); }}
@@ -373,15 +380,17 @@ export default function Home(props: HomeProps) {
                 </div>
               </section>
 
-              <section className="ws-about" aria-labelledby="office-overview-title">
-                <h2 id="office-overview-title">Minh Spark Office — văn phòng online miễn phí</h2>
-                <p>Soạn thảo văn bản, làm bảng tính và xử lý PDF ngay trên trình duyệt. Đăng nhập cùng tài khoản Google trên web và ứng dụng máy tính để dùng chung kho tài liệu; khi mất mạng, thay đổi được lưu trên thiết bị và đồng bộ khi kết nối lại.</p>
-                <nav aria-label="Tìm hiểu sản phẩm">
-                  <a href="/gioi-thieu.html">Giới thiệu Minh Spark Office</a>
-                  <a href="/minh-docs.html">Soạn thảo văn bản miễn phí</a>
-                  <a href="/minh-sheets.html">Bảng tính online miễn phí</a>
-                </nav>
-              </section>
+              {!isDesktop() && (
+                <section className="ws-about" aria-labelledby="office-overview-title">
+                  <h2 id="office-overview-title">Minh Spark Office — văn phòng online miễn phí</h2>
+                  <p>Soạn thảo văn bản, làm bảng tính và xử lý PDF ngay trên trình duyệt. Đăng nhập cùng tài khoản Google trên web và ứng dụng máy tính để dùng chung kho tài liệu; khi mất mạng, thay đổi được lưu trên thiết bị và đồng bộ khi kết nối lại.</p>
+                  <nav aria-label="Tìm hiểu sản phẩm">
+                    <a href="/gioi-thieu.html">Giới thiệu Minh Spark Office</a>
+                    <a href="/minh-docs.html">Soạn thảo văn bản miễn phí</a>
+                    <a href="/minh-sheets.html">Bảng tính online miễn phí</a>
+                  </nav>
+                </section>
+              )}
             </>
           ) : (
             <section className="ws-section ws-section-first" aria-labelledby="ws-list-title">
