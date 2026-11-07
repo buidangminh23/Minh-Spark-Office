@@ -6,7 +6,7 @@ type Account = {
   user: User | null;
   pending: boolean;
   error: string;
-  login: () => Promise<void>;
+  login: () => Promise<User | null>;
   logout: () => Promise<void>;
 };
 
@@ -29,21 +29,25 @@ export function AccountButton() {
           <button className="btn" disabled={pending} onClick={() => void logout()}>Đăng xuất</button>
         </>
       ) : (
-        <button className="btn google-signin" disabled={pending} onClick={() => void login()}><img src="/google.svg" width="20" height="20" alt="" />{pending ? 'Đang đăng nhập…' : 'Đăng nhập bằng Google'}</button>
+        <button className="btn google-signin" disabled={pending} onClick={() => void login()}><img src="/google.svg" width="20" height="20" alt="" />Đăng nhập</button>
       )}
-      {error && <p className="account-error" role="alert">{error}</p>}
+      {user && error && <p className="account-error" role="alert">{error}</p>}
     </div>
   );
 }
 
-export function Authentication({ children }: { children: (user: User | null) => ReactNode }) {
+export function Authentication({ children }: { children: (user: User | null, session: number) => ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [ready, setReady] = useState(false);
-  const [guest, setGuest] = useState(false);
+  const [session, setSession] = useState(0);
+  const [showLogin, setShowLogin] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
   const authRef = useRef<Auth | null>(null);
+  const previousUser = useRef<string | null>(null);
   const busy = useRef(false);
+  const request = useRef<{ promise: Promise<User | null>; resolve: (user: User | null) => void } | null>(null);
+  const modal = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -52,8 +56,9 @@ export function Authentication({ children }: { children: (user: User | null) => 
       if (!active) return;
       authRef.current = auth;
       unsubscribe = onAuthStateChanged(auth, (nextUser) => {
+        if (previousUser.current && previousUser.current !== nextUser?.uid) setSession((value) => value + 1);
+        previousUser.current = nextUser?.uid ?? null;
         setUser(nextUser);
-        setGuest(false);
         setReady(true);
       }, (failure) => {
         setError(authenticationError(failure));
@@ -68,19 +73,40 @@ export function Authentication({ children }: { children: (user: User | null) => 
     return () => { active = false; unsubscribe?.(); };
   }, []);
 
-  const login = async () => {
-    if (busy.current) return;
-    if (!authRef.current) {
-      setError(authConfigured ? 'Dịch vụ đăng nhập chưa sẵn sàng. Hãy tải lại trang rồi thử lại.' : authenticationError(new Error('auth/missing-config')));
-      return;
-    }
+  useEffect(() => {
+    if (!showLogin) return;
+    const focused = document.activeElement as HTMLElement | null;
+    modal.current?.focus();
+    return () => focused?.focus();
+  }, [showLogin]);
+
+  const finish = (account: User | null) => {
+    request.current?.resolve(account);
+    request.current = null;
+    setShowLogin(false);
+  };
+
+  const login = (): Promise<User | null> => {
+    const current = authRef.current?.currentUser;
+    if (current) return Promise.resolve(current);
+    if (request.current) return request.current.promise;
+    let resolve!: (account: User | null) => void;
+    const promise = new Promise<User | null>((done) => { resolve = done; });
+    request.current = { promise, resolve };
+    setShowLogin(true);
+    return promise;
+  };
+
+  const signIn = async () => {
+    if (busy.current || !authRef.current) return;
     busy.current = true;
     setPending(true);
     setError('');
     try {
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: 'select_account' });
-      await signInWithPopup(authRef.current, provider);
+      const result = await signInWithPopup(authRef.current, provider);
+      finish(result.user);
     } catch (failure) {
       setError(authenticationError(failure));
     } finally {
@@ -106,25 +132,31 @@ export function Authentication({ children }: { children: (user: User | null) => 
 
   return (
     <AccountContext value={{ user, pending, error, login, logout }}>
-      {ready && (user || guest) ? children(user) : (
-        <main className="auth-page">
-          <section className="auth-card" aria-labelledby="auth-title">
-            <img className="auth-logo" src="/logo-icon.png" alt="" />
-            <p className="auth-brand">MINH SPARK OFFICE</p>
-            <h1 id="auth-title">Không gian làm việc của riêng mỗi người</h1>
-            <p className="auth-intro">Soạn văn bản, làm bảng tính và quản lý PDF trong một nơi.</p>
-            {!ready ? <p role="status">Đang kiểm tra phiên đăng nhập…</p> : (
-              <>
-                <button className="btn auth-google" disabled={pending || !authConfigured} onClick={() => void login()}><img src="/google.svg" width="20" height="20" alt="" />{pending ? 'Đang chờ Google…' : 'Đăng nhập bằng Google'}</button>
-                {error && <p className="auth-error" role="alert">{error}</p>}
-                <p className="auth-disclosure">Chỉ sử dụng tên, email và ảnh đại diện để xác thực tài khoản. Không yêu cầu quyền đọc Gmail hoặc Google Drive.</p>
-                <div className="auth-divider" />
-                <button className="btn auth-local" disabled={pending} onClick={() => { setError(''); setGuest(true); }}>Dùng trên máy này, không đăng nhập</button>
-                <p className="auth-local-note">Tài liệu cũ nằm trong chế độ này. Tài liệu của tài khoản Google được lưu riêng trên trình duyệt này, chưa đồng bộ cloud.</p>
-              </>
-            )}
+      <div inert={showLogin}>{children(user, session)}</div>
+      {showLogin && (
+        <div className="dialog-backdrop">
+          <section className="dialog" role="dialog" aria-modal="true" aria-labelledby="login-title" aria-describedby="login-description" tabIndex={-1} ref={modal}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape' && !pending) finish(null);
+              if (event.key === 'Tab') {
+                const buttons = modal.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)');
+                if (!buttons?.length) return;
+                const first = buttons[0];
+                const last = buttons[buttons.length - 1];
+                if (event.shiftKey && (document.activeElement === first || document.activeElement === modal.current)) { event.preventDefault(); last.focus(); }
+                else if (!event.shiftKey && (document.activeElement === last || document.activeElement === modal.current)) { event.preventDefault(); first.focus(); }
+              }
+            }}>
+            <h2 id="login-title">Đăng nhập để lưu tài liệu</h2>
+            <p className="dialog-subtitle" id="login-description">Nội dung đang soạn được giữ nguyên. Đăng nhập Google để lưu vào kho riêng trên trình duyệt này; tài liệu chưa đồng bộ cloud.</p>
+            {error && <p className="auth-error" role="alert">{error}</p>}
+            <p className="auth-disclosure">Chỉ xác thực tên, email và ảnh đại diện. Không yêu cầu quyền đọc Gmail hoặc Google Drive.</p>
+            <div className="dialog-actions">
+              <button className="btn" disabled={pending} onClick={() => finish(null)}>Tiếp tục chỉnh sửa</button>
+              <button className="btn btn-primary google-signin" disabled={pending || !ready || !authConfigured} onClick={() => void signIn()}><img src="/google.svg" width="20" height="20" alt="" />{pending ? 'Đang chờ Google…' : !ready ? 'Đang kiểm tra tài khoản…' : 'Đăng nhập bằng Google'}</button>
+            </div>
           </section>
-        </main>
+        </div>
       )}
     </AccountContext>
   );

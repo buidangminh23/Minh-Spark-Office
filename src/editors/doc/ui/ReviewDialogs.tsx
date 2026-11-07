@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Bookmark, FileDiff, History, SpellCheck, Trash2 } from 'lucide-react';
-import { useWorkspace, type DocContent, type FileVersion } from '../../../lib/storage';
+import { createWorkspaceStorage, useWorkspace, type DocContent, type FileVersion } from '../../../lib/storage';
+import { useAccount } from '../../../components/Authentication';
 import { useDoc } from '../DocContext';
 import { diffWords, jsonText, proofread, textStats, type ProofIssue } from '../docTools';
 import Modal from './Modal';
@@ -57,17 +58,33 @@ export function ProofreadDialog({ onClose }: { onClose: () => void }) {
 
 export function HistoryDialog({ onClose }: { onClose: () => void }) {
   const { deleteVersion, listVersions, restoreVersion, saveVersion } = useWorkspace();
+  const { login } = useAccount();
   const ctx = useDoc();
   const [versions, setVersions] = useState<FileVersion[]>([]);
   const [label, setLabel] = useState('');
   const [compare, setCompare] = useState<FileVersion | null>(null);
-  useEffect(() => { void listVersions(ctx.meta.id).then(setVersions); }, [ctx.meta.id]);
+  useEffect(() => {
+    let active = true;
+    void listVersions(ctx.meta.id).then((items) => { if (active) setVersions(items); });
+    return () => { active = false; };
+  }, [ctx.meta.id, listVersions]);
   const content = (): DocContent => ({ kind: 'doc', json: ctx.editor.getJSON(), page: ctx.page, comments: ctx.comments });
   const snapshot = async () => {
-    const saved = await saveVersion(ctx.meta.id, content(), label.trim() || undefined);
-    setVersions((list) => [saved, ...list]);
-    setLabel('');
-    ctx.ui.toast('Đã lưu phiên bản');
+    const current = structuredClone(content());
+    const meta = { ...ctx.meta, name: ctx.title, updatedAt: Date.now(), size: JSON.stringify(current.json).length, preview: ctx.editor.getText().slice(0, 160) };
+    const versionLabel = label.trim() || undefined;
+    try {
+      const user = await login();
+      if (!user) return;
+      const storage = createWorkspaceStorage(user.uid);
+      await storage.saveFile(meta, current);
+      await storage.saveVersion(meta.id, current, versionLabel);
+      setVersions(await storage.listVersions(meta.id));
+      setLabel('');
+      ctx.ui.toast('Đã lưu phiên bản');
+    } catch {
+      ctx.ui.toast('Chưa lưu được phiên bản. Nội dung đang soạn vẫn được giữ nguyên.', true);
+    }
   };
   const restore = async (v: FileVersion) => {
     if (!(await ctx.ui.confirm('Khôi phục phiên bản?', `Tài liệu sẽ trở về “${v.label}”. Trạng thái hiện tại được lưu thành một phiên bản để có thể quay lại.`))) return;

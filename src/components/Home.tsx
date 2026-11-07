@@ -401,7 +401,7 @@ export default function Home({
           <div className="storage-box">
             <strong>
               <span className="storage-dot" />
-              {user ? 'Kho riêng trên máy này' : 'Kho cục bộ không đăng nhập'}
+              {user ? 'Kho riêng trên máy này' : 'Bản nháp trong phiên này'}
             </strong>
             <div>
               {storageInfo ? (
@@ -478,7 +478,7 @@ export default function Home({
               <div className="welcome-section">
                 <div>
                   <h1>Bắt đầu tạo mới</h1>
-                  <p>{user ? 'Đã đăng nhập Google. Tài liệu lưu riêng trên trình duyệt này, chưa đồng bộ cloud.' : 'Chọn mẫu tài liệu hoặc bảng tính chuyên nghiệp để bắt đầu làm việc ngay'}</p>
+                  <p>{user ? 'Đã đăng nhập Google. Tài liệu lưu riêng trên trình duyệt này, chưa đồng bộ cloud.' : 'Mở và chỉnh sửa ngay. Chỉ cần đăng nhập khi lưu; bản nháp chưa lưu sẽ mất khi đóng hoặc tải lại trang.'}</p>
                 </div>
               </div>
 

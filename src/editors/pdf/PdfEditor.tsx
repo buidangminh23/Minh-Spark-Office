@@ -1,3 +1,5 @@
+import { createWorkspaceStorage } from '../../lib/storage';
+import { useAccount } from '../../components/Authentication';
 import { useWorkspace } from '../../lib/storage';
 import { useState, useRef } from 'react';
 import {
@@ -50,7 +52,7 @@ import { useUi } from '../../components/ui';
 interface PdfEditorProps {
   meta: FileMeta;
   content: PdfContent;
-  onSave: (meta: FileMeta, content: PdfContent) => void;
+  onSave: (meta: FileMeta, content: PdfContent, explicit?: boolean) => Promise<boolean>;
   onRename: (name: string) => void;
   onBack: () => void;
 }
@@ -59,7 +61,8 @@ type PdfRibbonTab = 'file' | 'home' | 'minh_pdf' | 'insert' | 'view' | 'tools' |
 
 export default function PdfEditor({ meta, content, onSave, onRename, onBack }: PdfEditorProps) {
   const ui = useUi();
-  const { listVersions, saveVersion, deleteVersion } = useWorkspace();
+  const { user, login } = useAccount();
+  const { listVersions, deleteVersion } = useWorkspace();
   const [activeTab, setActiveTab] = useState<PdfRibbonTab>('minh_pdf');
   const [title, setTitle] = useState(meta.name);
   const [savedStatus, setSavedStatus] = useState<'saved' | 'saving'>('saved');
@@ -106,12 +109,18 @@ export default function PdfEditor({ meta, content, onSave, onRename, onBack }: P
   };
 
   const handleCreateSnapshot = async () => {
+    const draft: PdfContent = { ...content, comments };
+    const currentMeta = { ...meta, name: title, updatedAt: Date.now() };
+    const account = await login();
+    if (!account) return;
     try {
-      const saved = await saveVersion(meta.id, content, `Bản lưu ${new Date().toLocaleTimeString('vi-VN')}`);
+      const target = createWorkspaceStorage(account.uid);
+      await target.saveFile(currentMeta, draft);
+      const saved = await target.saveVersion(meta.id, draft, `Bản lưu ${new Date().toLocaleTimeString('vi-VN')}`);
       setVersions((prev) => [saved, ...prev]);
       ui.toast('Đã lưu bản chụp tài liệu PDF vào lịch sử');
-    } catch (err) {
-      console.error(err);
+    } catch {
+      ui.toast('Chưa lưu được phiên bản. Nội dung đang soạn vẫn được giữ nguyên.', true);
     }
   };
 
@@ -121,13 +130,13 @@ export default function PdfEditor({ meta, content, onSave, onRename, onBack }: P
     ui.toast('Đã xoá phiên bản lưu');
   };
 
-  const handleSaveNow = () => {
+  const handleSaveNow = async () => {
     const updatedMeta: FileMeta = {
       ...meta,
       name: title,
       updatedAt: Date.now(),
     };
-    onSave(updatedMeta, { ...content, comments });
+    if (!await onSave(updatedMeta, { ...content, comments }, true)) return;
     setSavedStatus('saved');
     ui.toast('Đã lưu tài liệu PDF');
   };
@@ -203,12 +212,12 @@ export default function PdfEditor({ meta, content, onSave, onRename, onBack }: P
             {savedStatus === 'saved' ? (
               <>
                 <CheckCircle2 size={13} />
-                <span>Đã lưu</span>
+                <span>{user ? 'Đã lưu' : 'Bản nháp · Chưa lưu'}</span>
               </>
             ) : (
               <>
                 <Clock size={13} />
-                <span>Đang lưu…</span>
+                <span>{user ? 'Đang lưu…' : 'Đang giữ bản nháp…'}</span>
               </>
             )}
           </div>

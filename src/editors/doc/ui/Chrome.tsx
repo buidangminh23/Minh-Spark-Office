@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { ArrowLeft, Bookmark, BookText, Clipboard, Copy, Download, FileCode2, FileImage, FileText, FileType2, FolderOpen, History, Info, Mail, MonitorPlay, Package, Printer, Save, Share2, Table2, FilePlus2, X, BookOpen, ScrollText, Columns3, Minus, Plus, PencilLine } from 'lucide-react';
 import { useEditorState } from '@tiptap/react';
 import { pickFile, formatBytes } from '../../../lib/download';
+import { useAccount } from '../../../components/Authentication';
+import { createWorkspaceStorage, type DocContent } from '../../../lib/storage';
 import { useDoc } from '../DocContext';
 import { textStats } from '../docTools';
 import { exportAsDocx, toggleProtection } from '../actions';
@@ -23,6 +25,7 @@ function FormatIcon({ format }: { format: ExportFormat }) {
 
 export function Backstage({ onClose }: { onClose: () => void }) {
   const ctx = useDoc();
+  const { login } = useAccount();
   const [section, setSection] = useState<Section>('info');
   const stats = useMemo(() => textStats(ctx.editor.getText({ blockSeparator: '\n' })), [ctx.editor]);
   const nav: { id: Section; label: string; icon: React.ReactNode }[] = [
@@ -33,6 +36,20 @@ export function Backstage({ onClose }: { onClose: () => void }) {
     { id: 'share', label: 'Chia sẻ', icon: <Share2 size={16} /> },
   ];
   const act = (fn: () => void) => { onClose(); fn(); };
+  const saveSnapshot = async () => {
+    const content: DocContent = structuredClone({ kind: 'doc', json: ctx.editor.getJSON(), page: ctx.page, comments: ctx.comments });
+    const meta = { ...ctx.meta, name: ctx.title, updatedAt: Date.now(), size: JSON.stringify(content.json).length, preview: ctx.editor.getText().slice(0, 160) };
+    try {
+      const user = await login();
+      if (!user) return;
+      const storage = createWorkspaceStorage(user.uid);
+      await storage.saveFile(meta, content);
+      await storage.saveVersion(meta.id, content);
+      ctx.ui.toast('Đã lưu một phiên bản');
+    } catch {
+      ctx.ui.toast('Chưa lưu được phiên bản. Nội dung đang soạn vẫn được giữ nguyên.', true);
+    }
+  };
   return (
     <div className="backstage" role="dialog" aria-modal="true" aria-label="Tệp">
       <nav className="backstage-nav">
@@ -40,7 +57,7 @@ export function Backstage({ onClose }: { onClose: () => void }) {
         {nav.map((item) => <button key={item.id} className={`backstage-item ${section === item.id ? 'active' : ''}`} onClick={() => setSection(item.id)}>{item.icon}{item.label}</button>)}
         <div className="backstage-sep" />
         <button className="backstage-item" onClick={() => act(ctx.saveNow)}><Save size={16} /> Lưu ngay</button>
-        <button className="backstage-item" onClick={async () => { await ctx.storage.saveVersion(ctx.meta.id, { kind: 'doc', json: ctx.editor.getJSON(), page: ctx.page, comments: ctx.comments }); ctx.ui.toast('Đã lưu một phiên bản'); }}><Bookmark size={16} /> Lưu phiên bản</button>
+        <button className="backstage-item" onClick={() => void saveSnapshot()}><Bookmark size={16} /> Lưu phiên bản</button>
         <button className="backstage-item" onClick={() => act(() => ctx.openDialog('history'))}><History size={16} /> Lịch sử phiên bản</button>
         <button className="backstage-item" onClick={() => void makeCopy(ctx)}><Copy size={16} /> Tạo bản sao</button>
         <button className="backstage-item" onClick={() => act(ctx.print)}><Printer size={16} /> In</button>

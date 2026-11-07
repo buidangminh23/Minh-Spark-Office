@@ -1,3 +1,4 @@
+import { useAccount } from '../../components/Authentication';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useEditor, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -52,7 +53,7 @@ import SafeBoundary from './ui/SafeBoundary';
 interface DocEditorProps {
   meta: FileMeta;
   content: DocContent;
-  onSave: (meta: FileMeta, content: DocContent) => void;
+  onSave: (meta: FileMeta, content: DocContent, explicit?: boolean) => Promise<boolean>;
   onRename: (name: string) => void;
   onBack: () => void;
   onNewDocument?: (html?: string) => void;
@@ -93,6 +94,7 @@ const applyFormat = (editor: Editor, format: CopiedFormat) => {
 
 export default function DocEditor({ meta, content, onSave, onRename, onBack, onNewDocument, onOpenFile }: DocEditorProps) {
   const ui = useUi();
+  const { user } = useAccount();
   const storage = useWorkspace();
   const { saveVersion } = storage;
   const [title, setTitle] = useState(meta.name);
@@ -231,20 +233,20 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack, onN
   const latest = useRef({ meta, title, page, comments, onSave });
   latest.current = { meta, title, page, comments, onSave };
 
-  const persist = useCallback(() => {
+  const persist = useCallback(async (explicit = false) => {
     const { meta: m, title: t, page: p, comments: c, onSave: save } = latest.current;
-    save({ ...m, name: t, updatedAt: Date.now(), size: JSON.stringify(editor.getJSON()).length, preview: editor.getText().slice(0, 160) }, { kind: 'doc', json: editor.getJSON(), page: p, comments: c });
-    setSavedStatus('saved');
+    const saved = await save({ ...m, name: t, updatedAt: Date.now(), size: JSON.stringify(editor.getJSON()).length, preview: editor.getText().slice(0, 160) }, { kind: 'doc', json: editor.getJSON(), page: p, comments: c }, explicit);
+    if (saved) setSavedStatus('saved');
+    return saved;
   }, [editor]);
 
-  const saveNow = useCallback(() => {
-    persist();
-    ui.toast('Đã lưu tài liệu');
+  const saveNow = useCallback(async () => {
+    if (await persist(true)) ui.toast('Đã lưu tài liệu');
   }, [persist, ui]);
 
   useEffect(() => {
     if (savedStatus !== 'saving') return;
-    const timer = setTimeout(persist, AUTOSAVE_MS);
+    const timer = setTimeout(() => void persist(false), AUTOSAVE_MS);
     return () => clearTimeout(timer);
   }, [savedStatus, persist, page, comments]);
 
@@ -326,7 +328,7 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack, onN
     readAloud, dictation, formatPainter, markDirty, saveNow,
     onNewDocument: onNewDocument ?? (() => ui.toast('Mở danh sách tệp để tạo tài liệu mới')),
     onOpenFile: onOpenFile ?? (() => undefined),
-    onBack,
+    onBack: () => { void persist(false).then(onBack); },
   };
   ctxRef.current = ctx;
 
@@ -417,7 +419,7 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack, onN
           <>
             <header className="editor-top">
               <div className="editor-title-group">
-                <button className="icon-btn" onClick={onBack} title="Về danh sách tệp" aria-label="Quay lại"><ArrowLeft size={18} /></button>
+                <button className="icon-btn" onClick={() => { void persist(false).then(onBack); }} title="Về danh sách tệp" aria-label="Quay lại"><ArrowLeft size={18} /></button>
                 <div className="file-icon-box doc" title="Minh Docs"><FileText size={16} /></div>
                 <input className="editor-title-input" value={title} aria-label="Tên tài liệu" onChange={(e) => setTitle(e.target.value)} onBlur={handleTitleBlur} onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()} />
                 <div className="quick-access">
@@ -425,8 +427,8 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack, onN
                   <button className="icon-btn" title="Hoàn tác (Ctrl+Z)" aria-label="Hoàn tác" disabled={!fmt.canUndo} onClick={() => editor.chain().focus().undo().run()}><Undo2 size={16} /></button>
                   <button className="icon-btn" title="Làm lại (Ctrl+Y)" aria-label="Làm lại" disabled={!fmt.canRedo} onClick={() => editor.chain().focus().redo().run()}><Redo2 size={16} /></button>
                 </div>
-                <button className={`save-pill ${savedStatus}`} onClick={() => setDialog('history')} title="Xem lịch sử phiên bản">
-                  {savedStatus === 'saved' ? <><CheckCircle2 size={13} /><span>Đã lưu trên máy</span></> : <><Clock size={13} /><span>Đang lưu…</span></>}
+                <button className={`save-pill ${savedStatus}`} onClick={() => user ? setDialog('history') : void saveNow()} title={user ? 'Xem lịch sử phiên bản' : 'Đăng nhập để lưu tài liệu'}>
+                  {savedStatus === 'saved' ? <><CheckCircle2 size={13} /><span>{user ? 'Đã lưu trên máy' : 'Bản nháp · Đăng nhập để lưu'}</span></> : <><Clock size={13} /><span>{user ? 'Đang lưu…' : 'Đang giữ bản nháp…'}</span></>}
                 </button>
               </div>
               <div className="topbar-right">

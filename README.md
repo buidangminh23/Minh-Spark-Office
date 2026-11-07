@@ -22,13 +22,13 @@ The app uses the Firebase SDK Google popup flow, observes authentication state, 
 
 ## Storage and account boundaries
 
-Authentication is live; document cloud synchronization is not implemented. Signed-in workspaces use a dedicated IndexedDB database keyed by the Firebase UID. The unsigned local workspace retains the original `minh-office` database. Existing files are never silently assigned to the first person who signs in. To copy old files into an account, export a backup from local mode, sign in, and restore it into that account.
+Authentication is live; document cloud synchronization is not implemented. Signed-in workspaces use a dedicated IndexedDB database keyed by the Firebase UID. The main interface and editors are available without signing in. Unsigned edits live in memory for the current tab session; reload or closing the tab discards unsaved drafts. The original `minh-office` database is read as a legacy snapshot and is never modified by guest editing. Explicit Save and Ctrl+S prompt for Google authentication, then save only the current document to that account. Canceling authentication preserves the open draft. Other guest documents are never silently assigned to the account. Downloads remain available without signing in.
 
-Every editor and asynchronous document action captures an immutable workspace instance. Switching accounts remounts the entire workspace and its dialogs. A delayed save continues writing to its original workspace, never the replacement account. Local database separation prevents accidental mixing in the UI; it does not encrypt files or protect them from another person with access to the same browser profile or developer tools. Future cloud APIs must verify Firebase ID tokens and enforce ownership on the server.
+Every editor and asynchronous document action captures an immutable workspace instance. Guest-to-account login preserves the mounted editor and its content. Signing out or switching between authenticated accounts remounts the workspace and its dialogs. A delayed save continues writing to its original workspace, never the replacement account. Local database separation prevents accidental mixing in the UI; it does not encrypt files or protect them from another person with access to the same browser profile or developer tools. Future cloud APIs must verify Firebase ID tokens and enforce ownership on the server.
 
 ## Verification
 
-`npm test` checks account isolation, version isolation, delayed writes, legacy data preservation, explicit backup transfer, and concurrent file creation. Run a real Google login on an authorized hostname, reload, open a document, return home, sign out, and confirm that the login screen returns. Validate another account only with its owner's authorization.
+`npm test` checks account isolation, version isolation, delayed writes, legacy data preservation, explicit backup transfer, concurrent file creation, memory-only drafts, immutable legacy snapshots, and copying only the selected draft into an account. Verify unauthenticated editing, explicit Save and Ctrl+S, canceled login preserving content, successful login saving the current draft, reload persistence, and sign-out returning to the public home screen. Validate another account only with its owner's authorization.
 
 ## Deployment
 

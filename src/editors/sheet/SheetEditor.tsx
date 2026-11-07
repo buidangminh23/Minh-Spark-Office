@@ -1,3 +1,5 @@
+import { createWorkspaceStorage } from '../../lib/storage';
+import { useAccount } from '../../components/Authentication';
 import { useWorkspace } from '../../lib/storage';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -195,7 +197,7 @@ import {
 interface SheetEditorProps {
   meta: FileMeta;
   content: SheetContent;
-  onSave: (meta: FileMeta, content: SheetContent) => void;
+  onSave: (meta: FileMeta, content: SheetContent, explicit?: boolean) => Promise<boolean>;
   onRename: (name: string) => void;
   onBack: () => void;
 }
@@ -293,7 +295,8 @@ const inlineSheetStyles = (sheet: SheetData, styles: Record<string, CellStyle>):
 
 export default function SheetEditor({ meta, content, onSave, onRename, onBack }: SheetEditorProps) {
   const ui = useUi();
-  const { listFiles, loadContent, saveFile, listVersions, saveVersion, restoreVersion, deleteVersion } = useWorkspace();
+  const { user, login } = useAccount();
+  const { listFiles, loadContent, saveFile, listVersions, restoreVersion, deleteVersion } = useWorkspace();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const importSheetInputRef = useRef<HTMLInputElement | null>(null);
@@ -606,7 +609,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
     return rawSnapshot;
   }, [content.workbook]);
 
-  const handleSaveNow = useCallback(() => {
+  const persistWorkbook = useCallback(async (explicit = false) => {
     try {
       const snapshot = captureHydratedWorkbook();
       const updatedMeta: FileMeta = {
@@ -614,17 +617,22 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
         name: title.trim() || meta.name,
         updatedAt: Date.now(),
       };
-      onSave(updatedMeta, {
+      const saved = await onSave(updatedMeta, {
         kind: 'sheet',
         workbook: snapshot,
         comments,
         printSettings,
-      });
-      setSavedStatus('saved');
+      }, explicit);
+      if (saved) {
+        setSavedStatus('saved');
+        if (explicit) ui.toast('Đã lưu bảng tính');
+      }
     } catch (err) {
       console.error('Failed to save workbook:', err);
     }
-  }, [captureHydratedWorkbook, meta, title, onSave, comments, printSettings]);
+  }, [captureHydratedWorkbook, meta, title, onSave, comments, printSettings, ui]);
+
+  const handleSaveNow = useCallback(() => void persistWorkbook(true), [persistWorkbook]);
 
   const recalculateAndBindWorkbook = useCallback(
     (api: ReturnType<typeof createUniver>['univerAPI']) => {
@@ -800,10 +808,10 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
   useEffect(() => {
     if (savedStatus !== 'saving') return;
     const timer = setTimeout(() => {
-      handleSaveNow();
+      void persistWorkbook(false);
     }, 900);
     return () => clearTimeout(timer);
-  }, [savedStatus, handleSaveNow]);
+  }, [savedStatus, persistWorkbook]);
 
   const getSmartDataRangeA1 = useCallback((): string => {
     const ctx = getActiveContext();
@@ -2436,7 +2444,6 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
       if (mod && e.key.toLowerCase() === 's') {
         e.preventDefault();
         handleSaveNow();
-        ui.toast('Đã lưu bảng tính');
       } else if (mod && (e.key.toLowerCase() === 'f' || e.key.toLowerCase() === 'h')) {
         e.preventDefault();
         setModal('find');
@@ -2624,14 +2631,19 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
   };
 
   const handleCreateSnapshot = async (label: string) => {
-    const snap = captureHydratedWorkbook();
-    const saved = await saveVersion(
-      meta.id,
-      { kind: 'sheet', workbook: snap, comments, printSettings },
-      label.trim() || undefined
-    );
-    setVersions((prev) => [saved, ...prev]);
-    ui.toast('Đã lưu mốc lịch sử phiên bản');
+    const draft: SheetContent = { kind: 'sheet', workbook: captureHydratedWorkbook(), comments, printSettings };
+    const currentMeta = { ...meta, name: title.trim() || meta.name, updatedAt: Date.now() };
+    const account = await login();
+    if (!account) return;
+    try {
+      const target = createWorkspaceStorage(account.uid);
+      await target.saveFile(currentMeta, draft);
+      const saved = await target.saveVersion(meta.id, draft, label.trim() || undefined);
+      setVersions((prev) => [saved, ...prev]);
+      ui.toast('Đã lưu mốc lịch sử phiên bản');
+    } catch {
+      ui.toast('Chưa lưu được phiên bản. Nội dung đang soạn vẫn được giữ nguyên.', true);
+    }
   };
 
   const handleRestoreVersion = async (v: FileVersion) => {
@@ -2785,8 +2797,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
             <button
               className="icon-btn"
               onClick={() => {
-                handleSaveNow();
-                onBack();
+                void persistWorkbook(false).then(onBack);
               }}
               title="Quay về danh sách tệp"
             >
@@ -2810,12 +2821,12 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
               {savedStatus === 'saved' ? (
                 <>
                   <CheckCircle2 size={12} />
-                  <span>Đã lưu</span>
+                  <span>{user ? 'Đã lưu' : 'Bản nháp · Chưa lưu'}</span>
                 </>
               ) : (
                 <>
                   <Clock size={12} />
-                  <span>Đang lưu…</span>
+                  <span>{user ? 'Đang lưu…' : 'Đang giữ bản nháp…'}</span>
                 </>
               )}
             </button>

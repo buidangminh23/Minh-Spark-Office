@@ -270,6 +270,117 @@ export function createWorkspaceStorage(userId: string | null) {
 }
 
 export type WorkspaceStorage = ReturnType<typeof createWorkspaceStorage>;
+
+export function createDraftWorkspaceStorage(): WorkspaceStorage {
+  const legacy = createWorkspaceStorage(null);
+  let files: FileMeta[] = [];
+  const contents = new Map<string, FileContent>();
+  const histories = new Map<string, FileVersion[]>();
+  let initialization: Promise<void> | undefined;
+
+  function ready() {
+    initialization ??= (async () => {
+      const existing = await legacy.listFiles();
+      await Promise.all(existing.map(async (file) => {
+        const [content, versions] = await Promise.all([legacy.loadContent(file.id), legacy.listVersions(file.id)]);
+        if (content) contents.set(file.id, structuredClone(content));
+        histories.set(file.id, structuredClone(versions));
+      }));
+      files = structuredClone(existing);
+    })();
+    return initialization;
+  }
+
+  async function listFiles() {
+    await ready();
+    return structuredClone(files);
+  }
+
+  async function loadContent(id: string) {
+    await ready();
+    return structuredClone(contents.get(id));
+  }
+
+  async function saveFile(meta: FileMeta, content?: FileContent) {
+    const nextMeta = structuredClone(meta);
+    const nextContent = structuredClone(content);
+    await ready();
+    if (nextContent) contents.set(nextMeta.id, nextContent);
+    const index = files.findIndex((file) => file.id === nextMeta.id);
+    if (index >= 0) files[index] = nextMeta;
+    else files.unshift(nextMeta);
+  }
+
+  async function updateMeta(id: string, patch: Partial<FileMeta>) {
+    const nextPatch = structuredClone(patch);
+    await ready();
+    const index = files.findIndex((file) => file.id === id);
+    if (index < 0) return null;
+    files[index] = { ...files[index], ...nextPatch };
+    return structuredClone(files[index]);
+  }
+
+  async function removeFile(id: string) {
+    await ready();
+    contents.delete(id);
+    histories.delete(id);
+    files = files.filter((file) => file.id !== id);
+  }
+
+  async function listVersions(fileId: string) {
+    await ready();
+    return structuredClone(histories.get(fileId) ?? []);
+  }
+
+  async function saveVersion(fileId: string, content: FileContent, label?: string) {
+    const snapshot = structuredClone(content);
+    await ready();
+    const now = Date.now();
+    const time = new Date(now).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const date = new Date(now).toLocaleDateString('vi-VN');
+    const version: FileVersion = { id: 'v_' + Math.random().toString(36).slice(2, 10), fileId, timestamp: now, label: label || `Bản lưu ${time} (${date})`, content: snapshot };
+    histories.set(fileId, [version, ...(histories.get(fileId) ?? [])].slice(0, 30));
+    return structuredClone(version);
+  }
+
+  async function restoreVersion(fileId: string, versionId: string) {
+    await ready();
+    const version = histories.get(fileId)?.find((item) => item.id === versionId);
+    if (!version) return null;
+    contents.set(fileId, structuredClone(version.content));
+    return structuredClone(version.content);
+  }
+
+  async function deleteVersion(fileId: string, versionId: string) {
+    await ready();
+    histories.set(fileId, (histories.get(fileId) ?? []).filter((version) => version.id !== versionId));
+  }
+
+  async function exportBackup() {
+    await ready();
+    return structuredClone({ format: 'minh-office-backup', version: 2, exportedAt: new Date().toISOString(), files, contents: Object.fromEntries(files.map((file) => [file.id, contents.get(file.id)])) });
+  }
+
+  async function importBackup(payload: unknown) {
+    const data = structuredClone(payload) as { format?: string; files?: FileMeta[]; contents?: Record<string, FileContent> };
+    if (data?.format !== 'minh-office-backup' || !Array.isArray(data.files)) throw new Error('Tệp sao lưu không hợp lệ.');
+    await ready();
+    const ids = new Set(files.map((file) => file.id));
+    let count = 0;
+    for (const file of data.files) {
+      const content = data.contents?.[file.id];
+      if (!content || ids.has(file.id)) continue;
+      contents.set(file.id, content);
+      files.push(file);
+      ids.add(file.id);
+      count++;
+    }
+    return count;
+  }
+
+  return { listFiles, loadContent, saveFile, updateMeta, removeFile, listVersions, saveVersion, restoreVersion, deleteVersion, exportBackup, importBackup };
+}
+
 export const WorkspaceContext = createContext<WorkspaceStorage | null>(null);
 
 export function useWorkspace() {

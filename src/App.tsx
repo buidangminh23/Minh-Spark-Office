@@ -1,5 +1,5 @@
-import { Authentication } from './components/Authentication';
-import { createWorkspaceStorage, WorkspaceContext, useWorkspace } from './lib/storage';
+import { Authentication, useAccount } from './components/Authentication';
+import { createDraftWorkspaceStorage, createWorkspaceStorage, WorkspaceContext, useWorkspace } from './lib/storage';
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import Home from './components/Home';
 import DocEditor from './editors/doc/DocEditor';
@@ -24,13 +24,24 @@ import { downloadBlob } from './lib/download';
 
 function MainApp() {
   const ui = useUi();
+  const { user, login } = useAccount();
+  const storage = useWorkspace();
   const { listFiles, loadContent, saveFile, updateMeta, removeFile, exportBackup, importBackup } = useWorkspace();
   const [files, setFiles] = useState<FileMeta[]>([]);
   const [activeMeta, setActiveMeta] = useState<FileMeta | null>(null);
   const [activeContent, setActiveContent] = useState<FileContent | null>(null);
   const [storageInfo, setStorageInfo] = useState<{ usage: number; quota: number } | null>(null);
 
-  const initialized = useRef(false);
+  const initialized = useRef<typeof storage | null>(null);
+  const currentStorage = useRef(storage);
+  currentStorage.current = storage;
+
+  useEffect(() => {
+    if (user || !activeMeta) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [user, activeMeta]);
 
   // Refresh files list and storage
   const refreshFiles = useCallback(async () => {
@@ -42,8 +53,8 @@ function MainApp() {
 
   // Initial load & seed default files if empty
   useEffect(() => {
-    if (initialized.current) return;
-    initialized.current = true;
+    if (initialized.current === storage) return;
+    initialized.current = storage;
     const init = async () => {
       const list = await listFiles();
       if (list.length === 0) {
@@ -108,9 +119,9 @@ function MainApp() {
         };
         await saveFile(pdfMeta, pdfContent);
 
-        setFiles([docMeta, sheetMeta, pdfMeta]);
+        if (initialized.current === storage) setFiles(await listFiles());
       } else {
-        setFiles(list);
+        if (initialized.current === storage) setFiles(list);
       }
 
       const est = await estimateStorage();
@@ -118,7 +129,7 @@ function MainApp() {
     };
 
     void init();
-  }, [listFiles, saveFile]);
+  }, [listFiles, saveFile, storage]);
 
   // Open Document
   const handleOpenDoc = async (meta: FileMeta) => {
@@ -413,11 +424,22 @@ function MainApp() {
   };
 
   // Save current active document or sheet
-  const handleSaveActive = async (meta: FileMeta, content: FileContent) => {
-    await saveFile(meta, content);
-    setActiveMeta(meta);
-    setActiveContent(content);
-    await refreshFiles();
+  const handleSaveActive = async (meta: FileMeta, content: FileContent, explicit = false) => {
+    try {
+      const account = explicit ? await login() : user;
+      if (explicit && !account) return false;
+      const target = account ? createWorkspaceStorage(account.uid) : storage;
+      await target.saveFile(meta, content);
+      if (explicit || currentStorage.current === storage) {
+        setActiveMeta(meta);
+        setActiveContent(content);
+        setFiles(await target.listFiles());
+      }
+      return true;
+    } catch {
+      ui.toast('Chưa lưu được tài liệu. Nội dung đang soạn vẫn được giữ nguyên, hãy thử lại.', true);
+      return false;
+    }
   };
 
   // Rename file
@@ -605,7 +627,7 @@ function MainApp() {
 }
 
 function Workspace({ userId }: { userId: string | null }) {
-  const workspace = useMemo(() => createWorkspaceStorage(userId), [userId]);
+  const workspace = useMemo(() => userId ? createWorkspaceStorage(userId) : createDraftWorkspaceStorage(), [userId]);
   return (
     <WorkspaceContext value={workspace}>
       <UiProvider>
@@ -616,5 +638,5 @@ function Workspace({ userId }: { userId: string | null }) {
 }
 
 export default function App() {
-  return <Authentication>{(user) => <Workspace key={user?.uid ?? 'guest'} userId={user?.uid ?? null} />}</Authentication>;
+  return <Authentication>{(user, session) => <Workspace key={session} userId={user?.uid ?? null} />}</Authentication>;
 }
