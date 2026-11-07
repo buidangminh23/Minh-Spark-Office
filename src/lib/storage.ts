@@ -1,4 +1,4 @@
-import { createStore, del, get, set, update } from 'idb-keyval';
+import { createStore, del, get, set, update, promisifyRequest, type UseStore } from 'idb-keyval';
 import { createContext, useContext } from 'react';
 import type { JSONContent } from '@tiptap/react';
 import type { WorkbookData } from './sheetTypes';
@@ -200,8 +200,7 @@ const storedDefaultPage = (): Partial<PageSettings> => {
 
 export const defaultPage = (): PageSettings => ({ ...basePage(), ...storedDefaultPage() });
 
-export function createWorkspaceStorage(userId: string | null) {
-  const store = createStore(userId ? `minh-office-user:${userId}` : 'minh-office', 'workspace');
+function createPersistentStorage(store: UseStore) {
 
   async function listFiles(): Promise<FileMeta[]> {
     return (await get<FileMeta[]>(INDEX_KEY, store)) ?? [];
@@ -216,6 +215,8 @@ export function createWorkspaceStorage(userId: string | null) {
   }
 
   async function saveFile(meta: FileMeta, content?: FileContent) {
+    meta = structuredClone(meta);
+    content = structuredClone(content);
     if (content) await set(contentKey(meta.id), content, store);
     await update<FileMeta[]>(INDEX_KEY, (current = []) => {
       const files = [...current];
@@ -227,6 +228,7 @@ export function createWorkspaceStorage(userId: string | null) {
   }
 
   async function updateMeta(id: string, patch: Partial<FileMeta>) {
+    patch = structuredClone(patch);
     const files = await listFiles();
     const index = files.findIndex((file) => file.id === id);
     if (index < 0) return null;
@@ -250,6 +252,7 @@ export function createWorkspaceStorage(userId: string | null) {
     content: FileContent,
     label?: string
   ): Promise<FileVersion> {
+    content = structuredClone(content);
     const versions = await listVersions(fileId);
     const now = Date.now();
     const timeStr = new Date(now).toLocaleTimeString('vi-VN', {
@@ -292,7 +295,7 @@ export function createWorkspaceStorage(userId: string | null) {
   }
 
   async function importBackup(payload: unknown) {
-    const data = payload as { format?: string; files?: FileMeta[]; contents?: Record<string, FileContent> };
+    const data = structuredClone(payload) as { format?: string; files?: FileMeta[]; contents?: Record<string, FileContent> };
     if (data?.format !== 'minh-office-backup' || !Array.isArray(data.files)) throw new Error('Tệp sao lưu không hợp lệ.');
     const existing = await listFiles();
     const ids = new Set(existing.map((file) => file.id));
@@ -312,116 +315,52 @@ export function createWorkspaceStorage(userId: string | null) {
   return { listFiles, loadContent, saveFile, updateMeta, removeFile, listVersions, saveVersion, restoreVersion, deleteVersion, exportBackup, importBackup };
 }
 
-export type WorkspaceStorage = ReturnType<typeof createWorkspaceStorage>;
+export type WorkspaceStorage = ReturnType<typeof createPersistentStorage>;
+
+export function createWorkspaceStorage(userId: string | null): WorkspaceStorage {
+  return createPersistentStorage(createStore(userId ? `minh-office-user:${userId}` : 'minh-office', 'workspace'));
+}
 
 export function createDraftWorkspaceStorage(): WorkspaceStorage {
-  const legacy = createWorkspaceStorage(null);
-  let files: FileMeta[] = [];
-  const contents = new Map<string, FileContent>();
-  const histories = new Map<string, FileVersion[]>();
+  const rawStore = createStore('minh-office-drafts', 'workspace');
+  const migrationKey = 'legacy-migration-v1';
   let initialization: Promise<void> | undefined;
 
-  function ready() {
-    initialization ??= (async () => {
-      const existing = await legacy.listFiles();
-      await Promise.all(existing.map(async (file) => {
-        const [content, versions] = await Promise.all([legacy.loadContent(file.id), legacy.listVersions(file.id)]);
-        if (content) contents.set(file.id, structuredClone(content));
-        histories.set(file.id, structuredClone(versions));
-      }));
-      files = structuredClone(existing);
-    })();
-    return initialization;
-  }
+  const migrate = async () => {
+    if (await get<boolean>(migrationKey, rawStore)) return;
+    const legacy = createWorkspaceStorage(null);
+    const snapshot = await legacy.exportBackup();
+    const histories = new Map(await Promise.all(snapshot.files.map(async (file) => [file.id, await legacy.listVersions(file.id)] as const)));
+    await rawStore('readwrite', (store) => {
+      const marker = store.get(migrationKey);
+      marker.onsuccess = () => {
+        if (marker.result) return;
+        const index = store.get(INDEX_KEY);
+        index.onsuccess = () => {
+          const files: FileMeta[] = index.result ?? [];
+          const ids = new Set(files.map((file) => file.id));
+          for (const file of snapshot.files) {
+            if (ids.has(file.id)) continue;
+            files.push(file);
+            ids.add(file.id);
+            const content = snapshot.contents[file.id];
+            if (content) store.put(content, contentKey(file.id));
+            store.put(histories.get(file.id) ?? [], versionsKey(file.id));
+          }
+          store.put(files, INDEX_KEY);
+          store.put(true, migrationKey);
+        };
+      };
+      return promisifyRequest(store.transaction);
+    });
+  };
 
-  async function listFiles() {
-    await ready();
-    return structuredClone(files);
-  }
-
-  async function loadContent(id: string) {
-    await ready();
-    return structuredClone(contents.get(id));
-  }
-
-  async function saveFile(meta: FileMeta, content?: FileContent) {
-    const nextMeta = structuredClone(meta);
-    const nextContent = structuredClone(content);
-    await ready();
-    if (nextContent) contents.set(nextMeta.id, nextContent);
-    const index = files.findIndex((file) => file.id === nextMeta.id);
-    if (index >= 0) files[index] = nextMeta;
-    else files.unshift(nextMeta);
-  }
-
-  async function updateMeta(id: string, patch: Partial<FileMeta>) {
-    const nextPatch = structuredClone(patch);
-    await ready();
-    const index = files.findIndex((file) => file.id === id);
-    if (index < 0) return null;
-    files[index] = { ...files[index], ...nextPatch };
-    return structuredClone(files[index]);
-  }
-
-  async function removeFile(id: string) {
-    await ready();
-    contents.delete(id);
-    histories.delete(id);
-    files = files.filter((file) => file.id !== id);
-  }
-
-  async function listVersions(fileId: string) {
-    await ready();
-    return structuredClone(histories.get(fileId) ?? []);
-  }
-
-  async function saveVersion(fileId: string, content: FileContent, label?: string) {
-    const snapshot = structuredClone(content);
-    await ready();
-    const now = Date.now();
-    const time = new Date(now).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    const date = new Date(now).toLocaleDateString('vi-VN');
-    const version: FileVersion = { id: 'v_' + Math.random().toString(36).slice(2, 10), fileId, timestamp: now, label: label || `Bản lưu ${time} (${date})`, content: snapshot };
-    histories.set(fileId, [version, ...(histories.get(fileId) ?? [])].slice(0, 30));
-    return structuredClone(version);
-  }
-
-  async function restoreVersion(fileId: string, versionId: string) {
-    await ready();
-    const version = histories.get(fileId)?.find((item) => item.id === versionId);
-    if (!version) return null;
-    contents.set(fileId, structuredClone(version.content));
-    return structuredClone(version.content);
-  }
-
-  async function deleteVersion(fileId: string, versionId: string) {
-    await ready();
-    histories.set(fileId, (histories.get(fileId) ?? []).filter((version) => version.id !== versionId));
-  }
-
-  async function exportBackup() {
-    await ready();
-    return structuredClone({ format: 'minh-office-backup', version: 2, exportedAt: new Date().toISOString(), files, contents: Object.fromEntries(files.map((file) => [file.id, contents.get(file.id)])) });
-  }
-
-  async function importBackup(payload: unknown) {
-    const data = structuredClone(payload) as { format?: string; files?: FileMeta[]; contents?: Record<string, FileContent> };
-    if (data?.format !== 'minh-office-backup' || !Array.isArray(data.files)) throw new Error('Tệp sao lưu không hợp lệ.');
-    await ready();
-    const ids = new Set(files.map((file) => file.id));
-    let count = 0;
-    for (const file of data.files) {
-      const content = data.contents?.[file.id];
-      if (!content || ids.has(file.id)) continue;
-      contents.set(file.id, content);
-      files.push(file);
-      ids.add(file.id);
-      count++;
-    }
-    return count;
-  }
-
-  return { listFiles, loadContent, saveFile, updateMeta, removeFile, listVersions, saveVersion, restoreVersion, deleteVersion, exportBackup, importBackup };
+  const store: UseStore = async (mode, callback) => {
+    initialization ??= migrate().catch((error) => { initialization = undefined; throw error; });
+    await initialization;
+    return rawStore(mode, callback);
+  };
+  return createPersistentStorage(store);
 }
 
 export const WorkspaceContext = createContext<WorkspaceStorage | null>(null);

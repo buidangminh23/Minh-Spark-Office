@@ -1,7 +1,7 @@
 import { createWorkspaceStorage } from '../../lib/storage';
 import { useAccount } from '../../components/Authentication';
 import { useWorkspace } from '../../lib/storage';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   ArrowLeft,
   FileText,
@@ -59,13 +59,20 @@ interface PdfEditorProps {
 
 type PdfRibbonTab = 'file' | 'home' | 'minh_pdf' | 'insert' | 'view' | 'tools' | 'help';
 
-export default function PdfEditor({ meta, content, onSave, onRename, onBack }: PdfEditorProps) {
+export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorProps) {
   const ui = useUi();
   const { user, login } = useAccount();
   const { listVersions, deleteVersion } = useWorkspace();
   const [activeTab, setActiveTab] = useState<PdfRibbonTab>('minh_pdf');
   const [title, setTitle] = useState(meta.name);
   const [savedStatus, setSavedStatus] = useState<'saved' | 'saving'>('saved');
+  const [revision, setRevision] = useState(0);
+  const changeRevision = useRef(0);
+  const markDirty = useCallback(() => {
+    changeRevision.current++;
+    setRevision(changeRevision.current);
+    setSavedStatus('saving');
+  }, []);
   const [keepAttributes, setKeepAttributes] = useState(true);
 
   const currentPageState = useState(1);
@@ -130,20 +137,46 @@ export default function PdfEditor({ meta, content, onSave, onRename, onBack }: P
     ui.toast('Đã xoá phiên bản lưu');
   };
 
+  const persistPdf = useCallback(async (explicit = false) => {
+    const savedRevision = changeRevision.current;
+    const updatedMeta: FileMeta = { ...meta, name: title.trim() || meta.name, updatedAt: Date.now() };
+    const saved = await onSave(updatedMeta, { ...content, pageCount: totalPages, comments }, explicit);
+    if (saved && changeRevision.current === savedRevision) setSavedStatus('saved');
+    return saved;
+  }, [meta, title, onSave, content, totalPages, comments]);
+
   const handleSaveNow = async () => {
-    const updatedMeta: FileMeta = {
-      ...meta,
-      name: title,
-      updatedAt: Date.now(),
-    };
-    if (!await onSave(updatedMeta, { ...content, comments }, true)) return;
-    setSavedStatus('saved');
-    ui.toast('Đã lưu tài liệu PDF');
+    if (await persistPdf(true)) ui.toast('Đã lưu tài liệu PDF');
   };
+
+  useEffect(() => {
+    if (savedStatus !== 'saving') return;
+    const timer = setTimeout(() => void persistPdf(false), 800);
+    return () => clearTimeout(timer);
+  }, [savedStatus, persistPdf, revision]);
+
+  useEffect(() => {
+    if (savedStatus === 'saved') return;
+    const flush = () => { void persistPdf(false); };
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      flush();
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    const visibility = () => { if (document.visibilityState === 'hidden') flush(); };
+    window.addEventListener('beforeunload', beforeUnload);
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', visibility);
+    return () => {
+      window.removeEventListener('beforeunload', beforeUnload);
+      window.removeEventListener('pagehide', flush);
+      document.removeEventListener('visibilitychange', visibility);
+    };
+  }, [savedStatus, persistPdf]);
 
   const handleTitleBlur = () => {
     if (title.trim() && title !== meta.name) {
-      onRename(title.trim());
+      setTitle(title.trim());
     } else {
       setTitle(meta.name);
     }
@@ -159,6 +192,7 @@ export default function PdfEditor({ meta, content, onSave, onRename, onBack }: P
       resolved: false,
     };
     setComments((prev) => [newCmt, ...prev]);
+    markDirty();
     setNewCommentText('');
     ui.toast('Đã thêm ghi chú bình luận');
   };
@@ -174,7 +208,7 @@ export default function PdfEditor({ meta, content, onSave, onRename, onBack }: P
     const file = e.target.files?.[0];
     if (file) {
       setTitle(file.name);
-      onRename(file.name);
+      markDirty();
       setTotalPages(5);
       ui.toast(`Đã nạp tệp PDF: ${file.name}`);
     }
@@ -185,7 +219,7 @@ export default function PdfEditor({ meta, content, onSave, onRename, onBack }: P
       {/* Top Header */}
       <header className="editor-top">
         <div className="editor-title-group">
-          <button className="icon-btn" onClick={onBack} title="Quay lại danh sách tệp">
+          <button className="icon-btn" onClick={() => void persistPdf(false).then((saved) => { if (saved) onBack(); })} title="Quay lại danh sách tệp">
             <ArrowLeft size={18} />
           </button>
           <div
@@ -198,7 +232,7 @@ export default function PdfEditor({ meta, content, onSave, onRename, onBack }: P
           <input
             className="editor-title-input"
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(e) => { setTitle(e.target.value); markDirty(); }}
             onBlur={handleTitleBlur}
             onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
             title="Nhấp để đổi tên tệp PDF"
@@ -212,12 +246,12 @@ export default function PdfEditor({ meta, content, onSave, onRename, onBack }: P
             {savedStatus === 'saved' ? (
               <>
                 <CheckCircle2 size={13} />
-                <span>{user ? 'Đã lưu' : 'Bản nháp · Chưa lưu'}</span>
+                <span>{user ? 'Đã lưu' : 'Đã lưu nháp trên máy'}</span>
               </>
             ) : (
               <>
                 <Clock size={13} />
-                <span>{user ? 'Đang lưu…' : 'Đang giữ bản nháp…'}</span>
+                <span>{user ? 'Đang lưu…' : 'Đang lưu nháp…'}</span>
               </>
             )}
           </div>
@@ -233,7 +267,7 @@ export default function PdfEditor({ meta, content, onSave, onRename, onBack }: P
             <History size={15} />
             <span>Lịch sử</span>
           </button>
-          <button className="btn" onClick={handleSaveNow} title="Lưu tài liệu">
+          <button className="btn" onClick={handleSaveNow} title="Lưu chính thức">
             <Save size={15} />
             <span>Lưu</span>
           </button>

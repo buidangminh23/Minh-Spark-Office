@@ -1,6 +1,9 @@
 import 'fake-indexeddb/auto';
+import { IDBFactory } from 'fake-indexeddb';
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { beforeEach, test } from 'node:test';
+
+beforeEach(() => { globalThis.indexedDB = new IDBFactory(); });
 import { createStore, set } from 'idb-keyval';
 import { createDraftWorkspaceStorage, createWorkspaceStorage, defaultPage, type DocContent, type FileMeta } from '../src/lib/storage.ts';
 
@@ -69,7 +72,7 @@ test('imports a backup once per ID into only the selected account', async () => 
   await assert.rejects(target.importBackup({ format: 'wrong', files: [] }));
 });
 
-test('keeps new drafts and imported backups in memory without writing the legacy store', async () => {
+test('persists new drafts and imported backups without writing the legacy store', async () => {
   const legacy = createWorkspaceStorage(null);
   const before = await legacy.exportBackup();
   const draft = createDraftWorkspaceStorage();
@@ -114,7 +117,7 @@ test('isolates legacy content and metadata edits and snapshots legacy data only 
   assert.deepEqual(await legacy.loadContent('memory-legacy'), content('original text'));
 });
 
-test('keeps version creation, restore and deletion isolated in draft memory', async () => {
+test('persists version creation and restore while isolating legacy history', async () => {
   const legacy = createWorkspaceStorage(null);
   await legacy.saveFile(meta('memory-version'), content('legacy current'));
   const originalVersion = await legacy.saveVersion('memory-version', content('legacy previous'));
@@ -159,4 +162,44 @@ test('copies only the chosen draft to an account while keeping original and othe
   exported.contents['chosen-draft'] = content('export mutation');
   assert.deepEqual(await draft.loadContent('chosen-draft'), content('latest draft'));
   assert.equal((await draft.listFiles())[0].name, 'unrelated-draft.docx');
+});
+
+
+test('reopens draft content, metadata and versions after a new workspace instance', async () => {
+  const draft = createDraftWorkspaceStorage();
+  await draft.saveFile(meta('reopen'), content('text before reload'));
+  await draft.updateMeta('reopen', { name: 'Renamed draft.docx', starred: true });
+  const version = await draft.saveVersion('reopen', content('earlier version'));
+  const reopened = createDraftWorkspaceStorage();
+  assert.deepEqual(await reopened.loadContent('reopen'), content('text before reload'));
+  assert.equal((await reopened.listFiles())[0].name, 'Renamed draft.docx');
+  assert.equal((await reopened.listFiles())[0].starred, true);
+  assert.equal((await reopened.listVersions('reopen'))[0].id, version.id);
+  assert.deepEqual(await reopened.restoreVersion('reopen', version.id), content('earlier version'));
+  assert.deepEqual(await createDraftWorkspaceStorage().loadContent('reopen'), content('earlier version'));
+});
+
+test('does not resurrect removed drafts during legacy migration on reload', async () => {
+  const legacy = createWorkspaceStorage(null);
+  await legacy.saveFile(meta('removed'), content('original'));
+  const first = createDraftWorkspaceStorage();
+  assert.deepEqual(await first.loadContent('removed'), content('original'));
+  await first.removeFile('removed');
+  const reopened = createDraftWorkspaceStorage();
+  assert.deepEqual(await reopened.listFiles(), []);
+  assert.equal(await reopened.loadContent('removed'), undefined);
+  assert.deepEqual(await legacy.loadContent('removed'), content('original'));
+});
+
+test('concurrent draft initialization preserves new files and edited migrated content', async () => {
+  const legacy = createWorkspaceStorage(null);
+  await legacy.saveFile(meta('legacy'), content('original'));
+  const drafts = Array.from({ length: 8 }, () => createDraftWorkspaceStorage());
+  await Promise.all(drafts.map((draft, index) => draft.saveFile(meta(`concurrent-${index}`), content(`${index}`))));
+  await drafts[0].saveFile(meta('legacy'), content('edited draft'));
+  const reopened = createDraftWorkspaceStorage();
+  assert.equal((await reopened.listFiles()).length, 9);
+  assert.deepEqual(await reopened.loadContent('legacy'), content('edited draft'));
+  assert.deepEqual(await legacy.loadContent('legacy'), content('original'));
+  assert.deepEqual(await createWorkspaceStorage('signed-account').listFiles(), []);
 });
