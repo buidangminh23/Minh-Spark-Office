@@ -1620,6 +1620,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   max-width: min(100%, calc(100vw - 32px));
   padding: 24px;
   position: relative;
+  max-height: calc(100dvh - 40px);
+  overflow: auto;
 }
 
 .dialog.wide {
@@ -1686,6 +1688,18 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   justify-content: flex-end;
   gap: 8px;
   margin-top: 18px;
+  flex-wrap: wrap;
+}
+
+.dialog-actions > .btn {
+  max-width: 100%;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.dialog-actions > .btn > :is(img, svg) {
+  flex-shrink: 0;
 }
 
 /* Toast Notifications */
@@ -1934,6 +1948,154 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .account-identity { max-width: 140px; }
 }
 .auth-google img, .google-signin img { flex-shrink: 0; }
+
+.app-shell > .main > .topbar {
+  height: auto;
+  min-height: 64px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 32px;
+}
+
+.app-shell .search-box {
+  flex: 1 1 280px;
+  width: auto;
+  max-width: 380px;
+  min-width: 0;
+}
+
+.app-shell .search-box input {
+  min-width: 0;
+}
+
+.app-shell .search-box > svg,
+.app-shell .search-box > button {
+  flex-shrink: 0;
+}
+
+.app-shell .topbar-right {
+  flex: 1 1 520px;
+  min-width: 0;
+  max-width: 100%;
+  justify-content: flex-end;
+}
+
+.app-shell .topbar-right > .btn {
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  text-align: left;
+}
+
+.app-shell .topbar-right > .btn > svg {
+  flex-shrink: 0;
+}
+
+.app-shell .account-control {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.app-shell .account-control > .google-signin,
+.app-shell .account-control > .account-error {
+  grid-column: 1 / -1;
+}
+
+.app-shell .account-error {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 768px) {
+  .workspace-content > .app-shell:has(> .sidebar) {
+    height: auto;
+  }
+
+  .app-shell {
+    flex-direction: column;
+  }
+
+  .app-shell > .sidebar {
+    position: static;
+    width: 100%;
+    flex: none;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 16px;
+    border-right: 0;
+    border-bottom: 1px solid var(--sidebar-border);
+  }
+
+  .app-shell > .sidebar > * {
+    flex: 0 0 100%;
+    min-width: 0;
+  }
+
+  .app-shell > .sidebar > .nav-item {
+    flex: 1 1 calc(50% - 8px);
+    width: auto;
+    gap: 8px;
+    margin: 0;
+    padding: 8px;
+  }
+
+  .app-shell > .sidebar > .nav-item > :is(svg, .nav-count) {
+    flex-shrink: 0;
+  }
+
+  .app-shell .create-split,
+  .app-shell .storage-box {
+    margin: 0;
+  }
+
+  .app-shell .sidebar-label {
+    margin: 8px 0 0;
+    padding: 0 8px;
+  }
+
+  .app-shell .sidebar-bottom {
+    margin-top: 8px;
+  }
+
+  .app-shell > .main {
+    width: 100%;
+    margin-left: 0;
+    min-height: 0;
+    flex: none;
+  }
+
+  .app-shell > .main > .topbar {
+    padding: 12px 16px;
+  }
+
+  .app-shell .search-box {
+    max-width: none;
+    flex-basis: 100%;
+  }
+
+  .app-shell .topbar-right {
+    flex-basis: 100%;
+    justify-content: flex-start;
+    gap: 8px;
+  }
+
+  .app-shell .home-content {
+    padding: 24px 16px;
+  }
+
+  .app-shell .filter-bar,
+  .app-shell .tabs-group {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .app-shell .file-table-wrap {
+    overflow-x: auto;
+  }
+}
 
 .suite-logo {
   position: relative;
