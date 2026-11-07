@@ -1,6 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use tauri::webview::NewWindowResponse;
+use tauri::webview::{Color, NewWindowResponse};
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 mod desktop_auth;
 mod open_files;
@@ -9,6 +9,8 @@ mod open_files;
 fn open_web_app() -> Result<(), String> {
     open::that("https://office.minhspark.com").map_err(|error| error.to_string())
 }
+
+const DESKTOP_MARKER_SCRIPT: &str = "(()=>{const mark=()=>{const root=document.documentElement;if(!root)return false;root.classList.add('ms-desktop');return true};if(!mark())new MutationObserver((_,observer)=>{if(mark())observer.disconnect()}).observe(document,{childList:true})})()";
 
 fn main() {
     tauri::Builder::default()
@@ -46,6 +48,8 @@ fn main() {
                         .clone(),
                 )?
                 .title("Minh Spark Office")
+                .background_color(Color(246, 247, 251, 255))
+                .initialization_script(DESKTOP_MARKER_SCRIPT)
                 .inner_size(1440.0, 940.0)
                 .min_inner_size(1024.0, 680.0)
                 .disable_drag_drop_handler()

@@ -3,10 +3,14 @@ import { check, type Update } from '@tauri-apps/plugin-updater';
 import { getVersion } from '@tauri-apps/api/app';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { isDesktop } from '../lib/desktop';
+import { clearDockProgress, requestDockAttention, showDockProgress } from '../lib/desktopProgress';
+import { UpdateProgressRing, type RingMode } from './UpdateProgressRing';
 import './workspaceStatus.css';
 
 type Phase = 'idle' | 'checking' | 'current' | 'available' | 'downloading' | 'downloaded' | 'installing' | 'error';
 const bytes = (value: number) => `${(value / 1048576).toFixed(1)} MB`;
+const ringModes: Record<Phase, RingMode> = { idle: 'idle', checking: 'spinning', current: 'complete', available: 'idle', downloading: 'progress', downloaded: 'complete', installing: 'spinning', error: 'error' };
+const CheckMark = () => <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" /></svg>;
 
 export function DesktopUpdater({ editing }: { editing: boolean }) {
   const [open, setOpen] = useState(false);
@@ -88,13 +92,25 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
     }
     catch { setPhase('downloaded'); setError('Chưa khởi chạy được bộ cài. Hãy thử lại.'); busy.current = false; }
   };
+  const percent = total ? Math.min(100, Math.round(downloaded / total * 100)) : null;
+  useEffect(() => {
+    if (phase === 'downloading') showDockProgress(percent ?? 0);
+    else clearDockProgress();
+    if (phase === 'downloaded') requestDockAttention();
+  }, [phase, percent]);
+  useEffect(() => () => clearDockProgress(), []);
   if (!isDesktop()) return null;
   const working = ['checking', 'downloading', 'installing'].includes(phase);
-  const percent = total ? Math.min(100, Math.round(downloaded / total * 100)) : null;
+  const ringMode: RingMode = phase === 'downloading' && percent === null ? 'spinning' : ringModes[phase];
+  const launcherLabel = phase === 'downloading' ? (percent === null ? 'Đang tải bản mới…' : `Đang tải ${percent}%`) : phase === 'downloaded' ? `Cài bản mới ${nextVersion}` : phase === 'available' ? `Có bản mới ${nextVersion}` : 'Cập nhật ứng dụng';
   const title = ({ idle: 'Cập nhật Minh Spark Office', checking: 'Đang kiểm tra phiên bản', current: 'Đang dùng phiên bản mới nhất', available: `Đã có phiên bản ${nextVersion}`, downloading: 'Đang tải bản cập nhật', downloaded: 'Bản cập nhật đã sẵn sàng', installing: 'Đang cài đặt bản cập nhật', error: 'Chưa kiểm tra được cập nhật' })[phase];
   return <>
-    <button className="update-launcher" onClick={() => { setOpen(true); if (phase === 'idle' || phase === 'error' || phase === 'current') void checkUpdate(); }}>{phase === 'available' || phase === 'downloaded' ? `Có bản mới ${nextVersion}` : 'Cập nhật ứng dụng'}</button>
-    {open && <div className="sync-dialog-backdrop"><section className="sync-dialog" ref={dialog} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="update-title" onKeyDown={(event) => {
+    <button className={`update-launcher update-launcher-${phase}`} onClick={() => { setOpen(true); if (phase === 'idle' || phase === 'error' || phase === 'current') void checkUpdate(); }}>
+      {phase === 'downloading' && <UpdateProgressRing mode={percent === null ? 'spinning' : 'progress'} percent={percent ?? 0} size={16} stroke={2} />}
+      {phase === 'downloaded' && <span className="update-launcher-check"><CheckMark /></span>}
+      <span>{launcherLabel}</span>
+    </button>
+    {open && <div className="sync-dialog-backdrop update-dialog-backdrop"><section className="sync-dialog update-dialog" ref={dialog} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="update-title" onKeyDown={(event) => {
       if (event.key === 'Escape' && phase !== 'installing') setOpen(false);
       if (event.key === 'Tab') {
         const items = dialog.current?.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled)');
@@ -104,11 +120,16 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
         else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
       }
     }}>
-      <div className={`update-brand-ring ${working ? 'busy' : ''}`}><img className="sync-brand" src="/logo-icon.png" alt="Minh Spark Office" /></div>
-      <h2 id="update-title">{title}</h2>
-      <p>Minh Spark Office · Phiên bản {version || '…'}</p>
+      <div className="update-ring" role={working ? 'progressbar' : undefined} aria-label={working ? title : undefined} aria-valuemin={working ? 0 : undefined} aria-valuemax={working ? 100 : undefined} aria-valuenow={ringMode === 'progress' && percent !== null ? percent : undefined}>
+        <UpdateProgressRing mode={ringMode} percent={percent ?? 0} size={104} stroke={4} />
+        <div className="update-brand-ring"><img className="sync-brand" src="/logo-icon.png" alt="Minh Spark Office" /></div>
+        {ringMode === 'complete' && <span className="update-ring-check"><CheckMark /></span>}
+      </div>
+      <div className="update-phase" key={phase}>
+        <h2 id="update-title">{title}</h2>
+        <p>Minh Spark Office · Phiên bản {version || '…'}</p>
+      </div>
       {notes && ['available', 'downloaded'].includes(phase) && <div className="update-notes">{notes}</div>}
-      {working && <div className="update-progress" role="progressbar" aria-label={title} aria-valuemin={0} aria-valuemax={100} aria-valuenow={phase === 'downloading' && percent !== null ? percent : undefined}><div className={`update-progress-fill ${phase !== 'downloading' || percent === null ? 'update-progress-indeterminate' : ''}`} style={phase === 'downloading' && percent !== null ? { width: `${percent}%` } : undefined} /></div>}
       {phase === 'downloading' && <div className="update-metrics"><span>{bytes(downloaded)}{total ? ` / ${bytes(total)}` : ''}</span><strong>{percent === null ? 'Đang tải…' : `${percent}%`}</strong></div>}
       {phase === 'downloaded' && <p>{editing ? 'Lưu và trở về danh sách tài liệu trước khi cài đặt.' : 'Chữ ký gói cập nhật đã được xác minh. Ứng dụng sẽ đóng để cài đặt rồi mở lại.'}</p>}
       {phase === 'installing' && <p>Đang mở bộ cài. Tài liệu đã lưu trên máy vẫn được giữ.</p>}

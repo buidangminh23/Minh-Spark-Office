@@ -50,5 +50,5 @@ ln -s /Applications "$stage/Applications"
 hdiutil create -volname 'Minh Spark Office' -srcfolder "$stage" -ov -format UDZO "$output/$dmg"
 hdiutil verify "$output/$dmg"
 (cd "$output" && shasum -a 256 "$dmg" "$updater" > SHA256SUMS-macos.txt)
-printf '%s\n' 'Apple Silicon artifacts built with ad-hoc code signing; no Apple notarization.'
+printf '%s\n' 'Apple Silicon artifacts built with ad-hoc code signing; no Apple notarization. Publish the curl installer (public/install-macos.sh) as the primary macOS install path; browser-downloaded DMGs are quarantined and blocked by Gatekeeper.'
 cat "$output/SHA256SUMS-macos.txt"

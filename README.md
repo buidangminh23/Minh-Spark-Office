@@ -60,6 +60,16 @@ Run `scripts/build-macos.sh` on an Apple Silicon Mac using the prepared web `dis
 
 The current Mac app has an ad-hoc signature; it has no Apple Developer ID or notarization. An Intel native build is not included. The web app remains available on Intel Macs.
 
+Gatekeeper blocks any ad-hoc app that carries the `com.apple.quarantine` attribute, which browsers attach to every download. A DMG downloaded in a browser therefore shows "Minh Spark Office chưa được mở" on first launch. The supported install path is the terminal installer served from `public/install-macos.sh`:
+
+```sh
+curl -fsSL https://office.minhspark.com/install-macos.sh | bash
+```
+
+`curl` attaches no quarantine attribute. The installer reads `downloads/SHA256SUMS.txt` (CRLF or LF), downloads the newest macOS `.app.tar.gz`, verifies its SHA-256, bundle identifier, version and code signature, swaps it into `/Applications` (or `~/Applications`) with a rollback on failure, strips any remaining quarantine attribute and refuses to replace a copy that is running. In-app updates download through the updater plugin and are never quarantined. Keep the DMG only as a secondary download with the "Open Anyway" instructions on `tai-ung-dung.html`; never present it as the primary macOS path while the app is not notarized. Developer ID signing and notarization remove the warning for every path and require a paid Apple Developer Program membership.
+
+After any change to `public/install-macos.sh` or the macOS release artifacts, run it against production with `--dir <scratch directory> --no-launch` and confirm `codesign --verify --deep --strict` passes and no file inside the bundle reports `com.apple.quarantine`.
+
 ## Opening local files
 
 Windows installers register Open With entries and Default Apps capabilities for DOCX, XLSX, XLSM, XLS, CSV, TSV, PDF, TXT and MD without overwriting existing default handlers or UserChoice. The application offers a button to open Windows Default Apps settings. macOS advertises alternate document handlers and shows Finder instructions for choosing a default. The native queue accepts only OS-provided paths, bounds file sizes and waits until the current editor is closed before opening another document. A second launch focuses the existing window.
