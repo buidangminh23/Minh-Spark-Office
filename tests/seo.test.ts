@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 
 const root = new URL('../', import.meta.url);
-const origin = 'https://minhsparkoffice.minhspark.com';
+const origin = 'https://office.minhspark.com';
 const pages = [
   { path: '/', file: 'index.html' },
   { path: '/gioi-thieu.html', file: 'public/gioi-thieu.html' },
@@ -29,7 +29,7 @@ test('public URLs expose unique metadata, readable content and matching canonica
     assert.equal((page.html.match(/rel="canonical"/g) ?? []).length, 1);
     assert.ok(page.html.includes(`rel="canonical" href="${origin}${page.path}"`));
     assert.ok(page.html.includes(`property="og:url" content="${origin}${page.path}"`));
-    assert.match(page.html, /property="og:image" content="https:\/\/minhsparkoffice\.minhspark\.com\/logo\.jpg"/);
+    assert.match(page.html, /property="og:image" content="https:\/\/office\.minhspark\.com\/logo\.jpg"/);
     assert.match(page.html, /name="twitter:card" content="summary"/);
     assert.equal((page.html.match(/<h1[ >]/g) ?? []).length, 1);
     assert.doesNotMatch(page.html, /noindex|aggregateRating|reviewCount|miễn phí trọn đời/i);

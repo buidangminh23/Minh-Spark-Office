@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://minhsparkoffice.minhspark.com/sitemap.xml
+Sitemap: https://office.minhspark.com/sitemap.xml
