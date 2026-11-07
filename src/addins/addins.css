@@ -408,3 +408,105 @@
     box-shadow: var(--shadow-lg);
   }
 }
+
+.addin-welcome {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  padding: 32px 24px;
+  text-align: center;
+}
+
+.addin-welcome-art {
+  width: 104px;
+  height: 92px;
+  margin-bottom: 8px;
+  color: var(--ink);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.addin-welcome-badge {
+  fill: #eeece6;
+}
+
+.addin-welcome h2 {
+  margin: 0;
+  font-size: 26px;
+  line-height: 1.25;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  text-wrap: balance;
+}
+
+.addin-welcome p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-secondary);
+  text-wrap: pretty;
+}
+
+.addin-welcome-actions {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.addin-welcome-primary,
+.addin-welcome-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 16px;
+  border-radius: 12px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.addin-welcome-primary {
+  border: 1px solid #141413;
+  background: #141413;
+  color: #fff;
+}
+
+.addin-welcome-primary:hover {
+  background: #2b2b29;
+}
+
+.addin-welcome-secondary {
+  border: 1px solid var(--line-strong);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.addin-welcome-secondary:hover {
+  background: var(--bg);
+}
+
+.addin-welcome-primary:focus-visible,
+.addin-welcome-secondary:focus-visible {
+  outline: 2px solid var(--addin-accent);
+  outline-offset: 2px;
+}
+
+.addin-welcome small {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}

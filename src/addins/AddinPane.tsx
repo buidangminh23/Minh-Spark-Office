@@ -127,26 +127,18 @@ function AddinPane({ provider, host }: { provider: AddinProvider; host: AddinHos
 
       {showSettings ? (
         <AddinSettings provider={provider} signedIn={Boolean(user)} onLogin={login} onSaved={() => setKeyVersion((value) => value + 1)} onDone={() => setShowSettings(false)} />
+      ) : mode === 'none' ? (
+        <AddinWelcome provider={provider} app={host.app} onLogin={() => void login()} onUseKey={() => setShowSettings(true)} />
       ) : (
         <>
           <div className="addin-messages" ref={listRef}>
             {!messages.length && (
-              mode === 'none' ? (
-                <div className="addin-empty">
-                  <p>Đăng nhập Google để dùng {info.name} bằng lượt miễn phí của Minh Spark Office, hoặc nhập API key riêng.</p>
-                  <div className="addin-empty-actions">
-                    <button type="button" className="btn btn-primary" onClick={() => void login()}><LogIn size={14} /><span>Đăng nhập Google</span></button>
-                    <button type="button" className="btn" onClick={() => setShowSettings(true)}><KeyRound size={14} /><span>Nhập API key</span></button>
-                  </div>
+              <div className="addin-empty">
+                <p>Hỏi {info.name} về tệp đang mở. Nội dung đang chọn được gửi kèm câu hỏi.</p>
+                <div className="addin-suggestions">
+                  {host.suggestions.map((item) => <button type="button" key={item} className="addin-chip" onClick={() => void send(item)}>{item}</button>)}
                 </div>
-              ) : (
-                <div className="addin-empty">
-                  <p>Hỏi {info.name} về tệp đang mở. Nội dung đang chọn được gửi kèm câu hỏi.</p>
-                  <div className="addin-suggestions">
-                    {host.suggestions.map((item) => <button type="button" key={item} className="addin-chip" onClick={() => void send(item)}>{item}</button>)}
-                  </div>
-                </div>
-              )
+              </div>
             )}
             {messages.map((message) => (
               <MessageView key={message.id} message={message} actions={host.actions} />
@@ -162,8 +154,7 @@ function AddinPane({ provider, host }: { provider: AddinProvider; host: AddinHos
               <textarea
                 value={draft}
                 rows={3}
-                placeholder={mode === 'none' ? 'Đăng nhập hoặc nhập API key để bắt đầu' : `Nhắn cho ${info.name}…`}
-                disabled={mode === 'none'}
+                placeholder={`Nhắn cho ${info.name}…`}
                 onChange={(event) => setDraft(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
@@ -175,7 +166,7 @@ function AddinPane({ provider, host }: { provider: AddinProvider; host: AddinHos
               {busy ? (
                 <button type="button" className="addin-send" title="Dừng" aria-label="Dừng" onClick={stop}><Square size={14} /></button>
               ) : (
-                <button type="submit" className="addin-send" title="Gửi (Enter)" aria-label="Gửi" disabled={!draft.trim() || mode === 'none'}><ArrowUp size={16} /></button>
+                <button type="submit" className="addin-send" title="Gửi (Enter)" aria-label="Gửi" disabled={!draft.trim()}><ArrowUp size={16} /></button>
               )}
             </div>
             {mode === 'account' && remaining !== null && <div className="addin-quota">Còn {remaining} lượt miễn phí hôm nay</div>}
@@ -183,6 +174,43 @@ function AddinPane({ provider, host }: { provider: AddinProvider; host: AddinHos
         </>
       )}
     </aside>
+  );
+}
+
+const WELCOME: Record<AddinApp, { place: string; text: string }> = {
+  doc: { place: 'tài liệu', text: 'Viết, sửa, tóm tắt và dịch văn bản, chèn kết quả ngay vào tài liệu.' },
+  sheet: { place: 'bảng tính', text: 'Phân tích dữ liệu, viết công thức và tìm lỗi, ghi kết quả thẳng vào ô.' },
+  pdf: { place: 'tệp PDF', text: 'Tóm tắt, hỏi đáp và trích ý chính kèm số trang từ tệp PDF.' },
+};
+
+function WelcomeArt({ app }: { app: AddinApp }) {
+  const page = app === 'sheet'
+    ? <><rect x="8" y="10" width="72" height="56" rx="3" /><path d="M8 24h72M8 38h72M8 52h72M30 10v56M56 10v56" /></>
+    : <><path d="M18 6h40l16 16v50a3 3 0 0 1-3 3H18a3 3 0 0 1-3-3V9a3 3 0 0 1 3-3z" /><path d="M58 6v16h16" />{app === 'pdf' ? <text x="25" y="40" fontSize="13" fontWeight="700" stroke="none" fill="currentColor">PDF</text> : <path d="M26 34h34M26 44h34M26 54h22" />}</>;
+  const badge = app === 'sheet' ? <path d="M70 70l7-7 6 5 8-9" /> : app === 'doc' ? <path d="M70 72l14-14 4 4-14 14h-4z" /> : <><circle cx="78" cy="65" r="6" /><path d="M83 70l5 5" /></>;
+  return (
+    <svg className="addin-welcome-art" viewBox="0 0 104 92" aria-hidden="true">
+      {page}
+      <circle cx="79" cy="67" r="20" className="addin-welcome-badge" />
+      {badge}
+    </svg>
+  );
+}
+
+function AddinWelcome({ provider, app, onLogin, onUseKey }: { provider: AddinProvider; app: AddinApp; onLogin: () => void; onUseKey: () => void }) {
+  const info = ADDIN_INFO[provider];
+  const copy = WELCOME[app];
+  return (
+    <div className="addin-welcome">
+      <WelcomeArt app={app} />
+      <h2>{info.name}, ngay trong {copy.place} của bạn</h2>
+      <p>{copy.text}</p>
+      <div className="addin-welcome-actions">
+        <button type="button" className="addin-welcome-primary" onClick={onLogin}><LogIn size={16} /><span>Đăng nhập</span></button>
+        <button type="button" className="addin-welcome-secondary" onClick={onUseKey}><KeyRound size={16} /><span>Dùng API key riêng</span></button>
+      </div>
+      <small>Đăng nhập bằng tài khoản Google để dùng lượt miễn phí mỗi ngày của Minh Spark Office.</small>
+    </div>
   );
 }
 
