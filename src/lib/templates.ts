@@ -296,3 +296,132 @@ export const inventoryWorkbook = (): WorkbookData => {
   sheet.mergeData = [{ startRow: 0, endRow: 0, startColumn: 0, endColumn: 9 }];
   return workbook;
 };
+
+export const cashbookWorkbook = (): WorkbookData => {
+  const workbook = emptyWorkbook('Sổ quỹ thu chi kế toán');
+  const sheet = workbook.sheets[workbook.sheetOrder[0]];
+  sheet.name = 'Sổ quỹ T11';
+  workbook.styles = {
+    head: { bl: 1, bg: { rgb: '#0F766E' }, cl: { rgb: '#FFFFFF' }, ht: 2, vt: 2 },
+    title: { bl: 1, fs: 15, cl: { rgb: '#0F766E' } },
+    money: { n: { pattern: '#,##0' } },
+    center: { ht: 2, vt: 2 },
+    opening: { bl: 1, bg: { rgb: '#F0FDFA' }, n: { pattern: '#,##0' } },
+    total: { bl: 1, bg: { rgb: '#CCFBF1' }, n: { pattern: '#,##0' } },
+  };
+
+  sheet.cellData[0] = { 0: { v: 'SỔ QUỸ TIỀN MẶT & NGÂN HÀNG THÁNG 11/2026', t: 1, s: 'title' } };
+
+  const headers = ['STT', 'Ngày CT', 'Số phiếu', 'Diễn giải nghiệp vụ', 'Phân loại', 'Thu (VNĐ)', 'Chi (VNĐ)', 'Tồn quỹ luỹ kế'];
+  sheet.cellData[1] = {};
+  headers.forEach((h, c) => {
+    sheet.cellData[1][c] = { v: h, t: 1, s: 'head' };
+  });
+
+  sheet.cellData[2] = {
+    0: { v: '-', t: 1, s: 'center' },
+    1: { v: '01/11/2026', t: 1, s: 'center' },
+    2: { v: 'DK-001', t: 1, s: 'center' },
+    3: { v: 'Số dư tồn quỹ đầu kỳ tháng 11', t: 1 },
+    4: { v: 'Đầu kỳ', t: 1, s: 'center' },
+    5: { v: 0, t: 2, s: 'money' },
+    6: { v: 0, t: 2, s: 'money' },
+    7: { v: 250000000, t: 2, s: 'opening' },
+  };
+
+  const entries: [number, string, string, string, string, number, number][] = [
+    [1, '03/11/2026', 'PT-101', 'Thu tiền hợp đồng Minh Spark Enterprise đợt 1', 'Doanh thu', 320000000, 0],
+    [2, '06/11/2026', 'PC-201', 'Thanh toán chi phí thuê văn phòng & điện nước', 'Vận hành', 0, 42000000],
+    [3, '10/11/2026', 'PT-102', 'Thu phí gia hạn bản quyền Cloud Suite (18 khách hàng)', 'Doanh thu', 145000000, 0],
+    [4, '15/11/2026', 'PC-202', 'Tạm ứng lương đợt 1 tháng 11 cho khối kỹ thuật', 'Nhân sự', 0, 115000000],
+    [5, '20/11/2026', 'PC-203', 'Thanh toán hạ tầng máy chủ & bản quyền API', 'Công nghệ', 0, 38500000],
+    [6, '25/11/2026', 'PT-103', 'Thu thanh lý hợp đồng tư vấn chuyển đổi số', 'Dịch vụ', 95000000, 0],
+  ];
+
+  entries.forEach((item, idx) => {
+    const r = idx + 3;
+    sheet.cellData[r] = {
+      0: { v: item[0], t: 2, s: 'center' },
+      1: { v: item[1], t: 1, s: 'center' },
+      2: { v: item[2], t: 1, s: 'center' },
+      3: { v: item[3], t: 1 },
+      4: { v: item[4], t: 1, s: 'center' },
+      5: { v: item[5], t: 2, s: 'money' },
+      6: { v: item[6], t: 2, s: 'money' },
+      7: { f: `=H${r}+F${r + 1}-G${r + 1}`, s: 'money' },
+    };
+  });
+
+  sheet.cellData[9] = {
+    3: { v: 'TỔNG PHÁT SINH & TỒN CUỐI KỲ', t: 1, s: 'head' },
+    5: { f: '=SUM(F4:F9)', s: 'total' },
+    6: { f: '=SUM(G4:G9)', s: 'total' },
+    7: { f: '=H9', s: 'total' },
+  };
+
+  sheet.columnData = { 0: { w: 60 }, 1: { w: 105 }, 2: { w: 95 }, 3: { w: 280 }, 4: { w: 110 }, 5: { w: 135 }, 6: { w: 135 }, 7: { w: 150 } };
+  sheet.rowData = { 0: { h: 36 }, 1: { h: 32 } };
+  sheet.mergeData = [{ startRow: 0, endRow: 0, startColumn: 0, endColumn: 7 }];
+  sheet.freeze = { xSplit: 0, ySplit: 2, startRow: 2, startColumn: 0 };
+  return workbook;
+};
+
+export const projectEstimateWorkbook = (): WorkbookData => {
+  const workbook = emptyWorkbook('Dự toán & tiến độ dự án');
+  const sheet = workbook.sheets[workbook.sheetOrder[0]];
+  sheet.name = 'Dự toán dự án';
+  workbook.styles = {
+    head: { bl: 1, bg: { rgb: '#3730A3' }, cl: { rgb: '#FFFFFF' }, ht: 2, vt: 2 },
+    title: { bl: 1, fs: 15, cl: { rgb: '#312E81' } },
+    money: { n: { pattern: '#,##0' } },
+    pct: { n: { pattern: '0%' }, ht: 2 },
+    center: { ht: 2, vt: 2 },
+    total: { bl: 1, bg: { rgb: '#EEF2FF' }, n: { pattern: '#,##0' } },
+  };
+
+  sheet.cellData[0] = { 0: { v: 'BẢNG DỰ TOÁN NGÂN SÁCH & TIẾN ĐỘ TRIỂN KHAI DỰ ÁN', t: 1, s: 'title' } };
+
+  const headers = ['Mã HM', 'Hạng mục công việc', 'Phụ trách', 'Ngày công', 'Đơn giá/ngày', 'Dự toán', 'Giải ngân thực tế', 'Chênh lệch', 'Tiến độ', 'Trạng thái'];
+  sheet.cellData[1] = {};
+  headers.forEach((h, c) => {
+    sheet.cellData[1][c] = { v: h, t: 1, s: 'head' };
+  });
+
+  const tasks: [string, string, string, number, number, number, number][] = [
+    ['HM-01', 'Khảo sát nghiệp vụ & kiến trúc hệ thống', 'Bùi Đăng Minh', 15, 3500000, 52500000, 1],
+    ['HM-02', 'Phát triển lõi soạn thảo Minh Docs & Minh Sheets', 'Nhóm Frontend', 45, 3200000, 128000000, 0.9],
+    ['HM-03', 'Tích hợp xử lý chữ ký số & bảo mật ECMA-376', 'Nhóm Bảo mật', 25, 3800000, 76000000, 0.8],
+    ['HM-04', 'Kiểm thử hiệu năng, bảo mật & UAT nội bộ', 'Nhóm QA', 20, 2500000, 22000000, 0.45],
+    ['HM-05', 'Đào tạo chuyển giao & triển khai vận hành', 'Ban Dự án', 12, 2800000, 0, 0.15],
+  ];
+
+  tasks.forEach((task, idx) => {
+    const r = idx + 2;
+    sheet.cellData[r] = {
+      0: { v: task[0], t: 1, s: 'center' },
+      1: { v: task[1], t: 1 },
+      2: { v: task[2], t: 1 },
+      3: { v: task[3], t: 2, s: 'center' },
+      4: { v: task[4], t: 2, s: 'money' },
+      5: { f: `=D${r + 1}*E${r + 1}`, s: 'money' },
+      6: { v: task[5], t: 2, s: 'money' },
+      7: { f: `=F${r + 1}-G${r + 1}`, s: 'money' },
+      8: { v: task[6], t: 2, s: 'pct' },
+      9: { f: `=IF(I${r + 1}>=1,"Hoàn thành",IF(I${r + 1}>=0.5,"Đang chạy","Chuẩn bị"))`, s: 'center' },
+    };
+  });
+
+  sheet.cellData[7] = {
+    1: { v: 'TỔNG HỢP TOÀN DỰ ÁN', t: 1, s: 'head' },
+    3: { f: '=SUM(D3:D7)', s: 'center' },
+    5: { f: '=SUM(F3:F7)', s: 'total' },
+    6: { f: '=SUM(G3:G7)', s: 'total' },
+    7: { f: '=SUM(H3:H7)', s: 'total' },
+    8: { f: '=AVERAGE(I3:I7)', s: 'pct' },
+  };
+
+  sheet.columnData = { 0: { w: 80 }, 1: { w: 260 }, 2: { w: 135 }, 3: { w: 85 }, 4: { w: 120 }, 5: { w: 135 }, 6: { w: 135 }, 7: { w: 130 }, 8: { w: 90 }, 9: { w: 120 } };
+  sheet.rowData = { 0: { h: 36 }, 1: { h: 32 } };
+  sheet.mergeData = [{ startRow: 0, endRow: 0, startColumn: 0, endColumn: 9 }];
+  return workbook;
+};

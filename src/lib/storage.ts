@@ -29,7 +29,24 @@ export type DocContent = {
   page: PageSettings;
   comments?: CommentItem[];
 };
-export type SheetContent = { kind: 'sheet'; workbook: WorkbookData };
+export type SheetPrintSettings = {
+  orientation: 'portrait' | 'landscape';
+  paperSize: 'A4' | 'A3' | 'Letter';
+  margins: 'normal' | 'narrow' | 'wide';
+  fitToPage: boolean;
+  showGridlines: boolean;
+  printArea?: string;
+  signedBy?: string;
+  signedRole?: string;
+  signedAt?: number;
+};
+
+export type SheetContent = {
+  kind: 'sheet';
+  workbook: WorkbookData;
+  comments?: CommentItem[];
+  printSettings?: SheetPrintSettings;
+};
 export type PdfContent = {
   kind: 'pdf';
   pdfDataUrl?: string;

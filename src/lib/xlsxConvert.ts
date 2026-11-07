@@ -294,11 +294,13 @@ export async function importSpreadsheet(buffer: ArrayBuffer, fileName: string): 
   return sheetJsToWorkbook(buffer, name);
 }
 
-const resolveStyle = (workbook: WorkbookData, style: CellValue['s']): CellStyle | undefined => {
+export const resolveCellStyle = (workbook: WorkbookData, style: CellValue['s']): CellStyle | undefined => {
   if (!style) return undefined;
   if (typeof style === 'string') return workbook.styles[style] ?? undefined;
   return style;
 };
+
+const resolveStyle = resolveCellStyle;
 
 const toExcelValue = (cell: CellValue): ExcelJS.CellValue => {
   if (cell.f) {
@@ -390,25 +392,80 @@ export async function exportWorkbookToXlsx(data: WorkbookData): Promise<Blob> {
   return new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
 
-const displayValue = (cell?: CellValue) => {
+const serialToDateString = (serial: number, pattern: string) => {
+  const utcMs = EXCEL_EPOCH + Math.round(serial * 86400000);
+  const date = new Date(utcMs);
+  if (Number.isNaN(date.getTime())) return String(serial);
+  const dd = String(date.getUTCDate()).padStart(2, '0');
+  const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const yyyy = String(date.getUTCFullYear());
+  if (/yyyy[-/]mm[-/]dd/i.test(pattern)) return `${yyyy}-${mm}-${dd}`;
+  return `${dd}/${mm}/${yyyy}`;
+};
+
+export const formatCellDisplay = (workbook: WorkbookData | undefined, cell?: CellValue): string => {
   if (!cell) return '';
   if (cell.p?.body?.dataStream) return cell.p.body.dataStream.replace(/\r\n$/, '');
   if (cell.v === undefined || cell.v === null) return '';
+  const style = workbook ? resolveStyle(workbook, cell.s) : typeof cell.s === 'object' && cell.s ? cell.s : undefined;
+  const pattern = style?.n?.pattern ?? '';
+  if (typeof cell.v === 'number' && Number.isFinite(cell.v) && pattern && pattern !== '@') {
+    if (pattern.includes('%')) {
+      const decMatch = /0\.(0+)%/.exec(pattern);
+      const decimals = decMatch ? decMatch[1].length : 0;
+      return `${(cell.v * 100).toFixed(decimals)}%`;
+    }
+    if (/[dmy]/i.test(pattern) && !/[#0]/.test(pattern.replace(/[dmy/\-\s:]/gi, ''))) {
+      return serialToDateString(cell.v, pattern);
+    }
+    const decMatch = /0\.(0+)/.exec(pattern);
+    const decimals = decMatch ? decMatch[1].length : 0;
+    const useGrouping = pattern.includes(',');
+    const formatted = cell.v.toLocaleString('en-US', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+      useGrouping,
+    });
+    if (pattern.includes('₫')) return `${formatted} ₫`;
+    if (pattern.includes('$')) return `$${formatted}`;
+    if (pattern.includes('€')) return `€${formatted}`;
+    return formatted;
+  }
+  if (cell.t === 3) return cell.v ? 'TRUE' : 'FALSE';
   return String(cell.v);
 };
 
-export function exportSheetToCsv(sheet: SheetData): Blob {
-  const rows = Object.keys(sheet.cellData ?? {}).map(Number);
-  const maxRow = rows.length ? Math.max(...rows) : -1;
+const getSheetBounds = (sheet: SheetData, maxRowCap = 2000, maxColCap = 200) => {
+  let maxRow = -1;
   let maxCol = -1;
-  for (const columns of Object.values(sheet.cellData ?? {})) {
-    for (const key of Object.keys(columns ?? {})) maxCol = Math.max(maxCol, Number(key));
+  for (const [rKey, columns] of Object.entries(sheet.cellData ?? {})) {
+    const r = Number(rKey);
+    if (!Number.isFinite(r) || r > maxRowCap) continue;
+    for (const [cKey, cell] of Object.entries(columns ?? {})) {
+      const c = Number(cKey);
+      if (!Number.isFinite(c) || c > maxColCap) continue;
+      if (cell && (cell.v !== undefined && cell.v !== null && cell.v !== '' || cell.f || cell.p?.body?.dataStream)) {
+        maxRow = Math.max(maxRow, r);
+        maxCol = Math.max(maxCol, c);
+      }
+    }
   }
+  for (const merge of sheet.mergeData ?? []) {
+    if (merge.startRow <= maxRow + 2 && merge.startColumn <= maxCol + 2) {
+      maxRow = Math.max(maxRow, Math.min(merge.endRow, maxRowCap));
+      maxCol = Math.max(maxCol, Math.min(merge.endColumn, maxColCap));
+    }
+  }
+  return { maxRow, maxCol };
+};
+
+export function exportSheetToCsv(sheet: SheetData, workbook?: WorkbookData): Blob {
+  const { maxRow, maxCol } = getSheetBounds(sheet, MAX_IMPORT_ROWS, MAX_IMPORT_COLS);
   const lines: string[] = [];
   for (let r = 0; r <= maxRow; r++) {
     const values: string[] = [];
     for (let c = 0; c <= maxCol; c++) {
-      const text = displayValue(sheet.cellData[r]?.[c]);
+      const text = formatCellDisplay(workbook, sheet.cellData[r]?.[c]);
       values.push(/[",\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text);
     }
     lines.push(values.join(','));
@@ -416,17 +473,372 @@ export function exportSheetToCsv(sheet: SheetData): Blob {
   return new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
 }
 
-export function sheetToHtmlTable(sheet: SheetData) {
+export function exportSheetToTsv(sheet: SheetData, workbook?: WorkbookData): Blob {
+  const { maxRow, maxCol } = getSheetBounds(sheet, MAX_IMPORT_ROWS, MAX_IMPORT_COLS);
+  const lines: string[] = [];
+  for (let r = 0; r <= maxRow; r++) {
+    const values: string[] = [];
+    for (let c = 0; c <= maxCol; c++) {
+      const text = formatCellDisplay(workbook, sheet.cellData[r]?.[c]).replace(/[\t\r\n]+/g, ' ');
+      values.push(text);
+    }
+    lines.push(values.join('\t'));
+  }
+  return new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/tab-separated-values;charset=utf-8' });
+}
+
+export function exportSheetToJson(sheet: SheetData, workbook?: WorkbookData): Blob {
+  const { maxRow, maxCol } = getSheetBounds(sheet, MAX_IMPORT_ROWS, MAX_IMPORT_COLS);
+  if (maxRow < 0 || maxCol < 0) {
+    return new Blob([JSON.stringify([], null, 2)], { type: 'application/json;charset=utf-8' });
+  }
+  let headerRow = 0;
+  for (let r = 0; r <= Math.min(maxRow, 5); r++) {
+    let nonEmpty = 0;
+    for (let c = 0; c <= maxCol; c++) {
+      if (formatCellDisplay(workbook, sheet.cellData[r]?.[c]).trim()) nonEmpty++;
+    }
+    if (nonEmpty >= Math.min(2, maxCol + 1)) {
+      headerRow = r;
+      break;
+    }
+  }
+  const headers: string[] = [];
+  for (let c = 0; c <= maxCol; c++) {
+    const rawHeader = formatCellDisplay(workbook, sheet.cellData[headerRow]?.[c]).trim();
+    headers.push(rawHeader || columnLetter(c));
+  }
+  const records: Record<string, string | number | boolean | null>[] = [];
+  for (let r = headerRow + 1; r <= maxRow; r++) {
+    const rowObj: Record<string, string | number | boolean | null> = {};
+    let hasContent = false;
+    for (let c = 0; c <= maxCol; c++) {
+      const cell = sheet.cellData[r]?.[c];
+      const val = cell?.v !== undefined && cell?.v !== null ? (cell.t === 3 ? Boolean(cell.v) : cell.v) : (formatCellDisplay(workbook, cell) || null);
+      if (val !== null && val !== '') hasContent = true;
+      rowObj[headers[c]] = val;
+    }
+    if (hasContent) records.push(rowObj);
+  }
+  return new Blob([JSON.stringify(records, null, 2)], { type: 'application/json;charset=utf-8' });
+}
+
+export async function exportSingleSheetToXlsx(workbook: WorkbookData, sheetId: string): Promise<Blob> {
+  const target = workbook.sheets[sheetId];
+  if (!target) return exportWorkbookToXlsx(workbook);
+  const single: WorkbookData = {
+    ...workbook,
+    id: uid('wb'),
+    name: target.name,
+    sheetOrder: [sheetId],
+    sheets: { [sheetId]: target },
+  };
+  return exportWorkbookToXlsx(single);
+}
+
+const parsePrintArea = (area?: string) => {
+  if (!area) return null;
+  const cleaned = area.includes('!') ? area.split('!').pop() ?? area : area;
+  const normalized = cleaned.replaceAll('$', '').trim().toUpperCase();
+  if (!/^[A-Z]+\d+(?::[A-Z]+\d+)?$/.test(normalized)) return null;
+  try {
+    const decoded = XLSX.utils.decode_range(normalized);
+    return { startRow: decoded.s.r, endRow: decoded.e.r, startCol: decoded.s.c, endCol: decoded.e.c };
+  } catch {
+    return null;
+  }
+};
+
+export type StyledHtmlOptions = {
+  title?: string;
+  showGridlines?: boolean;
+  printArea?: string;
+  orientation?: 'portrait' | 'landscape';
+  paperSize?: 'A4' | 'A3' | 'Letter';
+  fitToPage?: boolean;
+  signedBy?: string;
+  signedRole?: string;
+  signedAt?: number;
+  standalone?: boolean;
+};
+
+export function exportSheetToStyledHtml(workbook: WorkbookData, sheet: SheetData, options: StyledHtmlOptions = {}): string {
+  const escape = (text: string) =>
+    text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
+  const area = parsePrintArea(options.printArea);
+  const detected = getSheetBounds(sheet, 500, 60);
+  const startRow = area ? area.startRow : 0;
+  const endRow = area ? area.endRow : Math.max(detected.maxRow, 0);
+  const startCol = area ? area.startCol : 0;
+  const endCol = area ? area.endCol : Math.max(detected.maxCol, 0);
+  const showGrid = options.showGridlines ?? sheet.showGridlines !== 0;
+
+  const mergeMaster = new Map<string, { rowSpan: number; colSpan: number }>();
+  const mergeCovered = new Set<string>();
+  for (const m of sheet.mergeData ?? []) {
+    if (m.endRow < startRow || m.startRow > endRow || m.endColumn < startCol || m.startColumn > endCol) continue;
+    const sr = Math.max(m.startRow, startRow);
+    const er = Math.min(m.endRow, endRow);
+    const sc = Math.max(m.startColumn, startCol);
+    const ec = Math.min(m.endColumn, endCol);
+    mergeMaster.set(`${sr}:${sc}`, { rowSpan: er - sr + 1, colSpan: ec - sc + 1 });
+    for (let r = sr; r <= er; r++) {
+      for (let c = sc; c <= ec; c++) {
+        if (r !== sr || c !== sc) mergeCovered.add(`${r}:${c}`);
+      }
+    }
+  }
+
+  const colGroup: string[] = [];
+  for (let c = startCol; c <= endCol; c++) {
+    if (sheet.columnData?.[c]?.hd) continue;
+    const w = sheet.columnData?.[c]?.w ?? sheet.defaultColumnWidth ?? 100;
+    colGroup.push(`<col style="width:${Math.max(40, w)}px" />`);
+  }
+
+  const rowsHtml: string[] = [];
+  for (let r = startRow; r <= endRow; r++) {
+    if (sheet.rowData?.[r]?.hd) continue;
+    const h = sheet.rowData?.[r]?.h ?? sheet.defaultRowHeight ?? 26;
+    const cellsHtml: string[] = [];
+    for (let c = startCol; c <= endCol; c++) {
+      if (sheet.columnData?.[c]?.hd) continue;
+      const key = `${r}:${c}`;
+      if (mergeCovered.has(key)) continue;
+      const span = mergeMaster.get(key);
+      const cell = sheet.cellData?.[r]?.[c];
+      const style = resolveStyle(workbook, cell?.s);
+      const css: string[] = [];
+      css.push(`padding:6px 10px`);
+      css.push(`font-family:${style?.ff ? `'${escape(style.ff)}',sans-serif` : `'Segoe UI',Arial,sans-serif`}`);
+      css.push(`font-size:${style?.fs ?? 11}pt`);
+      if (style?.bl) css.push('font-weight:700');
+      if (style?.it) css.push('font-style:italic');
+      const decorations: string[] = [];
+      if (style?.ul?.s) decorations.push('underline');
+      if (style?.st?.s) decorations.push('line-through');
+      if (decorations.length) css.push(`text-decoration:${decorations.join(' ')}`);
+      if (style?.cl?.rgb) css.push(`color:${style.cl.rgb}`);
+      if (style?.bg?.rgb) css.push(`background:${style.bg.rgb}`);
+      const isNum = typeof cell?.v === 'number';
+      const hAlign = style?.ht === 2 ? 'center' : style?.ht === 3 ? 'right' : style?.ht === 1 ? 'left' : isNum ? 'right' : 'left';
+      const vAlign = style?.vt === 1 ? 'top' : style?.vt === 3 ? 'bottom' : 'middle';
+      css.push(`text-align:${hAlign}`);
+      css.push(`vertical-align:${vAlign}`);
+      css.push(style?.tb === 3 ? 'white-space:pre-wrap;word-break:break-word' : 'white-space:nowrap');
+      const borderDefault = showGrid ? '1px solid #cbd5e1' : 'none';
+      const sideBorder = (side?: { s: number; cl?: { rgb?: string } } | null) => {
+        if (!side || !side.s) return borderDefault;
+        const width = side.s === 13 ? '2.5px' : side.s === 8 ? '1.75px' : side.s === 7 ? '3px' : '1px';
+        const line = side.s === 7 ? 'double' : side.s === 3 ? 'dotted' : side.s === 4 ? 'dashed' : 'solid';
+        return `${width} ${line} ${side.cl?.rgb ?? '#0f172a'}`;
+      };
+      css.push(`border-top:${sideBorder(style?.bd?.t)}`);
+      css.push(`border-bottom:${sideBorder(style?.bd?.b)}`);
+      css.push(`border-left:${sideBorder(style?.bd?.l)}`);
+      css.push(`border-right:${sideBorder(style?.bd?.r)}`);
+      const attrs: string[] = [];
+      if (span && span.rowSpan > 1) attrs.push(`rowspan="${span.rowSpan}"`);
+      if (span && span.colSpan > 1) attrs.push(`colspan="${span.colSpan}"`);
+      attrs.push(`style="${css.join(';')}"`);
+      const text = escape(formatCellDisplay(workbook, cell));
+      cellsHtml.push(`<td ${attrs.join(' ')}>${text || '&nbsp;'}</td>`);
+    }
+    rowsHtml.push(`<tr style="height:${Math.max(22, h)}px">${cellsHtml.join('')}</tr>`);
+  }
+
+  const stampHtml = options.signedBy
+    ? `<div style="margin-top:24px;display:flex;justify-content:flex-end">
+        <div style="border:2px solid #dc2626;border-radius:8px;padding:12px 20px;color:#b91c1c;background:#fff5f5;text-align:center;min-width:240px">
+          <div style="font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase">XÁC THỰC CHỮ KÝ SỐ MINH SPARK</div>
+          <div style="font-size:14px;font-weight:800;margin:6px 0">${escape(options.signedBy)}</div>
+          ${options.signedRole ? `<div style="font-size:11px;font-weight:600">${escape(options.signedRole)}</div>` : ''}
+          <div style="font-size:10px;color:#7f1d1d;margin-top:4px">Ký ngày: ${new Date(options.signedAt ?? Date.now()).toLocaleString('vi-VN')}</div>
+        </div>
+      </div>`
+    : '';
+
+  const headerHtml = `<div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:14px;padding-bottom:8px;border-bottom:2px solid #107c41">
+    <div>
+      <div style="font-size:16px;font-weight:700;color:#0f172a">${escape(options.title || workbook.name || sheet.name)}</div>
+      <div style="font-size:11px;color:#64748b">Trang tính: ${escape(sheet.name)} · Xuất từ Minh Spark Sheets</div>
+    </div>
+    <div style="font-size:11px;color:#64748b">${new Date().toLocaleDateString('vi-VN')}</div>
+  </div>`;
+
+  const tableBlock = `${headerHtml}<table style="border-collapse:collapse;width:${options.fitToPage ? '100%' : 'auto'};color:#0f172a"><colgroup>${colGroup.join('')}</colgroup><tbody>${rowsHtml.join('')}</tbody></table>${stampHtml}`;
+  if (!options.standalone) return tableBlock;
+
+  const pageSize = `${options.paperSize ?? 'A4'} ${options.orientation ?? 'landscape'}`;
+  return `<!DOCTYPE html><html lang="vi"><head><meta charset="utf-8"/><title>${escape(options.title || sheet.name)}</title><style>@page{size:${pageSize};margin:12mm}body{font-family:'Segoe UI',Arial,sans-serif;margin:20px;color:#0f172a;background:#fff}@media print{body{margin:0}}</style></head><body>${tableBlock}</body></html>`;
+}
+
+export async function renderSheetToPngBlob(
+  workbook: WorkbookData,
+  sheet: SheetData,
+  options: { scale?: number; showGridlines?: boolean; title?: string; signedBy?: string } = {}
+): Promise<Blob> {
+  const scale = options.scale ?? 2;
+  const { maxRow: rawMaxRow, maxCol: rawMaxCol } = getSheetBounds(sheet, 120, 30);
+  const endRow = Math.max(rawMaxRow, 4);
+  const endCol = Math.max(rawMaxCol, 4);
+  const colWidths: number[] = [];
+  for (let c = 0; c <= endCol; c++) {
+    colWidths.push(sheet.columnData?.[c]?.hd ? 0 : Math.max(56, sheet.columnData?.[c]?.w ?? sheet.defaultColumnWidth ?? 110));
+  }
+  const rowHeights: number[] = [];
+  for (let r = 0; r <= endRow; r++) {
+    rowHeights.push(sheet.rowData?.[r]?.hd ? 0 : Math.max(24, sheet.rowData?.[r]?.h ?? sheet.defaultRowHeight ?? 28));
+  }
+  const pad = 24;
+  const headerBarHeight = 48;
+  const stampHeight = options.signedBy ? 88 : 0;
+  const gridWidth = colWidths.reduce((sum, w) => sum + w, 0);
+  const gridHeight = rowHeights.reduce((sum, h) => sum + h, 0);
+  const totalWidth = Math.max(480, gridWidth + pad * 2);
+  const totalHeight = headerBarHeight + gridHeight + stampHeight + pad * 2;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(totalWidth * scale);
+  canvas.height = Math.round(totalHeight * scale);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas 2D unavailable');
+  ctx.scale(scale, scale);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, totalWidth, totalHeight);
+
+  ctx.fillStyle = '#107c41';
+  ctx.fillRect(pad, pad, totalWidth - pad * 2, 3);
+  ctx.fillStyle = '#0f172a';
+  ctx.font = '700 15px "Segoe UI", Arial, sans-serif';
+  ctx.textBaseline = 'top';
+  ctx.fillText(options.title || workbook.name || sheet.name, pad, pad + 10);
+  ctx.fillStyle = '#64748b';
+  ctx.font = '400 11px "Segoe UI", Arial, sans-serif';
+  ctx.fillText(`Sheet: ${sheet.name} · Minh Spark Office`, pad, pad + 30);
+
+  const colOffsets: number[] = [pad];
+  for (let c = 0; c <= endCol; c++) colOffsets.push(colOffsets[c] + colWidths[c]);
+  const rowOffsets: number[] = [pad + headerBarHeight];
+  for (let r = 0; r <= endRow; r++) rowOffsets.push(rowOffsets[r] + rowHeights[r]);
+
+  const mergeMaster = new Map<string, { er: number; ec: number }>();
+  const mergeCovered = new Set<string>();
+  for (const m of sheet.mergeData ?? []) {
+    if (m.startRow > endRow || m.startColumn > endCol) continue;
+    const er = Math.min(m.endRow, endRow);
+    const ec = Math.min(m.endColumn, endCol);
+    mergeMaster.set(`${m.startRow}:${m.startColumn}`, { er, ec });
+    for (let r = m.startRow; r <= er; r++) {
+      for (let c = m.startColumn; c <= ec; c++) {
+        if (r !== m.startRow || c !== m.startColumn) mergeCovered.add(`${r}:${c}`);
+      }
+    }
+  }
+
+  const showGrid = options.showGridlines ?? sheet.showGridlines !== 0;
+
+  for (let r = 0; r <= endRow; r++) {
+    if (rowHeights[r] === 0) continue;
+    for (let c = 0; c <= endCol; c++) {
+      if (colWidths[c] === 0) continue;
+      const key = `${r}:${c}`;
+      if (mergeCovered.has(key)) continue;
+      const span = mergeMaster.get(key);
+      const x = colOffsets[c];
+      const y = rowOffsets[r];
+      const w = colOffsets[(span ? span.ec : c) + 1] - x;
+      const h = rowOffsets[(span ? span.er : r) + 1] - y;
+      if (w <= 0 || h <= 0) continue;
+      const cell = sheet.cellData?.[r]?.[c];
+      const style = resolveStyle(workbook, cell?.s);
+
+      if (style?.bg?.rgb) {
+        ctx.fillStyle = style.bg.rgb;
+        ctx.fillRect(x, y, w, h);
+      }
+      if (showGrid) {
+        ctx.strokeStyle = '#dbe2ea';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+      }
+      if (style?.bd) {
+        const drawSide = (side: { s: number; cl?: { rgb?: string } } | null | undefined, x1: number, y1: number, x2: number, y2: number) => {
+          if (!side || !side.s) return;
+          ctx.strokeStyle = side.cl?.rgb ?? '#0f172a';
+          ctx.lineWidth = side.s === 13 ? 2.5 : side.s === 8 ? 1.75 : 1;
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
+        };
+        drawSide(style.bd.t, x, y, x + w, y);
+        drawSide(style.bd.b, x, y + h, x + w, y + h);
+        drawSide(style.bd.l, x, y, x, y + h);
+        drawSide(style.bd.r, x + w, y, x + w, y + h);
+      }
+
+      const text = formatCellDisplay(workbook, cell);
+      if (text) {
+        const fontSize = Math.round((style?.fs ?? 11) * 1.2);
+        const weight = style?.bl ? '700' : '400';
+        const italic = style?.it ? 'italic ' : '';
+        const family = style?.ff || 'Segoe UI';
+        ctx.font = `${italic}${weight} ${fontSize}px "${family}", Arial, sans-serif`;
+        ctx.fillStyle = style?.cl?.rgb || '#0f172a';
+        const isNum = typeof cell?.v === 'number';
+        const align = style?.ht === 2 ? 'center' : style?.ht === 3 ? 'right' : style?.ht === 1 ? 'left' : isNum ? 'right' : 'left';
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(x + 4, y + 2, Math.max(0, w - 8), Math.max(0, h - 4));
+        ctx.clip();
+        ctx.textBaseline = 'middle';
+        if (align === 'center') {
+          ctx.textAlign = 'center';
+          ctx.fillText(text, x + w / 2, y + h / 2);
+        } else if (align === 'right') {
+          ctx.textAlign = 'right';
+          ctx.fillText(text, x + w - 8, y + h / 2);
+        } else {
+          ctx.textAlign = 'left';
+          ctx.fillText(text, x + 8, y + h / 2);
+        }
+        ctx.restore();
+      }
+    }
+  }
+
+  if (options.signedBy) {
+    const sx = totalWidth - pad - 240;
+    const sy = rowOffsets[endRow + 1] + 14;
+    ctx.strokeStyle = '#dc2626';
+    ctx.fillStyle = '#fff5f5';
+    ctx.lineWidth = 2;
+    ctx.fillRect(sx, sy, 240, 64);
+    ctx.strokeRect(sx, sy, 240, 64);
+    ctx.fillStyle = '#b91c1c';
+    ctx.textAlign = 'center';
+    ctx.font = '700 10px "Segoe UI", Arial, sans-serif';
+    ctx.fillText('ĐÃ KÝ SỐ XÁC THỰC · MINH SPARK', sx + 120, sy + 16);
+    ctx.font = '700 13px "Segoe UI", Arial, sans-serif';
+    ctx.fillText(options.signedBy, sx + 120, sy + 36);
+    ctx.font = '400 10px "Segoe UI", Arial, sans-serif';
+    ctx.fillText(new Date().toLocaleDateString('vi-VN'), sx + 120, sy + 52);
+  }
+
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('PNG encode failed'))), 'image/png');
+  });
+}
+
+export function sheetToHtmlTable(sheet: SheetData, workbook?: WorkbookData) {
   const escape = (text: string) => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
-  const rows = Object.keys(sheet.cellData ?? {}).map(Number);
-  const maxRow = rows.length ? Math.min(Math.max(...rows), 300) : -1;
-  let maxCol = -1;
-  for (const columns of Object.values(sheet.cellData ?? {})) for (const key of Object.keys(columns ?? {})) maxCol = Math.max(maxCol, Number(key));
-  maxCol = Math.min(maxCol, 30);
+  const { maxRow, maxCol } = getSheetBounds(sheet, 300, 30);
   const body: string[] = [];
   for (let r = 0; r <= maxRow; r++) {
     const cells: string[] = [];
-    for (let c = 0; c <= maxCol; c++) cells.push(`<td>${escape(displayValue(sheet.cellData[r]?.[c]))}</td>`);
+    for (let c = 0; c <= maxCol; c++) cells.push(`<td>${escape(formatCellDisplay(workbook, sheet.cellData[r]?.[c]))}</td>`);
     body.push(`<tr>${cells.join('')}</tr>`);
   }
   return `<table>${body.join('')}</table>`;

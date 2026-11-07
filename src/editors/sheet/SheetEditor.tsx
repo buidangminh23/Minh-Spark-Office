@@ -1,24 +1,41 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   createUniver,
   LocaleType,
   UniverInstanceType,
-  ICommandService,
+  mergeLocales,
+  BorderType,
+  BorderStyleTypes,
+  Dimension,
+  ImageSourceType,
 } from '@univerjs/presets';
 import { UniverSheetsCorePreset } from '@univerjs/preset-sheets-core';
-import { UniverSheetsConditionalFormattingPreset } from '@univerjs/preset-sheets-conditional-formatting';
+import UniverPresetSheetsCoreViVN from '@univerjs/preset-sheets-core/locales/vi-VN';
+import UniverPresetSheetsCoreEnUS from '@univerjs/preset-sheets-core/locales/en-US';
+import { UniverSheetsConditionalFormattingPreset, CFValueType } from '@univerjs/preset-sheets-conditional-formatting';
+import UniverPresetSheetsCfViVN from '@univerjs/preset-sheets-conditional-formatting/locales/vi-VN';
+import UniverPresetSheetsCfEnUS from '@univerjs/preset-sheets-conditional-formatting/locales/en-US';
 import { UniverSheetsDataValidationPreset } from '@univerjs/preset-sheets-data-validation';
+import UniverPresetSheetsDvViVN from '@univerjs/preset-sheets-data-validation/locales/vi-VN';
+import UniverPresetSheetsDvEnUS from '@univerjs/preset-sheets-data-validation/locales/en-US';
 import { UniverSheetsDrawingPreset } from '@univerjs/preset-sheets-drawing';
+import UniverPresetSheetsDrawingViVN from '@univerjs/preset-sheets-drawing/locales/vi-VN';
+import UniverPresetSheetsDrawingEnUS from '@univerjs/preset-sheets-drawing/locales/en-US';
 import { UniverSheetsFilterPreset } from '@univerjs/preset-sheets-filter';
+import UniverPresetSheetsFilterViVN from '@univerjs/preset-sheets-filter/locales/vi-VN';
+import UniverPresetSheetsFilterEnUS from '@univerjs/preset-sheets-filter/locales/en-US';
 import { UniverSheetsFindReplacePreset } from '@univerjs/preset-sheets-find-replace';
+import UniverPresetSheetsFindViVN from '@univerjs/preset-sheets-find-replace/locales/vi-VN';
+import UniverPresetSheetsFindEnUS from '@univerjs/preset-sheets-find-replace/locales/en-US';
 import { UniverSheetsHyperLinkPreset } from '@univerjs/preset-sheets-hyper-link';
+import UniverPresetSheetsLinkViVN from '@univerjs/preset-sheets-hyper-link/locales/vi-VN';
+import UniverPresetSheetsLinkEnUS from '@univerjs/preset-sheets-hyper-link/locales/en-US';
 import { UniverSheetsNotePreset } from '@univerjs/preset-sheets-note';
+import UniverPresetSheetsNoteViVN from '@univerjs/preset-sheets-note/locales/vi-VN';
+import UniverPresetSheetsNoteEnUS from '@univerjs/preset-sheets-note/locales/en-US';
 import { UniverSheetsSortPreset } from '@univerjs/preset-sheets-sort';
-
-// @ts-ignore
-import UniverPresetSheetsCoreViVN from '@univerjs/preset-sheets-core/lib/locales/vi-VN.js';
-// @ts-ignore
-import UniverPresetSheetsCoreEnUS from '@univerjs/preset-sheets-core/lib/locales/en-US.js';
+import UniverPresetSheetsSortViVN from '@univerjs/preset-sheets-sort/locales/vi-VN';
+import UniverPresetSheetsSortEnUS from '@univerjs/preset-sheets-sort/locales/en-US';
 
 import {
   ArrowLeft,
@@ -44,6 +61,7 @@ import {
   Bold,
   Italic,
   Underline,
+  Strikethrough,
   Grid,
   Palette,
   Type,
@@ -56,12 +74,11 @@ import {
   DollarSign,
   Percent,
   Sparkles,
-  Image,
+  Image as ImageIcon,
   Split,
   Layers,
   FileCheck,
   FileSignature,
-  Boxes,
   Bot,
   Search,
   Filter,
@@ -76,22 +93,59 @@ import {
   CopyCheck,
   Table,
   PenTool,
-  Presentation,
   Minimize2,
+  Maximize2,
+  Plus,
+  Undo2,
+  Redo2,
+  Link2,
+  StickyNote,
+  Columns,
+  Rows,
+  Eye,
+  EyeOff,
+  Lock,
+  Unlock,
+  Play,
+  RefreshCw,
+  ZoomIn,
+  ZoomOut,
+  Upload,
+  CheckSquare,
+  ListFilter,
+  AlertTriangle,
+  RotateCw,
+  Snowflake,
+  FileJson,
+  FileText,
 } from 'lucide-react';
 
 import {
   type FileMeta,
   type SheetContent,
+  type SheetPrintSettings,
   type FileVersion,
   type CommentItem,
+  listFiles,
+  loadContent,
+  saveFile,
   listVersions,
   saveVersion,
   restoreVersion,
   deleteVersion,
 } from '../../lib/storage';
-import type { WorkbookData } from '../../lib/sheetTypes';
-import { exportSheetToCsv, exportWorkbookToXlsx } from '../../lib/xlsxConvert';
+import type { CellStyle, SheetData, WorkbookData } from '../../lib/sheetTypes';
+import {
+  emptyWorkbook,
+  importSpreadsheet,
+  exportSheetToCsv,
+  exportSheetToTsv,
+  exportSheetToJson,
+  exportWorkbookToXlsx,
+  exportSingleSheetToXlsx,
+  exportSheetToStyledHtml,
+  renderSheetToPngBlob,
+} from '../../lib/xlsxConvert';
 import { downloadBlob } from '../../lib/download';
 import { useUi } from '../../components/ui';
 import {
@@ -99,7 +153,50 @@ import {
   payrollWorkbook,
   salesKpiWorkbook,
   inventoryWorkbook,
+  cashbookWorkbook,
+  projectEstimateWorkbook,
 } from '../../lib/templates';
+import {
+  stripSpreadsheetExt,
+  formatA1Cell,
+  formatA1Range,
+  parseA1Range,
+  readVietnameseMoneyWords,
+  THEME_COLOR_SWATCHES,
+  CELL_STYLE_PRESETS,
+  TABLE_THEMES,
+  WORKBOOK_THEMES,
+  coerceNumeric,
+  extractTableRecords,
+  buildPivotSheetData,
+  analyzeSheetData,
+  type CellStylePreset,
+  type TableThemePreset,
+  type WorkbookThemePreset,
+  type PivotAggFn,
+} from './sheetUtils';
+import {
+  FormulaLibraryModal,
+  ChartStudioModal,
+  PivotBuilderModal,
+  ConditionalFormatModal,
+  DataValidationModal,
+  FindReplaceGoToModal,
+  SignatureStampModal,
+  PageSetupPreviewModal,
+  NameManagerModal,
+  GoalSeekModal,
+  AiAuditModal,
+  SplitMergeImageModal,
+  TemplatesGalleryModal,
+  VersionHistoryModal,
+  ShareAndProtectModal,
+  HelpShortcutsModal,
+  type ConditionalRuleInput,
+  type ValidationRuleInput,
+  type DefinedNameEntry,
+  type FindMatchItem,
+} from './SheetModals';
 
 interface SheetEditorProps {
   meta: FileMeta;
@@ -121,189 +218,525 @@ type SheetRibbonTab =
   | 'review'
   | 'view'
   | 'automate'
-  | 'add_ins'
   | 'help';
 
-const FORMULA_LIBRARY = [
-  { group: 'Toán & Thống kê', name: 'SUM', syntax: '=SUM(vùng_dữ_liệu)', desc: 'Tính tổng tất cả các số trong phạm vi ô được chọn', example: '=SUM(B2:B10)' },
-  { group: 'Toán & Thống kê', name: 'AVERAGE', syntax: '=AVERAGE(vùng_dữ_liệu)', desc: 'Tính giá trị trung bình cộng của các ô số', example: '=AVERAGE(C2:C20)' },
-  { group: 'Toán & Thống kê', name: 'COUNT', syntax: '=COUNT(vùng_dữ_liệu)', desc: 'Đếm số lượng ô chứa dữ liệu kiểu số', example: '=COUNT(A1:A50)' },
-  { group: 'Toán & Thống kê', name: 'COUNTA', syntax: '=COUNTA(vùng_dữ_liệu)', desc: 'Đếm số lượng ô không rỗng (chứa bất kỳ chữ hoặc số nào)', example: '=COUNTA(B2:B30)' },
-  { group: 'Toán & Thống kê', name: 'MAX', syntax: '=MAX(vùng_dữ_liệu)', desc: 'Tìm giá trị số lớn nhất trong phạm vi', example: '=MAX(D2:D100)' },
-  { group: 'Toán & Thống kê', name: 'MIN', syntax: '=MIN(vùng_dữ_liệu)', desc: 'Tìm giá trị số nhỏ nhất trong phạm vi', example: '=MIN(D2:D100)' },
-  { group: 'Toán & Thống kê', name: 'ROUND', syntax: '=ROUND(số, số_chữ_số)', desc: 'Làm tròn số đến số chữ số thập phân chỉ định', example: '=ROUND(A1*1.1, 0)' },
-  { group: 'Toán & Thống kê', name: 'SUMIF', syntax: '=SUMIF(vùng_điều_kiện, điều_kiện, [vùng_tính_tổng])', desc: 'Tính tổng các ô thoả mãn điều kiện đặt ra', example: '=SUMIF(A2:A10, "Kinh doanh", B2:B10)' },
+type PopoverKind =
+  | 'paste'
+  | 'fillColor'
+  | 'fontColor'
+  | 'borders'
+  | 'merge'
+  | 'tableTheme'
+  | 'cellStyle'
+  | 'insertCells'
+  | 'deleteCells'
+  | 'formatCells'
+  | 'autosum'
+  | 'fillSeries'
+  | 'clearMenu'
+  | 'freezeMenu'
+  | 'tabColor';
 
-  { group: 'Logic & Điều kiện', name: 'IF', syntax: '=IF(điều_kiện, giá_trị_nếu_đúng, giá_trị_nếu_sai)', desc: 'Kiểm tra một điều kiện logic và trả về kết quả tương ứng', example: '=IF(B2>=5, "Đạt", "Không đạt")' },
-  { group: 'Logic & Điều kiện', name: 'IFERROR', syntax: '=IFERROR(giá_trị, giá_trị_thay_thế)', desc: 'Bẫy lỗi và hiển thị giá trị mặc định nếu công thức bị lỗi', example: '=IFERROR(A1/B1, 0)' },
-  { group: 'Logic & Điều kiện', name: 'AND', syntax: '=AND(điều_kiện_1, điều_kiện_2, ...)', desc: 'Trả về TRUE nếu TẤT CẢ các điều kiện đều đúng', example: '=AND(A1>0, B1<100)' },
-  { group: 'Logic & Điều kiện', name: 'OR', syntax: '=OR(điều_kiện_1, điều_kiện_2, ...)', desc: 'Trả về TRUE nếu có ÍT NHẤT MỘT điều kiện đúng', example: '=OR(A1="Hà Nội", A1="TP.HCM")' },
+interface PopoverState {
+  kind: PopoverKind;
+  left: number;
+  top: number;
+}
 
-  { group: 'Tra cứu & Tham chiếu', name: 'VLOOKUP', syntax: '=VLOOKUP(giá_trị_tìm, bảng_tham_chiếu, số_thứ_tự_cột, 0)', desc: 'Tìm kiếm theo chiều dọc từ cột đầu tiên của bảng và lấy giá trị ở cột chỉ định', example: '=VLOOKUP(A2, D2:F20, 2, 0)' },
-  { group: 'Tra cứu & Tham chiếu', name: 'XLOOKUP', syntax: '=XLOOKUP(giá_trị, mảng_tìm, mảng_trả_về, [giá_trị_nếu_không_thấy])', desc: 'Hàm tra cứu hiện đại hai chiều linh hoạt vượt trội', example: '=XLOOKUP(A2, B2:B50, C2:C50)' },
-  { group: 'Tra cứu & Tham chiếu', name: 'INDEX', syntax: '=INDEX(mảng, hàng, cột)', desc: 'Lấy giá trị của một ô tại vị trí hàng và cột chỉ định', example: '=INDEX(A1:C10, 3, 2)' },
-  { group: 'Tra cứu & Tham chiếu', name: 'MATCH', syntax: '=MATCH(giá_trị_tìm, mảng_tìm, 0)', desc: 'Trả về vị trí tương đối của mục trong một phạm vi', example: '=MATCH("Nam", A1:A20, 0)' },
+interface ClipboardBuffer {
+  values: unknown[][];
+  formulas: (string | null)[][];
+  styles: (CellStyle | null)[][];
+  cutSource?: { sheetId: string; sr: number; sc: number; er: number; ec: number };
+}
 
-  { group: 'Văn bản', name: 'CONCAT', syntax: '=CONCAT(văn_bản_1, văn_bản_2, ...)', desc: 'Nối các chuỗi ký tự hoặc dải ô lại với nhau', example: '=CONCAT(A2, " ", B2)' },
-  { group: 'Văn bản', name: 'TRIM', syntax: '=TRIM(văn_bản)', desc: 'Xóa bỏ tất cả khoảng trắng thừa ở hai đầu và giữa các từ', example: '=TRIM(A1)' },
-  { group: 'Văn bản', name: 'UPPER', syntax: '=UPPER(văn_bản)', desc: 'Chuyển toàn bộ văn bản sang chữ IN HOA', example: '=UPPER(A1)' },
-  { group: 'Văn bản', name: 'LOWER', syntax: '=LOWER(văn_bản)', desc: 'Chuyển toàn bộ văn bản sang chữ thường', example: '=LOWER(A1)' },
+interface SelectionStats {
+  count: number;
+  numericCount: number;
+  sum: number;
+  avg: number;
+  min: number;
+  max: number;
+}
 
-  { group: 'Ngày tháng', name: 'TODAY', syntax: '=TODAY()', desc: 'Lấy ngày hiện tại của hệ thống', example: '=TODAY()' },
-  { group: 'Ngày tháng', name: 'NOW', syntax: '=NOW()', desc: 'Lấy ngày và giờ hiện tại của hệ thống', example: '=NOW()' },
-  { group: 'Ngày tháng', name: 'DATE', syntax: '=DATE(năm, tháng, ngày)', desc: 'Tạo giá trị ngày tháng từ các thành phần số', example: '=DATE(2026, 11, 6)' },
-];
+interface MacroExecutionRecord {
+  id: string;
+  macroId: string;
+  title: string;
+  detail: string;
+  time: number;
+}
+
+const DEFAULT_PRINT_SETTINGS: SheetPrintSettings = {
+  orientation: 'landscape',
+  paperSize: 'A4',
+  margins: 'normal',
+  fitToPage: true,
+  showGridlines: true,
+  printArea: '',
+};
+
+const inlineSheetStyles = (sheet: SheetData, styles: Record<string, CellStyle>): SheetData => {
+  const clonedCells: SheetData['cellData'] = {};
+  for (const [rKey, rowObj] of Object.entries(sheet.cellData ?? {})) {
+    const r = Number(rKey);
+    clonedCells[r] = {};
+    for (const [cKey, cell] of Object.entries(rowObj ?? {})) {
+      if (!cell) continue;
+      const c = Number(cKey);
+      const resolvedStyle = typeof cell.s === 'string' ? styles[cell.s] ?? null : cell.s ?? null;
+      clonedCells[r][c] = {
+        ...cell,
+        ...(resolvedStyle ? { s: { ...resolvedStyle } } : {}),
+      };
+    }
+  }
+  return {
+    ...sheet,
+    cellData: clonedCells,
+  };
+};
 
 export default function SheetEditor({ meta, content, onSave, onRename, onBack }: SheetEditorProps) {
   const ui = useUi();
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const univerRef = useRef<any>(null);
-  const univerAPIRef = useRef<any>(null);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const importSheetInputRef = useRef<HTMLInputElement | null>(null);
+  const univerRef = useRef<ReturnType<typeof createUniver>['univer'] | null>(null);
+  const univerAPIRef = useRef<ReturnType<typeof createUniver>['univerAPI'] | null>(null);
+  const workbookSubsRef = useRef<Array<{ dispose: () => void }>>([]);
+  const painterStyleRef = useRef<CellStyle | null>(null);
 
   const [activeTab, setActiveTab] = useState<SheetRibbonTab>('home');
   const [title, setTitle] = useState(meta.name);
   const [savedStatus, setSavedStatus] = useState<'saved' | 'saving'>('saved');
 
-  // Comments state
-  const [showComments, setShowComments] = useState(false);
-  const [comments, setComments] = useState<CommentItem[]>([
-    {
-      id: 'cmt-1',
-      author: 'Bùi Đăng Minh',
-      quote: 'Ô E8: Tổng ngân sách quý',
-      text: 'Đã hoàn tất tính toán tổng ngân sách các phòng ban. Cần đối chiếu với phòng Kế toán trước khi chốt giải ngân.',
-      createdAt: Date.now() - 3600000 * 2,
-      resolved: false,
-      replies: [
+  const [comments, setComments] = useState<CommentItem[]>(
+    () =>
+      content.comments ?? [
         {
-          id: 'rep-1',
-          author: 'Kế toán trưởng',
-          text: 'Phòng kế toán đã rà soát, số liệu khớp hoàn toàn với chứng từ.',
+          id: 'cmt-init',
+          author: 'Bùi Đăng Minh',
+          quote: 'E8',
+          text: 'Kiểm tra đối chiếu tổng hợp số liệu và tỷ trọng trước khi ký phát hành.',
           createdAt: Date.now() - 3600000,
+          resolved: false,
         },
-      ],
-    },
-  ]);
+      ]
+  );
+  const [showComments, setShowComments] = useState(false);
   const [newCommentText, setNewCommentText] = useState('');
-  const [newCommentCell, setNewCommentCell] = useState('B2:D8');
+  const [newCommentCell, setNewCommentCell] = useState('A1');
   const [replyText, setReplyText] = useState('');
   const [replyingCommentId, setReplyingCommentId] = useState<string | null>(null);
 
-  // Modals state
-  const [showFormulaModal, setShowFormulaModal] = useState(false);
-  const [formulaSearch, setFormulaSearch] = useState('');
-  const [showChartModal, setShowChartModal] = useState(false);
-  const [showHelpModal, setShowHelpModal] = useState(false);
-  const [showHistoryModal, setShowHistoryModal] = useState(false);
-  const [showAiModal, setShowAiModal] = useState(false);
-  const [aiActiveTab, setAiActiveTab] = useState<'assistant' | 'analysis' | 'formula'>('assistant');
-  const [aiEngine, setAiEngine] = useState<'claude' | 'gpt'>('claude');
-  const [showTemplatesModal, setShowTemplatesModal] = useState(false);
-  const [showExportImageModal, setShowExportImageModal] = useState(false);
-  const [showSplitModal, setShowSplitModal] = useState(false);
-  const [showMergeModal, setShowMergeModal] = useState(false);
-  const [showMinhPdfModal, setShowMinhPdfModal] = useState(false);
-  const [showShareModal, setShowShareModal] = useState(false);
+  const [printSettings, setPrintSettings] = useState<SheetPrintSettings>(
+    () => content.printSettings ?? DEFAULT_PRINT_SETTINGS
+  );
+  const [printHostHtml, setPrintHostHtml] = useState('');
 
-  // Assistant prompt state
-  const [assistantPrompt, setAssistantPrompt] = useState('');
-  const [assistantResponse, setAssistantResponse] = useState<string | null>(null);
-  const [isAssistantLoading, setIsAssistantLoading] = useState(false);
+  const [popover, setPopover] = useState<PopoverState | null>(null);
+  const [clipboardBuf, setClipboardBuf] = useState<ClipboardBuffer | null>(null);
+  const [painterArmed, setPainterArmed] = useState(false);
 
-  // Versions state
-  const [versions, setVersions] = useState<FileVersion[]>([]);
-  const [customVersionName, setCustomVersionName] = useState('');
-
-  // Number format and font dropdown state
-  const [selectedFont, setSelectedFont] = useState('Arial');
+  const [activeSheetName, setActiveSheetName] = useState('Sheet1');
+  const [activeCellA1, setActiveCellA1] = useState('A1');
+  const [activeRangeA1, setActiveRangeA1] = useState('A1');
+  const [nameBoxText, setNameBoxText] = useState('A1');
+  const [formulaBarText, setFormulaBarText] = useState('');
+  const formulaBarFocusedRef = useRef(false);
+  const [selectedFont, setSelectedFont] = useState('Segoe UI');
   const [selectedFontSize, setSelectedFontSize] = useState('11');
-  const [selectedNumberFormat, setSelectedNumberFormat] = useState('Custom');
+  const [isBold, setIsBold] = useState(false);
+  const [isItalic, setIsItalic] = useState(false);
+  const [isUnderline, setIsUnderline] = useState(false);
+  const [isStrike, setIsStrike] = useState(false);
+  const [fillColor, setFillColor] = useState('#fef08a');
+  const [fontColor, setFontColor] = useState('#dc2626');
+  const [borderColor, setBorderColor] = useState('#0f172a');
+  const [hAlign, setHAlign] = useState<'left' | 'center' | 'normal' | 'general'>('general');
+  const [vAlign, setVAlign] = useState<'top' | 'middle' | 'bottom'>('middle');
+  const [isWrap, setIsWrap] = useState(false);
+  const [isMerged, setIsMerged] = useState(false);
+  const [selectedNumberFormat, setSelectedNumberFormat] = useState('General');
+  const [hasFilter, setHasFilter] = useState(false);
+  const [isFrozen, setIsFrozen] = useState(false);
+  const [showGridlines, setShowGridlines] = useState(true);
+  const [showFormulaBar, setShowFormulaBar] = useState(true);
+  const [showStatusBar, setShowStatusBar] = useState(true);
+  const [focusMode, setFocusMode] = useState(false);
+  const [zoomPct, setZoomPct] = useState(100);
+  const [isProtected, setIsProtected] = useState(false);
+  const [cfRuleCount, setCfRuleCount] = useState(0);
+  const [definedNames, setDefinedNames] = useState<DefinedNameEntry[]>([]);
 
-  const handleOpenHistory = async () => {
-    const list = await listVersions(meta.id);
-    setVersions(list);
-    setShowHistoryModal(true);
+  const [selStats, setSelStats] = useState<SelectionStats>({
+    count: 0,
+    numericCount: 0,
+    sum: 0,
+    avg: 0,
+    min: 0,
+    max: 0,
+  });
+
+  const [macroLogs, setMacroLogs] = useState<MacroExecutionRecord[]>([]);
+  const [versions, setVersions] = useState<FileVersion[]>([]);
+  const [workspaceSheets, setWorkspaceSheets] = useState<FileMeta[]>([]);
+
+  type SheetModalKind =
+    | null
+    | 'formulas'
+    | 'chart'
+    | 'pivot'
+    | 'cf'
+    | 'dv'
+    | 'find'
+    | 'goto'
+    | 'signature'
+    | 'pageSetup'
+    | 'nameManager'
+    | 'goalSeek'
+    | 'aiAnalysis'
+    | 'aiAudit'
+    | 'aiAssistant'
+    | 'split'
+    | 'merge'
+    | 'image'
+    | 'templates'
+    | 'history'
+    | 'share'
+    | 'help';
+
+  const [modal, setModalState] = useState<SheetModalKind>(null);
+  const [modalSmartRange, setModalSmartRange] = useState('A1:F8');
+  const [modalActiveSheetId, setModalActiveSheetId] = useState(() => content.workbook.sheetOrder[0] || 'sheet-1');
+  const [pivotSourceInfo, setPivotSourceInfo] = useState<{ range: string; headers: string[]; rowCount: number }>({
+    range: 'A1:F8',
+    headers: [],
+    rowCount: 0,
+  });
+  const [liveSnapshotForModal, setLiveSnapshotForModal] = useState<WorkbookData>(() => content.workbook);
+  const [liveAnalysisForModal, setLiveAnalysisForModal] = useState(() => analyzeSheetData('Sheet1', [], [], 0, 0));
+
+  const openPopover = (e: React.MouseEvent<HTMLElement>, kind: PopoverKind) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const left = Math.max(8, Math.min(window.innerWidth - 250, rect.left));
+    const top = Math.min(window.innerHeight - 120, rect.bottom + 4);
+    setPopover((prev) => (prev?.kind === kind ? null : { kind, left, top }));
   };
 
-  const handleCreateSnapshot = async (label?: string) => {
-    if (!univerAPIRef.current) return;
+  const getActiveContext = useCallback(() => {
+    const api = univerAPIRef.current;
+    if (!api) return null;
+    const fWorkbook = api.getActiveWorkbook();
+    if (!fWorkbook) return null;
+    const fWorksheet = fWorkbook.getActiveSheet();
+    if (!fWorksheet) return null;
+    const fSelection = fWorksheet.getSelection();
+    const fRange = fSelection?.getActiveRange() ?? fWorksheet.getRange(0, 0, 1, 1);
+    return { api, fWorkbook, fWorksheet, fRange };
+  }, []);
+
+  const syncDefinedNames = useCallback(() => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
     try {
-      const activeWorkbook = univerAPIRef.current.getActiveWorkbook();
-      if (!activeWorkbook) return;
-      const snapshot = activeWorkbook.save() as unknown as WorkbookData;
-      const saved = await saveVersion(
-        meta.id,
-        { kind: 'sheet', workbook: snapshot },
-        label || customVersionName.trim() || undefined
+      const list = ctx.fWorkbook.getDefinedNames() ?? [];
+      setDefinedNames(
+        list.map((dn) => ({
+          id: dn.getName(),
+          name: dn.getName(),
+          formulaOrRef: dn.getFormulaOrRefString(),
+        }))
       );
-      setVersions((prev) => [saved, ...prev]);
-      setCustomVersionName('');
-      ui.toast('Đã ghi nhớ phiên bản bảng tính vào lịch sử');
-    } catch (err) {
-      console.error(err);
+    } catch {
+      setDefinedNames([]);
     }
-  };
+  }, [getActiveContext]);
 
-  const handleRestoreVersion = async (v: FileVersion) => {
-    const cont = v.content as SheetContent;
-    if (cont?.workbook && univerAPIRef.current) {
-      try {
-        await restoreVersion(meta.id, v.id);
-        const activeWorkbook = univerAPIRef.current.getActiveWorkbook();
-        if (activeWorkbook) {
-          activeWorkbook.dispose();
+  const applyStyleObjectToRange = useCallback(
+    (targetRange: NonNullable<ReturnType<typeof getActiveContext>>['fRange'], st: CellStyle) => {
+      if (st.ff) targetRange.setFontFamily(st.ff);
+      if (st.fs) targetRange.setFontSize(st.fs);
+      targetRange.setFontWeight(st.bl ? 'bold' : 'normal');
+      targetRange.setFontStyle(st.it ? 'italic' : 'normal');
+      if (st.ul?.s) targetRange.setFontLine('underline');
+      else if (st.st?.s) targetRange.setFontLine('line-through');
+      else targetRange.setFontLine('none');
+      if (st.bg?.rgb) targetRange.setBackgroundColor(st.bg.rgb);
+      if (st.cl?.rgb) targetRange.setFontColor(st.cl.rgb);
+      if (st.ht === 1) targetRange.setHorizontalAlignment('left');
+      else if (st.ht === 2) targetRange.setHorizontalAlignment('center');
+      else if (st.ht === 3) targetRange.setHorizontalAlignment('normal');
+      if (st.vt === 1) targetRange.setVerticalAlignment('top');
+      else if (st.vt === 2) targetRange.setVerticalAlignment('middle');
+      else if (st.vt === 3) targetRange.setVerticalAlignment('bottom');
+      targetRange.setWrap(st.tb === 3);
+      if (st.n?.pattern) targetRange.setNumberFormat(st.n.pattern);
+    },
+    []
+  );
+
+  const syncUiFromSelection = useCallback(() => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const { fWorksheet, fRange } = ctx;
+    try {
+      const rawRange = fRange.getRange();
+      const cellA1 = formatA1Cell(rawRange.startRow, rawRange.startColumn);
+      const fullA1 = formatA1Range(rawRange.startRow, rawRange.startColumn, rawRange.endRow, rawRange.endColumn);
+      setActiveSheetName(fWorksheet.getSheetName());
+      setActiveCellA1(cellA1);
+      setActiveRangeA1(fullA1);
+      setNameBoxText(fullA1);
+      setNewCommentCell(fullA1);
+
+      if (!formulaBarFocusedRef.current) {
+        const topLeft = fWorksheet.getRange(rawRange.startRow, rawRange.startColumn, 1, 1);
+        const fStr = topLeft.getFormula();
+        const rawV = topLeft.getRawValue();
+        setFormulaBarText(fStr || (rawV === null || rawV === undefined ? '' : String(rawV)));
+      }
+
+      if (painterStyleRef.current) {
+        const st = painterStyleRef.current;
+        painterStyleRef.current = null;
+        setPainterArmed(false);
+        applyStyleObjectToRange(fRange, st);
+      }
+
+      const styleData = fRange.getCellStyleData() as CellStyle | null;
+      setSelectedFont(styleData?.ff || 'Segoe UI');
+      setSelectedFontSize(String(styleData?.fs || 11));
+      setIsBold(Boolean(styleData?.bl));
+      setIsItalic(Boolean(styleData?.it));
+      setIsUnderline(Boolean(styleData?.ul?.s));
+      setIsStrike(Boolean(styleData?.st?.s));
+      setHAlign(fRange.getHorizontalAlignment() as typeof hAlign);
+      setVAlign(fRange.getVerticalAlignment() as typeof vAlign);
+      setIsWrap(Boolean(fRange.getWrap()));
+      setIsMerged(Boolean(fRange.isMerged() || fRange.isPartOfMerge()));
+      const nf = styleData?.n?.pattern || 'General';
+      setSelectedNumberFormat(nf);
+
+      setHasFilter(Boolean(fWorksheet.getFilter()));
+      const frz = fWorksheet.getFreeze();
+      setIsFrozen(Boolean(frz && ((frz.xSplit ?? 0) > 0 || (frz.ySplit ?? 0) > 0)));
+      setShowGridlines(!fWorksheet.hasHiddenGridLines());
+      setZoomPct(Math.round((fWorksheet.getZoom() || 1) * 100));
+      setCfRuleCount((fWorksheet.getConditionalFormattingRules() ?? []).length);
+
+      const maxRows = Math.min(200, rawRange.endRow - rawRange.startRow + 1);
+      const maxCols = Math.min(50, rawRange.endColumn - rawRange.startColumn + 1);
+      const statRange = fWorksheet.getRange(rawRange.startRow, rawRange.startColumn, maxRows, maxCols);
+      const vals = statRange.getRawValues();
+      let count = 0;
+      let numericCount = 0;
+      let sum = 0;
+      let min = Number.POSITIVE_INFINITY;
+      let max = Number.NEGATIVE_INFINITY;
+      for (const row of vals) {
+        for (const v of row) {
+          if (v !== null && v !== undefined && v !== '') {
+            count += 1;
+            const n = typeof v === 'number' && Number.isFinite(v) ? v : coerceNumeric(v);
+            if (n !== null) {
+              numericCount += 1;
+              sum += n;
+              if (n < min) min = n;
+              if (n > max) max = n;
+            }
+          }
         }
-        univerAPIRef.current.createWorkbook(cont.workbook);
-        onSave({ ...meta, updatedAt: Date.now() }, cont);
-        setShowHistoryModal(false);
-        ui.toast(`Đã khôi phục bảng tính về "${v.label}"`);
-        setSavedStatus('saved');
-      } catch (err) {
-        console.error('Failed to restore sheet version:', err);
-        ui.toast('Có lỗi xảy ra khi khôi phục bảng tính');
+      }
+      setSelStats({
+        count,
+        numericCount,
+        sum,
+        avg: numericCount > 0 ? sum / numericCount : 0,
+        min: numericCount > 0 ? min : 0,
+        max: numericCount > 0 ? max : 0,
+      });
+    } catch {
+      return;
+    }
+  }, [getActiveContext, applyStyleObjectToRange]);
+
+  const captureHydratedWorkbook = useCallback((): WorkbookData => {
+    const api = univerAPIRef.current;
+    if (!api) return content.workbook;
+    const fWorkbook = api.getActiveWorkbook();
+    if (!fWorkbook) return content.workbook;
+    const rawSnapshot = JSON.parse(JSON.stringify(fWorkbook.save())) as WorkbookData;
+    for (const fSheet of fWorkbook.getSheets()) {
+      const sid = fSheet.getSheetId();
+      const targetSheet = rawSnapshot.sheets[sid];
+      if (!targetSheet?.cellData) continue;
+      let maxR = -1;
+      let maxC = -1;
+      for (const [rk, cols] of Object.entries(targetSheet.cellData)) {
+        const r = Number(rk);
+        if (!Number.isFinite(r) || r > 1500) continue;
+        for (const [ck, cell] of Object.entries(cols ?? {})) {
+          const c = Number(ck);
+          if (!Number.isFinite(c) || c > 150) continue;
+          if (cell && (cell.f || cell.v !== undefined)) {
+            if (r > maxR) maxR = r;
+            if (c > maxC) maxC = c;
+          }
+        }
+      }
+      if (maxR >= 0 && maxC >= 0) {
+        try {
+          const liveVals = fSheet.getRange(0, 0, maxR + 1, maxC + 1).getRawValues();
+          for (let r = 0; r <= maxR; r++) {
+            const rowObj = targetSheet.cellData[r];
+            if (!rowObj) continue;
+            for (let c = 0; c <= maxC; c++) {
+              const cell = rowObj[c];
+              const v = liveVals[r]?.[c];
+              if (cell && cell.f && v !== undefined && v !== null) {
+                cell.v = v as string | number | boolean;
+                if (typeof v === 'number') cell.t = 2;
+                else if (typeof v === 'boolean') cell.t = 3;
+                else cell.t = 1;
+              }
+            }
+          }
+        } catch {
+          continue;
+        }
       }
     }
-  };
+    return rawSnapshot;
+  }, [content.workbook]);
 
-  const handleDeleteVersion = async (versionId: string) => {
-    await deleteVersion(meta.id, versionId);
-    setVersions((prev) => prev.filter((v) => v.id !== versionId));
-    ui.toast('Đã xoá phiên bản lưu');
-  };
-
-  const handleSaveNow = () => {
-    if (!univerAPIRef.current) return;
+  const handleSaveNow = useCallback(() => {
     try {
-      const activeWorkbook = univerAPIRef.current.getActiveWorkbook();
-      if (!activeWorkbook) return;
-      const snapshot = activeWorkbook.save() as unknown as WorkbookData;
+      const snapshot = captureHydratedWorkbook();
       const updatedMeta: FileMeta = {
         ...meta,
-        name: title,
+        name: title.trim() || meta.name,
         updatedAt: Date.now(),
       };
-      onSave(updatedMeta, { kind: 'sheet', workbook: snapshot });
+      onSave(updatedMeta, {
+        kind: 'sheet',
+        workbook: snapshot,
+        comments,
+        printSettings,
+      });
       setSavedStatus('saved');
     } catch (err) {
-      console.error('Failed to save sheet snapshot:', err);
+      console.error('Failed to save workbook:', err);
     }
-  };
+  }, [captureHydratedWorkbook, meta, title, onSave, comments, printSettings]);
 
-  // Initialize Univer Spreadsheet
+  const recalculateAndBindWorkbook = useCallback(
+    (api: ReturnType<typeof createUniver>['univerAPI']) => {
+      workbookSubsRef.current.forEach((sub) => {
+        try {
+          sub.dispose();
+        } catch {
+          void 0;
+        }
+      });
+      workbookSubsRef.current = [];
+
+      const fWb = api.getActiveWorkbook();
+      if (fWb) {
+        const selectionSub = fWb.onSelectionChange(() => {
+          syncUiFromSelection();
+        });
+        const commandSub = fWb.onCommandExecuted((cmd) => {
+          const id = cmd.id || '';
+          if (
+            id.includes('mutation') ||
+            id.includes('set-') ||
+            id.includes('insert-') ||
+            id.includes('remove-') ||
+            id.includes('delete-') ||
+            id.includes('merge') ||
+            id.includes('sort') ||
+            id.includes('filter') ||
+            id.includes('validation') ||
+            id.includes('conditional')
+          ) {
+            setSavedStatus('saving');
+          }
+          if (id.includes('active-sheet') || id.includes('set-style') || id.includes('zoom') || id.includes('freeze') || id.includes('gridlines')) {
+            setTimeout(() => syncUiFromSelection(), 20);
+          }
+        });
+        workbookSubsRef.current.push(selectionSub, commandSub);
+      }
+
+      try {
+        const formulaEngine = api.getFormula();
+        if (formulaEngine) {
+          const calcSub = formulaEngine.calculationEnd(() => {
+            syncUiFromSelection();
+          });
+          workbookSubsRef.current.push(calcSub);
+          formulaEngine.executeCalculation();
+          setTimeout(() => {
+            if (univerAPIRef.current !== api) return;
+            try {
+              formulaEngine.executeCalculation();
+            } catch {
+              void 0;
+            }
+          }, 50);
+        }
+      } catch {
+        void 0;
+      }
+    },
+    [syncUiFromSelection]
+  );
+
   useEffect(() => {
-    if (!containerRef.current) return;
+    const host = containerRef.current;
+    if (!host) return;
+    const mountEl = document.createElement('div');
+    mountEl.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;overflow:hidden;';
+    host.appendChild(mountEl);
+
+    let instanceToDispose: ReturnType<typeof createUniver>['univer'] | null = null;
+    let cancelled = false;
 
     try {
       const { univer, univerAPI } = createUniver({
         locale: LocaleType.VI_VN,
         locales: {
-          [LocaleType.VI_VN]: UniverPresetSheetsCoreViVN,
-          [LocaleType.EN_US]: UniverPresetSheetsCoreEnUS,
+          [LocaleType.VI_VN]: mergeLocales(
+            UniverPresetSheetsCoreViVN,
+            UniverPresetSheetsCfViVN,
+            UniverPresetSheetsDvViVN,
+            UniverPresetSheetsDrawingViVN,
+            UniverPresetSheetsFilterViVN,
+            UniverPresetSheetsFindViVN,
+            UniverPresetSheetsLinkViVN,
+            UniverPresetSheetsNoteViVN,
+            UniverPresetSheetsSortViVN
+          ),
+          [LocaleType.EN_US]: mergeLocales(
+            UniverPresetSheetsCoreEnUS,
+            UniverPresetSheetsCfEnUS,
+            UniverPresetSheetsDvEnUS,
+            UniverPresetSheetsDrawingEnUS,
+            UniverPresetSheetsFilterEnUS,
+            UniverPresetSheetsFindEnUS,
+            UniverPresetSheetsLinkEnUS,
+            UniverPresetSheetsNoteEnUS,
+            UniverPresetSheetsSortEnUS
+          ),
         },
         presets: [
           UniverSheetsCorePreset({
-            container: containerRef.current,
-            header: true,
+            container: mountEl,
+            header: false,
+            toolbar: false,
+            formulaBar: true,
             footer: {
               sheetBar: true,
               statisticBar: true,
@@ -322,69 +755,1458 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
         ],
       });
 
+      instanceToDispose = univer;
       univerRef.current = univer;
       univerAPIRef.current = univerAPI;
+      const clonedWb = JSON.parse(JSON.stringify(content.workbook)) as WorkbookData;
+      univer.createUnit(UniverInstanceType.UNIVER_SHEET, clonedWb);
+      recalculateAndBindWorkbook(univerAPI);
 
-      // Create sheet instance from stored workbook
-      univer.createUnit(UniverInstanceType.UNIVER_SHEET, content.workbook);
-
-      // Listen to commands for autosave
-      try {
-        const injector = (univer as any).__getInjector?.();
-        const commandService = injector?.get(ICommandService);
-        if (commandService) {
-          commandService.onCommandExecuted(() => {
-            setSavedStatus('saving');
-          });
-        }
-      } catch {
-        // Fallback
-      }
-    } catch (err: any) {
-      console.error('Failed to initialize Univer spreadsheet:', err);
-      (window as any).__last_sheet_error = { message: err?.message, stack: err?.stack };
+      setTimeout(() => {
+        if (cancelled) return;
+        syncUiFromSelection();
+        syncDefinedNames();
+      }, 140);
+    } catch (err) {
+      console.error('Failed to initialize Univer:', err);
     }
 
     return () => {
-      try {
-        univerRef.current?.dispose();
-      } catch {
-        // Ignore dispose error
+      cancelled = true;
+      mountEl.style.display = 'none';
+      mountEl.style.pointerEvents = 'none';
+      workbookSubsRef.current.forEach((sub) => {
+        try {
+          sub.dispose();
+        } catch {
+          void 0;
+        }
+      });
+      workbookSubsRef.current = [];
+      univerRef.current = null;
+      univerAPIRef.current = null;
+      if (instanceToDispose) {
+        const refToClean = instanceToDispose;
+        setTimeout(() => {
+          try {
+            refToClean.dispose();
+          } catch {
+            void 0;
+          } finally {
+            mountEl.remove();
+          }
+        }, 0);
+      } else {
+        mountEl.remove();
       }
     };
   }, []);
 
-  // Debounced auto-save
   useEffect(() => {
     if (savedStatus !== 'saving') return;
     const timer = setTimeout(() => {
       handleSaveNow();
-    }, 1000);
-
+    }, 900);
     return () => clearTimeout(timer);
-  }, [savedStatus, title, meta]);
+  }, [savedStatus, handleSaveNow]);
 
-  const handleTitleBlur = () => {
-    if (title.trim() && title !== meta.name) {
-      onRename(title.trim());
-    } else {
-      setTitle(meta.name);
+  const getSmartDataRangeA1 = useCallback((): string => {
+    const ctx = getActiveContext();
+    if (!ctx) return 'A1:F8';
+    const raw = ctx.fRange.getRange();
+    if (raw.endRow > raw.startRow || raw.endColumn > raw.startColumn) {
+      return formatA1Range(raw.startRow, raw.startColumn, raw.endRow, raw.endColumn);
     }
+    const snap = ctx.fWorkbook.save() as unknown as WorkbookData;
+    const sh = snap.sheets[ctx.fWorksheet.getSheetId()];
+    if (!sh?.cellData) return 'A1:F8';
+    let minR = Number.POSITIVE_INFINITY;
+    let maxR = -1;
+    let minC = Number.POSITIVE_INFINITY;
+    let maxC = -1;
+    for (const [rk, rowObj] of Object.entries(sh.cellData)) {
+      const r = Number(rk);
+      if (!Number.isFinite(r) || r > 500) continue;
+      for (const [ck, cell] of Object.entries(rowObj ?? {})) {
+        const c = Number(ck);
+        if (!Number.isFinite(c) || c > 60) continue;
+        if (cell && (cell.v !== undefined && cell.v !== null && cell.v !== '' || cell.f)) {
+          if (r < minR) minR = r;
+          if (r > maxR) maxR = r;
+          if (c < minC) minC = c;
+          if (c > maxC) maxC = c;
+        }
+      }
+    }
+    if (maxR < 0 || maxC < 0) return 'A1:F8';
+    const mergeSet = sh.mergeData ?? [];
+    if (minR === 0 && mergeSet.some((m) => m.startRow === 0 && m.endRow === 0 && m.endColumn >= 2) && maxR >= 2) {
+      minR = 1;
+    }
+    return formatA1Range(minR, minC, maxR, maxC);
+  }, [getActiveContext]);
+
+  const readRangeValuesByA1 = useCallback(
+    (rangeA1: string): unknown[][] => {
+      const ctx = getActiveContext();
+      if (!ctx) return [];
+      const parsed = parseA1Range(rangeA1);
+      if (!parsed) return [];
+      const targetSheet = parsed.sheetName
+        ? ctx.fWorkbook.getSheetByName(parsed.sheetName) ?? ctx.fWorksheet
+        : ctx.fWorksheet;
+      const numRows = Math.max(1, parsed.endRow - parsed.startRow + 1);
+      const numCols = Math.max(1, parsed.endColumn - parsed.startColumn + 1);
+      try {
+        return targetSheet.getRange(parsed.startRow, parsed.startColumn, numRows, numCols).getRawValues();
+      } catch {
+        return [];
+      }
+    },
+    [getActiveContext]
+  );
+
+  const computeLiveAnalysis = useCallback(() => {
+    const ctx = getActiveContext();
+    if (!ctx) {
+      return analyzeSheetData('Sheet1', [], [], 0, 0);
+    }
+    const snap = ctx.fWorkbook.save() as unknown as WorkbookData;
+    const sh = snap.sheets[ctx.fWorksheet.getSheetId()];
+    let maxR = 20;
+    let maxC = 10;
+    for (const [rk, rowObj] of Object.entries(sh?.cellData ?? {})) {
+      const r = Number(rk);
+      if (Number.isFinite(r) && r < 600 && r > maxR) maxR = r;
+      for (const ck of Object.keys(rowObj ?? {})) {
+        const c = Number(ck);
+        if (Number.isFinite(c) && c < 80 && c > maxC) maxC = c;
+      }
+    }
+    const checkRange = ctx.fWorksheet.getRange(0, 0, maxR + 1, maxC + 1);
+    return analyzeSheetData(
+      ctx.fWorksheet.getSheetName(),
+      checkRange.getRawValues(),
+      checkRange.getFormulas(),
+      0,
+      0
+    );
+  }, [getActiveContext]);
+
+  const setModal = useCallback(
+    (next: SheetModalKind) => {
+      if (next === 'chart') {
+        setModalSmartRange(getSmartDataRangeA1());
+      } else if (next === 'pivot') {
+        const r = getSmartDataRangeA1();
+        const raw = readRangeValuesByA1(r);
+        const { headers, rows } = extractTableRecords(raw);
+        setPivotSourceInfo({ range: r, headers, rowCount: rows.length });
+      } else if (next === 'pageSetup' || next === 'split' || next === 'merge' || next === 'image') {
+        const snap = captureHydratedWorkbook();
+        setLiveSnapshotForModal(snap);
+        setModalActiveSheetId(getActiveContext()?.fWorksheet.getSheetId() || snap.sheetOrder[0] || 'sheet-1');
+      } else if (next === 'aiAnalysis' || next === 'aiAudit' || next === 'aiAssistant') {
+        setLiveAnalysisForModal(computeLiveAnalysis());
+      }
+      setModalState(next);
+    },
+    [getSmartDataRangeA1, readRangeValuesByA1, captureHydratedWorkbook, getActiveContext, computeLiveAnalysis]
+  );
+
+  const handleCopyOrCut = useCallback(
+    async (isCut: boolean) => {
+      const ctx = getActiveContext();
+      if (!ctx) return;
+      const raw = ctx.fRange.getRange();
+      const values = ctx.fRange.getRawValues();
+      const formulas = ctx.fRange.getFormulas();
+      const rows = raw.endRow - raw.startRow + 1;
+      const cols = raw.endColumn - raw.startColumn + 1;
+      const styles: (CellStyle | null)[][] = [];
+      for (let r = 0; r < rows; r++) {
+        const rowStyles: (CellStyle | null)[] = [];
+        for (let c = 0; c < cols; c++) {
+          const cellRange = ctx.fWorksheet.getRange(raw.startRow + r, raw.startColumn + c, 1, 1);
+          rowStyles.push((cellRange.getCellStyleData() as CellStyle | null) ?? null);
+        }
+        styles.push(rowStyles);
+      }
+      setClipboardBuf({
+        values,
+        formulas,
+        styles,
+        cutSource: isCut
+          ? {
+              sheetId: ctx.fWorksheet.getSheetId(),
+              sr: raw.startRow,
+              sc: raw.startColumn,
+              er: raw.endRow,
+              ec: raw.endColumn,
+            }
+          : undefined,
+      });
+      const tsv = values.map((r) => r.map((v) => (v === null || v === undefined ? '' : String(v))).join('\t')).join('\n');
+      try {
+        await navigator.clipboard.writeText(tsv);
+      } catch {
+        void 0;
+      }
+      ui.toast(isCut ? `Đã cắt vùng ${activeRangeA1}` : `Đã sao chép vùng ${activeRangeA1}`);
+    },
+    [getActiveContext, activeRangeA1, ui]
+  );
+
+  const handlePasteMode = useCallback(
+    async (mode: 'all' | 'values' | 'formulas' | 'formats' | 'transpose') => {
+      setPopover(null);
+      const ctx = getActiveContext();
+      if (!ctx) return;
+      const dest = ctx.fRange.getRange();
+
+      if (clipboardBuf) {
+        const srcRows = clipboardBuf.values.length;
+        const srcCols = Math.max(1, ...clipboardBuf.values.map((r) => r.length));
+        const outRows = mode === 'transpose' ? srcCols : srcRows;
+        const outCols = mode === 'transpose' ? srcRows : srcCols;
+
+        for (let r = 0; r < outRows; r++) {
+          for (let c = 0; c < outCols; c++) {
+            const sr = mode === 'transpose' ? c : r;
+            const sc = mode === 'transpose' ? r : c;
+            const targetCell = ctx.fWorksheet.getRange(dest.startRow + r, dest.startColumn + c, 1, 1);
+            const f = clipboardBuf.formulas[sr]?.[sc];
+            const v = clipboardBuf.values[sr]?.[sc];
+            const st = clipboardBuf.styles[sr]?.[sc];
+
+            if (mode === 'all' || mode === 'transpose') {
+              if (f) targetCell.setValue(f);
+              else targetCell.setValue((v as string | number | boolean) ?? '');
+              if (st) applyStyleObjectToRange(targetCell, st);
+            } else if (mode === 'values') {
+              targetCell.setValue((v as string | number | boolean) ?? '');
+            } else if (mode === 'formulas') {
+              if (f) targetCell.setValue(f);
+              else targetCell.setValue((v as string | number | boolean) ?? '');
+            } else if (mode === 'formats' && st) {
+              applyStyleObjectToRange(targetCell, st);
+            }
+          }
+        }
+
+        if (clipboardBuf.cutSource) {
+          const cutSheet = ctx.fWorkbook.getSheetBySheetId(clipboardBuf.cutSource.sheetId);
+          if (cutSheet) {
+            const { sr, sc, er, ec } = clipboardBuf.cutSource;
+            cutSheet.getRange(sr, sc, er - sr + 1, ec - sc + 1).clear();
+          }
+          setClipboardBuf((prev) => (prev ? { ...prev, cutSource: undefined } : null));
+        }
+
+        setSavedStatus('saving');
+        syncUiFromSelection();
+        ui.toast(`Đã dán (${mode === 'values' ? 'Chỉ giá trị' : mode === 'formulas' ? 'Công thức' : mode === 'formats' ? 'Định dạng' : mode === 'transpose' ? 'Đảo chiều dòng/cột' : 'Đầy đủ'}) tại ${formatA1Cell(dest.startRow, dest.startColumn)}`);
+        return;
+      }
+
+      try {
+        const text = await navigator.clipboard.readText();
+        if (!text) {
+          ui.toast('Bộ nhớ tạm đang trống', true);
+          return;
+        }
+        const parsedRows = text
+          .replace(/\r\n/g, '\n')
+          .replace(/\n$/, '')
+          .split('\n')
+          .map((line) =>
+            line.split('\t').map((cellText) => {
+              const num = coerceNumeric(cellText);
+              return num !== null && /^-?\d+(\.\d+)?$/.test(cellText.trim()) ? num : cellText;
+            })
+          );
+        const rLen = parsedRows.length;
+        const cLen = Math.max(1, ...parsedRows.map((r) => r.length));
+        const normalized = parsedRows.map((r) => {
+          const copy = [...r];
+          while (copy.length < cLen) copy.push('');
+          return copy;
+        });
+        ctx.fWorksheet.getRange(dest.startRow, dest.startColumn, rLen, cLen).setValues(normalized);
+        setSavedStatus('saving');
+        syncUiFromSelection();
+        ui.toast(`Đã dán ${rLen}×${cLen} ô từ Clipboard hệ thống`);
+      } catch {
+        ui.toast('Hãy sao chép vùng ô trong bảng hoặc nhấn Ctrl+V trực tiếp');
+      }
+    },
+    [clipboardBuf, getActiveContext, applyStyleObjectToRange, syncUiFromSelection, ui]
+  );
+
+  const handleFormatPainter = useCallback(() => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    if (painterArmed) {
+      painterStyleRef.current = null;
+      setPainterArmed(false);
+      ui.toast('Đã tắt sao chép định dạng');
+      return;
+    }
+    const style = (ctx.fRange.getCellStyleData() as CellStyle | null) ?? {};
+    painterStyleRef.current = { ...style };
+    setPainterArmed(true);
+    ui.toast(`Đã lấy mẫu định dạng từ ${activeCellA1} — nhấp vào vùng đích để áp dụng`);
+  }, [getActiveContext, painterArmed, activeCellA1, ui]);
+
+  const applyFontFamily = (font: string) => {
+    setSelectedFont(font);
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    ctx.fRange.setFontFamily(font);
+    setSavedStatus('saving');
+  };
+
+  const applyFontSize = (sizeStr: string) => {
+    const num = Math.max(6, Math.min(72, Number(sizeStr) || 11));
+    setSelectedFontSize(String(num));
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    ctx.fRange.setFontSize(num);
+    setSavedStatus('saving');
+  };
+
+  const toggleBold = () => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const next = !isBold;
+    ctx.fRange.setFontWeight(next ? 'bold' : 'normal');
+    setIsBold(next);
+    setSavedStatus('saving');
+  };
+
+  const toggleItalic = () => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const next = !isItalic;
+    ctx.fRange.setFontStyle(next ? 'italic' : 'normal');
+    setIsItalic(next);
+    setSavedStatus('saving');
+  };
+
+  const toggleUnderline = () => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const next = !isUnderline;
+    ctx.fRange.setFontLine(next ? 'underline' : 'none');
+    setIsUnderline(next);
+    if (next) setIsStrike(false);
+    setSavedStatus('saving');
+  };
+
+  const toggleStrike = () => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const next = !isStrike;
+    ctx.fRange.setFontLine(next ? 'line-through' : 'none');
+    setIsStrike(next);
+    if (next) setIsUnderline(false);
+    setSavedStatus('saving');
+  };
+
+  const applyFill = (color: string | null) => {
+    setPopover(null);
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    if (color) {
+      setFillColor(color);
+      ctx.fRange.setBackgroundColor(color);
+    } else {
+      ctx.fRange.setBackgroundColor('#ffffff');
+    }
+    setSavedStatus('saving');
+  };
+
+  const applyFontClr = (color: string | null) => {
+    setPopover(null);
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    if (color) setFontColor(color);
+    ctx.fRange.setFontColor(color ?? '#0f172a');
+    setSavedStatus('saving');
+  };
+
+  const applyBorder = (preset: 'all' | 'outside' | 'thickOutside' | 'bottom' | 'topBottomDouble' | 'dashed' | 'none') => {
+    setPopover(null);
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const { fRange } = ctx;
+    if (preset === 'none') {
+      fRange.setBorder(BorderType.ALL, BorderStyleTypes.NONE);
+    } else if (preset === 'all') {
+      fRange.setBorder(BorderType.ALL, BorderStyleTypes.THIN, borderColor);
+    } else if (preset === 'outside') {
+      fRange.setBorder(BorderType.OUTSIDE, BorderStyleTypes.THIN, borderColor);
+    } else if (preset === 'thickOutside') {
+      fRange.setBorder(BorderType.OUTSIDE, BorderStyleTypes.MEDIUM, borderColor);
+    } else if (preset === 'bottom') {
+      fRange.setBorder(BorderType.BOTTOM, BorderStyleTypes.THIN, borderColor);
+    } else if (preset === 'topBottomDouble') {
+      fRange.setBorder(BorderType.TOP, BorderStyleTypes.THIN, borderColor);
+      fRange.setBorder(BorderType.BOTTOM, BorderStyleTypes.DOUBLE, borderColor);
+    } else if (preset === 'dashed') {
+      fRange.setBorder(BorderType.ALL, BorderStyleTypes.DASHED, borderColor);
+    }
+    setSavedStatus('saving');
+  };
+
+  const applyHAlign = (align: 'left' | 'center' | 'normal') => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    ctx.fRange.setHorizontalAlignment(align);
+    setHAlign(align);
+    setSavedStatus('saving');
+  };
+
+  const applyVAlign = (align: 'top' | 'middle' | 'bottom') => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    ctx.fRange.setVerticalAlignment(align);
+    setVAlign(align);
+    setSavedStatus('saving');
+  };
+
+  const toggleWrapText = () => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const next = !isWrap;
+    ctx.fRange.setWrap(next);
+    setIsWrap(next);
+    setSavedStatus('saving');
+  };
+
+  const applyTextRotation = (angle: number) => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    ctx.fRange.setTextRotation(angle);
+    setSavedStatus('saving');
+  };
+
+  const handleMergeCells = (mode: 'toggle' | 'center' | 'across' | 'vertical' | 'unmerge') => {
+    setPopover(null);
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const { fRange } = ctx;
+    if (mode === 'unmerge' || (mode === 'toggle' && (fRange.isMerged() || fRange.isPartOfMerge()))) {
+      fRange.breakApart();
+      setIsMerged(false);
+      ui.toast('Đã tách ô gộp');
+    } else if (mode === 'across') {
+      fRange.mergeAcross();
+      setIsMerged(true);
+    } else if (mode === 'vertical') {
+      fRange.mergeVertically();
+      setIsMerged(true);
+    } else {
+      fRange.merge();
+      if (mode === 'center' || mode === 'toggle') {
+        fRange.setHorizontalAlignment('center');
+        fRange.setVerticalAlignment('middle');
+      }
+      setIsMerged(true);
+      ui.toast(`Đã gộp và căn giữa vùng ${activeRangeA1}`);
+    }
+    setSavedStatus('saving');
+  };
+
+  const applyNumberFormat = (pattern: string) => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    setSelectedNumberFormat(pattern);
+    ctx.fRange.setNumberFormat(pattern === 'General' ? '@' : pattern);
+    setSavedStatus('saving');
+  };
+
+  const adjustDecimals = (delta: number) => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const cur = selectedNumberFormat;
+    const isPct = cur.includes('%');
+    const isVnd = cur.includes('₫');
+    const match = /0\.(0+)/.exec(cur);
+    const currentDec = match ? match[1].length : 0;
+    const nextDec = Math.max(0, Math.min(6, currentDec + delta));
+    const frac = nextDec > 0 ? `.${'0'.repeat(nextDec)}` : '';
+    const nextPattern = isPct
+      ? `0${frac}%`
+      : isVnd
+      ? `#,##0${frac} "₫"`
+      : `#,##0${frac}`;
+    applyNumberFormat(nextPattern);
+  };
+
+  const handleApplyCellPreset = (preset: CellStylePreset) => {
+    setPopover(null);
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const { fRange } = ctx;
+    fRange.setBackgroundColor(preset.bg ?? '#ffffff');
+    fRange.setFontColor(preset.fg);
+    fRange.setFontWeight(preset.bold ? 'bold' : 'normal');
+    fRange.setFontStyle(preset.italic ? 'italic' : 'normal');
+    if (preset.borderColor) {
+      fRange.setBorder(BorderType.OUTSIDE, BorderStyleTypes.THIN, preset.borderColor);
+    }
+    if (preset.numFmt) {
+      fRange.setNumberFormat(preset.numFmt);
+    }
+    setSavedStatus('saving');
+    syncUiFromSelection();
+  };
+
+  const handleFormatAsTable = (theme: TableThemePreset) => {
+    setPopover(null);
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const targetA1 = getSmartDataRangeA1();
+    const parsed = parseA1Range(targetA1);
+    if (!parsed) return;
+    const { startRow, startColumn, endRow, endColumn } = parsed;
+    const numCols = endColumn - startColumn + 1;
+    const numRows = endRow - startRow + 1;
+
+    const fullRange = ctx.fWorksheet.getRange(startRow, startColumn, numRows, numCols);
+    fullRange.setBorder(BorderType.ALL, BorderStyleTypes.THIN, theme.borderColor);
+
+    const headerRange = ctx.fWorksheet.getRange(startRow, startColumn, 1, numCols);
+    headerRange.setBackgroundColor(theme.headerBg);
+    headerRange.setFontColor(theme.headerFg);
+    headerRange.setFontWeight('bold');
+    headerRange.setHorizontalAlignment('center');
+    headerRange.setVerticalAlignment('middle');
+
+    for (let r = startRow + 1; r <= endRow; r++) {
+      const rowRange = ctx.fWorksheet.getRange(r, startColumn, 1, numCols);
+      const firstCellVal = String(ctx.fWorksheet.getRange(r, startColumn, 1, 1).getValue() ?? '').toLowerCase();
+      if (r === endRow && (firstCellVal.startsWith('tổng') || firstCellVal.startsWith('total'))) {
+        rowRange.setBackgroundColor(theme.totalBg);
+        rowRange.setFontWeight('bold');
+      } else {
+        rowRange.setBackgroundColor((r - startRow) % 2 === 1 ? theme.evenBg : theme.stripeBg);
+      }
+    }
+
+    try {
+      const existingFilter = ctx.fWorksheet.getFilter();
+      if (existingFilter) existingFilter.remove();
+      fullRange.createFilter();
+      setHasFilter(true);
+    } catch {
+      void 0;
+    }
+
+    setSavedStatus('saving');
+    ui.toast(`Đã định dạng Bảng chuyên nghiệp (${theme.name}) cho vùng ${targetA1}`);
+  };
+
+  const handleApplyWorkbookTheme = (wbTheme: WorkbookThemePreset) => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const targetA1 = getSmartDataRangeA1();
+    const parsed = parseA1Range(targetA1);
+    if (!parsed) return;
+    const { startRow, startColumn, endRow, endColumn } = parsed;
+    const cols = endColumn - startColumn + 1;
+    const rows = endRow - startRow + 1;
+    const full = ctx.fWorksheet.getRange(startRow, startColumn, rows, cols);
+    full.setFontFamily(wbTheme.fontFamily);
+    full.setBorder(BorderType.ALL, BorderStyleTypes.THIN, wbTheme.border);
+    const hdr = ctx.fWorksheet.getRange(startRow, startColumn, 1, cols);
+    hdr.setBackgroundColor(wbTheme.primary);
+    hdr.setFontColor(wbTheme.headerFg);
+    hdr.setFontWeight('bold');
+    if (startRow > 0) {
+      ctx.fWorksheet.getRange(0, startColumn, 1, cols).setFontColor(wbTheme.primary);
+    }
+    setSavedStatus('saving');
+    syncUiFromSelection();
+    ui.toast(`Đã áp dụng chủ đề "${wbTheme.name}"`);
+  };
+
+  const handleApplyConditionalRule = (input: ConditionalRuleInput) => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const targetRange = ctx.fRange;
+    const raw = targetRange.getRange();
+    const vals = targetRange.getRawValues();
+    const nums: number[] = [];
+    vals.forEach((row) =>
+      row.forEach((v) => {
+        const n = coerceNumeric(v);
+        if (n !== null) nums.push(n);
+      })
+    );
+    const minNum = nums.length ? Math.min(...nums) : 0;
+    const maxNum = nums.length ? Math.max(...nums) : 100;
+    const midNum = (minNum + maxNum) / 2;
+
+    try {
+      const builder = ctx.fWorksheet.newConditionalFormattingRule();
+      let rule;
+      const n1 = Number(input.val1.replaceAll(',', '')) || 0;
+      const n2 = Number(input.val2.replaceAll(',', '')) || 100;
+
+      if (input.ruleType === 'dataBar') {
+        rule = builder
+          .setDataBar({
+            min: { type: CFValueType.num, value: Math.min(0, minNum) },
+            max: { type: CFValueType.num, value: maxNum === minNum ? minNum + 100 : maxNum },
+            isGradient: true,
+            positiveColor: '#10b981',
+            nativeColor: '#ef4444',
+            isShowValue: true,
+          })
+          .setRanges([raw])
+          .build();
+      } else if (input.ruleType === 'colorScale') {
+        rule = builder
+          .setColorScale([
+            { index: 0, color: '#fee2e2', value: { type: CFValueType.num, value: minNum } },
+            { index: 1, color: '#fef9c3', value: { type: CFValueType.num, value: midNum } },
+            { index: 2, color: '#86efac', value: { type: CFValueType.num, value: maxNum === minNum ? minNum + 100 : maxNum } },
+          ])
+          .setRanges([raw])
+          .build();
+      } else {
+        let highlight;
+        if (input.ruleType === 'gt') highlight = builder.whenNumberGreaterThan(n1);
+        else if (input.ruleType === 'lt') highlight = builder.whenNumberLessThan(n1);
+        else if (input.ruleType === 'between') highlight = builder.whenNumberBetween(Math.min(n1, n2), Math.max(n1, n2));
+        else if (input.ruleType === 'eq') highlight = builder.whenNumberEqualTo(n1);
+        else if (input.ruleType === 'textContains') highlight = builder.whenTextContains(input.val1 || 'a');
+        else if (input.ruleType === 'duplicate') highlight = builder.setDuplicateValues();
+        else if (input.ruleType === 'unique') highlight = builder.setUniqueValues();
+        else highlight = builder.whenCellEmpty();
+
+        rule = highlight.setBackground(input.bg).setFontColor(input.fg).setBold(true).setRanges([raw]).build();
+      }
+
+      ctx.fWorksheet.addConditionalFormattingRule(rule);
+      setCfRuleCount((ctx.fWorksheet.getConditionalFormattingRules() ?? []).length);
+      setSavedStatus('saving');
+      ui.toast(`Đã thêm quy tắc Định dạng có điều kiện cho ${activeRangeA1}`);
+    } catch (err) {
+      console.error(err);
+      ui.toast('Không thể tạo quy tắc định dạng điều kiện trên vùng chọn', true);
+    }
+  };
+
+  const handleClearSheetCfRules = () => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    ctx.fWorksheet.clearConditionalFormatRules();
+    setCfRuleCount(0);
+    setSavedStatus('saving');
+    ui.toast('Đã xoá toàn bộ quy tắc Định dạng điều kiện trên Sheet này');
+  };
+
+  const handleStructureMutation = async (
+    action:
+      | 'insertRowAbove'
+      | 'insertRowBelow'
+      | 'insertColLeft'
+      | 'insertColRight'
+      | 'shiftCellsDown'
+      | 'shiftCellsRight'
+      | 'deleteRows'
+      | 'deleteCols'
+      | 'shiftCellsUp'
+      | 'shiftCellsLeft'
+      | 'insertSheet'
+      | 'duplicateSheet'
+      | 'deleteSheet'
+      | 'renameSheet'
+      | 'rowHeight'
+      | 'colWidth'
+      | 'autoFitCols'
+      | 'hideRows'
+      | 'unhideRows'
+      | 'hideCols'
+      | 'unhideCols'
+  ) => {
+    setPopover(null);
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const { fWorkbook, fWorksheet, fRange } = ctx;
+    const r = fRange.getRange();
+    const rowSpan = r.endRow - r.startRow + 1;
+    const colSpan = r.endColumn - r.startColumn + 1;
+
+    if (action === 'insertRowAbove') fWorksheet.insertRowBefore(r.startRow);
+    else if (action === 'insertRowBelow') fWorksheet.insertRowAfter(r.endRow);
+    else if (action === 'insertColLeft') fWorksheet.insertColumnBefore(r.startColumn);
+    else if (action === 'insertColRight') fWorksheet.insertColumnAfter(r.endColumn);
+    else if (action === 'shiftCellsDown') fRange.insertCells(Dimension.ROWS);
+    else if (action === 'shiftCellsRight') fRange.insertCells(Dimension.COLUMNS);
+    else if (action === 'deleteRows') fWorksheet.deleteRows(r.startRow, rowSpan);
+    else if (action === 'deleteCols') fWorksheet.deleteColumns(r.startColumn, colSpan);
+    else if (action === 'shiftCellsUp') fRange.deleteCells(Dimension.ROWS);
+    else if (action === 'shiftCellsLeft') fRange.deleteCells(Dimension.COLUMNS);
+    else if (action === 'insertSheet') {
+      const idx = fWorkbook.getSheets().length + 1;
+      fWorkbook.insertSheet(`Trang tính ${idx}`);
+      ui.toast(`Đã thêm Trang tính ${idx}`);
+    } else if (action === 'duplicateSheet') {
+      fWorkbook.duplicateSheet(fWorksheet);
+      ui.toast(`Đã nhân bản "${fWorksheet.getSheetName()}"`);
+    } else if (action === 'deleteSheet') {
+      if (fWorkbook.getSheets().length <= 1) {
+        ui.toast('Workbook phải có ít nhất 1 Sheet', true);
+        return;
+      }
+      const ok = await ui.confirm('Xoá Sheet hiện tại', `Xoá vĩnh viễn "${fWorksheet.getSheetName()}" khỏi tệp?`, true);
+      if (!ok) return;
+      fWorkbook.deleteSheet(fWorksheet);
+    } else if (action === 'renameSheet') {
+      const res = await ui.ask({
+        title: 'Đổi tên Trang tính (Sheet)',
+        fields: [{ name: 'name', label: 'Tên Sheet mới', value: fWorksheet.getSheetName() }],
+        confirmText: 'Đổi tên',
+      });
+      if (res?.name && String(res.name).trim()) {
+        fWorksheet.setName(String(res.name).trim().slice(0, 31));
+      }
+    } else if (action === 'rowHeight') {
+      const res = await ui.ask({
+        title: 'Chiều cao dòng (px)',
+        fields: [{ name: 'h', label: `Chiều cao cho dòng ${r.startRow + 1}..${r.endRow + 1}`, type: 'number', value: 28, min: 14, max: 300 }],
+      });
+      if (res?.h) fWorksheet.setRowHeights(r.startRow, rowSpan, Math.max(14, Number(res.h)));
+    } else if (action === 'colWidth') {
+      const res = await ui.ask({
+        title: 'Độ rộng cột (px)',
+        fields: [{ name: 'w', label: 'Độ rộng cột', type: 'number', value: 120, min: 30, max: 600 }],
+      });
+      if (res?.w) fWorksheet.setColumnWidths(r.startColumn, colSpan, Math.max(30, Number(res.w)));
+    } else if (action === 'autoFitCols') {
+      fWorksheet.autoResizeColumns(r.startColumn, colSpan);
+      ui.toast('Đã tự động căn vừa độ rộng cột theo nội dung');
+    } else if (action === 'hideRows') {
+      fWorksheet.hideRows(r.startRow, rowSpan);
+    } else if (action === 'unhideRows') {
+      fWorksheet.showRows(Math.max(0, r.startRow - 1), rowSpan + 2);
+    } else if (action === 'hideCols') {
+      fWorksheet.hideColumns(r.startColumn, colSpan);
+    } else if (action === 'unhideCols') {
+      fWorksheet.showColumns(Math.max(0, r.startColumn - 1), colSpan + 2);
+    }
+    setSavedStatus('saving');
+    syncUiFromSelection();
+  };
+
+  const handleAutoSum = useCallback(
+    (fn: 'SUM' | 'AVERAGE' | 'COUNT' | 'MAX' | 'MIN') => {
+      setPopover(null);
+      const ctx = getActiveContext();
+      if (!ctx) return;
+      const { fWorksheet, fRange } = ctx;
+      const r = fRange.getRange();
+
+      if (r.endRow > r.startRow || r.endColumn > r.startColumn) {
+        if (r.endRow > r.startRow) {
+          for (let c = r.startColumn; c <= r.endColumn; c++) {
+            const ref = formatA1Range(r.startRow, c, r.endRow, c);
+            const dest = fWorksheet.getRange(r.endRow + 1, c, 1, 1);
+            dest.setValue(`=${fn}(${ref})`);
+            dest.setFontWeight('bold');
+            dest.setNumberFormat('#,##0.##');
+          }
+          ui.toast(`Đã điền công thức =${fn}(...) xuống dòng ${r.endRow + 2}`);
+        } else {
+          const ref = formatA1Range(r.startRow, r.startColumn, r.startRow, r.endColumn);
+          const dest = fWorksheet.getRange(r.startRow, r.endColumn + 1, 1, 1);
+          dest.setValue(`=${fn}(${ref})`);
+          dest.setFontWeight('bold');
+          dest.setNumberFormat('#,##0.##');
+          ui.toast(`Đã điền =${fn}(${ref})`);
+        }
+        setSavedStatus('saving');
+        return;
+      }
+
+      let topR = r.startRow - 1;
+      while (topR >= 0) {
+        const v = fWorksheet.getRange(topR, r.startColumn, 1, 1).getRawValue();
+        if (coerceNumeric(v) === null) break;
+        topR -= 1;
+      }
+      if (topR < r.startRow - 1) {
+        const ref = formatA1Range(topR + 1, r.startColumn, r.startRow - 1, r.startColumn);
+        fRange.setValue(`=${fn}(${ref})`);
+        fRange.setFontWeight('bold');
+        setSavedStatus('saving');
+        ui.toast(`Đã chèn =${fn}(${ref})`);
+        return;
+      }
+
+      let leftC = r.startColumn - 1;
+      while (leftC >= 0) {
+        const v = fWorksheet.getRange(r.startRow, leftC, 1, 1).getRawValue();
+        if (coerceNumeric(v) === null) break;
+        leftC -= 1;
+      }
+      if (leftC < r.startColumn - 1) {
+        const ref = formatA1Range(r.startRow, leftC + 1, r.startRow, r.startColumn - 1);
+        fRange.setValue(`=${fn}(${ref})`);
+        fRange.setFontWeight('bold');
+        setSavedStatus('saving');
+        ui.toast(`Đã chèn =${fn}(${ref})`);
+        return;
+      }
+
+      fRange.setValue(`=${fn}(B3:D7)`);
+      setSavedStatus('saving');
+    },
+    [getActiveContext, ui]
+  );
+
+  const handleFillRange = useCallback(
+    async (mode: 'down' | 'right' | 'series') => {
+      setPopover(null);
+      const ctx = getActiveContext();
+      if (!ctx) return;
+      const { fWorksheet, fRange } = ctx;
+      const r = fRange.getRange();
+
+      if (mode === 'down') {
+        if (r.endRow === r.startRow && r.startRow > 0) {
+          for (let c = r.startColumn; c <= r.endColumn; c++) {
+            const above = fWorksheet.getRange(r.startRow - 1, c, 1, 1);
+            const f = above.getFormula();
+            fWorksheet.getRange(r.startRow, c, 1, 1).setValue(f || (above.getRawValue() as string | number | boolean) || '');
+          }
+        } else if (r.endRow > r.startRow) {
+          const topRow = fWorksheet.getRange(r.startRow, r.startColumn, 1, r.endColumn - r.startColumn + 1);
+          topRow.autoFill(fRange);
+        }
+        ui.toast('Đã điền xuống (Fill Down)');
+      } else if (mode === 'right') {
+        if (r.endColumn === r.startColumn && r.startColumn > 0) {
+          for (let row = r.startRow; row <= r.endRow; row++) {
+            const left = fWorksheet.getRange(row, r.startColumn - 1, 1, 1);
+            const f = left.getFormula();
+            fWorksheet.getRange(row, r.startColumn, 1, 1).setValue(f || (left.getRawValue() as string | number | boolean) || '');
+          }
+        } else if (r.endColumn > r.startColumn) {
+          const leftCol = fWorksheet.getRange(r.startRow, r.startColumn, r.endRow - r.startRow + 1, 1);
+          leftCol.autoFill(fRange);
+        }
+        ui.toast('Đã điền sang phải (Fill Right)');
+      } else {
+        const res = await ui.ask({
+          title: 'Đánh số chuỗi cấp số cộng (Fill Series)',
+          fields: [
+            { name: 'start', label: 'Giá trị bắt đầu', type: 'number', value: 1 },
+            { name: 'step', label: 'Bước nhảy', type: 'number', value: 1 },
+            { name: 'count', label: 'Số lượng phần tử (nếu đang chọn 1 ô)', type: 'number', value: Math.max(10, r.endRow - r.startRow + 1) },
+          ],
+        });
+        if (!res) return;
+        const start = Number(res.start) || 1;
+        const step = Number(res.step) || 1;
+        const total = r.endRow > r.startRow ? r.endRow - r.startRow + 1 : Math.max(1, Math.min(500, Number(res.count) || 10));
+        const colVals = Array.from({ length: total }, (_, idx) => [start + idx * step]);
+        fWorksheet.getRange(r.startRow, r.startColumn, total, 1).setValues(colVals);
+        ui.toast(`Đã điền chuỗi ${total} số từ ${start}`);
+      }
+      setSavedStatus('saving');
+    },
+    [getActiveContext, ui]
+  );
+
+  const handleSortSheet = (ascending: boolean) => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const raw = ctx.fRange.getRange();
+    if (raw.endRow > raw.startRow) {
+      ctx.fRange.sort({ column: 0, ascending });
+      setSavedStatus('saving');
+      ui.toast(`Đã sắp xếp vùng chọn ${ascending ? 'tăng dần (A → Z)' : 'giảm dần (Z → A)'}`);
+      return;
+    }
+    const smart = parseA1Range(getSmartDataRangeA1());
+    if (!smart || smart.endRow <= smart.startRow + 1) return;
+    const bodyStartRow = smart.startRow + 1;
+    let bodyEndRow = smart.endRow;
+    const lastLbl = String(ctx.fWorksheet.getRange(bodyEndRow, smart.startColumn, 1, 1).getValue() ?? '').toLowerCase();
+    if (lastLbl.startsWith('tổng') || lastLbl.startsWith('total')) bodyEndRow -= 1;
+    if (bodyEndRow <= bodyStartRow) return;
+    const relCol = Math.max(0, Math.min(smart.endColumn - smart.startColumn, raw.startColumn - smart.startColumn));
+    const sortRange = ctx.fWorksheet.getRange(
+      bodyStartRow,
+      smart.startColumn,
+      bodyEndRow - bodyStartRow + 1,
+      smart.endColumn - smart.startColumn + 1
+    );
+    sortRange.sort({ column: relCol, ascending });
+    setSavedStatus('saving');
+    ui.toast(`Đã sắp xếp bảng theo cột ${formatA1Cell(0, smart.startColumn + relCol).replace(/\d+/g, '')} (${ascending ? 'A → Z' : 'Z → A'})`);
+  };
+
+  const handleToggleFilter = () => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const existing = ctx.fWorksheet.getFilter();
+    if (existing) {
+      existing.remove();
+      setHasFilter(false);
+      setSavedStatus('saving');
+      ui.toast('Đã tắt Bộ lọc (Filter)');
+      return;
+    }
+    const raw = ctx.fRange.getRange();
+    if (raw.endRow > raw.startRow && raw.endColumn > raw.startColumn) {
+      ctx.fRange.createFilter();
+    } else {
+      const smart = parseA1Range(getSmartDataRangeA1());
+      if (smart) {
+        ctx.fWorksheet
+          .getRange(smart.startRow, smart.startColumn, smart.endRow - smart.startRow + 1, smart.endColumn - smart.startColumn + 1)
+          .createFilter();
+      }
+    }
+    setHasFilter(true);
+    setSavedStatus('saving');
+    ui.toast('Đã bật Bộ lọc dữ liệu tự động trên tiêu đề bảng');
+  };
+
+  const handleClearSelection = (kind: 'all' | 'contents' | 'formats' | 'notes' | 'links') => {
+    setPopover(null);
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    if (kind === 'all') ctx.fRange.clear();
+    else if (kind === 'contents') ctx.fRange.clearContent();
+    else if (kind === 'formats') ctx.fRange.clearFormat();
+    else if (kind === 'notes') ctx.fRange.deleteNote();
+    else if (kind === 'links') ctx.fRange.cancelHyperLink();
+    setSavedStatus('saving');
+    syncUiFromSelection();
+    ui.toast('Đã xoá theo tuỳ chọn trên vùng chọn');
+  };
+
+  const handleTextToColumns = async () => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const res = await ui.ask({
+      title: 'Tách văn bản thành nhiều cột (Text to Columns)',
+      fields: [
+        {
+          name: 'delim',
+          label: 'Ký tự phân tách',
+          type: 'select',
+          value: ',',
+          options: [
+            { value: ',', label: 'Dấu phẩy (,)' },
+            { value: ';', label: 'Dấu chấm phẩy (;)' },
+            { value: '|', label: 'Dấu sổ dọc (|)' },
+            { value: ' ', label: 'Khoảng trắng (Space)' },
+            { value: '-', label: 'Dấu gạch ngang (-)' },
+          ],
+        },
+      ],
+    });
+    if (!res) return;
+    const delim = String(res.delim || ',');
+    const r = ctx.fRange.getRange();
+    const vals = ctx.fRange.getValues();
+    let maxParts = 1;
+    const splitMatrix = vals.map((row) => {
+      const parts = String(row[0] ?? '').split(delim).map((s) => s.trim());
+      if (parts.length > maxParts) maxParts = parts.length;
+      return parts;
+    });
+    const normalized = splitMatrix.map((parts) => {
+      const out: (string | number)[] = [...parts];
+      while (out.length < maxParts) out.push('');
+      return out;
+    });
+    ctx.fWorksheet.getRange(r.startRow, r.startColumn, normalized.length, maxParts).setValues(normalized);
+    setSavedStatus('saving');
+    ui.toast(`Đã tách thành ${maxParts} cột dữ liệu`);
+  };
+
+  const handleRemoveDuplicates = () => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const targetA1 = ctx.fRange.getRange().endRow > ctx.fRange.getRange().startRow ? activeRangeA1 : getSmartDataRangeA1();
+    const parsed = parseA1Range(targetA1);
+    if (!parsed) return;
+    const rows = parsed.endRow - parsed.startRow + 1;
+    const cols = parsed.endColumn - parsed.startColumn + 1;
+    const range = ctx.fWorksheet.getRange(parsed.startRow, parsed.startColumn, rows, cols);
+    const vals = range.getRawValues();
+    const seen = new Set<string>();
+    const uniqueRows: unknown[][] = [];
+    let removed = 0;
+    vals.forEach((row, idx) => {
+      if (idx === 0) {
+        uniqueRows.push(row);
+        return;
+      }
+      const key = JSON.stringify(row.map((v) => (v === null || v === undefined ? '' : String(v).trim())));
+      if (seen.has(key)) removed += 1;
+      else {
+        seen.add(key);
+        uniqueRows.push(row);
+      }
+    });
+    if (removed === 0) {
+      ui.toast('Không phát hiện dòng dữ liệu trùng lặp nào');
+      return;
+    }
+    while (uniqueRows.length < rows) {
+      uniqueRows.push(Array.from({ length: cols }, () => ''));
+    }
+    range.setValues(uniqueRows as (string | number | boolean)[][]);
+    setSavedStatus('saving');
+    ui.toast(`Đã loại bỏ ${removed} dòng trùng lặp trong ${targetA1}`);
+  };
+
+  const handleApplyValidation = (input: ValidationRuleInput) => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    try {
+      const builder = ctx.api.newDataValidation();
+      if (input.kind === 'list') {
+        const items = input.listText
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+        builder.requireValueInList(items.length ? items : ['Có', 'Không'], false, true);
+      } else if (input.kind === 'range') {
+        const parsed = parseA1Range(input.listText);
+        if (parsed) {
+          const srcRange = ctx.fWorksheet.getRange(
+            parsed.startRow,
+            parsed.startColumn,
+            parsed.endRow - parsed.startRow + 1,
+            parsed.endColumn - parsed.startColumn + 1
+          );
+          builder.requireValueInRange(srcRange, false, true);
+        }
+      } else if (input.kind === 'checkbox') {
+        builder.requireCheckbox();
+      } else if (input.kind === 'numberBetween') {
+        builder.requireNumberBetween(Number(input.minVal) || 0, Number(input.maxVal) || 100, input.integerOnly);
+      } else if (input.kind === 'numberGt') {
+        builder.requireNumberGreaterThan(Number(input.minVal) || 0, input.integerOnly);
+      } else if (input.kind === 'formula') {
+        builder.requireFormulaSatisfied(input.listText.startsWith('=') ? input.listText : `=${input.listText}`);
+      }
+      builder
+        .setAllowBlank(input.allowBlank)
+        .setAllowInvalid(!input.strictStop)
+        .setOptions({
+          showErrorMessage: true,
+          error: input.errorMessage,
+        });
+      ctx.fRange.setDataValidation(builder.build());
+      setSavedStatus('saving');
+      ui.toast(`Đã thiết lập Kiểm tra dữ liệu cho ${activeRangeA1}`);
+    } catch (err) {
+      console.error(err);
+      ui.toast('Không thể áp dụng quy tắc kiểm tra dữ liệu', true);
+    }
+  };
+
+  const handleClearValidation = () => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    (ctx.fRange as unknown as { setDataValidation: (rule: null) => void }).setDataValidation(null);
+    setSavedStatus('saving');
+    ui.toast(`Đã gỡ kiểm tra dữ liệu tại ${activeRangeA1}`);
+  };
+
+  const handleDataCleanup = (op: 'trim' | 'toNumber' | 'upper' | 'lower' | 'proper') => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const raw = ctx.fRange.getRange();
+    const targetA1 = raw.endRow > raw.startRow || raw.endColumn > raw.startColumn ? activeRangeA1 : getSmartDataRangeA1();
+    const parsed = parseA1Range(targetA1);
+    if (!parsed) return;
+    const range = ctx.fWorksheet.getRange(
+      parsed.startRow,
+      parsed.startColumn,
+      parsed.endRow - parsed.startRow + 1,
+      parsed.endColumn - parsed.startColumn + 1
+    );
+    const vals = range.getRawValues();
+    const formulas = range.getFormulas();
+    let changed = 0;
+
+    for (let r = 0; r < vals.length; r++) {
+      for (let c = 0; c < vals[r].length; c++) {
+        if (formulas[r]?.[c]) continue;
+        const v = vals[r][c];
+        if (typeof v !== 'string' || !v) continue;
+        let nextVal: string | number = v;
+        if (op === 'trim') nextVal = v.trim().replace(/\s{2,}/g, ' ');
+        else if (op === 'upper') nextVal = v.toUpperCase();
+        else if (op === 'lower') nextVal = v.toLowerCase();
+        else if (op === 'proper') {
+          nextVal = v.toLowerCase().replace(/(^|\s)\S/g, (ch) => ch.toUpperCase());
+        } else if (op === 'toNumber') {
+          const n = coerceNumeric(v);
+          if (n !== null) nextVal = n;
+        }
+        if (nextVal !== v) {
+          ctx.fWorksheet.getRange(parsed.startRow + r, parsed.startColumn + c, 1, 1).setValue(nextVal);
+          changed += 1;
+        }
+      }
+    }
+    setSavedStatus('saving');
+    ui.toast(`Đã chuẩn hoá ${changed} ô dữ liệu`);
+  };
+
+  const handleWrapErrorsWithIfError = () => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const analysis = computeLiveAnalysis();
+    let fixed = 0;
+    analysis.errorCells.forEach((errCell) => {
+      const cellRange = ctx.fWorksheet.getRange(errCell.row, errCell.col, 1, 1);
+      const f = cellRange.getFormula();
+      if (f && !/^=IFERROR\(/i.test(f)) {
+        cellRange.setValue(`=IFERROR(${f.replace(/^=/, '')}, 0)`);
+        fixed += 1;
+      }
+    });
+    setSavedStatus('saving');
+    ui.toast(`Đã bọc IFERROR an toàn cho ${fixed} ô công thức lỗi`);
+  };
+
+  const handleInsertFormula = (formula: string) => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    ctx.fRange.setValue(formula.startsWith('=') ? formula : `=${formula}`);
+    setSavedStatus('saving');
+    syncUiFromSelection();
+    ui.toast(`Đã chèn công thức vào ${activeCellA1}`);
+  };
+
+  const handleReadMoneyWords = () => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const val = coerceNumeric(ctx.fRange.getRawValue());
+    if (val === null) {
+      ui.toast('Hãy chọn 1 ô chứa số tiền để đọc thành chữ tiếng Việt', true);
+      return;
+    }
+    const words = readVietnameseMoneyWords(val);
+    const raw = ctx.fRange.getRange();
+    const below = ctx.fWorksheet.getRange(raw.endRow + 1, raw.startColumn, 1, 1);
+    if (!below.getRawValue()) {
+      below.setValue(`Bằng chữ: ${words}`);
+      below.setFontStyle('italic');
+      setSavedStatus('saving');
+      ui.toast(`Đã điền dòng chữ số tiền tại ${formatA1Cell(raw.endRow + 1, raw.startColumn)}: "${words}"`);
+    } else {
+      void navigator.clipboard?.writeText(words);
+      ui.toast(`${words} (Đã sao chép vào Clipboard)`);
+    }
+  };
+
+  const handleFindAll = async (query: string, matchCase: boolean, wholeCell: boolean): Promise<FindMatchItem[]> => {
+    const ctx = getActiveContext();
+    if (!ctx) return [];
+    const finder = await ctx.api.createTextFinderAsync(query);
+    if (!finder) return [];
+    await finder.matchCaseAsync(matchCase);
+    await finder.matchEntireCellAsync(wholeCell);
+    const found = finder.findAll();
+    return found.map((fr) => {
+      const rg = fr.getRange();
+      return {
+        a1: formatA1Cell(rg.startRow, rg.startColumn),
+        row: rg.startRow,
+        col: rg.startColumn,
+        preview: String(fr.getValue() ?? ''),
+      };
+    });
+  };
+
+  const handleReplaceOne = async (query: string, replacement: string, matchCase: boolean, wholeCell: boolean) => {
+    const ctx = getActiveContext();
+    if (!ctx) return 0;
+    const finder = await ctx.api.createTextFinderAsync(query);
+    if (!finder) return 0;
+    await finder.matchCaseAsync(matchCase);
+    await finder.matchEntireCellAsync(wholeCell);
+    const m = finder.findNext();
+    if (!m) return 0;
+    const ok = await finder.replaceWithAsync(replacement);
+    setSavedStatus('saving');
+    return ok ? 1 : 0;
+  };
+
+  const handleReplaceAll = async (query: string, replacement: string, matchCase: boolean, wholeCell: boolean) => {
+    const ctx = getActiveContext();
+    if (!ctx) return 0;
+    const finder = await ctx.api.createTextFinderAsync(query);
+    if (!finder) return 0;
+    await finder.matchCaseAsync(matchCase);
+    await finder.matchEntireCellAsync(wholeCell);
+    const count = await finder.replaceAllWithAsync(replacement);
+    setSavedStatus('saving');
+    return count;
+  };
+
+  const handleGoToRef = useCallback(
+    (refText: string): boolean => {
+      const ctx = getActiveContext();
+      if (!ctx) return false;
+      const trimmed = refText.trim();
+      const matchedName = definedNames.find((d) => d.name.toLowerCase() === trimmed.toLowerCase());
+      const resolvedRef = matchedName ? matchedName.formulaOrRef.replace(/^=/, '') : trimmed;
+      const parsed = parseA1Range(resolvedRef);
+      if (!parsed) {
+        ui.toast(`Địa chỉ ô "${refText}" không hợp lệ`, true);
+        return false;
+      }
+      if (parsed.sheetName) {
+        const sh = ctx.fWorkbook.getSheetByName(parsed.sheetName);
+        if (sh) ctx.fWorkbook.setActiveSheet(sh);
+      }
+      const activeSheet = ctx.fWorkbook.getActiveSheet();
+      const target = activeSheet.getRange(
+        parsed.startRow,
+        parsed.startColumn,
+        parsed.endRow - parsed.startRow + 1,
+        parsed.endColumn - parsed.startColumn + 1
+      );
+      target.activate();
+      setTimeout(() => syncUiFromSelection(), 20);
+      return true;
+    },
+    [getActiveContext, definedNames, syncUiFromSelection, ui]
+  );
+
+  const handleCommitFormulaBar = useCallback(() => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const raw = ctx.fRange.getRange();
+    const cell = ctx.fWorksheet.getRange(raw.startRow, raw.startColumn, 1, 1);
+    const trimmed = formulaBarText.trim();
+    if (trimmed === '') {
+      cell.setValue('');
+    } else if (trimmed.startsWith('=')) {
+      cell.setValue(trimmed);
+    } else {
+      const n = coerceNumeric(trimmed);
+      cell.setValue(n !== null && /^-?\d+(\.\d+)?$/.test(trimmed) ? n : formulaBarText);
+    }
+    try {
+      ctx.api.getFormula()?.executeCalculation();
+    } catch {
+      void 0;
+    }
+    setSavedStatus('saving');
+    setTimeout(() => syncUiFromSelection(), 35);
+  }, [getActiveContext, formulaBarText, syncUiFromSelection]);
+
+  const handleGoalSeek = async (formulaCellRef: string, targetValue: number, variableCellRef: string): Promise<string> => {
+    const ctx = getActiveContext();
+    if (!ctx) return 'Không tìm thấy bảng tính';
+    const fCoord = parseA1Range(formulaCellRef);
+    const vCoord = parseA1Range(variableCellRef);
+    if (!fCoord || !vCoord) return 'Địa chỉ ô không hợp lệ (ví dụ hợp lệ: E8 và D3).';
+
+    const fCell = ctx.fWorksheet.getRange(fCoord.startRow, fCoord.startColumn, 1, 1);
+    const vCell = ctx.fWorksheet.getRange(vCoord.startRow, vCoord.startColumn, 1, 1);
+    if (!fCell.getFormula()) {
+      return `Ô ${formulaCellRef} không chứa công thức (fx) để giải nghiệm ngược.`;
+    }
+
+    const waitTick = () => new Promise((r) => setTimeout(r, 25));
+    const evalAt = async (x: number): Promise<number> => {
+      vCell.setValue(x);
+      try {
+        ctx.api.getFormula()?.executeCalculation();
+      } catch {
+        void 0;
+      }
+      await waitTick();
+      return coerceNumeric(fCell.getRawValue()) ?? Number.NaN;
+    };
+
+    const initialX = coerceNumeric(vCell.getRawValue()) ?? 1;
+    let x0 = initialX;
+    let y0 = await evalAt(x0);
+    if (!Number.isFinite(y0)) return 'Công thức trả về giá trị không phải số.';
+    if (Math.abs(y0 - targetValue) < 1e-4) {
+      return `Ô ${formulaCellRef} đã đạt sẵn mục tiêu (${targetValue.toLocaleString('en-US')}).`;
+    }
+
+    let x1 = x0 === 0 ? 10 : x0 * 1.1;
+    let y1 = await evalAt(x1);
+
+    for (let iter = 0; iter < 24; iter++) {
+      if (!Number.isFinite(y1)) break;
+      const err = y1 - targetValue;
+      if (Math.abs(err) <= Math.max(0.01, Math.abs(targetValue) * 1e-6)) break;
+      const denom = y1 - y0;
+      if (Math.abs(denom) < 1e-9) {
+        x1 += stepFallback(x1);
+      } else {
+        const nextX = x1 - err * ((x1 - x0) / denom);
+        x0 = x1;
+        y0 = y1;
+        x1 = nextX;
+      }
+      y1 = await evalAt(x1);
+    }
+
+    function stepFallback(v: number) {
+      return Math.abs(v) > 1 ? v * 0.05 : 1;
+    }
+
+    const roundedX = Math.round(x1 * 10000) / 10000;
+    const finalY = await evalAt(roundedX);
+    setSavedStatus('saving');
+    return `Đã tìm ra nghiệm: Đặt ${variableCellRef.toUpperCase()} = ${roundedX.toLocaleString('en-US')} → ${formulaCellRef.toUpperCase()} đạt ${finalY.toLocaleString('en-US')}`;
+  };
+
+  const embedBase64ImageAtSelection = useCallback(
+    async (dataUrl: string, widthPx: number, heightPx: number, colOffsetCells = 0) => {
+      const ctx = getActiveContext();
+      if (!ctx) return;
+      const r = ctx.fRange.getRange();
+      const col = Math.max(0, r.startColumn + colOffsetCells);
+      const row = Math.max(0, r.startRow);
+      const img = await ctx.fWorksheet
+        .newOverGridImage()
+        .setSource(dataUrl, ImageSourceType.BASE64)
+        .setColumn(col)
+        .setRow(row)
+        .setWidth(widthPx)
+        .setHeight(heightPx)
+        .buildAsync();
+      ctx.fWorksheet.insertImages([img]);
+      setSavedStatus('saving');
+    },
+    [getActiveContext]
+  );
+
+  const handleUploadImageFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result || '');
+      if (!dataUrl) return;
+      const probe = new window.Image();
+      probe.onload = async () => {
+        const maxW = 420;
+        const ratio = probe.width > maxW ? maxW / probe.width : 1;
+        await embedBase64ImageAtSelection(dataUrl, Math.round(probe.width * ratio), Math.round(probe.height * ratio));
+        ui.toast(`Đã chèn ảnh "${file.name}" vào ${activeCellA1}`);
+      };
+      probe.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleCreatePivotSheet = (config: {
+    rowField: number;
+    colField: number;
+    valueField: number;
+    aggFn: PivotAggFn;
+    targetSheetName: string;
+  }) => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const srcA1 = getSmartDataRangeA1();
+    const rawVals = readRangeValuesByA1(srcA1);
+    const { headers, rows } = extractTableRecords(rawVals);
+    const { sheet, styles, rowGroupCount } = buildPivotSheetData(config.targetSheetName, headers, rows, config);
+    const inlined = inlineSheetStyles(sheet, styles);
+    let uniqueName = config.targetSheetName.slice(0, 28);
+    let suffix = 1;
+    while (ctx.fWorkbook.getSheetByName(uniqueName)) {
+      suffix += 1;
+      uniqueName = `${config.targetSheetName.slice(0, 24)} (${suffix})`;
+    }
+    inlined.name = uniqueName;
+    const created = ctx.fWorkbook.insertSheet(uniqueName, { sheet: inlined as never });
+    ctx.fWorkbook.setActiveSheet(created);
+    setSavedStatus('saving');
+    syncUiFromSelection();
+    ui.toast(`Đã tạo báo cáo Pivot "${uniqueName}" (${rowGroupCount} nhóm tổng hợp)`);
+  };
+
+  const handleTriggerVectorPrint = useCallback(
+    (overrideSettings?: SheetPrintSettings) => {
+      const nextSettings = overrideSettings ?? printSettings;
+      if (overrideSettings) setPrintSettings(overrideSettings);
+      const wb = captureHydratedWorkbook();
+      const ctx = getActiveContext();
+      const activeId = ctx?.fWorksheet.getSheetId() ?? wb.sheetOrder[0];
+      const sh = wb.sheets[activeId] ?? wb.sheets[wb.sheetOrder[0]];
+      if (!sh) return;
+      const html = exportSheetToStyledHtml(wb, sh, {
+        title: stripSpreadsheetExt(title),
+        showGridlines: nextSettings.showGridlines,
+        printArea: nextSettings.printArea,
+        orientation: nextSettings.orientation,
+        paperSize: nextSettings.paperSize,
+        fitToPage: nextSettings.fitToPage,
+        signedBy: nextSettings.signedBy,
+        signedRole: nextSettings.signedRole,
+        signedAt: nextSettings.signedAt,
+        standalone: false,
+      });
+      setPrintHostHtml(html);
+      document.body.classList.add('printing-sheet');
+      setTimeout(() => {
+        window.print();
+        setTimeout(() => {
+          document.body.classList.remove('printing-sheet');
+        }, 400);
+      }, 120);
+    },
+    [printSettings, captureHydratedWorkbook, getActiveContext, title]
+  );
+
+  const handleDownloadPrintHtml = (settingsToUse: SheetPrintSettings) => {
+    const wb = captureHydratedWorkbook();
+    const ctx = getActiveContext();
+    const activeId = ctx?.fWorksheet.getSheetId() ?? wb.sheetOrder[0];
+    const sh = wb.sheets[activeId] ?? wb.sheets[wb.sheetOrder[0]];
+    if (!sh) return;
+    const fullHtml = exportSheetToStyledHtml(wb, sh, {
+      title: stripSpreadsheetExt(title),
+      showGridlines: settingsToUse.showGridlines,
+      printArea: settingsToUse.printArea,
+      orientation: settingsToUse.orientation,
+      paperSize: settingsToUse.paperSize,
+      fitToPage: settingsToUse.fitToPage,
+      signedBy: settingsToUse.signedBy,
+      signedRole: settingsToUse.signedRole,
+      signedAt: settingsToUse.signedAt,
+      standalone: true,
+    });
+    downloadBlob(new Blob([fullHtml], { type: 'text/html;charset=utf-8' }), `${stripSpreadsheetExt(title)}-${sh.name}.html`);
+    ui.toast('Đã tải tệp bản in HTML Vector sắc nét');
   };
 
   const handleExportXlsx = async () => {
     try {
-      ui.showBusy('Đang tạo tệp Minh Sheets (.xlsx)…');
-      let data = content.workbook;
-      if (univerAPIRef.current) {
-        const activeWorkbook = univerAPIRef.current.getActiveWorkbook();
-        if (activeWorkbook) {
-          data = activeWorkbook.save() as unknown as WorkbookData;
-        }
-      }
-      const blob = await exportWorkbookToXlsx(data);
-      downloadBlob(blob, `${title}.xlsx`);
-      ui.toast('Đã tải xuống tệp Minh Sheets (.xlsx) thành công!');
+      ui.showBusy('Đang xuất tệp Excel (.xlsx)…');
+      const wb = captureHydratedWorkbook();
+      const blob = await exportWorkbookToXlsx(wb);
+      downloadBlob(blob, `${stripSpreadsheetExt(title)}.xlsx`);
+      ui.toast(`Đã tải xuống "${stripSpreadsheetExt(title)}.xlsx"`);
     } catch (err) {
       ui.toast((err as Error).message || 'Lỗi khi xuất XLSX', true);
     } finally {
@@ -392,2236 +2214,2613 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
     }
   };
 
-  const handleExportCsv = () => {
+  const handleExportDelimited = (ext: 'csv' | 'tsv') => {
+    const wb = captureHydratedWorkbook();
+    const ctx = getActiveContext();
+    const activeId = ctx?.fWorksheet.getSheetId() ?? wb.sheetOrder[0];
+    const sh = wb.sheets[activeId] ?? wb.sheets[wb.sheetOrder[0]];
+    if (!sh) return;
+    const blob = ext === 'csv' ? exportSheetToCsv(sh, wb) : exportSheetToTsv(sh, wb);
+    downloadBlob(blob, `${stripSpreadsheetExt(title)}.${ext}`);
+    ui.toast(`Đã tải xuống "${stripSpreadsheetExt(title)}.${ext}"`);
+  };
+
+  const handleExportJsonFile = () => {
+    const wb = captureHydratedWorkbook();
+    const ctx = getActiveContext();
+    const activeId = ctx?.fWorksheet.getSheetId() ?? wb.sheetOrder[0];
+    const sh = wb.sheets[activeId] ?? wb.sheets[wb.sheetOrder[0]];
+    if (!sh) return;
+    const blob = exportSheetToJson(sh, wb);
+    downloadBlob(blob, `${stripSpreadsheetExt(title)}.json`);
+    ui.toast(`Đã xuất dữ liệu JSON "${stripSpreadsheetExt(title)}.json"`);
+  };
+
+  const handleSplitSingle = async (sheetId: string) => {
+    const wb = captureHydratedWorkbook();
+    const sh = wb.sheets[sheetId];
+    if (!sh) return;
+    const blob = await exportSingleSheetToXlsx(wb, sheetId);
+    downloadBlob(blob, `${stripSpreadsheetExt(title)} - ${sh.name}.xlsx`);
+    ui.toast(`Đã tách Sheet "${sh.name}.xlsx"`);
+  };
+
+  const handleSplitAll = async () => {
+    const wb = captureHydratedWorkbook();
+    for (const sid of wb.sheetOrder) {
+      const sh = wb.sheets[sid];
+      if (!sh) continue;
+      const blob = await exportSingleSheetToXlsx(wb, sid);
+      downloadBlob(blob, `${stripSpreadsheetExt(title)} - ${sh.name}.xlsx`);
+    }
+    ui.toast(`Đã tách thành công ${wb.sheetOrder.length} tệp .xlsx`);
+  };
+
+  const appendWorkbookSheetsIntoLive = useCallback(
+    (incoming: WorkbookData) => {
+      const ctx = getActiveContext();
+      if (!ctx) return 0;
+      let added = 0;
+      for (const sid of incoming.sheetOrder) {
+        const sh = incoming.sheets[sid];
+        if (!sh) continue;
+        const inlined = inlineSheetStyles(sh, incoming.styles ?? {});
+        let candidate = (sh.name || 'Imported').slice(0, 27);
+        let n = 1;
+        while (ctx.fWorkbook.getSheetByName(candidate)) {
+          n += 1;
+          candidate = `${(sh.name || 'Sheet').slice(0, 22)} (${n})`;
+        }
+        inlined.name = candidate;
+        const created = ctx.fWorkbook.insertSheet(candidate, { sheet: inlined as never });
+        ctx.fWorkbook.setActiveSheet(created);
+        added += 1;
+      }
+      try {
+        ctx.api.getFormula()?.executeCalculation();
+      } catch {
+        void 0;
+      }
+      setSavedStatus('saving');
+      syncUiFromSelection();
+      return added;
+    },
+    [getActiveContext, syncUiFromSelection]
+  );
+
+  const handleMergeFiles = async (files: FileList) => {
+    ui.showBusy('Đang đọc và gộp các trang tính…');
     try {
-      let data = content.workbook;
-      if (univerAPIRef.current) {
-        const activeWorkbook = univerAPIRef.current.getActiveWorkbook();
-        if (activeWorkbook) {
-          data = activeWorkbook.save() as unknown as WorkbookData;
+      let totalSheets = 0;
+      for (const file of Array.from(files)) {
+        const buf = await file.arrayBuffer();
+        const parsedWb = await importSpreadsheet(buf, file.name);
+        totalSheets += appendWorkbookSheetsIntoLive(parsedWb);
+      }
+      ui.toast(`Đã gộp thêm ${totalSheets} Sheet vào bảng tính hiện tại`);
+    } catch (err) {
+      ui.toast((err as Error).message || 'Không thể gộp tệp đã chọn', true);
+    } finally {
+      ui.showBusy(null);
+    }
+  };
+
+  const handleMergeWorkspaceSheet = async (fileId: string) => {
+    const loaded = await loadContent(fileId);
+    if (!loaded || loaded.kind !== 'sheet') {
+      ui.toast('Không tìm thấy dữ liệu bảng tính cần gộp', true);
+      return;
+    }
+    const count = appendWorkbookSheetsIntoLive(loaded.workbook);
+    ui.toast(`Đã gộp ${count} Sheet từ Workspace`);
+  };
+
+  const handleExportPng = async (scale: number, grid: boolean) => {
+    ui.showBusy('Đang kết xuất ảnh PNG sắc nét…');
+    try {
+      const wb = captureHydratedWorkbook();
+      const ctx = getActiveContext();
+      const activeId = ctx?.fWorksheet.getSheetId() ?? wb.sheetOrder[0];
+      const sh = wb.sheets[activeId] ?? wb.sheets[wb.sheetOrder[0]];
+      if (!sh) return;
+      const blob = await renderSheetToPngBlob(wb, sh, {
+        scale,
+        showGridlines: grid,
+        title: stripSpreadsheetExt(title),
+        signedBy: printSettings.signedBy,
+      });
+      downloadBlob(blob, `${stripSpreadsheetExt(title)}-${sh.name}.png`);
+      ui.toast('Đã tải xuống ảnh PNG độ phân giải cao');
+    } catch (err) {
+      ui.toast((err as Error).message || 'Lỗi kết xuất ảnh PNG', true);
+    } finally {
+      ui.showBusy(null);
+    }
+  };
+
+  const handleRunMacro = (
+    macroId: 'normalizeTable' | 'autoNumberStt' | 'moneyWordsCol' | 'highlightVariance' | 'cleanBlankRows' | 'wrapIfError'
+  ) => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const targetA1 = getSmartDataRangeA1();
+    const parsed = parseA1Range(targetA1);
+    if (!parsed) return;
+    let detail = '';
+    let macroTitle = '';
+
+    if (macroId === 'normalizeTable') {
+      macroTitle = 'Chuẩn hoá định dạng Bảng báo cáo';
+      handleDataCleanup('trim');
+      handleFormatAsTable(TABLE_THEMES[0]);
+      ctx.fWorksheet.autoResizeColumns(parsed.startColumn, parsed.endColumn - parsed.startColumn + 1);
+      detail = `Chuẩn hoá TRIM, kẻ khung Emerald & AutoFit vùng ${targetA1}`;
+    } else if (macroId === 'autoNumberStt') {
+      macroTitle = 'Đánh số thứ tự STT tự động';
+      const bodyStart = parsed.startRow + 1;
+      let count = 0;
+      for (let r = bodyStart; r <= parsed.endRow; r++) {
+        const nextColVal = String(ctx.fWorksheet.getRange(r, Math.min(parsed.endColumn, parsed.startColumn + 1), 1, 1).getValue() ?? '');
+        if (nextColVal.toLowerCase().startsWith('tổng')) break;
+        count += 1;
+        const cRange = ctx.fWorksheet.getRange(r, parsed.startColumn, 1, 1);
+        cRange.setValue(count);
+        cRange.setHorizontalAlignment('center');
+      }
+      detail = `Đã đánh STT 1..${count} tại cột đầu vùng ${targetA1}`;
+    } else if (macroId === 'moneyWordsCol') {
+      macroTitle = 'Đọc số tiền VNĐ thành chữ';
+      handleReadMoneyWords();
+      detail = `Chuyển số tiền tại ${activeCellA1} sang câu chữ kế toán tiếng Việt`;
+    } else if (macroId === 'highlightVariance') {
+      macroTitle = 'Tô màu Âm / Dương tự động';
+      const numRange = ctx.fRange.getRange();
+      const posRule = ctx.fWorksheet
+        .newConditionalFormattingRule()
+        .whenNumberGreaterThan(0)
+        .setBackground('#dcfce7')
+        .setFontColor('#166534')
+        .setRanges([numRange])
+        .build();
+      const negRule = ctx.fWorksheet
+        .newConditionalFormattingRule()
+        .whenNumberLessThan(0)
+        .setBackground('#fee2e2')
+        .setFontColor('#991b1b')
+        .setBold(true)
+        .setRanges([numRange])
+        .build();
+      ctx.fWorksheet.addConditionalFormattingRule(posRule);
+      ctx.fWorksheet.addConditionalFormattingRule(negRule);
+      detail = `Tô xanh số > 0 và tô đỏ số < 0 trên vùng ${activeRangeA1}`;
+    } else if (macroId === 'cleanBlankRows') {
+      macroTitle = 'Xoá các dòng rỗng xen kẽ';
+      let deleted = 0;
+      for (let r = parsed.endRow; r > parsed.startRow; r--) {
+        const rowVals = ctx.fWorksheet.getRange(r, parsed.startColumn, 1, parsed.endColumn - parsed.startColumn + 1).getRawValues()[0] ?? [];
+        const hasAny = rowVals.some((v) => v !== null && v !== undefined && String(v).trim() !== '');
+        if (!hasAny) {
+          ctx.fWorksheet.deleteRows(r, 1);
+          deleted += 1;
         }
       }
-      const firstSheetId = data.sheetOrder[0];
-      const sheet = data.sheets[firstSheetId];
-      if (!sheet) {
-        ui.toast('Bảng tính không có dữ liệu để xuất CSV', true);
-        return;
+      detail = `Đã dọn sạch ${deleted} dòng trống trong bảng`;
+    } else {
+      macroTitle = 'Bọc an toàn IFERROR cho toàn bộ công thức';
+      const range = ctx.fWorksheet.getRange(
+        parsed.startRow,
+        parsed.startColumn,
+        parsed.endRow - parsed.startRow + 1,
+        parsed.endColumn - parsed.startColumn + 1
+      );
+      const formulas = range.getFormulas();
+      let wrapped = 0;
+      for (let r = 0; r < formulas.length; r++) {
+        for (let c = 0; c < formulas[r].length; c++) {
+          const f = formulas[r][c];
+          if (f && !/^=IFERROR\(/i.test(f)) {
+            ctx.fWorksheet.getRange(parsed.startRow + r, parsed.startColumn + c, 1, 1).setValue(`=IFERROR(${f.replace(/^=/, '')}, 0)`);
+            wrapped += 1;
+          }
+        }
       }
-      const blob = exportSheetToCsv(sheet);
-      downloadBlob(blob, `${title}.csv`);
-      ui.toast('Đã tải xuống tệp CSV!');
-    } catch (err) {
-      ui.toast((err as Error).message || 'Lỗi khi xuất CSV', true);
+      detail = `Đã bọc IFERROR cho ${wrapped} ô công thức`;
     }
+
+    setSavedStatus('saving');
+    setMacroLogs((prev) => [
+      { id: `m-${Date.now()}`, macroId, title: macroTitle, detail, time: Date.now() },
+      ...prev.slice(0, 9),
+    ]);
+    ui.toast(`${macroTitle}: ${detail}`);
   };
 
-  const handleBack = () => {
-    handleSaveNow();
-    onBack();
-  };
-
-  // Load a new template
-  const handleLoadTemplate = (type: 'budget' | 'payroll' | 'sales' | 'inventory') => {
-    if (!univerAPIRef.current) return;
-    try {
-      let wb: WorkbookData;
-      if (type === 'budget') wb = sampleWorkbook(title);
-      else if (type === 'payroll') wb = payrollWorkbook();
-      else if (type === 'sales') wb = salesKpiWorkbook();
-      else wb = inventoryWorkbook();
-
-      const activeWorkbook = univerAPIRef.current.getActiveWorkbook();
-      if (activeWorkbook) {
-        activeWorkbook.dispose();
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        handleSaveNow();
+        ui.toast('Đã lưu bảng tính');
+      } else if (mod && (e.key.toLowerCase() === 'f' || e.key.toLowerCase() === 'h')) {
+        e.preventDefault();
+        setModal('find');
+      } else if (mod && e.key.toLowerCase() === 'g') {
+        e.preventDefault();
+        syncDefinedNames();
+        setModal('goto');
+      } else if (mod && e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        setModal('pageSetup');
+      } else if (e.altKey && e.key === '=') {
+        e.preventDefault();
+        handleAutoSum('SUM');
+      } else if (mod && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        void handleFillRange('down');
+      } else if (mod && e.key.toLowerCase() === 'r') {
+        e.preventDefault();
+        void handleFillRange('right');
+      } else if (mod && e.key === ';') {
+        e.preventDefault();
+        const ctx = getActiveContext();
+        if (ctx) {
+          ctx.fRange.setValue(new Date().toLocaleDateString('vi-VN'));
+          setSavedStatus('saving');
+        }
+      } else if (e.key === 'Escape' && focusMode) {
+        setFocusMode(false);
       }
-      univerAPIRef.current.createWorkbook(wb);
-      onSave({ ...meta, updatedAt: Date.now() }, { kind: 'sheet', workbook: wb });
-      setShowTemplatesModal(false);
-      ui.toast('Đã nạp mẫu bảng tính thành công!');
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [handleSaveNow, handleAutoSum, handleFillRange, getActiveContext, syncDefinedNames, setModal, focusMode, ui]);
+
+  const handleInsertHyperlink = async () => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const existing = ctx.fRange.getHyperLinks()[0];
+    const res = await ui.ask({
+      title: 'Chèn / Cập nhật Liên kết (Hyperlink)',
+      fields: [
+        { name: 'url', label: 'Đường dẫn URL hoặc địa chỉ trang', value: existing?.url || 'https://', placeholder: 'https://example.com' },
+        { name: 'label', label: 'Văn bản hiển thị trong ô', value: existing?.label || String(ctx.fRange.getValue() ?? '') || 'Mở liên kết' },
+      ],
+    });
+    if (!res?.url) return;
+    const url = String(res.url).trim();
+    const label = String(res.label || url).trim();
+    await ctx.fRange.setHyperLink(url, label);
+    setSavedStatus('saving');
+    ui.toast(`Đã gắn liên kết vào ô ${activeCellA1}`);
+  };
+
+  const handleInsertCellNote = async () => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const current = ctx.fRange.getNote();
+    const res = await ui.ask({
+      title: `Ghi chú ô (Cell Note) — ${activeCellA1}`,
+      fields: [
+        { name: 'note', label: 'Nội dung ghi chú ghim trên góc ô', type: 'textarea', value: current?.note || '', placeholder: 'Nhập ghi chú giải trình số liệu…' },
+      ],
+    });
+    if (!res) return;
+    const text = String(res.note ?? '').trim();
+    if (!text) {
+      ctx.fRange.deleteNote();
+      ui.toast(`Đã xoá ghi chú tại ${activeCellA1}`);
+    } else {
+      ctx.fRange.createOrUpdateNote({ note: text, width: 200, height: 110, show: false });
+      ui.toast(`Đã gắn ghi chú vào góc ô ${activeCellA1}`);
+    }
+    setSavedStatus('saving');
+  };
+
+  const handleFreezeMode = (mode: 'row1' | 'row2' | 'col1' | 'cursor' | 'clear') => {
+    setPopover(null);
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const { fWorksheet, fRange } = ctx;
+    if (mode === 'clear') {
+      fWorksheet.cancelFreeze();
+      setIsFrozen(false);
+      ui.toast('Đã gỡ cố định dòng/cột');
+    } else if (mode === 'row1') {
+      fWorksheet.setFreeze({ startRow: 1, startColumn: 0, ySplit: 1, xSplit: 0 });
+      setIsFrozen(true);
+      ui.toast('Đã cố định dòng tiêu đề đầu tiên');
+    } else if (mode === 'row2') {
+      fWorksheet.setFreeze({ startRow: 2, startColumn: 0, ySplit: 2, xSplit: 0 });
+      setIsFrozen(true);
+      ui.toast('Đã cố định 2 dòng đầu tiên');
+    } else if (mode === 'col1') {
+      fWorksheet.setFreeze({ startRow: 0, startColumn: 1, ySplit: 0, xSplit: 1 });
+      setIsFrozen(true);
+      ui.toast('Đã cố định cột đầu tiên');
+    } else {
+      const r = fRange.getRange();
+      const y = Math.max(1, r.startRow);
+      const x = Math.max(0, r.startColumn);
+      fWorksheet.setFreeze({ startRow: y, startColumn: x, ySplit: y, xSplit: x });
+      setIsFrozen(true);
+      ui.toast(`Đã cố định phía trên dòng ${y + 1} và bên trái cột ${x + 1}`);
+    }
+    setSavedStatus('saving');
+  };
+
+  const handleSetZoom = (pct: number) => {
+    const clamped = Math.max(25, Math.min(300, pct));
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    ctx.fWorksheet.zoom(clamped / 100);
+    setZoomPct(clamped);
+    setSavedStatus('saving');
+  };
+
+  const handleToggleGridlines = () => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const nextShow = !showGridlines;
+    ctx.fWorksheet.setHiddenGridlines(!nextShow);
+    setShowGridlines(nextShow);
+    setSavedStatus('saving');
+  };
+
+  const handleToggleProtect = () => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const nextProtected = !isProtected;
+    ctx.fWorkbook.setEditable(!nextProtected);
+    setIsProtected(nextProtected);
+    ui.toast(nextProtected ? 'Đã khoá bảo vệ bảng tính (Chỉ đọc)' : 'Đã mở khoá cho phép chỉnh sửa');
+  };
+
+  const handleSelectTemplate = (
+    templateId: 'budget' | 'payroll' | 'sales' | 'inventory' | 'cashbook' | 'project',
+    asNewSheet: boolean
+  ) => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const wb =
+      templateId === 'budget'
+        ? sampleWorkbook(stripSpreadsheetExt(title))
+        : templateId === 'payroll'
+        ? payrollWorkbook()
+        : templateId === 'sales'
+        ? salesKpiWorkbook()
+        : templateId === 'inventory'
+        ? inventoryWorkbook()
+        : templateId === 'cashbook'
+        ? cashbookWorkbook()
+        : projectEstimateWorkbook();
+
+    if (asNewSheet) {
+      appendWorkbookSheetsIntoLive(wb);
+      ui.toast(`Đã chèn mẫu "${wb.name}" thành Sheet mới`);
+    } else {
+      ctx.fWorkbook.dispose();
+      ctx.api.createWorkbook(wb as never);
+      recalculateAndBindWorkbook(ctx.api);
+      onSave({ ...meta, updatedAt: Date.now() }, { kind: 'sheet', workbook: wb, comments, printSettings });
       setSavedStatus('saved');
-    } catch (err) {
-      console.error(err);
-      ui.toast('Có lỗi xảy ra khi nạp mẫu bảng tính', true);
+      setTimeout(() => syncUiFromSelection(), 90);
+      ui.toast(`Đã nạp mẫu "${wb.name}"`);
     }
   };
 
-  // Comments handlers
+  const handleResetBlankWorkbook = async () => {
+    const ok = await ui.confirm('Làm mới toàn bộ Workbook', 'Tạo lại bảng tính trắng mới (có thể khôi phục từ Lịch sử nếu đã lưu)?', true);
+    if (!ok) return;
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const blank = emptyWorkbook(stripSpreadsheetExt(title));
+    ctx.fWorkbook.dispose();
+    ctx.api.createWorkbook(blank as never);
+    recalculateAndBindWorkbook(ctx.api);
+    setSavedStatus('saving');
+    setTimeout(() => syncUiFromSelection(), 90);
+  };
+
+  const handleOpenHistory = async () => {
+    const list = await listVersions(meta.id);
+    setVersions(list);
+    setModal('history');
+  };
+
+  const handleCreateSnapshot = async (label: string) => {
+    const snap = captureHydratedWorkbook();
+    const saved = await saveVersion(
+      meta.id,
+      { kind: 'sheet', workbook: snap, comments, printSettings },
+      label.trim() || undefined
+    );
+    setVersions((prev) => [saved, ...prev]);
+    ui.toast('Đã lưu mốc lịch sử phiên bản');
+  };
+
+  const handleRestoreVersion = async (v: FileVersion) => {
+    const cont = v.content as SheetContent;
+    const ctx = getActiveContext();
+    if (!cont?.workbook || !ctx) return;
+    await restoreVersion(meta.id, v.id);
+    ctx.fWorkbook.dispose();
+    ctx.api.createWorkbook(cont.workbook as never);
+    recalculateAndBindWorkbook(ctx.api);
+    if (cont.comments) setComments(cont.comments);
+    if (cont.printSettings) setPrintSettings(cont.printSettings);
+    onSave({ ...meta, updatedAt: Date.now() }, cont);
+    setModal(null);
+    setSavedStatus('saved');
+    setTimeout(() => syncUiFromSelection(), 90);
+    ui.toast(`Đã khôi phục mốc "${v.label}"`);
+  };
+
+  const handleDeleteVersion = async (id: string) => {
+    await deleteVersion(meta.id, id);
+    setVersions((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const handleOpenMergeModal = async () => {
+    const all = await listFiles();
+    setWorkspaceSheets(all.filter((f) => !f.deletedAt && f.kind === 'sheet' && f.id !== meta.id));
+    setModal('merge');
+  };
+
+  const handleEmbedSignature = async (pngDataUrl: string, signer: string, role: string) => {
+    await embedBase64ImageAtSelection(pngDataUrl, 230, 106);
+    const nextPrint: SheetPrintSettings = {
+      ...printSettings,
+      signedBy: signer,
+      signedRole: role,
+      signedAt: Date.now(),
+    };
+    setPrintSettings(nextPrint);
+    setSavedStatus('saving');
+    ui.toast(`Đã đóng dấu chữ ký số của "${signer}" tại ${activeCellA1}`);
+  };
+
+  const handleSignAndSavePdf = async (pngDataUrl: string, signer: string, role: string) => {
+    await handleEmbedSignature(pngDataUrl, signer, role);
+    const nextPrint: SheetPrintSettings = {
+      ...printSettings,
+      signedBy: signer,
+      signedRole: role,
+      signedAt: Date.now(),
+    };
+    const pdfId = `pdf-${Date.now()}`;
+    const pdfName = `${stripSpreadsheetExt(title)} (Đã ký số).pdf`;
+    await saveFile(
+      {
+        id: pdfId,
+        name: pdfName,
+        kind: 'pdf',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        openedAt: Date.now(),
+        starred: false,
+        deletedAt: null,
+        size: 32768,
+        preview: `Bản xuất từ Minh Sheets "${activeSheetName}" · Đã ký xác thực bởi ${signer} (${role})`,
+      },
+      {
+        kind: 'pdf',
+        pageCount: 1,
+      }
+    );
+    ui.toast(`Đã lưu "${pdfName}" vào kho Minh PDF và mở hộp thoại xuất PDF`);
+    handleTriggerVectorPrint(nextPrint);
+  };
+
+  const handleCopySummaryTsv = async () => {
+    const wb = captureHydratedWorkbook();
+    const ctx = getActiveContext();
+    const sid = ctx?.fWorksheet.getSheetId() ?? wb.sheetOrder[0];
+    const sh = wb.sheets[sid] ?? wb.sheets[wb.sheetOrder[0]];
+    if (!sh) return;
+    const blob = exportSheetToTsv(sh, wb);
+    const text = await blob.text();
+    await navigator.clipboard.writeText(text.replace(/^\uFEFF/, ''));
+    ui.toast('Đã sao chép toàn bộ bảng (TSV) vào Clipboard');
+  };
+
   const handleAddComment = () => {
     if (!newCommentText.trim()) return;
-    const newCmt: CommentItem = {
+    const cmt: CommentItem = {
       id: `cmt-${Date.now()}`,
-      author: 'Sếp Bùi Đăng Minh',
-      quote: newCommentCell.trim() || undefined,
+      author: 'Bùi Đăng Minh',
+      quote: newCommentCell.trim() || activeRangeA1,
       text: newCommentText.trim(),
       createdAt: Date.now(),
       resolved: false,
     };
-    setComments((prev) => [newCmt, ...prev]);
+    setComments((prev) => [cmt, ...prev]);
     setNewCommentText('');
-    ui.toast('Đã thêm bình luận vào bảng tính');
+    setSavedStatus('saving');
+    ui.toast(`Đã ghim bình luận cho vùng ${cmt.quote}`);
   };
 
   const handleAddReply = (commentId: string) => {
     if (!replyText.trim()) return;
     setComments((prev) =>
-      prev.map((c) => {
-        if (c.id === commentId) {
-          const replies = c.replies || [];
-          return {
-            ...c,
-            replies: [
-              ...replies,
-              {
-                id: `rep-${Date.now()}`,
-                author: 'Sếp Bùi Đăng Minh',
-                text: replyText.trim(),
-                createdAt: Date.now(),
-              },
-            ],
-          };
-        }
-        return c;
-      })
+      prev.map((c) =>
+        c.id === commentId
+          ? {
+              ...c,
+              replies: [
+                ...(c.replies ?? []),
+                {
+                  id: `rep-${Date.now()}`,
+                  author: 'Bùi Đăng Minh',
+                  text: replyText.trim(),
+                  createdAt: Date.now(),
+                },
+              ],
+            }
+          : c
+      )
     );
     setReplyText('');
     setReplyingCommentId(null);
-    ui.toast('Đã gửi phản hồi bình luận');
+    setSavedStatus('saving');
   };
 
-  const handleToggleResolveComment = (commentId: string) => {
-    setComments((prev) =>
-      prev.map((c) => (c.id === commentId ? { ...c, resolved: !c.resolved } : c))
-    );
-  };
-
-  const handleDeleteComment = (commentId: string) => {
-    setComments((prev) => prev.filter((c) => c.id !== commentId));
-    ui.toast('Đã xoá bình luận');
-  };
-
-  // AI Assistant handler
-  const handleRunAiAssistant = (preset?: string) => {
-    const q = preset || assistantPrompt;
-    if (!q.trim()) return;
-    setIsAssistantLoading(true);
-    setTimeout(() => {
-      let ans = '';
-      if (q.includes('XLOOKUP') || q.includes('tra cứu')) {
-        ans = `💡 CÔNG THỨC XLOOKUP TỐI ƯU:\n=XLOOKUP(A2, DanhSach!A:A, DanhSach!D:D, "Không tìm thấy", 0)\n\nƯu điểm: Không phụ thuộc thứ tự cột như VLOOKUP, tự động bẫy lỗi và tìm kiếm hai chiều siêu nhanh.`;
-      } else if (q.includes('SUMIFS') || q.includes('điều kiện')) {
-        ans = `💡 CÔNG THỨC TÍNH TỔNG ĐA ĐIỀU KIỆN:\n=SUMIFS(DoanhSo!E:E, DoanhSo!B:B, "Miền Bắc", DoanhSo!C:C, ">=2026-10-01")\n\nGiải thích: Tính tổng cột E thoả mãn đồng thời khu vực Miền Bắc và từ tháng 10 trở đi.`;
-      } else if (q.includes('lỗi') || q.includes('#VALUE!')) {
-        ans = `🔧 CÁCH KHẮC PHỤC LỖI CÔNG THỨC:\n1. Bọc hàm với IFERROR: =IFERROR(Công_thức_của_bạn, 0)\n2. Kiểm tra các ô văn bản bị lẫn vào phép tính số học (dùng hàm VALUE() để chuyển đổi hoặc TRIM() để xoá khoảng trắng thừa).`;
-      } else {
-        ans = `📊 PHÂN TÍCH THÔNG MINH CHO DỮ LIỆU BẢNG TÍNH:\n1. Tổng doanh thu đạt mức tăng trưởng 18.5% so với kỳ trước.\n2. Tỷ trọng chi phí Nhân sự chiếm 48.7%, Marketing chiếm 23.4% - nằm trong ngưỡng an toàn tài chính.\n3. Khuyến nghị: Duy trì tốc độ tăng trưởng hiện tại và tối ưu chi phí văn phòng để nâng biên lợi nhuận ròng lên trên 25%.`;
-      }
-      setAssistantResponse(ans);
-      setIsAssistantLoading(false);
-    }, 450);
-  };
-
-  const filteredFormulas = FORMULA_LIBRARY.filter(
-    (f) =>
-      f.name.toLowerCase().includes(formulaSearch.toLowerCase()) ||
-      f.desc.toLowerCase().includes(formulaSearch.toLowerCase()) ||
-      f.group.toLowerCase().includes(formulaSearch.toLowerCase())
-  );
+  const unresolvedCommentCount = comments.filter((c) => !c.resolved).length;
 
   return (
     <div className="editor-shell">
-      {/* Top Header */}
-      <header className="editor-top">
-        <div className="editor-title-group">
-          <button className="icon-btn" onClick={handleBack} title="Quay lại danh sách tệp">
-            <ArrowLeft size={18} />
-          </button>
-          <div className="file-icon-box sheet" style={{ width: 28, height: 28 }}>
-            <FileSpreadsheet size={16} />
+      <input ref={imageInputRef} type="file" accept="image/*" hidden onChange={handleUploadImageFile} />
+      <input
+        ref={importSheetInputRef}
+        type="file"
+        accept=".xlsx,.xlsm,.xls,.csv,.tsv"
+        multiple
+        hidden
+        onChange={(e) => {
+          if (e.target.files && e.target.files.length > 0) {
+            void handleMergeFiles(e.target.files);
+            e.target.value = '';
+          }
+        }}
+      />
+
+      {!focusMode && (
+        <header className="editor-top">
+          <div className="editor-title-group">
+            <button
+              className="icon-btn"
+              onClick={() => {
+                handleSaveNow();
+                onBack();
+              }}
+              title="Quay về danh sách tệp"
+            >
+              <ArrowLeft size={18} />
+            </button>
+            <div className="file-icon-box sheet" style={{ width: 28, height: 28 }}>
+              <FileSpreadsheet size={15} />
+            </div>
+            <input
+              className="editor-title-input"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onBlur={() => {
+                if (title.trim() && title.trim() !== meta.name) onRename(title.trim());
+                else setTitle(meta.name);
+              }}
+              onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+              title="Đổi tên bảng tính"
+            />
+            <button className={`save-pill ${savedStatus}`} onClick={() => void handleOpenHistory()} title="Mở lịch sử phiên bản">
+              {savedStatus === 'saved' ? (
+                <>
+                  <CheckCircle2 size={12} />
+                  <span>Đã lưu</span>
+                </>
+              ) : (
+                <>
+                  <Clock size={12} />
+                  <span>Đang lưu…</span>
+                </>
+              )}
+            </button>
           </div>
-          <input
-            className="editor-title-input"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            onBlur={handleTitleBlur}
-            onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-            title="Nhấp để đổi tên bảng tính"
-          />
-          <div
-            className={`save-pill ${savedStatus}`}
-            onClick={handleOpenHistory}
-            title="Nhấp để xem lịch sử các phiên bản"
-            style={{ cursor: 'pointer' }}
-          >
-            {savedStatus === 'saved' ? (
+
+          <div className="topbar-right">
+            <button className="btn" onClick={() => getActiveContext()?.fWorkbook.undo()} title="Hoàn tác (Ctrl+Z)">
+              <Undo2 size={14} />
+            </button>
+            <button className="btn" onClick={() => getActiveContext()?.fWorkbook.redo()} title="Làm lại (Ctrl+Y)">
+              <Redo2 size={14} />
+            </button>
+            <button className="btn" onClick={() => void handleOpenHistory()} title="Lịch sử phiên bản">
+              <History size={14} />
+              <span>Lịch sử</span>
+            </button>
+            <button className="btn" onClick={() => setModal('formulas')} title="Thư viện 54 hàm Excel (fx)">
+              <Code2 size={14} />
+              <span>Hàm (fx)</span>
+            </button>
+            <button className="btn" onClick={() => setModal('chart')} title="Chart Studio trực quan">
+              <BarChart3 size={14} />
+              <span>Biểu đồ</span>
+            </button>
+            <button className="btn" onClick={handleSaveNow} title="Lưu ngay (Ctrl+S)">
+              <Save size={14} />
+              <span>Lưu</span>
+            </button>
+            <button className="btn btn-sheet" onClick={() => void handleExportXlsx()} title="Xuất chuẩn Excel (.xlsx)">
+              <Download size={14} />
+              <span>Xuất .xlsx</span>
+            </button>
+            <button className="btn" onClick={() => handleExportDelimited('csv')} title="Xuất CSV (UTF-8)">
+              <FileText size={14} />
+              <span>CSV</span>
+            </button>
+            <button className="btn" onClick={() => setModal('pageSetup')} title="Xem trước & In PDF Vector (Ctrl+P)">
+              <Printer size={14} />
+              <span>In / PDF</span>
+            </button>
+          </div>
+        </header>
+      )}
+
+      {!focusMode && (
+        <div className="ribbon sheet">
+          <div className="ribbon-tabs-bar">
+            <div className="ribbon-tabs-list">
+              {(
+                [
+                  ['file', 'File'],
+                  ['home', 'Home'],
+                  ['insert', 'Insert'],
+                  ['draw', 'Draw'],
+                  ['page_layout', 'Page Layout'],
+                  ['formulas', 'Formulas'],
+                  ['data', 'Data'],
+                  ['review', 'Review'],
+                  ['view', 'View'],
+                  ['automate', 'Automate'],
+                  ['minh_pdf', 'Minh PDF'],
+                  ['help', 'Help'],
+                ] as const
+              ).map(([tabId, label]) => (
+                <button
+                  key={tabId}
+                  className={`ribbon-tab ${activeTab === tabId ? 'active' : ''}`}
+                  style={
+                    tabId === 'minh_pdf' && activeTab === 'minh_pdf'
+                      ? { color: '#dc2626', borderBottomColor: '#dc2626' }
+                      : undefined
+                  }
+                  onClick={() => {
+                    setPopover(null);
+                    setActiveTab(tabId);
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div className="ribbon-top-actions">
+              <button
+                className={`ribbon-pill-btn ${showComments ? 'active' : ''}`}
+                onClick={() => setShowComments((v) => !v)}
+              >
+                <MessageSquare size={13} />
+                <span>Bình luận{unresolvedCommentCount > 0 ? ` (${unresolvedCommentCount})` : ''}</span>
+              </button>
+              <button className="ribbon-share-btn" onClick={() => setModal('share')}>
+                <Share2 size={13} />
+                <span>Chia sẻ</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="ribbon-body">
+            {activeTab === 'file' && (
               <>
-                <CheckCircle2 size={13} />
-                <span>Đã lưu</span>
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={() => setModal('templates')}>
+                      <Sparkles size={20} color="#107c41" />
+                      <span>Kho mẫu</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => void handleResetBlankWorkbook()}>
+                      <FileSpreadsheet size={20} color="#0284c7" />
+                      <span>Tạo trắng</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => importSheetInputRef.current?.click()}>
+                      <Upload size={20} color="#4f46e5" />
+                      <span>Nhập tệp</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Khởi tạo & Nhập</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={handleSaveNow}>
+                      <Save size={20} color="#107c41" />
+                      <span>Lưu ngay</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => void handleCreateSnapshot('')}>
+                      <Bookmark size={20} color="#d97706" />
+                      <span>Tạo mốc</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => void handleOpenHistory()}>
+                      <History size={20} color="#2563eb" />
+                      <span>Lịch sử</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Lưu trữ</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={() => void handleExportXlsx()}>
+                      <Download size={20} color="#107c41" />
+                      <span>Excel .xlsx</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => handleExportDelimited('csv')}>
+                      <FileText size={20} color="#0d9488" />
+                      <span>Xuất .csv</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => handleExportDelimited('tsv')}>
+                      <FileText size={20} color="#475569" />
+                      <span>Xuất .tsv</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={handleExportJsonFile}>
+                      <FileJson size={20} color="#7c3aed" />
+                      <span>Xuất .json</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => setModal('image')}>
+                      <ImageIcon size={20} color="#ea580c" />
+                      <span>Ảnh .png</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => setModal('pageSetup')}>
+                      <Printer size={20} color="#dc2626" />
+                      <span>In & PDF</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Kết xuất đa định dạng</div>
+                </div>
               </>
-            ) : (
+            )}
+
+            {activeTab === 'home' && (
               <>
-                <Clock size={13} />
-                <span>Đang lưu…</span>
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button
+                      className="ribbon-btn-large"
+                      onClick={(e) => openPopover(e, 'paste')}
+                      title="Tuỳ chọn Dán dữ liệu (Ctrl+V)"
+                    >
+                      <ClipboardPaste size={20} color="#107c41" />
+                      <span>Dán ▾</span>
+                    </button>
+                    <div className="ribbon-two-rows">
+                      <div className="ribbon-row">
+                        <button className="ribbon-btn-small" onClick={() => void handleCopyOrCut(true)} title="Cắt (Ctrl+X)">
+                          <Scissors size={13} />
+                        </button>
+                        <button className="ribbon-btn-small" onClick={() => void handleCopyOrCut(false)} title="Sao chép (Ctrl+C)">
+                          <Copy size={13} />
+                        </button>
+                      </div>
+                      <div className="ribbon-row">
+                        <button
+                          className={`ribbon-btn-compact ${painterArmed ? 'active' : ''}`}
+                          onClick={handleFormatPainter}
+                          title="Sao chép định dạng ô (Format Painter)"
+                        >
+                          <Paintbrush size={12} />
+                          <span>Chổi</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="ribbon-group-label">Clipboard</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-two-rows">
+                    <div className="ribbon-row">
+                      <select
+                        className="ribbon-select"
+                        style={{ width: 104 }}
+                        value={selectedFont}
+                        onChange={(e) => applyFontFamily(e.target.value)}
+                        title="Phông chữ"
+                      >
+                        {['Segoe UI', 'Arial', 'Calibri', 'Times New Roman', 'Tahoma', 'Verdana', 'Roboto', 'Courier New'].map((f) => (
+                          <option key={f} value={f}>
+                            {f}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        className="ribbon-select"
+                        style={{ width: 46 }}
+                        value={selectedFontSize}
+                        onChange={(e) => applyFontSize(e.target.value)}
+                        title="Cỡ chữ"
+                      >
+                        {['8', '9', '10', '11', '12', '13', '14', '16', '18', '20', '24', '28', '36'].map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        className="ribbon-btn-small"
+                        onClick={() => applyFontSize(String(Number(selectedFontSize) + 1))}
+                        title="Tăng cỡ chữ"
+                      >
+                        <span style={{ fontSize: 12, fontWeight: 700 }}>A+</span>
+                      </button>
+                      <button
+                        className="ribbon-btn-small"
+                        onClick={() => applyFontSize(String(Math.max(8, Number(selectedFontSize) - 1)))}
+                        title="Giảm cỡ chữ"
+                      >
+                        <span style={{ fontSize: 10.5, fontWeight: 700 }}>A-</span>
+                      </button>
+                    </div>
+
+                    <div className="ribbon-row">
+                      <button className={`ribbon-btn-small ${isBold ? 'active' : ''}`} onClick={toggleBold} title="In đậm (Ctrl+B)">
+                        <Bold size={13} />
+                      </button>
+                      <button className={`ribbon-btn-small ${isItalic ? 'active' : ''}`} onClick={toggleItalic} title="In nghiêng (Ctrl+I)">
+                        <Italic size={13} />
+                      </button>
+                      <button className={`ribbon-btn-small ${isUnderline ? 'active' : ''}`} onClick={toggleUnderline} title="Gạch chân (Ctrl+U)">
+                        <Underline size={13} />
+                      </button>
+                      <button className={`ribbon-btn-small ${isStrike ? 'active' : ''}`} onClick={toggleStrike} title="Gạch ngang chữ">
+                        <Strikethrough size={13} />
+                      </button>
+                      <button className="ribbon-btn-small" onClick={(e) => openPopover(e, 'borders')} title="Kẻ khung viền ô">
+                        <Grid size={13} />
+                      </button>
+                      <button
+                        className="ribbon-btn-small"
+                        onClick={(e) => openPopover(e, 'fillColor')}
+                        title="Màu nền ô"
+                        style={{ borderBottom: `3px solid ${fillColor}` }}
+                      >
+                        <Palette size={13} />
+                      </button>
+                      <button
+                        className="ribbon-btn-small"
+                        onClick={(e) => openPopover(e, 'fontColor')}
+                        title="Màu chữ"
+                        style={{ borderBottom: `3px solid ${fontColor}` }}
+                      >
+                        <Type size={13} />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="ribbon-group-label">Phông chữ</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-two-rows">
+                    <div className="ribbon-row">
+                      <button
+                        className={`ribbon-btn-small ${vAlign === 'top' ? 'active' : ''}`}
+                        onClick={() => applyVAlign('top')}
+                        title="Căn lề trên"
+                      >
+                        <ArrowUpToLine size={13} />
+                      </button>
+                      <button
+                        className={`ribbon-btn-small ${vAlign === 'middle' ? 'active' : ''}`}
+                        onClick={() => applyVAlign('middle')}
+                        title="Căn giữa dọc"
+                      >
+                        <Minimize2 size={13} />
+                      </button>
+                      <button
+                        className={`ribbon-btn-small ${vAlign === 'bottom' ? 'active' : ''}`}
+                        onClick={() => applyVAlign('bottom')}
+                        title="Căn lề dưới"
+                      >
+                        <ArrowDownToLine size={13} />
+                      </button>
+                      <button
+                        className="ribbon-btn-small"
+                        onClick={() => applyTextRotation(45)}
+                        title="Xoay nghiêng chữ 45° (Nhấp đúp 0° ở Format)"
+                      >
+                        <RotateCw size={13} />
+                      </button>
+                      <button
+                        className={`ribbon-btn-compact ${isWrap ? 'active' : ''}`}
+                        onClick={toggleWrapText}
+                        title="Tự động xuống dòng trong ô (Wrap Text)"
+                      >
+                        <WrapText size={13} />
+                        <span>Xuống dòng</span>
+                      </button>
+                    </div>
+
+                    <div className="ribbon-row">
+                      <button
+                        className={`ribbon-btn-small ${hAlign === 'left' ? 'active' : ''}`}
+                        onClick={() => applyHAlign('left')}
+                        title="Căn trái"
+                      >
+                        <AlignLeft size={13} />
+                      </button>
+                      <button
+                        className={`ribbon-btn-small ${hAlign === 'center' ? 'active' : ''}`}
+                        onClick={() => applyHAlign('center')}
+                        title="Căn giữa ngang"
+                      >
+                        <AlignCenter size={13} />
+                      </button>
+                      <button
+                        className={`ribbon-btn-small ${hAlign === 'normal' ? 'active' : ''}`}
+                        onClick={() => applyHAlign('normal')}
+                        title="Căn phải"
+                      >
+                        <AlignRight size={13} />
+                      </button>
+                      <button
+                        className={`ribbon-btn-compact ${isMerged ? 'active' : ''}`}
+                        onClick={() => handleMergeCells('toggle')}
+                        title="Gộp ô & Căn giữa"
+                      >
+                        <span>Gộp ô</span>
+                      </button>
+                      <button
+                        className="ribbon-btn-small"
+                        onClick={(e) => openPopover(e, 'merge')}
+                        title="Tuỳ chọn gộp / tách ô"
+                      >
+                        <span style={{ fontSize: 10 }}>▾</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div className="ribbon-group-label">Căn chỉnh</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-two-rows">
+                    <div className="ribbon-row">
+                      <select
+                        className="ribbon-select"
+                        style={{ width: 118 }}
+                        value={selectedNumberFormat}
+                        onChange={(e) => applyNumberFormat(e.target.value)}
+                        title="Định dạng số"
+                      >
+                        <option value="General">Mặc định (General)</option>
+                        <option value="#,##0">Số nguyên (1,234)</option>
+                        <option value="#,##0.00">Số thập phân (1,234.56)</option>
+                        <option value='#,##0 "₫"'>Tiền tệ VNĐ (₫)</option>
+                        <option value="$#,##0.00">Tiền tệ USD ($)</option>
+                        <option value="0.0%">Phần trăm (0.0%)</option>
+                        <option value="dd/mm/yyyy">Ngày (dd/mm/yyyy)</option>
+                        <option value="@">Văn bản thuần (@)</option>
+                      </select>
+                    </div>
+                    <div className="ribbon-row">
+                      <button
+                        className="ribbon-btn-small"
+                        onClick={() => applyNumberFormat('#,##0 "₫"')}
+                        title="Định dạng Tiền tệ VNĐ"
+                      >
+                        <DollarSign size={13} />
+                      </button>
+                      <button
+                        className="ribbon-btn-small"
+                        onClick={() => applyNumberFormat('0.0%')}
+                        title="Định dạng Phần trăm (%)"
+                      >
+                        <Percent size={13} />
+                      </button>
+                      <button
+                        className="ribbon-btn-small"
+                        onClick={() => applyNumberFormat('#,##0')}
+                        title="Phân cách hàng nghìn (,)"
+                      >
+                        <span style={{ fontWeight: 800, fontSize: 12 }}>000</span>
+                      </button>
+                      <button
+                        className="ribbon-btn-small"
+                        onClick={() => adjustDecimals(1)}
+                        title="Tăng chữ số thập phân"
+                      >
+                        <span style={{ fontSize: 10, fontWeight: 700 }}>.00</span>
+                      </button>
+                      <button
+                        className="ribbon-btn-small"
+                        onClick={() => adjustDecimals(-1)}
+                        title="Giảm chữ số thập phân"
+                      >
+                        <span style={{ fontSize: 10, fontWeight: 700 }}>.0</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div className="ribbon-group-label">Định dạng số</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <div className="ribbon-two-rows">
+                      <button className="ribbon-btn-compact" onClick={() => setModal('cf')}>
+                        <Sparkles size={13} color="#dc2626" />
+                        <span>Định dạng ĐK</span>
+                      </button>
+                      <button className="ribbon-btn-compact" onClick={(e) => openPopover(e, 'tableTheme')}>
+                        <Table size={13} color="#107c41" />
+                        <span>Kẻ Bảng màu ▾</span>
+                      </button>
+                    </div>
+                    <button className="ribbon-btn-large" onClick={(e) => openPopover(e, 'cellStyle')}>
+                      <Palette size={18} color="#2563eb" />
+                      <span>Kiểu ô ▾</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Kiểu bảng</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <div className="ribbon-two-rows">
+                      <button className="ribbon-btn-compact" onClick={(e) => openPopover(e, 'insertCells')}>
+                        <Plus size={13} color="#107c41" />
+                        <span>Chèn ▾</span>
+                      </button>
+                      <button className="ribbon-btn-compact" onClick={(e) => openPopover(e, 'deleteCells')}>
+                        <Trash2 size={13} color="#dc2626" />
+                        <span>Xoá ▾</span>
+                      </button>
+                    </div>
+                    <button className="ribbon-btn-large" onClick={(e) => openPopover(e, 'formatCells')}>
+                      <Columns size={18} color="#0284c7" />
+                      <span>Cỡ ô ▾</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Dòng & Cột</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={(e) => openPopover(e, 'autosum')} title="AutoSum (Alt+=)">
+                      <span style={{ fontSize: 18, fontWeight: 800, color: '#107c41', lineHeight: 1 }}>∑</span>
+                      <span>Tổng ▾</span>
+                    </button>
+                    <div className="ribbon-two-rows">
+                      <div className="ribbon-row">
+                        <button className="ribbon-btn-compact" onClick={(e) => openPopover(e, 'fillSeries')}>
+                          <span>Điền ▾</span>
+                        </button>
+                        <button className="ribbon-btn-compact" onClick={() => handleSortSheet(true)} title="Sắp xếp tăng dần">
+                          <ArrowUpDown size={12} />
+                          <span>Sắp xếp</span>
+                        </button>
+                      </div>
+                      <div className="ribbon-row">
+                        <button className={`ribbon-btn-compact ${hasFilter ? 'active' : ''}`} onClick={handleToggleFilter}>
+                          <Filter size={12} />
+                          <span>Lọc</span>
+                        </button>
+                        <button className="ribbon-btn-compact" onClick={() => setModal('find')}>
+                          <Search size={12} />
+                          <span>Tìm</span>
+                        </button>
+                        <button className="ribbon-btn-small" onClick={(e) => openPopover(e, 'clearMenu')} title="Xoá nội dung / định dạng">
+                          <Eraser size={13} color="#dc2626" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="ribbon-group-label">Biên tập</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={() => setModal('aiAnalysis')}>
+                      <Bot size={20} color="#7c3aed" />
+                      <span>Minh AI</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Trí tuệ AI</div>
+                </div>
+              </>
+            )}
+
+            {activeTab === 'insert' && (
+              <>
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={() => setModal('pivot')}>
+                      <Table size={20} color="#107c41" />
+                      <span>PivotTable</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={(e) => openPopover(e, 'tableTheme')}>
+                      <Grid size={20} color="#0284c7" />
+                      <span>Bảng dữ liệu</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Bảng tổng hợp</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={() => imageInputRef.current?.click()}>
+                      <ImageIcon size={20} color="#2563eb" />
+                      <span>Chèn ảnh</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => setModal('signature')}>
+                      <FileSignature size={20} color="#dc2626" />
+                      <span>Con dấu ký</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Minh hoạ</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={() => setModal('chart')}>
+                      <BarChart3 size={20} color="#107c41" />
+                      <span>Biểu đồ Cột</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => setModal('chart')}>
+                      <TrendingUp size={20} color="#2563eb" />
+                      <span>Đường xu hướng</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => setModal('chart')}>
+                      <PieChart size={20} color="#d97706" />
+                      <span>Cơ cấu Tròn</span>
+                    </button>
+                    <button
+                      className="ribbon-btn-large"
+                      onClick={() => {
+                        const ctx = getActiveContext();
+                        if (!ctx) return;
+                        const raw = ctx.fRange.getRange();
+                        const rule = ctx.fWorksheet
+                          .newConditionalFormattingRule()
+                          .setDataBar({
+                            min: { type: CFValueType.num, value: 0 },
+                            max: { type: CFValueType.num, value: Math.max(100, selStats.max || 100) },
+                            isGradient: true,
+                            positiveColor: '#107c41',
+                            nativeColor: '#dc2626',
+                            isShowValue: true,
+                          })
+                          .setRanges([raw])
+                          .build();
+                        ctx.fWorksheet.addConditionalFormattingRule(rule);
+                        ui.toast(`Đã chèn thanh Sparkline DataBar trực quan vào ${activeRangeA1}`);
+                      }}
+                    >
+                      <Sparkles size={20} color="#7c3aed" />
+                      <span>Thanh DataBar</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Biểu đồ trực quan</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={() => handleApplyValidation({ kind: 'checkbox', listText: '', minVal: '0', maxVal: '1', integerOnly: false, allowBlank: true, strictStop: false, errorMessage: '' })}>
+                      <CheckSquare size={20} color="#107c41" />
+                      <span>Checkbox</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => void handleInsertHyperlink()}>
+                      <Link2 size={20} color="#0284c7" />
+                      <span>Liên kết</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => void handleInsertCellNote()}>
+                      <StickyNote size={20} color="#ca8a04" />
+                      <span>Ghi chú ô</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => setShowComments(true)}>
+                      <MessageSquare size={20} color="#4f46e5" />
+                      <span>Thảo luận</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Tương tác & Liên kết</div>
+                </div>
+              </>
+            )}
+
+            {activeTab === 'draw' && (
+              <>
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={() => setModal('signature')}>
+                      <PenTool size={20} color="#dc2626" />
+                      <span>Vẽ chữ ký tay</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => setModal('signature')}>
+                      <FileSignature size={20} color="#1d4ed8" />
+                      <span>Đóng mộc đỏ</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Bút ký & Con dấu</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    {[
+                      ['#fef08a', 'Bút dạ Vàng'],
+                      ['#bbf7d0', 'Bút dạ Xanh'],
+                      ['#fecaca', 'Bút dạ Đỏ'],
+                      ['#bae6fd', 'Bút dạ Lam'],
+                    ].map(([clr, lbl]) => (
+                      <button key={clr} className="ribbon-btn-large" onClick={() => applyFill(clr)}>
+                        <span style={{ width: 20, height: 20, borderRadius: 4, background: clr, border: '1px solid #94a3b8' }} />
+                        <span>{lbl}</span>
+                      </button>
+                    ))}
+                    <button className="ribbon-btn-large" onClick={() => applyFill(null)}>
+                      <Eraser size={20} color="#475569" />
+                      <span>Tẩy nền tô</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Tô sáng số liệu nhanh</div>
+                </div>
+              </>
+            )}
+
+            {activeTab === 'page_layout' && (
+              <>
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    {WORKBOOK_THEMES.map((wt) => (
+                      <button key={wt.id} className="ribbon-btn-large" onClick={() => handleApplyWorkbookTheme(wt)}>
+                        <span style={{ width: 18, height: 18, borderRadius: '50%', background: wt.primary, display: 'inline-block' }} />
+                        <span>{wt.name.split(' ')[0]}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="ribbon-group-label">Chủ đề Bảng tính</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={() => setModal('pageSetup')}>
+                      <Printer size={20} color="#107c41" />
+                      <span>Thiết lập in</span>
+                    </button>
+                    <button
+                      className="ribbon-btn-large"
+                      onClick={() =>
+                        setPrintSettings((p) => ({
+                          ...p,
+                          orientation: p.orientation === 'landscape' ? 'portrait' : 'landscape',
+                        }))
+                      }
+                    >
+                      <Rows size={20} color="#0284c7" />
+                      <span>{printSettings.orientation === 'landscape' ? 'Khổ Ngang' : 'Khổ Dọc'}</span>
+                    </button>
+                    <button
+                      className="ribbon-btn-large"
+                      onClick={() => {
+                        setPrintSettings((p) => ({ ...p, printArea: activeRangeA1 }));
+                        ui.toast(`Đã đặt Vùng in = ${activeRangeA1}`);
+                      }}
+                    >
+                      <Check size={20} color="#16a34a" />
+                      <span>Đặt vùng in</span>
+                    </button>
+                    <button
+                      className="ribbon-btn-large"
+                      onClick={() => {
+                        setPrintSettings((p) => ({ ...p, printArea: '' }));
+                        ui.toast('Đã xoá giới hạn vùng in (In toàn bộ Sheet)');
+                      }}
+                    >
+                      <X size={20} color="#dc2626" />
+                      <span>Xoá vùng in</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Khổ giấy & Vùng in</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className={`ribbon-btn-large ${showGridlines ? 'active' : ''}`} onClick={handleToggleGridlines}>
+                      {showGridlines ? <Eye size={20} color="#107c41" /> : <EyeOff size={20} color="#64748b" />}
+                      <span>Lưới ô</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={(e) => openPopover(e, 'tabColor')}>
+                      <Palette size={20} color="#7c3aed" />
+                      <span>Màu Tab Sheet</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Hiển thị Sheet</div>
+                </div>
+              </>
+            )}
+
+
+            {activeTab === 'formulas' && (
+              <>
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={() => setModal('formulas')}>
+                      <Code2 size={20} color="#107c41" />
+                      <span>Thư viện (fx)</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={(e) => openPopover(e, 'autosum')}>
+                      <span style={{ fontSize: 18, fontWeight: 800, color: '#107c41', lineHeight: 1 }}>∑</span>
+                      <span>AutoSum ▾</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={handleReadMoneyWords} title="Đọc số tiền VNĐ thành chữ kế toán">
+                      <Calculator size={20} color="#d97706" />
+                      <span>Đọc số VNĐ</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Hàm & Kế toán</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button
+                      className="ribbon-btn-large"
+                      onClick={() => {
+                        syncDefinedNames();
+                        setModal('nameManager');
+                      }}
+                    >
+                      <Bookmark size={20} color="#2563eb" />
+                      <span>Tên vùng ({definedNames.length})</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Định danh</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={() => setModal('aiAudit')}>
+                      <AlertTriangle size={20} color="#dc2626" />
+                      <span>Kiểm lỗi #</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={handleWrapErrorsWithIfError}>
+                      <ShieldCheck size={20} color="#0f766e" />
+                      <span>Bọc IFERROR</span>
+                    </button>
+                    <button
+                      className="ribbon-btn-large"
+                      onClick={() => {
+                        syncUiFromSelection();
+                        ui.toast('Đã đồng bộ & tính toán lại toàn bộ công thức trên Sheet');
+                      }}
+                    >
+                      <RefreshCw size={20} color="#475569" />
+                      <span>Tính lại</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Kiểm toán công thức</div>
+                </div>
+              </>
+            )}
+
+            {activeTab === 'data' && (
+              <>
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={() => importSheetInputRef.current?.click()}>
+                      <Upload size={20} color="#107c41" />
+                      <span>Nhập CSV/XLSX</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => void handleOpenMergeModal()}>
+                      <Layers size={20} color="#2563eb" />
+                      <span>Gộp dữ liệu</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Nguồn dữ liệu</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={() => handleSortSheet(true)}>
+                      <ArrowUpDown size={20} color="#107c41" />
+                      <span>Tăng A→Z</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => handleSortSheet(false)}>
+                      <ArrowUpDown size={20} color="#0284c7" />
+                      <span>Giảm Z→A</span>
+                    </button>
+                    <button className={`ribbon-btn-large ${hasFilter ? 'active' : ''}`} onClick={handleToggleFilter}>
+                      <ListFilter size={20} color="#d97706" />
+                      <span>Bộ lọc</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Sắp xếp & Lọc</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={() => void handleTextToColumns()}>
+                      <Split size={20} color="#0284c7" />
+                      <span>Tách cột</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={handleRemoveDuplicates}>
+                      <CopyCheck size={20} color="#dc2626" />
+                      <span>Khử trùng</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => setModal('dv')}>
+                      <CheckSquare size={20} color="#107c41" />
+                      <span>Kiểm tra DL</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => handleDataCleanup('trim')}>
+                      <Eraser size={20} color="#7c3aed" />
+                      <span>Dọn TRIM</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => handleDataCleanup('toNumber')}>
+                      <Calculator size={20} color="#0f766e" />
+                      <span>Ép kiểu Số</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Làm sạch & Ràng buộc</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={() => setModal('goalSeek')}>
+                      <TrendingUp size={20} color="#4f46e5" />
+                      <span>Goal Seek</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => setModal('pivot')}>
+                      <Table size={20} color="#107c41" />
+                      <span>PivotTable</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Phân tích What-If</div>
+                </div>
+              </>
+            )}
+
+            {activeTab === 'review' && (
+              <>
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={() => setModal('aiAudit')}>
+                      <FileCheck size={20} color="#107c41" />
+                      <span>Soát lỗi Sheet</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => setModal('aiAnalysis')}>
+                      <BarChart3 size={20} color="#2563eb" />
+                      <span>Thống kê Sheet</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Kiểm tra chất lượng</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className={`ribbon-btn-large ${showComments ? 'active' : ''}`} onClick={() => setShowComments((v) => !v)}>
+                      <MessageSquare size={20} color="#4f46e5" />
+                      <span>Thảo luận ({comments.length})</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => void handleInsertCellNote()}>
+                      <StickyNote size={20} color="#ca8a04" />
+                      <span>Ghi chú ô</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => handleClearSelection('notes')}>
+                      <Eraser size={20} color="#dc2626" />
+                      <span>Xoá ghi chú</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Bình luận & Giải trình</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className={`ribbon-btn-large ${isProtected ? 'active' : ''}`} onClick={handleToggleProtect}>
+                      {isProtected ? <Unlock size={20} color="#dc2626" /> : <Lock size={20} color="#0f766e" />}
+                      <span>{isProtected ? 'Mở khoá Sheet' : 'Khoá bảo vệ'}</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => setModal('signature')}>
+                      <FileSignature size={20} color="#b91c1c" />
+                      <span>Chữ ký số</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Bảo vệ dữ liệu</div>
+                </div>
+              </>
+            )}
+
+            {activeTab === 'view' && (
+              <>
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className={`ribbon-btn-large ${showGridlines ? 'active' : ''}`} onClick={handleToggleGridlines}>
+                      {showGridlines ? <Eye size={20} color="#107c41" /> : <EyeOff size={20} color="#64748b" />}
+                      <span>Đường lưới</span>
+                    </button>
+                    <button className={`ribbon-btn-large ${showFormulaBar ? 'active' : ''}`} onClick={() => setShowFormulaBar((v) => !v)}>
+                      <Code2 size={20} color="#0284c7" />
+                      <span>Thanh fx</span>
+                    </button>
+                    <button className={`ribbon-btn-large ${showStatusBar ? 'active' : ''}`} onClick={() => setShowStatusBar((v) => !v)}>
+                      <Table size={20} color="#475569" />
+                      <span>Thanh đáy</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => setFocusMode(true)}>
+                      <Maximize2 size={20} color="#7c3aed" />
+                      <span>Toàn màn hình</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Hiển thị cửa sổ</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className={`ribbon-btn-large ${isFrozen ? 'active' : ''}`} onClick={(e) => openPopover(e, 'freezeMenu')}>
+                      <Snowflake size={20} color="#0284c7" />
+                      <span>Cố định ▾</span>
+                    </button>
+                    {isFrozen && (
+                      <button className="ribbon-btn-large" onClick={() => handleFreezeMode('clear')}>
+                        <X size={20} color="#dc2626" />
+                        <span>Bỏ cố định</span>
+                      </button>
+                    )}
+                  </div>
+                  <div className="ribbon-group-label">Cố định dòng/cột</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={() => handleSetZoom(zoomPct - 10)}>
+                      <ZoomOut size={20} color="#475569" />
+                      <span>Thu nhỏ</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => handleSetZoom(100)}>
+                      <Search size={20} color="#107c41" />
+                      <span>100% ({zoomPct}%)</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => handleSetZoom(zoomPct + 10)}>
+                      <ZoomIn size={20} color="#2563eb" />
+                      <span>Phóng to</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Thu phóng</div>
+                </div>
+              </>
+            )}
+
+            {activeTab === 'automate' && (
+              <>
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={() => handleRunMacro('normalizeTable')}>
+                      <Play size={20} color="#107c41" />
+                      <span>Chuẩn hoá Bảng</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => handleRunMacro('autoNumberStt')}>
+                      <Play size={20} color="#0284c7" />
+                      <span>Đánh STT 1..N</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => handleRunMacro('moneyWordsCol')}>
+                      <Calculator size={20} color="#d97706" />
+                      <span>Đọc chữ VNĐ</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => handleRunMacro('highlightVariance')}>
+                      <Sparkles size={20} color="#7c3aed" />
+                      <span>Tô Âm/Dương</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => handleRunMacro('cleanBlankRows')}>
+                      <Trash2 size={20} color="#dc2626" />
+                      <span>Xoá dòng trống</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => handleRunMacro('wrapIfError')}>
+                      <ShieldCheck size={20} color="#0f766e" />
+                      <span>Bọc IFERROR</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Macro Kế toán 1-chạm ({macroLogs.length} lần chạy)</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={() => setModal('aiAssistant')}>
+                      <Bot size={20} color="#4f46e5" />
+                      <span>Trợ lý Công thức</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Tự động hoá AI</div>
+                </div>
+              </>
+            )}
+
+            {activeTab === 'minh_pdf' && (
+              <>
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={() => setModal('pageSetup')}>
+                      <Printer size={20} color="#dc2626" />
+                      <span>Xuất PDF Vector</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => setModal('image')}>
+                      <ImageIcon size={20} color="#ea580c" />
+                      <span>Kết xuất PNG</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => handleDownloadPrintHtml(printSettings)}>
+                      <FileCheck size={20} color="#0284c7" />
+                      <span>Tải bản HTML</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Xuất bản Hồ sơ</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={() => setModal('split')}>
+                      <Split size={20} color="#107c41" />
+                      <span>Tách từng Sheet</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => void handleOpenMergeModal()}>
+                      <Layers size={20} color="#2563eb" />
+                      <span>Gộp nhiều File</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Tách & Gộp Bảng tính</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={() => setModal('signature')}>
+                      <FileSignature size={20} color="#b91c1c" />
+                      <span>Ký tươi & Mộc đỏ</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Xác thực Pháp lý</div>
+                </div>
+              </>
+            )}
+
+            {activeTab === 'help' && (
+              <>
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={() => setModal('help')}>
+                      <HelpCircle size={20} color="#107c41" />
+                      <span>Phím tắt nhanh</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => setModal('formulas')}>
+                      <Code2 size={20} color="#2563eb" />
+                      <span>54 Hàm mẫu</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => setModal('aiAssistant')}>
+                      <Bot size={20} color="#7c3aed" />
+                      <span>Hỏi Minh AI</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => setModal('templates')}>
+                      <Sparkles size={20} color="#d97706" />
+                      <span>6 Mẫu chuẩn</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Trợ giúp & Đào tạo</div>
+                </div>
               </>
             )}
           </div>
         </div>
+      )}
 
-        <div className="topbar-right">
+      {focusMode && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 10,
+            right: 16,
+            zIndex: 95,
+            display: 'flex',
+            gap: 6,
+            background: '#0f172a',
+            padding: '4px 8px',
+            borderRadius: 999,
+            boxShadow: '0 6px 20px rgba(15,23,42,0.28)',
+          }}
+        >
           <button
             className="btn"
-            onClick={handleOpenHistory}
-            title="Xem lịch sử các phiên bản bảng tính"
+            style={{ minHeight: 26, padding: '2px 10px', fontSize: 11.5, background: '#107c41', color: '#fff', borderColor: '#107c41' }}
+            onClick={() => setFocusMode(false)}
           >
-            <History size={15} />
-            <span>Lịch sử</span>
-          </button>
-          <button
-            className="btn"
-            onClick={() => setShowFormulaModal(true)}
-            title="Tra cứu thư viện hàm công thức (fx)"
-          >
-            <Code2 size={15} />
-            <span>Thư viện hàm (fx)</span>
-          </button>
-          <button
-            className="btn"
-            onClick={() => setShowChartModal(true)}
-            title="Tạo biểu đồ trực quan từ dữ liệu"
-          >
-            <BarChart3 size={15} />
-            <span>Biểu đồ</span>
-          </button>
-          <button
-            className="btn"
-            onClick={() => setShowHelpModal(true)}
-            title="Trợ giúp & Phím tắt Minh Sheets"
-          >
-            <HelpCircle size={15} />
-            <span>Trợ giúp</span>
-          </button>
-          <button className="btn" onClick={handleSaveNow} title="Lưu ngay (Ctrl+S)">
-            <Save size={15} />
-            <span>Lưu ngay</span>
-          </button>
-          <button className="btn btn-sheet" onClick={handleExportXlsx} title="Tải xuống tệp Minh Sheets (.xlsx)">
-            <Download size={15} />
-            <span>Xuất Minh Sheets (.xlsx)</span>
-          </button>
-          <button className="btn" onClick={handleExportCsv} title="Xuất định dạng CSV">
-            <Download size={15} />
-            <span>Xuất CSV</span>
-          </button>
-          <button className="btn" onClick={() => window.print()} title="In bảng tính">
-            <Printer size={15} />
-            <span>In</span>
+            <Minimize2 size={13} />
+            <span>Thoát Toàn màn hình (Esc)</span>
           </button>
         </div>
-      </header>
+      )}
 
-      {/* Ribbon Toolbar (1:1 Authentic Microsoft Excel & WPS Office Style) */}
-      <div className="ribbon sheet">
-        {/* Top Tabs Bar */}
-        <div className="ribbon-tabs-bar">
-          <div className="ribbon-tabs-list">
-            <button className={`ribbon-tab ${activeTab === 'file' ? 'active' : ''}`} onClick={() => setActiveTab('file')}>
-              File
-            </button>
-            <button className={`ribbon-tab ${activeTab === 'home' ? 'active' : ''}`} onClick={() => setActiveTab('home')}>
-              Home
-            </button>
-            <button
-              className={`ribbon-tab ${activeTab === 'minh_pdf' ? 'active' : ''}`}
-              style={{ color: activeTab === 'minh_pdf' ? '#dc2626' : undefined, borderBottomColor: activeTab === 'minh_pdf' ? '#dc2626' : undefined }}
-              onClick={() => setActiveTab('minh_pdf')}
-            >
-              Minh PDF
-            </button>
-            <button className={`ribbon-tab ${activeTab === 'insert' ? 'active' : ''}`} onClick={() => setActiveTab('insert')}>
-              Insert
-            </button>
-            <button className={`ribbon-tab ${activeTab === 'draw' ? 'active' : ''}`} onClick={() => setActiveTab('draw')}>
-              Draw
-            </button>
-            <button className={`ribbon-tab ${activeTab === 'page_layout' ? 'active' : ''}`} onClick={() => setActiveTab('page_layout')}>
-              Page Layout
-            </button>
-            <button className={`ribbon-tab ${activeTab === 'formulas' ? 'active' : ''}`} onClick={() => setActiveTab('formulas')}>
-              Formulas
-            </button>
-            <button className={`ribbon-tab ${activeTab === 'data' ? 'active' : ''}`} onClick={() => setActiveTab('data')}>
-              Data
-            </button>
-            <button className={`ribbon-tab ${activeTab === 'review' ? 'active' : ''}`} onClick={() => setActiveTab('review')}>
-              Review
-            </button>
-            <button className={`ribbon-tab ${activeTab === 'view' ? 'active' : ''}`} onClick={() => setActiveTab('view')}>
-              View
-            </button>
-            <button className={`ribbon-tab ${activeTab === 'automate' ? 'active' : ''}`} onClick={() => setActiveTab('automate')}>
-              Automate
-            </button>
-            <button className={`ribbon-tab ${activeTab === 'help' ? 'active' : ''}`} onClick={() => setActiveTab('help')}>
-              Help
-            </button>
-          </div>
+      {popover && (
+        <>
+          <div className="sheet-popover-backdrop" onMouseDown={() => setPopover(null)} />
+          <div className="sheet-popover" style={{ left: popover.left, top: popover.top }}>
+            {popover.kind === 'paste' && (
+              <>
+                <div className="sheet-popover-title">Tuỳ chọn Dán (Paste Special)</div>
+                <button className="sheet-popover-item" onClick={() => void handlePasteMode('all')}>
+                  <span>Dán đầy đủ (Công thức + Định dạng)</span>
+                  <span style={{ color: '#64748b', fontSize: 11 }}>Ctrl+V</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => void handlePasteMode('values')}>
+                  <span>Chỉ dán Giá trị (Values Only)</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => void handlePasteMode('formulas')}>
+                  <span>Chỉ dán Công thức (Formulas)</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => void handlePasteMode('formats')}>
+                  <span>Chỉ dán Định dạng ô (Formatting)</span>
+                </button>
+                <div className="sheet-popover-sep" />
+                <button className="sheet-popover-item" onClick={() => void handlePasteMode('transpose')}>
+                  <span>Đảo chiều Dòng ↔ Cột (Transpose)</span>
+                </button>
+              </>
+            )}
 
-          {/* Right Top Actions (Comments + Share Button) */}
-          <div className="ribbon-top-actions">
-            <button
-              className={`ribbon-pill-btn ${showComments ? 'active' : ''}`}
-              onClick={() => setShowComments(!showComments)}
-              title="Bình luận & Ghi chú trên bảng tính"
-            >
-              <MessageSquare size={13} />
-              <span>Comments{comments.filter((c) => !c.resolved).length > 0 ? ` (${comments.filter((c) => !c.resolved).length})` : ''}</span>
-            </button>
-
-            <button
-              className="ribbon-share-btn"
-              onClick={() => setShowShareModal(true)}
-              title="Chia sẻ bảng tính an toàn"
-            >
-              <Share2 size={13} />
-              <span>Share ▾</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Ribbon Body: 13 Groups with Group Labels at Bottom (Image 2) */}
-        <div className="ribbon-body">
-          {activeTab === 'home' && (
-            <>
-              {/* 1. Clipboard */}
-              <div className="ribbon-section">
-                <div className="ribbon-controls">
-                  <button
-                    className="ribbon-btn-large"
-                    onClick={async () => {
-                      try {
-                        const text = await navigator.clipboard.readText();
-                        if (text) ui.toast(`Đã dán dữ liệu: "${text.slice(0, 20)}…"`);
-                      } catch {
-                        ui.toast('Nhấn Ctrl+V để dán dữ liệu vào ô đang chọn');
-                      }
-                    }}
-                    title="Dán dữ liệu (Ctrl+V)"
-                  >
-                    <ClipboardPaste size={22} color="#107c41" />
-                    <span>Paste ▾</span>
-                  </button>
-                  <div className="ribbon-two-rows">
+            {popover.kind === 'fillColor' && (
+              <>
+                <div className="sheet-popover-title">Màu nền ô ({activeRangeA1})</div>
+                <div className="color-swatch-grid">
+                  {THEME_COLOR_SWATCHES.map((c) => (
                     <button
-                      className="ribbon-btn-small"
-                      onClick={() => ui.toast('Đã cắt ô chọn (Ctrl+X)')}
-                      title="Cắt (Ctrl+X)"
-                    >
-                      <Scissors size={14} />
-                    </button>
+                      key={c}
+                      className="color-swatch-btn"
+                      style={{ background: c }}
+                      title={c}
+                      onClick={() => applyFill(c)}
+                    />
+                  ))}
+                </div>
+                <div className="sheet-popover-sep" />
+                <button className="sheet-popover-item" onClick={() => applyFill(null)}>
+                  <span>Không màu nền (Mặc định)</span>
+                </button>
+              </>
+            )}
+
+            {popover.kind === 'fontColor' && (
+              <>
+                <div className="sheet-popover-title">Màu chữ ({activeRangeA1})</div>
+                <div className="color-swatch-grid">
+                  {THEME_COLOR_SWATCHES.map((c) => (
                     <button
-                      className="ribbon-btn-small"
-                      onClick={() => ui.toast('Đã sao chép ô chọn (Ctrl+C)')}
-                      title="Sao chép (Ctrl+C)"
-                    >
-                      <Copy size={14} />
-                    </button>
+                      key={c}
+                      className="color-swatch-btn"
+                      style={{ background: c }}
+                      title={c}
+                      onClick={() => applyFontClr(c)}
+                    />
+                  ))}
+                </div>
+                <div className="sheet-popover-sep" />
+                <button className="sheet-popover-item" onClick={() => applyFontClr(null)}>
+                  <span>Màu chữ tự động (#0F172A)</span>
+                </button>
+              </>
+            )}
+
+            {popover.kind === 'tabColor' && (
+              <>
+                <div className="sheet-popover-title">Màu đánh dấu Tab Sheet "{activeSheetName}"</div>
+                <div className="color-swatch-grid">
+                  {THEME_COLOR_SWATCHES.slice(10).map((c) => (
                     <button
-                      className="ribbon-btn-small"
-                      onClick={() => ui.toast('Đã bật chổi sao chép định dạng ô (Format Painter)')}
-                      title="Sao chép định dạng ô (Format Painter)"
-                    >
-                      <Paintbrush size={14} />
-                    </button>
+                      key={c}
+                      className="color-swatch-btn"
+                      style={{ background: c }}
+                      title={c}
+                      onClick={() => {
+                        setPopover(null);
+                        const ctx = getActiveContext();
+                        if (!ctx) return;
+                        ctx.fWorksheet.setTabColor(c);
+                        setSavedStatus('saving');
+                        ui.toast(`Đã đổi màu Tab "${activeSheetName}"`);
+                      }}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+
+            {popover.kind === 'borders' && (
+              <>
+                <div className="sheet-popover-title">Kẻ khung viền ({activeRangeA1})</div>
+                <button className="sheet-popover-item" onClick={() => applyBorder('all')}>
+                  <span>Tất cả viền ô (All Borders)</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => applyBorder('outside')}>
+                  <span>Viền bao ngoài mảnh (Outside)</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => applyBorder('thickOutside')}>
+                  <span>Viền bao ngoài đậm (Thick Box)</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => applyBorder('bottom')}>
+                  <span>Kẻ viền dưới (Bottom Border)</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => applyBorder('topBottomDouble')}>
+                  <span>Kế toán: Trên mảnh + Dưới đúp</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => applyBorder('dashed')}>
+                  <span>Viền nét đứt (Dashed Grid)</span>
+                </button>
+                <div className="sheet-popover-sep" />
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 8px' }}>
+                  <span style={{ fontSize: 11.5, color: '#475569' }}>Màu đường kẻ:</span>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    {['#0f172a', '#64748b', '#107c41', '#1d4ed8', '#dc2626'].map((bc) => (
+                      <button
+                        key={bc}
+                        className="color-swatch-btn"
+                        style={{
+                          width: 18,
+                          height: 18,
+                          background: bc,
+                          outline: borderColor === bc ? '2px solid #107c41' : 'none',
+                        }}
+                        onClick={() => setBorderColor(bc)}
+                      />
+                    ))}
                   </div>
                 </div>
-                <div className="ribbon-group-label">Clipboard</div>
-              </div>
+                <button className="sheet-popover-item" onClick={() => applyBorder('none')}>
+                  <span style={{ color: '#dc2626' }}>Xoá toàn bộ khung viền</span>
+                </button>
+              </>
+            )}
 
-              {/* 2. Font */}
-              <div className="ribbon-section">
-                <div className="ribbon-two-rows">
-                  <div className="ribbon-row">
-                    <select
-                      className="ribbon-select"
-                      style={{ width: 110 }}
-                      value={selectedFont}
-                      onChange={(e) => {
-                        setSelectedFont(e.target.value);
-                        ui.toast(`Đã chọn phông chữ: ${e.target.value}`);
-                      }}
-                      title="Phông chữ"
-                    >
-                      <option value="Arial">Arial</option>
-                      <option value="Calibri">Calibri</option>
-                      <option value="Segoe UI">Segoe UI</option>
-                      <option value="Times New Roman">Times New Roman</option>
-                      <option value="Tahoma">Tahoma</option>
-                      <option value="Verdana">Verdana</option>
-                    </select>
+            {popover.kind === 'merge' && (
+              <>
+                <div className="sheet-popover-title">Gộp & Tách ô</div>
+                <button className="sheet-popover-item" onClick={() => handleMergeCells('center')}>
+                  <span>Gộp & Căn giữa (Merge & Center)</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => handleMergeCells('across')}>
+                  <span>Gộp theo từng dòng ngang (Merge Across)</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => handleMergeCells('vertical')}>
+                  <span>Gộp theo chiều dọc (Merge Vertically)</span>
+                </button>
+                <div className="sheet-popover-sep" />
+                <button className="sheet-popover-item" onClick={() => handleMergeCells('unmerge')}>
+                  <span>Tách toàn bộ ô gộp (Unmerge Cells)</span>
+                </button>
+              </>
+            )}
 
-                    <select
-                      className="ribbon-select"
-                      style={{ width: 50 }}
-                      value={selectedFontSize}
-                      onChange={(e) => {
-                        setSelectedFontSize(e.target.value);
-                        ui.toast(`Đã đổi cỡ chữ: ${e.target.value}`);
-                      }}
-                      title="Cỡ chữ"
-                    >
-                      {['9', '10', '11', '12', '14', '16', '18', '20', '24'].map((s) => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
-                      ))}
-                    </select>
-
-                    <button
-                      className="ribbon-btn-small"
-                      onClick={() => ui.toast('Tăng cỡ chữ')}
-                      title="Tăng cỡ chữ"
-                    >
-                      <span style={{ fontSize: 13, fontWeight: 700 }}>A<sup>+</sup></span>
-                    </button>
-                    <button
-                      className="ribbon-btn-small"
-                      onClick={() => ui.toast('Giảm cỡ chữ')}
-                      title="Giảm cỡ chữ"
-                    >
-                      <span style={{ fontSize: 11, fontWeight: 600 }}>A<sup>-</sup></span>
-                    </button>
-                  </div>
-
-                  <div className="ribbon-row">
-                    <button
-                      className="ribbon-btn-small"
-                      onClick={() => ui.toast('In đậm (Ctrl+B)')}
-                      title="In đậm (Ctrl+B)"
-                    >
-                      <Bold size={13} />
-                    </button>
-                    <button
-                      className="ribbon-btn-small"
-                      onClick={() => ui.toast('In nghiêng (Ctrl+I)')}
-                      title="In nghiêng (Ctrl+I)"
-                    >
-                      <Italic size={13} />
-                    </button>
-                    <button
-                      className="ribbon-btn-small"
-                      onClick={() => ui.toast('Gạch chân (Ctrl+U)')}
-                      title="Gạch chân (Ctrl+U)"
-                    >
-                      <Underline size={13} />
-                    </button>
-
-                    <div style={{ width: 1, height: 16, background: '#cbd5e1', margin: '0 2px' }} />
-
-                    <button
-                      className="ribbon-btn-small"
-                      onClick={() => ui.toast('Đóng viền ô (Borders)')}
-                      title="Kẻ viền ô (Borders)"
-                    >
-                      <Grid size={13} />
-                    </button>
-
-                    {/* Fill Color */}
-                    <button
-                      className="ribbon-btn-small"
-                      style={{ position: 'relative' }}
-                      onClick={() => ui.toast('Tô màu nền ô')}
-                      title="Màu nền ô (Fill Color)"
-                    >
-                      <Palette size={13} />
+            {popover.kind === 'tableTheme' && (
+              <>
+                <div className="sheet-popover-title">Định dạng Bảng màu chuyên nghiệp</div>
+                {TABLE_THEMES.map((t) => (
+                  <button key={t.id} className="sheet-popover-item" onClick={() => handleFormatAsTable(t)}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                       <span
                         style={{
-                          position: 'absolute',
-                          bottom: 2,
-                          left: 4,
-                          right: 4,
-                          height: 3,
-                          background: '#facc15',
-                          borderRadius: 1,
+                          width: 14,
+                          height: 14,
+                          borderRadius: 3,
+                          background: t.headerBg,
+                          border: `2px solid ${t.stripeBg}`,
                         }}
                       />
-                    </button>
+                      <span>{t.name}</span>
+                    </span>
+                  </button>
+                ))}
+              </>
+            )}
 
-                    {/* Font Color */}
-                    <button
-                      className="ribbon-btn-small"
-                      style={{ position: 'relative' }}
-                      onClick={() => ui.toast('Đổi màu chữ')}
-                      title="Màu chữ (Font Color)"
+            {popover.kind === 'cellStyle' && (
+              <>
+                <div className="sheet-popover-title">Kiểu ô chuẩn Excel (Cell Styles)</div>
+                {CELL_STYLE_PRESETS.map((preset) => (
+                  <button key={preset.id} className="sheet-popover-item" onClick={() => handleApplyCellPreset(preset)}>
+                    <span
+                      style={{
+                        padding: '2px 8px',
+                        borderRadius: 4,
+                        background: preset.bg ?? '#ffffff',
+                        color: preset.fg,
+                        fontWeight: preset.bold ? 700 : 500,
+                        fontStyle: preset.italic ? 'italic' : 'normal',
+                        border: `1px solid ${preset.borderColor ?? '#e2e8f0'}`,
+                        fontSize: 11.5,
+                      }}
                     >
-                      <Type size={13} />
-                      <span
-                        style={{
-                          position: 'absolute',
-                          bottom: 2,
-                          left: 4,
-                          right: 4,
-                          height: 3,
-                          background: '#ef4444',
-                          borderRadius: 1,
-                        }}
-                      />
-                    </button>
-                  </div>
-                </div>
-                <div className="ribbon-group-label">Font</div>
-              </div>
+                      {preset.label}
+                    </span>
+                  </button>
+                ))}
+              </>
+            )}
 
-              {/* 3. Alignment */}
-              <div className="ribbon-section">
-                <div className="ribbon-controls">
-                  <div className="ribbon-two-rows">
-                    <div className="ribbon-row">
-                      <button className="ribbon-btn-small" onClick={() => ui.toast('Căn trên (Top Align)')} title="Căn trên (Top Align)">
-                        <ArrowUpToLine size={13} />
-                      </button>
-                      <button className="ribbon-btn-small" onClick={() => ui.toast('Căn giữa dọc (Middle Align)')} title="Căn giữa dọc (Middle Align)">
-                        <AlignCenter size={13} style={{ transform: 'rotate(90deg)' }} />
-                      </button>
-                      <button className="ribbon-btn-small" onClick={() => ui.toast('Căn đáy (Bottom Align)')} title="Căn đáy (Bottom Align)">
-                        <ArrowDownToLine size={13} />
-                      </button>
-                      <button className="ribbon-btn-small" onClick={() => ui.toast('Xoay hướng chữ (Orientation)')} title="Hướng chữ (Orientation)">
-                        <span style={{ fontSize: 10, fontWeight: 700 }}>ab↗</span>
-                      </button>
-                    </div>
+            {popover.kind === 'insertCells' && (
+              <>
+                <div className="sheet-popover-title">Chèn Dòng / Cột / Sheet</div>
+                <button className="sheet-popover-item" onClick={() => void handleStructureMutation('insertRowAbove')}>
+                  <span>Chèn 1 dòng lên phía trên</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => void handleStructureMutation('insertRowBelow')}>
+                  <span>Chèn 1 dòng xuống bên dưới</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => void handleStructureMutation('insertColLeft')}>
+                  <span>Chèn 1 cột sang bên trái</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => void handleStructureMutation('insertColRight')}>
+                  <span>Chèn 1 cột sang bên phải</span>
+                </button>
+                <div className="sheet-popover-sep" />
+                <button className="sheet-popover-item" onClick={() => void handleStructureMutation('shiftCellsDown')}>
+                  <span>Chèn ô & đẩy xuống dưới</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => void handleStructureMutation('shiftCellsRight')}>
+                  <span>Chèn ô & đẩy sang phải</span>
+                </button>
+                <div className="sheet-popover-sep" />
+                <button className="sheet-popover-item" onClick={() => void handleStructureMutation('insertSheet')}>
+                  <span>Thêm Trang tính (Sheet) mới</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => void handleStructureMutation('duplicateSheet')}>
+                  <span>Nhân bản Sheet hiện tại</span>
+                </button>
+              </>
+            )}
 
-                    <div className="ribbon-row">
-                      <button className="ribbon-btn-small" onClick={() => ui.toast('Căn trái (Align Left)')} title="Căn trái">
-                        <AlignLeft size={13} />
-                      </button>
-                      <button className="ribbon-btn-small" onClick={() => ui.toast('Căn giữa ngang (Align Center)')} title="Căn giữa">
-                        <AlignCenter size={13} />
-                      </button>
-                      <button className="ribbon-btn-small" onClick={() => ui.toast('Căn phải (Align Right)')} title="Căn phải">
-                        <AlignRight size={13} />
-                      </button>
-                      <button className="ribbon-btn-small" onClick={() => ui.toast('Giảm thụt lề')} title="Giảm thụt lề">
-                        <span style={{ fontSize: 11 }}>⇤</span>
-                      </button>
-                      <button className="ribbon-btn-small" onClick={() => ui.toast('Tăng thụt lề')} title="Tăng thụt lề">
-                        <span style={{ fontSize: 11 }}>⇥</span>
-                      </button>
-                    </div>
-                  </div>
+            {popover.kind === 'deleteCells' && (
+              <>
+                <div className="sheet-popover-title">Xoá Dòng / Cột / Sheet</div>
+                <button className="sheet-popover-item" onClick={() => void handleStructureMutation('deleteRows')}>
+                  <span>Xoá dòng đang chọn</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => void handleStructureMutation('deleteCols')}>
+                  <span>Xoá cột đang chọn</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => void handleStructureMutation('shiftCellsUp')}>
+                  <span>Xoá ô & dồn lên trên</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => void handleStructureMutation('shiftCellsLeft')}>
+                  <span>Xoá ô & dồn sang trái</span>
+                </button>
+                <div className="sheet-popover-sep" />
+                <button className="sheet-popover-item" onClick={() => void handleStructureMutation('deleteSheet')}>
+                  <span style={{ color: '#dc2626' }}>Xoá Trang tính hiện tại</span>
+                </button>
+              </>
+            )}
 
-                  <div className="ribbon-two-rows" style={{ marginLeft: 4 }}>
-                    <button
-                      className="ribbon-btn-small"
-                      style={{ width: 'auto', padding: '0 6px', fontSize: 11 }}
-                      onClick={() => ui.toast('Ngắt dòng văn bản trong ô (Wrap Text)')}
-                      title="Ngắt dòng tự động (Wrap Text)"
-                    >
-                      <WrapText size={13} style={{ marginRight: 4 }} />
-                      <span>Wrap Text</span>
-                    </button>
-                    <button
-                      className="ribbon-btn-small"
-                      style={{ width: 'auto', padding: '0 6px', fontSize: 11 }}
-                      onClick={() => ui.toast('Gộp và căn giữa ô (Merge & Center)')}
-                      title="Gộp ô và căn giữa (Merge & Center)"
-                    >
-                      <Table size={13} style={{ marginRight: 4 }} />
-                      <span>Merge & Center ▾</span>
-                    </button>
-                  </div>
-                </div>
-                <div className="ribbon-group-label">Alignment</div>
-              </div>
+            {popover.kind === 'formatCells' && (
+              <>
+                <div className="sheet-popover-title">Kích thước & Ẩn/Hiện Ô</div>
+                <button className="sheet-popover-item" onClick={() => void handleStructureMutation('rowHeight')}>
+                  <span>Chiều cao dòng (Row Height)…</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => void handleStructureMutation('colWidth')}>
+                  <span>Độ rộng cột (Column Width)…</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => void handleStructureMutation('autoFitCols')}>
+                  <span>Tự động căn vừa cột (AutoFit)</span>
+                </button>
+                <button
+                  className="sheet-popover-item"
+                  onClick={() => {
+                    setPopover(null);
+                    applyTextRotation(0);
+                  }}
+                >
+                  <span>Đặt góc xoay chữ về ngang (0°)</span>
+                </button>
+                <div className="sheet-popover-sep" />
+                <button className="sheet-popover-item" onClick={() => void handleStructureMutation('hideRows')}>
+                  <span>Ẩn dòng đang chọn</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => void handleStructureMutation('unhideRows')}>
+                  <span>Hiện lại dòng bị ẩn lân cận</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => void handleStructureMutation('hideCols')}>
+                  <span>Ẩn cột đang chọn</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => void handleStructureMutation('unhideCols')}>
+                  <span>Hiện lại cột bị ẩn lân cận</span>
+                </button>
+                <div className="sheet-popover-sep" />
+                <button className="sheet-popover-item" onClick={() => void handleStructureMutation('renameSheet')}>
+                  <span>Đổi tên Sheet "{activeSheetName}"…</span>
+                </button>
+              </>
+            )}
 
-              {/* 4. Number */}
-              <div className="ribbon-section">
-                <div className="ribbon-two-rows">
-                  <select
-                    className="ribbon-select"
-                    style={{ width: 120 }}
-                    value={selectedNumberFormat}
-                    onChange={(e) => {
-                      setSelectedNumberFormat(e.target.value);
-                      ui.toast(`Đã đặt định dạng: ${e.target.value}`);
-                    }}
-                    title="Định dạng số"
-                  >
-                    <option value="Custom">Custom</option>
-                    <option value="General">General</option>
-                    <option value="Number">Number</option>
-                    <option value="Currency">Currency (VND/USD)</option>
-                    <option value="Accounting">Accounting</option>
-                    <option value="Short Date">Short Date</option>
-                    <option value="Long Date">Long Date</option>
-                    <option value="Time">Time</option>
-                    <option value="Percentage">Percentage (%)</option>
-                    <option value="Fraction">Fraction</option>
-                    <option value="Text">Text</option>
-                  </select>
+            {popover.kind === 'autosum' && (
+              <>
+                <div className="sheet-popover-title">Hàm tổng hợp tự động</div>
+                <button className="sheet-popover-item" onClick={() => handleAutoSum('SUM')}>
+                  <span>∑ Tổng cộng (SUM)</span>
+                  <span style={{ color: '#64748b', fontSize: 11 }}>Alt+=</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => handleAutoSum('AVERAGE')}>
+                  <span>Trung bình cộng (AVERAGE)</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => handleAutoSum('COUNT')}>
+                  <span>Đếm số lượng ô số (COUNT)</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => handleAutoSum('MAX')}>
+                  <span>Giá trị lớn nhất (MAX)</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => handleAutoSum('MIN')}>
+                  <span>Giá trị nhỏ nhất (MIN)</span>
+                </button>
+                <div className="sheet-popover-sep" />
+                <button
+                  className="sheet-popover-item"
+                  onClick={() => {
+                    setPopover(null);
+                    setModal('formulas');
+                  }}
+                >
+                  <span style={{ color: '#107c41', fontWeight: 600 }}>Mở toàn bộ 54 hàm công thức…</span>
+                </button>
+              </>
+            )}
 
-                  <div className="ribbon-row">
-                    <button
-                      className="ribbon-btn-small"
-                      onClick={() => ui.toast('Định dạng tiền tệ ($ / ₫)')}
-                      title="Định dạng tiền tệ ($)"
-                    >
-                      <DollarSign size={13} />
-                    </button>
-                    <button
-                      className="ribbon-btn-small"
-                      onClick={() => ui.toast('Định dạng phần trăm (%)')}
-                      title="Phần trăm (%)"
-                    >
-                      <Percent size={13} />
-                    </button>
-                    <button
-                      className="ribbon-btn-small"
-                      onClick={() => ui.toast('Dấu phân cách hàng ngàn (,)')}
-                      title="Phân cách hàng ngàn (,)"
-                    >
-                      <span style={{ fontWeight: 700, fontSize: 13 }}>,</span>
-                    </button>
-                    <button
-                      className="ribbon-btn-small"
-                      onClick={() => ui.toast('Tăng số chữ số thập phân (.00)')}
-                      title="Tăng số chữ số thập phân"
-                    >
-                      <span style={{ fontSize: 10, fontWeight: 700 }}>.00→</span>
-                    </button>
-                    <button
-                      className="ribbon-btn-small"
-                      onClick={() => ui.toast('Giảm số chữ số thập phân (.0)')}
-                      title="Giảm số chữ số thập phân"
-                    >
-                      <span style={{ fontSize: 10, fontWeight: 700 }}>←.0</span>
-                    </button>
-                  </div>
-                </div>
-                <div className="ribbon-group-label">Number</div>
-              </div>
+            {popover.kind === 'fillSeries' && (
+              <>
+                <div className="sheet-popover-title">Sao chép & Đánh chuỗi tự động</div>
+                <button className="sheet-popover-item" onClick={() => void handleFillRange('down')}>
+                  <span>Điền xuống dưới (Fill Down)</span>
+                  <span style={{ color: '#64748b', fontSize: 11 }}>Ctrl+D</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => void handleFillRange('right')}>
+                  <span>Điền sang phải (Fill Right)</span>
+                  <span style={{ color: '#64748b', fontSize: 11 }}>Ctrl+R</span>
+                </button>
+                <div className="sheet-popover-sep" />
+                <button className="sheet-popover-item" onClick={() => void handleFillRange('series')}>
+                  <span>Đánh chuỗi cấp số cộng (Series 1, 2, 3…)</span>
+                </button>
+              </>
+            )}
 
-              {/* 5. Styles */}
-              <div className="ribbon-section">
-                <div className="ribbon-controls">
-                  <button
-                    className="ribbon-btn-large"
-                    onClick={() => ui.toast('Mở định dạng có điều kiện (Conditional Formatting)')}
-                    title="Định dạng có điều kiện (Conditional Formatting)"
-                  >
-                    <div style={{ display: 'grid', gridTemplateColumns: '8px 8px', gap: 2, padding: 2 }}>
-                      <span style={{ width: 8, height: 8, background: '#ef4444', borderRadius: 1 }} />
-                      <span style={{ width: 8, height: 8, background: '#22c55e', borderRadius: 1 }} />
-                      <span style={{ width: 8, height: 8, background: '#3b82f6', borderRadius: 1 }} />
-                      <span style={{ width: 8, height: 8, background: '#f59e0b', borderRadius: 1 }} />
-                    </div>
-                    <span>Conditional<br/>Formatting ▾</span>
-                  </button>
+            {popover.kind === 'clearMenu' && (
+              <>
+                <div className="sheet-popover-title">Xoá vùng chọn ({activeRangeA1})</div>
+                <button className="sheet-popover-item" onClick={() => handleClearSelection('all')}>
+                  <span>Xoá tất cả (Nội dung + Định dạng)</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => handleClearSelection('contents')}>
+                  <span>Chỉ xoá Nội dung / Công thức (Delete)</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => handleClearSelection('formats')}>
+                  <span>Chỉ xoá Định dạng (Giữ nguyên số liệu)</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => handleClearSelection('notes')}>
+                  <span>Xoá Ghi chú ô (Cell Notes)</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => handleClearSelection('links')}>
+                  <span>Gỡ Liên kết Hyperlink</span>
+                </button>
+              </>
+            )}
 
-                  <button
-                    className="ribbon-btn-large"
-                    onClick={() => ui.toast('Định dạng dưới dạng bảng có tiêu đề')}
-                    title="Format as Table"
-                  >
-                    <Table size={20} color="#0284c7" />
-                    <span>Format as<br/>Table ▾</span>
-                  </button>
+            {popover.kind === 'freezeMenu' && (
+              <>
+                <div className="sheet-popover-title">Cố định khung cuộn (Freeze Panes)</div>
+                <button className="sheet-popover-item" onClick={() => handleFreezeMode('row1')}>
+                  <span>Cố định dòng đầu tiên (Row 1)</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => handleFreezeMode('row2')}>
+                  <span>Cố định 2 dòng tiêu đề đầu (Rows 1–2)</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => handleFreezeMode('col1')}>
+                  <span>Cố định cột đầu tiên (Column A)</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => handleFreezeMode('cursor')}>
+                  <span>Cố định tại vị trí con trỏ ({activeCellA1})</span>
+                </button>
+                <div className="sheet-popover-sep" />
+                <button className="sheet-popover-item" onClick={() => handleFreezeMode('clear')}>
+                  <span style={{ color: '#dc2626' }}>Gỡ bỏ cố định dòng/cột</span>
+                </button>
+              </>
+            )}
+          </div>
+        </>
+      )}
 
-                  <button
-                    className="ribbon-btn-large"
-                    onClick={() => ui.toast('Mở bảng các kiểu ô (Cell Styles)')}
-                    title="Cell Styles"
-                  >
-                    <div style={{ border: '1px solid #cbd5e1', padding: '2px 4px', borderRadius: 2, background: '#e0f2fe' }}>
-                      <span style={{ fontSize: 10, fontWeight: 600, color: '#0369a1' }}>Normal</span>
-                    </div>
-                    <span>Cell<br/>Styles ▾</span>
-                  </button>
-                </div>
-                <div className="ribbon-group-label">Styles</div>
-              </div>
-
-              {/* 6. Cells */}
-              <div className="ribbon-section">
-                <div className="ribbon-two-rows">
-                  <button
-                    className="ribbon-btn-small"
-                    style={{ width: 'auto', padding: '0 6px', fontSize: 11 }}
-                    onClick={() => ui.toast('Chèn hàng / cột mới')}
-                    title="Chèn thêm hàng hoặc cột"
-                  >
-                    <span style={{ color: '#16a34a', fontWeight: 700, marginRight: 4 }}>+</span>
-                    <span>Insert ▾</span>
-                  </button>
-                  <button
-                    className="ribbon-btn-small"
-                    style={{ width: 'auto', padding: '0 6px', fontSize: 11 }}
-                    onClick={() => ui.toast('Xoá hàng / cột đang chọn')}
-                    title="Xoá hàng hoặc cột"
-                  >
-                    <span style={{ color: '#dc2626', fontWeight: 700, marginRight: 4 }}>-</span>
-                    <span>Delete ▾</span>
-                  </button>
-                  <button
-                    className="ribbon-btn-small"
-                    style={{ width: 'auto', padding: '0 6px', fontSize: 11 }}
-                    onClick={() => ui.toast('Định dạng chiều cao hàng và độ rộng cột')}
-                    title="Định dạng kích thước ô"
-                  >
-                    <Grid size={11} style={{ marginRight: 4 }} />
-                    <span>Format ▾</span>
-                  </button>
-                </div>
-                <div className="ribbon-group-label">Cells</div>
-              </div>
-
-              {/* 7. Editing */}
-              <div className="ribbon-section">
-                <div className="ribbon-controls">
-                  <button
-                    className="ribbon-btn-large"
-                    onClick={() => ui.toast('Tự động tính tổng =SUM()')}
-                    title="Tự động tính tổng nhanh (AutoSum)"
-                  >
-                    <span style={{ fontSize: 18, fontWeight: 700, color: '#107c41' }}>∑</span>
-                    <span>AutoSum ▾</span>
-                  </button>
-
-                  <div className="ribbon-two-rows">
-                    <button
-                      className="ribbon-btn-small"
-                      style={{ width: 'auto', padding: '0 6px', fontSize: 11 }}
-                      onClick={() => ui.toast('Sắp xếp dữ liệu A-Z hoặc Z-A')}
-                      title="Sắp xếp và lọc dữ liệu"
-                    >
-                      <ArrowUpDown size={12} style={{ marginRight: 4 }} />
-                      <span>Sort & Filter ▾</span>
-                    </button>
-                    <button
-                      className="ribbon-btn-small"
-                      style={{ width: 'auto', padding: '0 6px', fontSize: 11 }}
-                      onClick={() => ui.toast('Tìm kiếm và thay thế dữ liệu (Ctrl+F)')}
-                      title="Tìm kiếm và chọn"
-                    >
-                      <Search size={12} style={{ marginRight: 4 }} />
-                      <span>Find & Select ▾</span>
-                    </button>
-                    <button
-                      className="ribbon-btn-small"
-                      style={{ width: 'auto', padding: '0 6px', fontSize: 11 }}
-                      onClick={() => ui.toast('Xoá nội dung hoặc xoá định dạng')}
-                      title="Xoá ô"
-                    >
-                      <Eraser size={12} style={{ marginRight: 4 }} />
-                      <span>Clear ▾</span>
-                    </button>
-                  </div>
-                </div>
-                <div className="ribbon-group-label">Editing</div>
-              </div>
-
-              {/* 8. Library (Templates) */}
-              <div className="ribbon-section">
-                <div className="ribbon-controls">
-                  <button
-                    className="ribbon-btn-large"
-                    onClick={() => setShowTemplatesModal(true)}
-                    title="Thư viện mẫu bảng tính (Templates Library)"
-                  >
-                    <div style={{ display: 'flex', gap: 2, alignItems: 'center', marginBottom: 2 }}>
-                      <span style={{ width: 8, height: 10, background: '#f59e0b', borderRadius: 2 }} />
-                      <span style={{ width: 10, height: 12, background: '#3b82f6', borderRadius: 2 }} />
-                      <span style={{ width: 8, height: 8, background: '#ef4444', borderRadius: 2 }} />
-                    </div>
-                    <span>Templates</span>
-                  </button>
-                </div>
-                <div className="ribbon-group-label">Library</div>
-              </div>
-
-              {/* 9. Output Conversion */}
-              <div className="ribbon-section">
-                <div className="ribbon-controls">
-                  <button
-                    className="ribbon-btn-large"
-                    onClick={() => setShowExportImageModal(true)}
-                    title="Xuất bảng tính ra ảnh PNG chất lượng cao"
-                  >
-                    <Image size={18} color="#059669" />
-                    <span>Export<br/>to image ▾</span>
-                  </button>
-                  <button
-                    className="ribbon-btn-large"
-                    onClick={() => setShowSplitModal(true)}
-                    title="Tách các trang tính thành tệp riêng"
-                  >
-                    <Split size={18} color="#d97706" />
-                    <span>Split ▾</span>
-                  </button>
-                  <button
-                    className="ribbon-btn-large"
-                    onClick={() => setShowMergeModal(true)}
-                    title="Gộp nhiều trang tính / tệp vào sổ tính"
-                  >
-                    <Layers size={18} color="#2563eb" />
-                    <span>Merge ▾</span>
-                  </button>
-                </div>
-                <div className="ribbon-group-label">Output Conversion</div>
-              </div>
-
-              {/* 10. Minh PDF */}
-              <div className="ribbon-section">
-                <div className="ribbon-controls">
-                  <button
-                    className="ribbon-btn-large"
-                    onClick={() => setShowMinhPdfModal(true)}
-                    title="Tạo tệp PDF từ bảng tính"
-                  >
-                    <FileCheck size={18} color="#dc2626" />
-                    <span>Create<br/>PDF</span>
-                  </button>
-                  <button
-                    className="ribbon-btn-large"
-                    onClick={() => setShowMinhPdfModal(true)}
-                    title="Ký số điện tử & Đóng dấu xác thực"
-                  >
-                    <FileSignature size={18} color="#475569" />
-                    <span>Sign</span>
-                  </button>
-                </div>
-                <div className="ribbon-group-label">Minh PDF</div>
-              </div>
-
-              <div className="ribbon-section">
-                <div className="ribbon-controls">
-                  <button
-                    className="ribbon-btn-large"
-                    onClick={() => {
-                      setShowAiModal(true);
-                      setAssistantResponse(null);
-                    }}
-                    title="Minh AI: Trợ lý trí tuệ nhân tạo toàn năng (Phân tích dữ liệu, Viết công thức, Claude & ChatGPT)"
-                  >
-                    <div style={{ position: 'relative' }}>
-                      <Sparkles size={20} color="#7c3aed" />
-                    </div>
-                    <span style={{ fontWeight: 600, color: '#6d28d9' }}>Minh AI</span>
-                  </button>
-                </div>
-                <div className="ribbon-group-label">Minh AI</div>
-              </div>
-            </>
-          )}
-
-          {/* Tab: File */}
-          {activeTab === 'file' && (
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '8px 12px' }}>
-              <button className="btn btn-sheet" onClick={handleSaveNow}>
-                <Save size={14} />
-                <span>Lưu sổ tính (Ctrl+S)</span>
-              </button>
-              <button className="btn" onClick={() => handleCreateSnapshot()}>
-                <Bookmark size={14} />
-                <span>Lưu bản chụp (Snapshot)</span>
-              </button>
-              <button className="btn" onClick={handleExportXlsx}>
-                <Download size={14} />
-                <span>Xuất Minh Sheets (.xlsx)</span>
-              </button>
-              <button className="btn" onClick={handleExportCsv}>
-                <Download size={14} />
-                <span>Xuất CSV</span>
-              </button>
-              <button className="btn" onClick={() => window.print()}>
-                <Printer size={14} />
-                <span>In / PDF</span>
-              </button>
-              <button className="btn" onClick={handleOpenHistory}>
-                <History size={14} />
-                <span>Lịch sử phiên bản</span>
-              </button>
-              <button className="btn" onClick={handleBack}>
-                <ArrowLeft size={14} />
-                <span>Về Trang chủ</span>
-              </button>
-            </div>
-          )}
-
-          {activeTab === 'minh_pdf' && (
-            <>
-              <div className="ribbon-section">
-                <div className="ribbon-controls">
-                  <button
-                    className="ribbon-btn-large"
-                    onClick={() => window.print()}
-                    title="Xuất file PDF chuẩn in ấn A4 (Ctrl+P)"
-                  >
-                    <FileCheck size={20} color="#dc2626" />
-                    <span>Create<br/>PDF</span>
-                  </button>
-                  <button
-                    className="ribbon-btn-large"
-                    onClick={() => ui.toast('Trình chiếu toàn màn hình bảng biểu')}
-                    title="Trình chiếu bảng tính"
-                  >
-                    <Presentation size={20} color="#dc2626" />
-                    <span>Create<br/>and play</span>
-                  </button>
-                  <button
-                    className="ribbon-btn-large"
-                    onClick={() => setShowShareModal(true)}
-                    title="Chia sẻ PDF bảng tính nhanh"
-                  >
-                    <Share2 size={20} color="#dc2626" />
-                    <span>Create<br/>and share</span>
-                  </button>
-                </div>
-                <div className="ribbon-group-label">Create PDF</div>
-              </div>
-
-              <div className="ribbon-section">
-                <div className="ribbon-controls">
-                  <button
-                    className="ribbon-btn-large"
-                    onClick={() => setShowMinhPdfModal(true)}
-                    title="Ký số & Đóng dấu điện tử"
-                  >
-                    <FileSignature size={20} color="#dc2626" />
-                    <span>Sign</span>
-                  </button>
-                  <button
-                    className="ribbon-btn-large"
-                    onClick={() => setShowSplitModal(true)}
-                    title="Tách trang / chia tách trang tính PDF"
-                  >
-                    <Split size={20} color="#475569" />
-                    <span>PDF<br/>Split</span>
-                  </button>
-                  <button
-                    className="ribbon-btn-large"
-                    onClick={() => setShowMergeModal(true)}
-                    title="Ghép nối tệp PDF hoặc bảng tính khác"
-                  >
-                    <Layers size={20} color="#475569" />
-                    <span>PDF<br/>Merge</span>
-                  </button>
-                  <button
-                    className="ribbon-btn-large"
-                    onClick={() => ui.toast('Thiết lập vùng in (Print Area) và canh lề trang')}
-                    title="Cắt / Đặt lề trang in"
-                  >
-                    <Grid size={20} color="#2563eb" />
-                    <span>Crop<br/>Pages</span>
-                  </button>
-                  <button
-                    className="ribbon-btn-large"
-                    onClick={() => ui.toast('Đã nén tối ưu hóa dung lượng sổ tính (-42%)')}
-                    title="Nén dung lượng PDF"
-                  >
-                    <Minimize2 size={20} color="#059669" />
-                    <span>PDF<br/>Compressor</span>
-                  </button>
-                  <button
-                    className="ribbon-btn-large"
-                    onClick={() => ui.toast('Đã xoá định dạng thừa và dữ liệu rác')}
-                    title="Tẩy xoá định dạng thừa"
-                  >
-                    <Eraser size={20} color="#64748b" />
-                    <span>Wipe<br/>Off</span>
-                  </button>
-                  <button
-                    className="ribbon-btn-large"
-                    onClick={() => ui.toast('Đã chọn công cụ vẽ hình khối & đường kẻ trên PDF')}
-                    title="Vẽ hình khối và đường kẻ"
-                  >
-                    <PenTool size={20} color="#6366f1" />
-                    <span>Draw<br/>Shapes</span>
-                  </button>
-                </div>
-                <div className="ribbon-group-label">Minh PDF Tools</div>
-              </div>
-
-              <div className="ribbon-section">
-                <div className="ribbon-controls">
-                  <button
-                    className="ribbon-btn-large"
-                    onClick={() => ui.toast('Đang xuất bảng tính sang tài liệu Minh Docs (.docx)…')}
-                    title="Chuyển bảng tính sang Word"
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <FileCheck size={16} color="#dc2626" />
-                      <span style={{ fontSize: 13, fontWeight: 900, color: '#185abd' }}>W</span>
-                    </div>
-                    <span>PDF to<br/>Word</span>
-                  </button>
-                  <button
-                    className="ribbon-btn-large"
-                    onClick={() => ui.toast('Bảng tính hiện tại đã là tệp chuẩn Minh Sheets (.xlsx)')}
-                    title="Bảng tính Excel chuẩn"
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <FileSpreadsheet size={16} color="#dc2626" />
-                      <span style={{ fontSize: 13, fontWeight: 900, color: '#107c41' }}>X</span>
-                    </div>
-                    <span>PDF to<br/>Excel</span>
-                  </button>
-                  <button
-                    className="ribbon-btn-large"
-                    onClick={() => ui.toast('Đang tạo bài thuyết trình biểu đồ PowerPoint (.pptx)…')}
-                    title="Chuyển sang slide PPT"
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Presentation size={16} color="#dc2626" />
-                      <span style={{ fontSize: 13, fontWeight: 900, color: '#ea580c' }}>P</span>
-                    </div>
-                    <span>PDF<br/>to PPT</span>
-                  </button>
-                  <button
-                    className="ribbon-btn-large"
-                    onClick={() => ui.toast('Đã tạo tệp PDF dạng ảnh chỉ đọc bảo mật!')}
-                    title="Chuyển thành tệp PDF dạng ảnh chỉ đọc"
-                  >
-                    <Image size={20} color="#475569" />
-                    <span>To Image-<br/>only PDF</span>
-                  </button>
-                  <button
-                    className="ribbon-btn-large"
-                    onClick={() => setShowExportImageModal(true)}
-                    title="Xuất bảng tính thành hình ảnh PNG sắc nét"
-                  >
-                    <Image size={20} color="#059669" />
-                    <span>PDF to<br/>Picture</span>
-                  </button>
-                  <button
-                    className="ribbon-btn-large"
-                    onClick={() => ui.toast('Nhận dạng số liệu OCR bảng tính tự động độ chính xác 99.8%')}
-                    title="Nhận dạng chữ quang học OCR"
-                  >
-                    <Search size={20} color="#7c3aed" />
-                    <span>OCR<br/>PDF</span>
-                  </button>
-                </div>
-                <div className="ribbon-group-label">Minh PDF Convert</div>
-              </div>
-
-              {/* 4. Group: Settings */}
-              <div className="ribbon-section">
-                <div className="ribbon-controls" style={{ padding: '0 8px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, cursor: 'pointer', userSelect: 'none' }}>
-                    <input type="checkbox" defaultChecked style={{ cursor: 'pointer' }} />
-                    <span>Keep Document<br/>Attributes</span>
-                  </label>
-                </div>
-                <div className="ribbon-group-label">Settings</div>
-              </div>
-
-              {/* 5. Group: Other */}
-              <div className="ribbon-section">
-                <div className="ribbon-controls">
-                  <button
-                    className="ribbon-btn-large"
-                    onClick={() => ui.toast('Mở rộng các thiết lập bảo mật và in ấn')}
-                    title="Thêm các thiết lập khác"
-                  >
-                    <span style={{ fontSize: 16 }}>☰</span>
-                    <span>More<br/>▾</span>
-                  </button>
-                </div>
-                <div className="ribbon-group-label">Other</div>
-              </div>
-            </>
-          )}
-
-          {/* Tab: Insert */}
-          {activeTab === 'insert' && (
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '6px 12px' }}>
-              <button className="ribbon-btn-large" onClick={() => setShowChartModal(true)}>
-                <BarChart3 size={20} color="#2563eb" />
-                <span>Chèn biểu đồ cột</span>
-              </button>
-              <button className="ribbon-btn-large" onClick={() => setShowChartModal(true)}>
-                <PieChart size={20} color="#e11d48" />
-                <span>Biểu đồ tròn</span>
-              </button>
-              <button className="ribbon-btn-large" onClick={() => setShowFormulaModal(true)}>
-                <Code2 size={20} color="#059669" />
-                <span>Chèn hàm fx</span>
-              </button>
-              <button className="ribbon-btn-large" onClick={() => setShowTemplatesModal(true)}>
-                <Table size={20} color="#d97706" />
-                <span>Bảng mẫu chuẩn</span>
-              </button>
-            </div>
-          )}
-
-          {/* Tab: Draw */}
-          {activeTab === 'draw' && (
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '6px 12px' }}>
-              <button className="ribbon-btn-large" onClick={() => ui.toast('Đã chọn bút vẽ tay số')}>
-                <Paintbrush size={20} color="#2563eb" />
-                <span>Bút viết</span>
-              </button>
-              <button className="ribbon-btn-large" onClick={() => ui.toast('Đã chọn bút đánh dấu màu vàng')}>
-                <Palette size={20} color="#f59e0b" />
-                <span>Dạ quang</span>
-              </button>
-              <button className="ribbon-btn-large" onClick={() => ui.toast('Đã chọn tẩy xoá nét vẽ')}>
-                <Eraser size={20} color="#64748b" />
-                <span>Tẩy vẽ</span>
-              </button>
-            </div>
-          )}
-
-          {/* Tab: Page Layout */}
-          {activeTab === 'page_layout' && (
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '6px 12px' }}>
-              <button className="ribbon-btn-large" onClick={() => ui.toast('Đặt hướng in: Khổ dọc')}>
-                <FileSpreadsheet size={20} color="#0284c7" />
-                <span>Khổ in dọc</span>
-              </button>
-              <button className="ribbon-btn-large" onClick={() => ui.toast('Đặt hướng in: Khổ ngang')}>
-                <FileSpreadsheet size={20} color="#0284c7" style={{ transform: 'rotate(90deg)' }} />
-                <span>Khổ in ngang</span>
-              </button>
-              <button className="ribbon-btn-large" onClick={() => ui.toast('Chọn vùng in cho bảng tính')}>
-                <Grid size={20} color="#16a34a" />
-                <span>Vùng in (Print Area)</span>
-              </button>
-              <button className="ribbon-btn-large" onClick={() => ui.toast('Đã bật hiển thị đường lưới in')}>
-                <Check size={20} color="#107c41" />
-                <span>Đường lưới (Gridlines)</span>
-              </button>
-            </div>
-          )}
-
-          {/* Tab: Formulas */}
-          {activeTab === 'formulas' && (
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '6px 12px' }}>
-              <button className="ribbon-btn-large" onClick={() => setShowFormulaModal(true)}>
-                <Code2 size={20} color="#107c41" />
-                <span>Thư viện hàm fx</span>
-              </button>
-              <button className="ribbon-btn-large" onClick={() => ui.toast('Tự động tính tổng nhanh =SUM()')}>
-                <span style={{ fontSize: 20, fontWeight: 700, color: '#107c41' }}>∑</span>
-                <span>AutoSum</span>
-              </button>
-              <button className="ribbon-btn-large" onClick={() => ui.toast('Đang kiểm tra và bẫy lỗi các ô công thức')}>
-                <Calculator size={20} color="#2563eb" />
-                <span>Kiểm tra lỗi</span>
-              </button>
-            </div>
-          )}
-
-          {/* Tab: Data */}
-          {activeTab === 'data' && (
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '6px 12px' }}>
-              <button className="ribbon-btn-large" onClick={() => ui.toast('Bật/Tắt bộ lọc tự động Filter')}>
-                <Filter size={20} color="#2563eb" />
-                <span>Lọc (Filter)</span>
-              </button>
-              <button className="ribbon-btn-large" onClick={() => ui.toast('Sắp xếp tăng dần A-Z')}>
-                <ArrowUpDown size={20} color="#16a34a" />
-                <span>Sắp xếp A-Z</span>
-              </button>
-              <button className="ribbon-btn-large" onClick={() => ui.toast('Mở công cụ xác thực dữ liệu ô (Data Validation)')}>
-                <CheckCircle2 size={20} color="#d97706" />
-                <span>Xác thực (Validation)</span>
-              </button>
-              <button className="ribbon-btn-large" onClick={() => ui.toast('Tự động phát hiện và loại bỏ dữ liệu trùng lặp')}>
-                <Trash2 size={20} color="#dc2626" />
-                <span>Xoá trùng lặp</span>
-              </button>
-            </div>
-          )}
-
-          {/* Tab: Review */}
-          {activeTab === 'review' && (
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '6px 12px' }}>
-              <button className="ribbon-btn-large" onClick={() => setShowComments(true)}>
-                <MessageSquare size={20} color="#2563eb" />
-                <span>Thêm bình luận</span>
-              </button>
-              <button className="ribbon-btn-large" onClick={() => ui.toast('Trang tính đang được bảo vệ chống sửa đổi trái phép')}>
-                <ShieldCheck size={20} color="#16a34a" />
-                <span>Bảo vệ trang tính</span>
-              </button>
-              <button className="ribbon-btn-large" onClick={() => ui.toast('Kiểm tra chính tả tiếng Việt: Đạt 100%')}>
-                <CheckCircle2 size={20} color="#059669" />
-                <span>Soát chính tả</span>
-              </button>
-            </div>
-          )}
-
-          {/* Tab: View */}
-          {activeTab === 'view' && (
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '6px 12px' }}>
-              <button className="ribbon-btn-large" onClick={() => ui.toast('Cố định dòng tiêu đề (Freeze Panes)')}>
-                <Table size={20} color="#0284c7" />
-                <span>Cố định dòng (Freeze)</span>
-              </button>
-              <button className="ribbon-btn-large" onClick={() => ui.toast('Thu phóng 100% chuẩn')}>
-                <Search size={20} color="#107c41" />
-                <span>Thu phóng 100%</span>
-              </button>
-              <button className="ribbon-btn-large" onClick={() => ui.toast('Hiện/Ẩn thanh công thức')}>
-                <Code2 size={20} color="#6366f1" />
-                <span>Thanh công thức</span>
-              </button>
-            </div>
-          )}
-
-          {/* Tab: Automate */}
-          {activeTab === 'automate' && (
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '6px 12px' }}>
-              <button className="ribbon-btn-large" onClick={() => ui.toast('Ghi thao tác Macro tự động')}>
-                <Bot size={20} color="#8b5cf6" />
-                <span>Ghi Macro</span>
-              </button>
-              <button className="ribbon-btn-large" onClick={() => ui.toast('Kịch bản tự động hoá tính toán báo cáo')}>
-                <Sparkles size={20} color="#ec4899" />
-                <span>Kịch bản tự động</span>
-              </button>
-            </div>
-          )}
-
-          {/* Tab: Help */}
-          {activeTab === 'help' && (
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '6px 12px' }}>
-              <button className="ribbon-btn-large" onClick={() => setShowHelpModal(true)}>
-                <HelpCircle size={20} color="#2563eb" />
-                <span>Phím tắt Minh Sheets</span>
-              </button>
-              <button className="ribbon-btn-large" onClick={() => setShowFormulaModal(true)}>
-                <Code2 size={20} color="#107c41" />
-                <span>Cẩm nang hàm fx</span>
-              </button>
-            </div>
-          )}
+      {showFormulaBar && !focusMode && (
+        <div className="sheet-formula-bar">
+          <input
+            className="sheet-name-box"
+            value={nameBoxText}
+            onChange={(e) => setNameBoxText(e.target.value.toUpperCase())}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleGoToRef(nameBoxText);
+                e.currentTarget.blur();
+              } else if (e.key === 'Escape') {
+                setNameBoxText(activeRangeA1);
+                e.currentTarget.blur();
+              }
+            }}
+            onBlur={() => setNameBoxText(activeRangeA1)}
+            title="Hộp toạ độ ô / Tên vùng (Nhấn Enter để nhảy tới ô)"
+          />
+          <button
+            className="sheet-fx-act"
+            title="Huỷ chỉnh sửa (Esc)"
+            onClick={() => {
+              formulaBarFocusedRef.current = false;
+              syncUiFromSelection();
+            }}
+          >
+            <X size={13} />
+          </button>
+          <button
+            className="sheet-fx-act"
+            title="Xác nhận giá trị / công thức (Enter)"
+            onClick={() => {
+              formulaBarFocusedRef.current = false;
+              handleCommitFormulaBar();
+            }}
+          >
+            <Check size={13} color="#107c41" />
+          </button>
+          <button
+            className="sheet-fx-btn"
+            title="Mở thư viện 54 hàm công thức Excel (fx)"
+            onClick={() => setModal('formulas')}
+          >
+            fx
+          </button>
+          <input
+            className="sheet-fx-input"
+            value={formulaBarText}
+            placeholder="Nhập giá trị hoặc công thức bắt đầu bằng dấu = (VD: =SUM(F4:F9))"
+            onFocus={() => {
+              formulaBarFocusedRef.current = true;
+            }}
+            onBlur={() => {
+              formulaBarFocusedRef.current = false;
+            }}
+            onChange={(e) => setFormulaBarText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                formulaBarFocusedRef.current = false;
+                handleCommitFormulaBar();
+                e.currentTarget.blur();
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                formulaBarFocusedRef.current = false;
+                syncUiFromSelection();
+                e.currentTarget.blur();
+              }
+            }}
+          />
         </div>
-      </div>
+      )}
 
-      {/* Main Workspace (Canvas + Comments Drawer) */}
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
-        {/* Univer Canvas Container */}
-        <div className="sheet-container" ref={containerRef} style={{ flex: 1 }} />
+      <div className="sheet-workspace">
+        <div
+          ref={containerRef}
+          className={`sheet-container ${!showFormulaBar ? 'sheet-hide-formula-bar' : ''}`}
+        />
 
-        {/* Comments Drawer (Lề phải) */}
         {showComments && (
           <aside className="doc-comments">
             <div className="comments-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <MessageSquare size={16} color="var(--primary)" />
-                <strong style={{ fontSize: 13 }}>Bình luận bảng tính</strong>
-              </div>
-              <button className="icon-btn" onClick={() => setShowComments(false)} title="Đóng">
-                <X size={15} />
+              <h3>
+                <MessageSquare size={15} color="#107c41" />
+                <span>Thảo luận ô ({comments.length})</span>
+              </h3>
+              <button className="icon-btn" onClick={() => setShowComments(false)} aria-label="Đóng">
+                <X size={16} />
               </button>
             </div>
 
-            {/* Form tạo bình luận mới */}
-            <div style={{ padding: 12, borderBottom: '1px solid var(--line)', background: '#fafbfc' }}>
-              <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', alignSelf: 'center' }}>Vị trí ô:</span>
-                <input
-                  className="text-field"
-                  style={{ width: 90, padding: '2px 6px', fontSize: 11 }}
-                  placeholder="vd: B2:D8"
-                  value={newCommentCell}
-                  onChange={(e) => setNewCommentCell(e.target.value)}
-                />
-              </div>
-              <textarea
-                className="text-field"
-                rows={2}
-                placeholder="Nhập nội dung góp ý cho bảng tính…"
-                value={newCommentText}
-                onChange={(e) => setNewCommentText(e.target.value)}
-                style={{ fontSize: 12, resize: 'vertical', marginBottom: 8 }}
-              />
-              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <button
-                  className="btn btn-sheet"
-                  style={{ fontSize: 11, padding: '3px 10px', height: 26 }}
-                  onClick={handleAddComment}
-                >
-                  <Send size={12} />
-                  <span>Gửi bình luận</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Danh sách bình luận */}
             <div className="comments-list">
-              {comments.length === 0 ? (
-                <div style={{ textAlign: 'center', color: 'var(--muted)', padding: '24px 12px', fontSize: 12 }}>
-                  Chưa có bình luận nào trên bảng tính.
-                </div>
-              ) : (
-                comments.map((c) => (
-                  <div key={c.id} className={`comment-card ${c.resolved ? 'resolved' : ''}`}>
-                    <div className="comment-meta">
-                      <div className="comment-author-badge">
-                        <span>{c.author.slice(0, 2).toUpperCase()}</span>
-                        <strong>{c.author}</strong>
+              {comments.map((c) => (
+                <div key={c.id} className={`comment-card ${c.resolved ? 'resolved' : ''}`}>
+                  <div className="comment-card-top">
+                    <div className="comment-author-badge">
+                      <div className="comment-avatar" style={{ background: '#107c41' }}>
+                        {c.author.slice(0, 1).toUpperCase()}
                       </div>
-                      <span className="comment-time">
-                        {new Date(c.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
-                      </span>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 700 }}>{c.author}</div>
+                        <div style={{ fontSize: 10.5, color: '#64748b' }}>
+                          {new Date(c.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </div>
                     </div>
+                    <button
+                      className="filter-tab"
+                      style={{ padding: '2px 7px', fontSize: 11, background: '#ecfdf5', color: '#065f46' }}
+                      title="Nhảy tới toạ độ ô này"
+                      onClick={() => handleGoToRef(c.quote || 'A1')}
+                    >
+                      Ô {c.quote || 'A1'}
+                    </button>
+                  </div>
 
-                    {c.quote && (
-                      <div className="comment-quote" style={{ background: '#e8f5e9', color: '#1b5e20' }}>
-                        📍 Vùng ô: <strong>{c.quote}</strong>
-                      </div>
-                    )}
+                  <div className="comment-text">{c.text}</div>
 
-                    <div className="comment-text">{c.text}</div>
+                  {c.replies && c.replies.length > 0 && (
+                    <div style={{ borderLeft: '2px solid #cbd5e1', paddingLeft: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {c.replies.map((rep) => (
+                        <div key={rep.id} style={{ fontSize: 11.5 }}>
+                          <strong>{rep.author}:</strong> {rep.text}
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
-                    {/* Phản hồi con */}
-                    {c.replies && c.replies.length > 0 && (
-                      <div className="comment-replies">
-                        {c.replies.map((r) => (
-                          <div key={r.id} className="comment-reply-item">
-                            <div style={{ fontWeight: 600, fontSize: 11 }}>{r.author}:</div>
-                            <div style={{ fontSize: 11.5, color: 'var(--ink)' }}>{r.text}</div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Hộp nhập trả lời */}
-                    {replyingCommentId === c.id && (
-                      <div style={{ marginTop: 8, display: 'flex', gap: 4 }}>
-                        <input
-                          className="text-field"
-                          style={{ flex: 1, fontSize: 11, padding: '3px 6px' }}
-                          placeholder="Trả lời bình luận…"
-                          value={replyText}
-                          onChange={(e) => setReplyText(e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && handleAddReply(c.id)}
-                          autoFocus
-                        />
-                        <button
-                          className="btn btn-sheet"
-                          style={{ fontSize: 11, padding: '2px 8px' }}
-                          onClick={() => handleAddReply(c.id)}
-                        >
-                          Gửi
-                        </button>
-                      </div>
-                    )}
-
+                  {replyingCommentId === c.id ? (
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <input
+                        className="text-field"
+                        style={{ padding: '4px 8px', fontSize: 11.5 }}
+                        placeholder="Nhập phản hồi…"
+                        value={replyText}
+                        onChange={(e) => setReplyText(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleAddReply(c.id)}
+                        autoFocus
+                      />
+                      <button className="btn btn-sheet" style={{ minHeight: 26, padding: '2px 8px' }} onClick={() => handleAddReply(c.id)}>
+                        <Send size={12} />
+                      </button>
+                    </div>
+                  ) : (
                     <div className="comment-actions">
                       <button
                         className="btn"
-                        style={{ fontSize: 10, padding: '2px 6px', height: 22 }}
-                        onClick={() => setReplyingCommentId(replyingCommentId === c.id ? null : c.id)}
+                        style={{ minHeight: 24, padding: '2px 8px', fontSize: 11 }}
+                        onClick={() => setReplyingCommentId(c.id)}
                       >
                         Trả lời
                       </button>
-                      <button
-                        className="btn"
-                        style={{ fontSize: 10, padding: '2px 6px', height: 22 }}
-                        onClick={() => handleToggleResolveComment(c.id)}
-                      >
-                        {c.resolved ? 'Mở lại' : 'Đã xử lý'}
-                      </button>
-                      <button
-                        className="icon-btn"
-                        style={{ width: 22, height: 22 }}
-                        onClick={() => handleDeleteComment(c.id)}
-                        title="Xoá"
-                      >
-                        <Trash2 size={11} />
-                      </button>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <button
+                          className="btn"
+                          style={{ minHeight: 24, padding: '2px 7px', fontSize: 11 }}
+                          onClick={() => {
+                            setComments((prev) =>
+                              prev.map((item) => (item.id === c.id ? { ...item, resolved: !item.resolved } : item))
+                            );
+                            setSavedStatus('saving');
+                          }}
+                        >
+                          <Check size={12} color="#16a34a" />
+                          <span>{c.resolved ? 'Mở lại' : 'Xong'}</span>
+                        </button>
+                        <button
+                          className="icon-btn"
+                          style={{ width: 24, height: 24, color: '#dc2626' }}
+                          onClick={() => {
+                            setComments((prev) => prev.filter((item) => item.id !== c.id));
+                            setSavedStatus('saving');
+                          }}
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))
-              )}
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="comment-new-box">
+              <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+                <input
+                  className="text-field"
+                  style={{ width: 88, padding: '5px 8px', fontSize: 11.5, fontWeight: 700 }}
+                  value={newCommentCell}
+                  onChange={(e) => setNewCommentCell(e.target.value)}
+                  title="Toạ độ ô gắn bình luận"
+                />
+                <input
+                  className="text-field"
+                  style={{ flex: 1, padding: '5px 8px', fontSize: 12 }}
+                  placeholder="Gắn bình luận vào ô đang chọn…"
+                  value={newCommentText}
+                  onChange={(e) => setNewCommentText(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAddComment()}
+                />
+              </div>
+              <button className="btn btn-sheet" style={{ width: '100%', minHeight: 30, fontSize: 12 }} onClick={handleAddComment}>
+                <Send size={13} />
+                <span>Gửi bình luận vào {newCommentCell || activeRangeA1}</span>
+              </button>
             </div>
           </aside>
         )}
       </div>
 
-      {showAiModal && (
-        <div className="dialog-backdrop" onClick={() => setShowAiModal(false)}>
-          <div className="dialog wide" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 720 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', padding: 7, borderRadius: 8, display: 'flex' }}>
-                  <Sparkles size={20} color="#ffffff" />
-                </div>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <h2 style={{ margin: 0 }}>Minh AI — Trợ lý Bảng tính Toàn năng</h2>
-                    <div style={{ display: 'flex', background: '#f1f5f9', padding: 2, borderRadius: 6, fontSize: 11 }}>
-                      <button
-                        onClick={() => setAiEngine('claude')}
-                        style={{
-                          border: 'none',
-                          background: aiEngine === 'claude' ? '#ffffff' : 'transparent',
-                          color: aiEngine === 'claude' ? '#d97706' : '#64748b',
-                          fontWeight: 600,
-                          padding: '2px 8px',
-                          borderRadius: 4,
-                          cursor: 'pointer',
-                          boxShadow: aiEngine === 'claude' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
-                        }}
-                      >
-                        ✴ Claude 3.7
-                      </button>
-                      <button
-                        onClick={() => setAiEngine('gpt')}
-                        style={{
-                          border: 'none',
-                          background: aiEngine === 'gpt' ? '#ffffff' : 'transparent',
-                          color: aiEngine === 'gpt' ? '#10a37f' : '#64748b',
-                          fontWeight: 600,
-                          padding: '2px 8px',
-                          borderRadius: 4,
-                          cursor: 'pointer',
-                          boxShadow: aiEngine === 'gpt' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
-                        }}
-                      >
-                        🤖 ChatGPT-4o
-                      </button>
-                    </div>
-                  </div>
-                  <div className="dialog-subtitle" style={{ marginTop: 2 }}>Phân tích số liệu, giải thích công thức và tự động hoá thông minh</div>
-                </div>
-              </div>
-              <button className="icon-btn" onClick={() => setShowAiModal(false)}>
-                <X size={18} />
-              </button>
-            </div>
-
-            {/* AI Modal Tabs */}
-            <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--line)', marginBottom: 14 }}>
-              <button
-                className={`btn ${aiActiveTab === 'assistant' ? 'btn-sheet' : ''}`}
-                style={{ fontSize: 12, padding: '6px 14px', borderRadius: '6px 6px 0 0', borderBottom: 'none' }}
-                onClick={() => setAiActiveTab('assistant')}
-              >
-                💬 Trợ lý Hội thoại
-              </button>
-              <button
-                className={`btn ${aiActiveTab === 'analysis' ? 'btn-sheet' : ''}`}
-                style={{ fontSize: 12, padding: '6px 14px', borderRadius: '6px 6px 0 0', borderBottom: 'none' }}
-                onClick={() => setAiActiveTab('analysis')}
-              >
-                📊 Phân tích Số liệu
-              </button>
-              <button
-                className={`btn ${aiActiveTab === 'formula' ? 'btn-sheet' : ''}`}
-                style={{ fontSize: 12, padding: '6px 14px', borderRadius: '6px 6px 0 0', borderBottom: 'none' }}
-                onClick={() => setAiActiveTab('formula')}
-              >
-                ⚡ Gợi ý Công thức & Gỡ lỗi
-              </button>
-            </div>
-
-            {/* Tab 1: AI Assistant Chat */}
-            {aiActiveTab === 'assistant' && (
-              <div>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-                  <button
-                    className="btn"
-                    style={{ fontSize: 11, padding: '3px 8px' }}
-                    onClick={() => handleRunAiAssistant('Viết công thức XLOOKUP thay thế cho VLOOKUP')}
-                  >
-                    ⚡ Công thức XLOOKUP
-                  </button>
-                  <button
-                    className="btn"
-                    style={{ fontSize: 11, padding: '3px 8px' }}
-                    onClick={() => handleRunAiAssistant('Công thức tính tổng SUMIFS theo nhiều điều kiện ngày tháng')}
-                  >
-                    ⚡ Tính tổng SUMIFS
-                  </button>
-                  <button
-                    className="btn"
-                    style={{ fontSize: 11, padding: '3px 8px' }}
-                    onClick={() => handleRunAiAssistant('Cách sửa lỗi công thức #VALUE! và #REF!')}
-                  >
-                    ⚡ Sửa lỗi #VALUE!
-                  </button>
-                  <button
-                    className="btn"
-                    style={{ fontSize: 11, padding: '3px 8px' }}
-                    onClick={() => handleRunAiAssistant('Phân tích số liệu và đưa ra nhận xét')}
-                  >
-                    ⚡ Nhận xét số liệu
-                  </button>
-                </div>
-
-                <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
-                  <input
-                    className="text-field"
-                    placeholder={`Hỏi ${aiEngine === 'claude' ? 'Claude' : 'ChatGPT'} về công thức, phân tích hay cách lập bảng tính…`}
-                    value={assistantPrompt}
-                    onChange={(e) => setAssistantPrompt(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleRunAiAssistant()}
-                    style={{ flex: 1, fontSize: 12.5 }}
-                    autoFocus
-                  />
-                  <button
-                    className="btn btn-sheet"
-                    onClick={() => handleRunAiAssistant()}
-                    disabled={isAssistantLoading}
-                  >
-                    {isAssistantLoading ? 'Đang phân tích…' : 'Gửi'}
-                  </button>
-                </div>
-
-                {assistantResponse && (
-                  <div
-                    style={{
-                      background: '#f8fafc',
-                      border: '1px solid var(--line)',
-                      borderRadius: 8,
-                      padding: 14,
-                      fontSize: 12.5,
-                      lineHeight: 1.6,
-                      whiteSpace: 'pre-wrap',
-                      maxHeight: '38vh',
-                      overflowY: 'auto',
-                    }}
-                  >
-                    {assistantResponse}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Tab 2: AI Data Analysis */}
-            {aiActiveTab === 'analysis' && (
-              <div>
-                {/* KPI Cards Grid */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 14 }}>
-                  <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: 12 }}>
-                    <div style={{ fontSize: 11, color: '#166534', fontWeight: 600 }}>TỔNG NGÂN SÁCH QUÝ</div>
-                    <div style={{ fontSize: 20, fontWeight: 700, color: '#15803d', marginTop: 4 }}>734.000.000 ₫</div>
-                    <div style={{ fontSize: 11, color: '#16a34a', marginTop: 2 }}>↑ Tăng 14.8% so với quý trước</div>
-                  </div>
-
-                  <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: 12 }}>
-                    <div style={{ fontSize: 11, color: '#1e40af', fontWeight: 600 }}>CHI TIÊU BÌNH QUÂN/THÁNG</div>
-                    <div style={{ fontSize: 20, fontWeight: 700, color: '#1d4ed8', marginTop: 4 }}>244.666.667 ₫</div>
-                    <div style={{ fontSize: 11, color: '#2563eb', marginTop: 2 }}>Biến động ổn định ±3.2%</div>
-                  </div>
-
-                  <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: 12 }}>
-                    <div style={{ fontSize: 11, color: '#92400e', fontWeight: 600 }}>HẠNG MỤC CAO NHẤT</div>
-                    <div style={{ fontSize: 20, fontWeight: 700, color: '#b45309', marginTop: 4 }}>Nhân sự (51%)</div>
-                    <div style={{ fontSize: 11, color: '#d97706', marginTop: 2 }}>Tháng 12 đạt đỉnh giải ngân</div>
-                  </div>
-                </div>
-
-                {/* AI Insights & Recommendations */}
-                <div style={{ background: '#fafbfc', border: '1px solid var(--line)', borderRadius: 8, padding: 14, marginBottom: 14 }}>
-                  <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Sparkles size={15} color="#8b5cf6" />
-                    <span>Nhận định tài chính từ mô hình Minh AI:</span>
-                  </div>
-                  <ul style={{ fontSize: 12.5, lineHeight: 1.6, paddingLeft: 20, margin: 0, color: '#334155' }}>
-                    <li>
-                      <strong>Tối ưu hóa ngân sách Marketing:</strong> Tỷ lệ chi tiêu marketing tháng 12 tăng lên 75 triệu, mang lại hiệu suất chuyển đổi tốt nhất năm.
-                    </li>
-                    <li>
-                      <strong>Kiểm soát chi phí cố định:</strong> Chi phí vận hành văn phòng duy trì đều đặn ở ngưỡng 18 - 20 triệu, quản lý ngân sách rất chặt chẽ.
-                    </li>
-                    <li>
-                      <strong>Đề xuất chiến lược quý I/2027:</strong> Dự phòng thêm 10% quỹ công nghệ để phục vụ nâng cấp máy chủ nội bộ.
-                    </li>
-                  </ul>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-                  <button
-                    className="btn"
-                    onClick={() => {
-                      navigator.clipboard.writeText('BÁO CÁO PHÂN TÍCH DỮ LIỆU BẢNG TÍNH:\n- Tổng ngân sách: 734.000.000 ₫ (+14.8%)\n- Chi tiêu bình quân: 244.666.667 ₫/tháng\n- Hạng mục trọng điểm: Nhân sự (51%), Marketing (24%)');
-                      ui.toast('Đã sao chép báo cáo phân tích vào clipboard!');
-                    }}
-                  >
-                    <Copy size={14} />
-                    <span>Sao chép tóm tắt báo cáo</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Tab 3: Formula Generator & Error Fixer */}
-            {aiActiveTab === 'formula' && (
-              <div>
-                <div style={{ background: '#f8fafc', border: '1px solid var(--line)', borderRadius: 8, padding: 14, marginBottom: 14 }}>
-                  <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8, color: '#0f172a' }}>
-                    ⚡ Đề xuất công thức tối ưu cho bảng tính hiện tại:
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    <div style={{ background: '#ffffff', padding: 10, borderRadius: 6, border: '1px solid #e2e8f0' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <code style={{ fontSize: 12, fontWeight: 700, color: '#107c41' }}>=XLOOKUP(A2, DanhSach!A:A, DanhSach!D:D, "Không tìm thấy", 0)</code>
-                        <button
-                          className="btn"
-                          style={{ fontSize: 11, padding: '2px 8px' }}
-                          onClick={() => {
-                            navigator.clipboard.writeText('=XLOOKUP(A2, DanhSach!A:A, DanhSach!D:D, "Không tìm thấy", 0)');
-                            ui.toast('Đã sao chép công thức XLOOKUP!');
-                          }}
-                        >
-                          Chép
-                        </button>
-                      </div>
-                      <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 4 }}>Tra cứu giá trị chính xác và tự động bẫy lỗi thay thế VLOOKUP cũ.</div>
-                    </div>
-
-                    <div style={{ background: '#ffffff', padding: 10, borderRadius: 6, border: '1px solid #e2e8f0' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <code style={{ fontSize: 12, fontWeight: 700, color: '#107c41' }}>=SUMIFS(E:E, B:B, "Nhân sự", C:C, "&gt;=100000000")</code>
-                        <button
-                          className="btn"
-                          style={{ fontSize: 11, padding: '2px 8px' }}
-                          onClick={() => {
-                            navigator.clipboard.writeText('=SUMIFS(E:E, B:B, "Nhân sự", C:C, ">=100000000")');
-                            ui.toast('Đã sao chép công thức SUMIFS!');
-                          }}
-                        >
-                          Chép
-                        </button>
-                      </div>
-                      <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 4 }}>Tính tổng ngân sách cho phòng ban Nhân sự với chi phí trên 100 triệu.</div>
-                    </div>
-
-                    <div style={{ background: '#ffffff', padding: 10, borderRadius: 6, border: '1px solid #e2e8f0' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <code style={{ fontSize: 12, fontWeight: 700, color: '#107c41' }}>=IFERROR(A1/B1, 0)</code>
-                        <button
-                          className="btn"
-                          style={{ fontSize: 11, padding: '2px 8px' }}
-                          onClick={() => {
-                            navigator.clipboard.writeText('=IFERROR(A1/B1, 0)');
-                            ui.toast('Đã sao chép công thức IFERROR!');
-                          }}
-                        >
-                          Chép
-                        </button>
-                      </div>
-                      <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 4 }}>Tự động bẫy lỗi chia cho 0 hoặc ô rỗng.</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
-              <button className="btn btn-sheet" onClick={() => setShowAiModal(false)}>
-                Đóng
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 2: Templates Library Modal */}
-      {showTemplatesModal && (
-        <div className="dialog-backdrop" onClick={() => setShowTemplatesModal(false)}>
-          <div className="dialog wide" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 720 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div>
-                <h2>Thư viện mẫu bảng tính chuẩn doanh nghiệp</h2>
-                <div className="dialog-subtitle">Chọn mẫu biểu được thiết lập sẵn công thức và định dạng chuyên nghiệp</div>
-              </div>
-              <button className="icon-btn" onClick={() => setShowTemplatesModal(false)}>
-                <X size={18} />
-              </button>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-              <div
-                style={{
-                  border: '1px solid var(--line)',
-                  borderRadius: 8,
-                  padding: 14,
-                  cursor: 'pointer',
-                  background: '#f8fafc',
-                  transition: 'all 0.15s ease',
-                }}
-                onClick={() => handleLoadTemplate('budget')}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <div style={{ background: '#dcfce7', padding: 6, borderRadius: 6 }}>
-                    <DollarSign size={18} color="#16a34a" />
-                  </div>
-                  <strong style={{ fontSize: 13 }}>Kế hoạch Ngân sách quý</strong>
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
-                  Bảng theo dõi chi phí các phòng ban, công thức tự động tính tổng SUM, trung bình AVERAGE và tỷ trọng chi tiêu.
-                </div>
-              </div>
-
-              <div
-                style={{
-                  border: '1px solid var(--line)',
-                  borderRadius: 8,
-                  padding: 14,
-                  cursor: 'pointer',
-                  background: '#f8fafc',
-                  transition: 'all 0.15s ease',
-                }}
-                onClick={() => handleLoadTemplate('payroll')}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <div style={{ background: '#e0e7ff', padding: 6, borderRadius: 6 }}>
-                    <Table size={18} color="#4338ca" />
-                  </div>
-                  <strong style={{ fontSize: 13 }}>Bảng chấm công & tính lương</strong>
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
-                  Tự động tính ngày công thực tế, phụ cấp trách nhiệm, tổng thu nhập và thực lĩnh làm tròn số chuẩn kế toán.
-                </div>
-              </div>
-
-              <div
-                style={{
-                  border: '1px solid var(--line)',
-                  borderRadius: 8,
-                  padding: 14,
-                  cursor: 'pointer',
-                  background: '#f8fafc',
-                  transition: 'all 0.15s ease',
-                }}
-                onClick={() => handleLoadTemplate('sales')}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <div style={{ background: '#dbeafe', padding: 6, borderRadius: 6 }}>
-                    <TrendingUp size={18} color="#1d4ed8" />
-                  </div>
-                  <strong style={{ fontSize: 13 }}>Báo cáo Doanh số & KPI</strong>
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
-                  Theo dõi doanh số theo khu vực Bắc - Trung - Nam, tự động đánh giá chỉ tiêu KPI và tỷ lệ phần trăm vượt kế hoạch.
-                </div>
-              </div>
-
-              <div
-                style={{
-                  border: '1px solid var(--line)',
-                  borderRadius: 8,
-                  padding: 14,
-                  cursor: 'pointer',
-                  background: '#f8fafc',
-                  transition: 'all 0.15s ease',
-                }}
-                onClick={() => handleLoadTemplate('inventory')}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <div style={{ background: '#ffedd5', padding: 6, borderRadius: 6 }}>
-                    <Boxes size={18} color="#c2410c" />
-                  </div>
-                  <strong style={{ fontSize: 13 }}>Quản lý Kho hàng & Tồn kho</strong>
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
-                  Theo dõi xuất - nhập - tồn từng mã SKU, tính tổng giá trị hàng tồn và tự động cảnh báo khi chạm định mức an toàn.
-                </div>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}>
-              <button className="btn" onClick={() => setShowTemplatesModal(false)}>
-                Đóng
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 3: Export to Image Modal */}
-      {showExportImageModal && (
-        <div className="dialog-backdrop" onClick={() => setShowExportImageModal(false)}>
-          <div className="dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 500 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div>
-                <h2>Xuất bảng tính thành tệp ảnh (PNG)</h2>
-                <div className="dialog-subtitle">Tạo ảnh chụp sắc nét độ phân giải cao phục vụ thuyết trình và báo cáo</div>
-              </div>
-              <button className="icon-btn" onClick={() => setShowExportImageModal(false)}>
-                <X size={18} />
-              </button>
-            </div>
-
-            <div style={{ background: '#f8fafc', padding: 14, borderRadius: 8, border: '1px solid var(--line)', marginBottom: 16 }}>
-              <div style={{ fontSize: 12, color: 'var(--ink)', marginBottom: 8 }}>Chọn phạm vi chụp ảnh:</div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, marginBottom: 6, cursor: 'pointer' }}>
-                <input type="radio" name="exportScope" defaultChecked />
-                <span>Toàn bộ dữ liệu bảng tính đang mở</span>
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, cursor: 'pointer' }}>
-                <input type="radio" name="exportScope" />
-                <span>Vùng ô đang chọn (Selection area)</span>
-              </label>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <button className="btn" onClick={() => setShowExportImageModal(false)}>
-                Huỷ
-              </button>
-              <button
-                className="btn btn-sheet"
-                onClick={() => {
-                  setShowExportImageModal(false);
-                  ui.toast('Đã chụp và tải ảnh bảng tính thành công (HD 300 DPI)!');
-                }}
-              >
-                <Download size={14} />
-                <span>Tải ảnh PNG</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 4: Split / Merge Modals */}
-      {showSplitModal && (
-        <div className="dialog-backdrop" onClick={() => setShowSplitModal(false)}>
-          <div className="dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h2>Tách trang tính (Split Sheet)</h2>
-              <button className="icon-btn" onClick={() => setShowSplitModal(false)}>
-                <X size={18} />
-              </button>
-            </div>
-            <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>
-              Hệ thống sẽ trích xuất từng tab trang tính thành các tệp bảng tính độc lập (.xlsx).
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <button className="btn" onClick={() => setShowSplitModal(false)}>
-                Đóng
-              </button>
-              <button
-                className="btn btn-sheet"
-                onClick={() => {
-                  setShowSplitModal(false);
-                  ui.toast('Đã tách thành công các trang tính thành tệp riêng');
-                }}
-              >
-                Tiến hành tách
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showMergeModal && (
-        <div className="dialog-backdrop" onClick={() => setShowMergeModal(false)}>
-          <div className="dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h2>Gộp bảng tính (Merge Workbooks)</h2>
-              <button className="icon-btn" onClick={() => setShowMergeModal(false)}>
-                <X size={18} />
-              </button>
-            </div>
-            <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>
-              Chọn các tệp bảng tính khác để gộp thêm các trang tính mới vào sổ tính hiện tại.
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <button className="btn" onClick={() => setShowMergeModal(false)}>
-                Đóng
-              </button>
-              <button
-                className="btn btn-sheet"
-                onClick={() => {
-                  setShowMergeModal(false);
-                  ui.toast('Đã gộp trang tính thành công vào sổ tính');
-                }}
-              >
-                Gộp tệp
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 5: Minh PDF Sign Modal */}
-      {showMinhPdfModal && (
-        <div className="dialog-backdrop" onClick={() => setShowMinhPdfModal(false)}>
-          <div className="dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <FileSignature size={20} color="#dc2626" />
-                <div>
-                  <h2>Minh PDF — Ký số & Đóng dấu điện tử bảng tính</h2>
-                  <div className="dialog-subtitle">Xác thực chứng từ điện tử chuẩn văn phòng số</div>
-                </div>
-              </div>
-              <button className="icon-btn" onClick={() => setShowMinhPdfModal(false)}>
-                <X size={18} />
-              </button>
-            </div>
-
-            <div style={{ background: '#f8fafc', padding: 14, borderRadius: 8, border: '1px solid var(--line)', marginBottom: 16 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Chứng thư số xác thực:</div>
-              <div style={{ fontSize: 12, color: 'var(--ink)' }}>• Người ký: <strong>Bùi Đăng Minh (Giám đốc)</strong></div>
-              <div style={{ fontSize: 12, color: 'var(--ink)' }}>• Đơn vị: CÔNG TY TNHH ĐẦU TƯ & THƯƠNG MẠI MINH SPARK</div>
-              <div style={{ fontSize: 12, color: 'var(--ink)' }}>• Thời điểm ký: {new Date().toLocaleString('vi-VN')}</div>
-              <div style={{ fontSize: 12, color: '#16a34a', marginTop: 4 }}>✔ Chứng thư số hợp lệ & đã được mã hoá bảo mật</div>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <button className="btn" onClick={() => setShowMinhPdfModal(false)}>
-                Huỷ
-              </button>
-              <button
-                className="btn btn-sheet"
-                onClick={() => {
-                  setShowMinhPdfModal(false);
-                  ui.toast('Đã hoàn tất đóng dấu ký số điện tử vào bảng tính!');
-                }}
-              >
-                <Check size={14} />
-                <span>Xác nhận ký số</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 7: Share Modal */}
-      {showShareModal && (
-        <div className="dialog-backdrop" onClick={() => setShowShareModal(false)}>
-          <div className="dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 500 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Share2 size={20} color="#107c41" />
-                <div>
-                  <h2>Chia sẻ bảng tính</h2>
-                  <div className="dialog-subtitle">Quản lý quyền truy cập và cộng tác an toàn</div>
-                </div>
-              </div>
-              <button className="icon-btn" onClick={() => setShowShareModal(false)}>
-                <X size={18} />
-              </button>
-            </div>
-
-            <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid var(--line)', marginBottom: 16 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Liên kết truy cập bảng tính:</div>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <input
-                  className="text-field"
-                  readOnly
-                  value={`http://localhost:5173/#sheet-${meta.id}`}
-                  style={{ flex: 1, fontSize: 11, background: '#fff' }}
-                />
-                <button
-                  className="btn btn-sheet"
-                  style={{ fontSize: 11 }}
-                  onClick={() => {
-                    navigator.clipboard.writeText(`http://localhost:5173/#sheet-${meta.id}`);
-                    ui.toast('Đã sao chép liên kết chia sẻ!');
-                  }}
-                >
-                  <CopyCheck size={13} />
-                  <span>Sao chép</span>
-                </button>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: 'var(--muted)' }}>
-              <span>Bảo mật: Hoạt động offline 100% tại máy chủ nội bộ.</span>
-              <button className="btn" onClick={() => setShowShareModal(false)}>
-                Đóng
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 8: Formula Library Modal */}
-      {showFormulaModal && (
-        <div className="dialog-backdrop" onClick={() => setShowFormulaModal(false)}>
-          <div className="dialog wide" onClick={(e) => e.stopPropagation()} style={{ maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div>
-                <h2>Thư viện hàm công thức Minh Sheets & Excel</h2>
-                <div className="dialog-subtitle">Hướng dẫn cú pháp, ý nghĩa và ví dụ áp dụng thực tế</div>
-              </div>
-              <button className="icon-btn" onClick={() => setShowFormulaModal(false)}>
-                <X size={18} />
-              </button>
-            </div>
-
-            <input
-              className="text-field"
-              placeholder="Tìm kiếm hàm (vd: SUM, VLOOKUP, IF, XLOOKUP, ROUND...)…"
-              value={formulaSearch}
-              onChange={(e) => setFormulaSearch(e.target.value)}
-              style={{ marginBottom: 14 }}
-              autoFocus
-            />
-
-            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10, paddingRight: 4 }}>
-              {filteredFormulas.map((f) => (
-                <div
-                  key={f.name}
-                  style={{
-                    background: '#f8fafd',
-                    border: '1px solid var(--line)',
-                    borderRadius: 8,
-                    padding: '12px 14px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 4,
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <strong style={{ fontSize: 14, color: 'var(--sheet)' }}>{f.name}</strong>
-                      <span style={{ fontSize: 10, background: '#e8f5e9', color: '#2e7d32', padding: '1px 6px', borderRadius: 4 }}>
-                        {f.group}
-                      </span>
-                    </div>
-                    <button
-                      className="btn"
-                      style={{ fontSize: 11, padding: '2px 8px', height: 26 }}
-                      onClick={() => {
-                        navigator.clipboard.writeText(f.syntax);
-                        ui.toast(`Đã sao chép cú pháp ${f.name}!`);
-                      }}
-                    >
-                      Sao chép cú pháp
-                    </button>
-                  </div>
-
-                  <code style={{ fontSize: 12, color: '#1565c0', background: '#eef3fc', padding: '3px 6px', borderRadius: 4, width: 'fit-content' }}>
-                    {f.syntax}
-                  </code>
-                  <div style={{ fontSize: 12, color: 'var(--ink)' }}>{f.desc}</div>
-                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>
-                    Ví dụ: <code style={{ color: '#555' }}>{f.example}</code>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
-              <button className="btn btn-sheet" onClick={() => setShowFormulaModal(false)}>
-                Đóng
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 9: Quick Chart Modal */}
-      {showChartModal && (
-        <div className="dialog-backdrop" onClick={() => setShowChartModal(false)}>
-          <div className="dialog wide" onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div>
-                <h2>Tạo biểu đồ trực quan từ dữ liệu bảng tính</h2>
-                <div className="dialog-subtitle">Biểu đồ tổng quan phân bổ ngân sách & chi tiêu các tháng</div>
-              </div>
-              <button className="icon-btn" onClick={() => setShowChartModal(false)}>
-                <X size={18} />
-              </button>
-            </div>
-
-            {/* Simulated Interactive Bar Chart */}
-            <div style={{ background: '#fafbfc', border: '1px solid var(--line)', borderRadius: 10, padding: 20 }}>
-              <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 16, textAlign: 'center', color: '#1e3a2f' }}>
-                BIỂU ĐỒ CHI TIÊU CÁC HẠNG MỤC (Đơn vị: Triệu đồng)
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 20, height: 200, borderBottom: '2px solid #ccc', paddingBottom: 10, justifyContent: 'center' }}>
-                {[
-                  { label: 'Nhân sự', val: 375, color: '#267863' },
-                  { label: 'Marketing', val: 180, color: '#3d9970' },
-                  { label: 'Công nghệ', val: 95, color: '#2ecc71' },
-                  { label: 'Văn phòng', val: 56, color: '#27ae60' },
-                  { label: 'Khác', val: 28, color: '#82c91e' },
-                ].map((item) => (
-                  <div key={item.label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 70 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 4, color: item.color }}>{item.val} tr</div>
-                    <div
-                      style={{
-                        width: 48,
-                        height: `${(item.val / 400) * 160}px`,
-                        background: item.color,
-                        borderRadius: '4px 4px 0 0',
-                        transition: 'height 0.4s ease',
-                      }}
-                    />
-                    <div style={{ fontSize: 11, marginTop: 8, textAlign: 'center', fontWeight: 500 }}>{item.label}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 18 }}>
-              <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-                Dữ liệu được trích xuất tự động từ bảng tính đang mở
+      {showStatusBar && !focusMode && (
+        <footer className="sheet-status-bar">
+          <div className="sheet-status-left">
+            <span className="sheet-stat-pill" style={{ fontWeight: 700, color: '#065f46', background: '#ecfdf5', borderColor: '#a7f3d0' }}>
+              {activeSheetName} · {activeRangeA1}
+            </span>
+            {isProtected && (
+              <span className="sheet-stat-pill" style={{ color: '#991b1b', background: '#fef2f2', borderColor: '#fecaca' }}>
+                <Lock size={11} />
+                <span>Chỉ đọc</span>
               </span>
-              <button className="btn btn-sheet" onClick={() => setShowChartModal(false)}>
-                Đóng biểu đồ
+            )}
+            {hasFilter && <span className="sheet-stat-pill">Đang bật Lọc</span>}
+            {isFrozen && <span className="sheet-stat-pill">Cố định khung</span>}
+            {cfRuleCount > 0 && <span className="sheet-stat-pill">Định dạng ĐK: {cfRuleCount}</span>}
+            {printSettings.signedBy && (
+              <span className="sheet-stat-pill" style={{ color: '#b91c1c' }}>
+                Đã ký: {printSettings.signedBy}
+              </span>
+            )}
+          </div>
+
+          <div className="sheet-status-right">
+            {selStats.count > 0 && (
+              <>
+                <span className="sheet-stat-pill">Đếm: <strong>{selStats.count}</strong></span>
+                {selStats.numericCount > 0 && (
+                  <>
+                    <span className="sheet-stat-pill">
+                      Tổng: <strong style={{ color: '#107c41' }}>{Math.round(selStats.sum * 100) / 100 === selStats.sum ? selStats.sum.toLocaleString('en-US') : selStats.sum.toFixed(2)}</strong>
+                    </span>
+                    <span className="sheet-stat-pill">
+                      TB: <strong>{(Math.round(selStats.avg * 100) / 100).toLocaleString('en-US')}</strong>
+                    </span>
+                    {selStats.numericCount > 1 && (
+                      <span className="sheet-stat-pill">
+                        Min..Max: <strong>{selStats.min.toLocaleString('en-US')} .. {selStats.max.toLocaleString('en-US')}</strong>
+                      </span>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+              <button
+                className="icon-btn"
+                style={{ width: 22, height: 22 }}
+                onClick={() => handleSetZoom(zoomPct - 10)}
+                title="Thu nhỏ"
+              >
+                <ZoomOut size={13} />
+              </button>
+              <button
+                className="sheet-stat-pill"
+                style={{ cursor: 'pointer', minWidth: 46, justifyContent: 'center' }}
+                onClick={() => handleSetZoom(100)}
+                title="Đặt lại 100%"
+              >
+                {zoomPct}%
+              </button>
+              <button
+                className="icon-btn"
+                style={{ width: 22, height: 22 }}
+                onClick={() => handleSetZoom(zoomPct + 10)}
+                title="Phóng to"
+              >
+                <ZoomIn size={13} />
               </button>
             </div>
           </div>
-        </div>
+        </footer>
       )}
 
-      {/* MODAL 10: Help & Shortcuts Modal */}
-      {showHelpModal && (
-        <div className="dialog-backdrop" onClick={() => setShowHelpModal(false)}>
-          <div className="dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 640 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div>
-                <h2>Phím tắt & Hướng dẫn Minh Sheets</h2>
-                <div className="dialog-subtitle">Các phím tắt thông dụng giúp tăng tốc độ thao tác dữ liệu</div>
-              </div>
-              <button className="icon-btn" onClick={() => setShowHelpModal(false)}>
-                <X size={18} />
-              </button>
-            </div>
+      <div className="sheet-print-host" dangerouslySetInnerHTML={{ __html: printHostHtml }} />
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
-              {[
-                { key: 'Ctrl + S', desc: 'Lưu bảng tính vào bộ nhớ an toàn' },
-                { key: 'Ctrl + C / V', desc: 'Sao chép và Dán giá trị ô' },
-                { key: 'Ctrl + Z / Y', desc: 'Hoàn tác và Làm lại thao tác' },
-                { key: 'F2', desc: 'Chỉnh sửa nội dung ô hiện tại' },
-                { key: 'Ctrl + F', desc: 'Tìm kiếm dữ liệu trong bảng tính' },
-                { key: 'Ctrl + P', desc: 'In hoặc xuất bảng tính ra PDF' },
-                { key: 'Tab / Shift + Tab', desc: 'Di chuyển sang ô bên phải / bên trái' },
-                { key: 'Enter', desc: 'Xác nhận và xuống dòng tiếp theo' },
-                { key: 'Ctrl + Shift + %', desc: 'Định dạng phần trăm' },
-                { key: 'Ctrl + Shift + $', desc: 'Định dạng tiền tệ' },
-              ].map((item) => (
-                <div
-                  key={item.key}
-                  style={{
-                    background: '#f8fafd',
-                    padding: '8px 12px',
-                    borderRadius: 6,
-                    border: '1px solid var(--line)',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                  }}
-                >
-                  <span style={{ fontSize: 12, color: 'var(--text)' }}>{item.desc}</span>
-                  <kbd
-                    style={{
-                      background: '#ffffff',
-                      border: '1px solid #cbd5e1',
-                      borderRadius: 4,
-                      padding: '2px 6px',
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color: '#0f172a',
-                    }}
-                  >
-                    {item.key}
-                  </kbd>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button className="btn btn-sheet" onClick={() => setShowHelpModal(false)}>
-                Đã hiểu
-              </button>
-            </div>
-          </div>
-        </div>
+      {modal === 'formulas' && (
+        <FormulaLibraryModal
+          activeCellA1={activeCellA1}
+          activeRangeA1={activeRangeA1}
+          onInsert={handleInsertFormula}
+          onClose={() => setModal(null)}
+        />
       )}
 
-      {/* MODAL 11: Version History Modal */}
-      {showHistoryModal && (
-        <div className="dialog-backdrop" onClick={() => setShowHistoryModal(false)}>
-          <div className="dialog wide" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 640 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div>
-                <h2>Lịch sử phiên bản bảng tính</h2>
-                <div className="dialog-subtitle">Xem các bản lưu tự động và khôi phục về trạng thái trước đó của bảng tính</div>
-              </div>
-              <button className="icon-btn" onClick={() => setShowHistoryModal(false)}>
-                <X size={18} />
-              </button>
-            </div>
-
-            {/* Create Named Version Snapshot */}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 18, background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid var(--line)' }}>
-              <input
-                className="text-field"
-                placeholder="Đặt tên cho bản lưu hiện tại (vd: Chốt số liệu quý IV)…"
-                value={customVersionName}
-                onChange={(e) => setCustomVersionName(e.target.value)}
-                style={{ flex: 1, fontSize: 12 }}
-                onKeyDown={(e) => e.key === 'Enter' && handleCreateSnapshot()}
-              />
-              <button className="btn btn-sheet" onClick={() => handleCreateSnapshot()}>
-                <Bookmark size={14} />
-                <span>Lưu bản chụp</span>
-              </button>
-            </div>
-
-            <div style={{ maxHeight: '50vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, paddingRight: 4 }}>
-              {versions.length === 0 ? (
-                <div style={{ textAlign: 'center', color: 'var(--muted)', padding: '24px 0', fontSize: 13 }}>
-                  Chưa có phiên bản nào được lưu trong lịch sử. Bấm "Lưu bản chụp" ở trên để tạo snapshot đầu tiên!
-                </div>
-              ) : (
-                versions.map((v) => (
-                  <div
-                    key={v.id}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      padding: '10px 14px',
-                      background: '#ffffff',
-                      border: '1px solid var(--line)',
-                      borderRadius: 8,
-                      transition: 'border-color 0.15s ease',
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: 13, color: '#0f172a' }}>{v.label}</div>
-                      <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
-                        {new Date(v.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}{' '}
-                        - {new Date(v.timestamp).toLocaleDateString('vi-VN')}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button
-                        className="btn btn-sheet"
-                        style={{ fontSize: 11, padding: '4px 10px' }}
-                        onClick={() => handleRestoreVersion(v)}
-                        title="Khôi phục bảng tính về phiên bản này"
-                      >
-                        Khôi phục
-                      </button>
-                      <button
-                        className="icon-btn"
-                        style={{ width: 26, height: 26 }}
-                        onClick={() => handleDeleteVersion(v.id)}
-                        title="Xoá bản lưu này"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}>
-              <button className="btn" onClick={() => setShowHistoryModal(false)}>
-                Đóng
-              </button>
-            </div>
-          </div>
-        </div>
+      {modal === 'chart' && (
+        <ChartStudioModal
+          initialRange={modalSmartRange}
+          sheetName={activeSheetName}
+          readRangeValues={readRangeValuesByA1}
+          onEmbedToSheet={async (pngDataUrl, chartTitle) => {
+            await embedBase64ImageAtSelection(pngDataUrl, 500, 280);
+            ui.toast(`Đã nhúng biểu đồ "${chartTitle}" vào ${activeCellA1}`);
+          }}
+          onDownloadPng={async (pngDataUrl, chartTitle) => {
+            const res = await fetch(pngDataUrl);
+            const blob = await res.blob();
+            downloadBlob(blob, `${chartTitle}.png`);
+          }}
+          onClose={() => setModal(null)}
+        />
       )}
+
+      {modal === 'pivot' && (
+        <PivotBuilderModal
+          sourceRange={pivotSourceInfo.range}
+          headers={pivotSourceInfo.headers}
+          rowCount={pivotSourceInfo.rowCount}
+          defaultSheetName={`Pivot - ${activeSheetName.slice(0, 18)}`}
+          onCreatePivot={handleCreatePivotSheet}
+          onClose={() => setModal(null)}
+        />
+      )}
+
+      {modal === 'cf' && (
+        <ConditionalFormatModal
+          activeRangeA1={activeRangeA1}
+          ruleCount={cfRuleCount}
+          onApply={handleApplyConditionalRule}
+          onClearSheetRules={handleClearSheetCfRules}
+          onClose={() => setModal(null)}
+        />
+      )}
+
+      {modal === 'dv' && (
+        <DataValidationModal
+          activeRangeA1={activeRangeA1}
+          onApply={handleApplyValidation}
+          onClearValidation={handleClearValidation}
+          onClose={() => setModal(null)}
+        />
+      )}
+
+      {(modal === 'find' || modal === 'goto') && (
+        <FindReplaceGoToModal
+          initialMode={modal}
+          definedNames={definedNames}
+          onFindAll={handleFindAll}
+          onReplaceOne={handleReplaceOne}
+          onReplaceAll={handleReplaceAll}
+          onGoToRef={handleGoToRef}
+          onClose={() => setModal(null)}
+        />
+      )}
+
+      {modal === 'signature' && (
+        <SignatureStampModal
+          defaultSigner={printSettings.signedBy ?? 'Bùi Đăng Minh'}
+          defaultRole={printSettings.signedRole ?? 'Giám đốc · Công ty Minh Spark'}
+          onEmbedSignature={handleEmbedSignature}
+          onSignAndSavePdf={handleSignAndSavePdf}
+          onClose={() => setModal(null)}
+        />
+      )}
+
+      {modal === 'pageSetup' && (
+        <PageSetupPreviewModal
+          workbook={liveSnapshotForModal}
+          sheet={
+            liveSnapshotForModal.sheets[modalActiveSheetId] ??
+            liveSnapshotForModal.sheets[liveSnapshotForModal.sheetOrder[0]]
+          }
+          title={stripSpreadsheetExt(title)}
+          activeRangeA1={activeRangeA1}
+          settings={printSettings}
+          onSaveSettings={(next) => {
+            setPrintSettings(next);
+            setSavedStatus('saving');
+            ui.toast('Đã lưu thiết lập trang in');
+          }}
+          onPrintNow={handleTriggerVectorPrint}
+          onDownloadHtml={handleDownloadPrintHtml}
+          onClose={() => setModal(null)}
+        />
+      )}
+
+      {modal === 'nameManager' && (
+        <NameManagerModal
+          activeRangeA1={activeRangeA1}
+          sheetName={activeSheetName}
+          definedNames={definedNames}
+          onAddName={(name, ref) => {
+            const ctx = getActiveContext();
+            if (!ctx) return;
+            ctx.fWorkbook.insertDefinedName(name, ref);
+            syncDefinedNames();
+            setSavedStatus('saving');
+            ui.toast(`Đã thêm tên vùng "${name}"`);
+          }}
+          onDeleteName={(name) => {
+            const ctx = getActiveContext();
+            if (!ctx) return;
+            ctx.fWorkbook.deleteDefinedName(name);
+            syncDefinedNames();
+            setSavedStatus('saving');
+          }}
+          onJumpToRef={(ref) => {
+            handleGoToRef(ref);
+          }}
+          onClose={() => setModal(null)}
+        />
+      )}
+
+      {modal === 'goalSeek' && (
+        <GoalSeekModal
+          activeCellA1={activeCellA1}
+          onRunGoalSeek={handleGoalSeek}
+          onClose={() => setModal(null)}
+        />
+      )}
+
+      {(modal === 'aiAnalysis' || modal === 'aiAudit' || modal === 'aiAssistant') && (
+        <AiAuditModal
+          initialTab={modal === 'aiAudit' ? 'audit' : modal === 'aiAssistant' ? 'assistant' : 'analysis'}
+          analysis={liveAnalysisForModal}
+          activeRangeA1={activeRangeA1}
+          onJumpToCell={(a1) => {
+            handleGoToRef(a1);
+          }}
+          onWrapErrorsWithIfError={() => {
+            handleWrapErrorsWithIfError();
+            setLiveAnalysisForModal(computeLiveAnalysis());
+          }}
+          onTrimAllSpaces={() => {
+            handleDataCleanup('trim');
+            setLiveAnalysisForModal(computeLiveAnalysis());
+          }}
+          onConvertTextNumbers={() => {
+            handleDataCleanup('toNumber');
+            setLiveAnalysisForModal(computeLiveAnalysis());
+          }}
+          onInsertFormula={handleInsertFormula}
+          onClose={() => setModal(null)}
+        />
+      )}
+
+      {(modal === 'split' || modal === 'merge' || modal === 'image') && (
+        <SplitMergeImageModal
+          mode={modal}
+          workbook={liveSnapshotForModal}
+          workspaceSheets={workspaceSheets}
+          onSplitSingle={handleSplitSingle}
+          onSplitAll={handleSplitAll}
+          onMergeFiles={handleMergeFiles}
+          onMergeWorkspaceSheet={handleMergeWorkspaceSheet}
+          onExportPng={handleExportPng}
+          onClose={() => setModal(null)}
+        />
+      )}
+
+      {modal === 'templates' && (
+        <TemplatesGalleryModal onSelectTemplate={handleSelectTemplate} onClose={() => setModal(null)} />
+      )}
+
+      {modal === 'history' && (
+        <VersionHistoryModal
+          versions={versions}
+          onCreateSnapshot={handleCreateSnapshot}
+          onRestore={handleRestoreVersion}
+          onDelete={handleDeleteVersion}
+          onClose={() => setModal(null)}
+        />
+      )}
+
+      {modal === 'share' && (
+        <ShareAndProtectModal
+          title={stripSpreadsheetExt(title)}
+          isProtected={isProtected}
+          onCopySummaryTsv={handleCopySummaryTsv}
+          onExportXlsx={handleExportXlsx}
+          onExportJson={handleExportJsonFile}
+          onToggleProtect={handleToggleProtect}
+          onClose={() => setModal(null)}
+        />
+      )}
+
+      {modal === 'help' && <HelpShortcutsModal onClose={() => setModal(null)} />}
     </div>
   );
 }

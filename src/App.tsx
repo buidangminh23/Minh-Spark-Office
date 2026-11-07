@@ -186,9 +186,12 @@ function MainApp() {
   };
 
   // Create new Excel Sheet
-  const handleCreateSheet = async (templateWorkbook?: any) => {
+  const handleCreateSheet = async (templateWorkbook?: SheetContent['workbook']) => {
     const id = `sheet-${Date.now()}`;
-    const name = templateWorkbook ? 'Bảng tính ngân sách.xlsx' : 'Bảng tính mới.xlsx';
+    const baseName = templateWorkbook?.name
+      ? templateWorkbook.name.replace(/\.(xlsx|xlsm|xls|csv|tsv)$/i, '')
+      : 'Bảng tính mới';
+    const name = `${baseName}.xlsx`;
     const meta: FileMeta = {
       id,
       name,
@@ -264,8 +267,8 @@ function MainApp() {
       ui.showBusy(`Đang xử lý ${file.name}…`);
       const buffer = await file.arrayBuffer();
       let bytes: Uint8Array<any> = new Uint8Array(buffer);
-      const isDoc = file.name.endsWith('.docx') || file.name.endsWith('.doc');
-      const isXls = file.name.endsWith('.xlsx') || file.name.endsWith('.xls') || file.name.endsWith('.csv');
+      const isDoc = /\.(docx|doc)$/i.test(file.name);
+      const isXls = /\.(xlsx|xlsm|xls|csv|tsv)$/i.test(file.name);
       const isPdf = file.name.toLowerCase().endsWith('.pdf');
 
       // Check if file is encrypted with MS Office agile encryption

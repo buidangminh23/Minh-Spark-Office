@@ -26,6 +26,8 @@ import {
   meetingMinutesDocHtml,
   sampleWorkbook,
   payrollWorkbook,
+  cashbookWorkbook,
+  projectEstimateWorkbook,
 } from '../lib/templates';
 
 interface HomeProps {
@@ -461,7 +463,7 @@ export default function Home({
             <label className="btn btn-primary" style={{ cursor: 'pointer' }}>
               <Upload size={15} />
               <span>Mở tệp từ máy (.docx, .xlsx, .pdf, .csv)…</span>
-              <input type="file" accept=".docx,.xlsx,.xls,.csv,.pdf" hidden onChange={handleFileUpload} />
+              <input type="file" accept=".docx,.xlsx,.xlsm,.xls,.csv,.tsv,.pdf" hidden onChange={handleFileUpload} />
             </label>
           </div>
         </header>
@@ -533,6 +535,22 @@ export default function Home({
                   </div>
                   <div className="template-title">Bảng lương & Chấm công</div>
                   <div className="template-desc">Tính toán ngày công, lương thực lĩnh & tự động làm tròn</div>
+                </button>
+
+                <button className="template-card" onClick={() => onCreateSheet(cashbookWorkbook())}>
+                  <div className="template-badge sheet">
+                    <FileSpreadsheet size={20} />
+                  </div>
+                  <div className="template-title">Sổ quỹ Thu Chi</div>
+                  <div className="template-desc">Theo dõi phiếu thu, phiếu chi và tồn quỹ luỹ kế theo ngày</div>
+                </button>
+
+                <button className="template-card" onClick={() => onCreateSheet(projectEstimateWorkbook())}>
+                  <div className="template-badge sheet">
+                    <FileSpreadsheet size={20} />
+                  </div>
+                  <div className="template-title">Dự toán & Tiến độ dự án</div>
+                  <div className="template-desc">Quản lý hạng mục, chi phí giải ngân thực tế & tiến độ %</div>
                 </button>
 
                 <button className="template-card" onClick={() => onCreatePdf()}>
