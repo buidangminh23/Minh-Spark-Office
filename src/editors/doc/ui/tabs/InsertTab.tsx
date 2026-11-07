@@ -100,6 +100,29 @@ export default function InsertTab() {
         </Dropdown>
       </Group>
 
+      <Group label="Ký hiệu">
+        <Dropdown large title="Công thức" trigger={<><Sigma size={22} color="#7c3aed" /><span>Công thức</span></>} width={420}>
+          {(close) => (
+            <>
+              <MenuItem icon={<Sigma size={14} />} label="Viết công thức mới… (Alt+=)" onClick={() => { close(); ctx.setEditing(null); ctx.openDialog('equation'); }} />
+              <MenuSeparator />
+              <MenuHeading>Công thức dựng sẵn</MenuHeading>
+              <EquationGallery onPick={(latex) => { close(); chain().insertEquation(latex, true).run(); }} />
+            </>
+          )}
+        </Dropdown>
+        <Dropdown large title="Ký hiệu" trigger={<><Omega size={22} color="#d98e04" /><span>Ký hiệu</span></>} width={260}>
+          {(close) => (
+            <>
+              <MenuHeading>Dùng gần đây</MenuHeading>
+              <SymbolGallery onPick={(symbol) => { close(); chain().insertContent(symbol).run(); }} />
+              <MenuSeparator />
+              <MenuItem icon={<Omega size={14} />} label="Ký hiệu khác…" onClick={() => { close(); ctx.openDialog('symbols'); }} />
+            </>
+          )}
+        </Dropdown>
+      </Group>
+
       <Group label="Minh hoạ">
         <Dropdown large title="Chèn ảnh" trigger={<><ImageIcon size={22} color="#107c41" /><span>Ảnh</span></>}>
           {(close) => (
@@ -261,29 +284,6 @@ export default function InsertTab() {
           <Small icon={<FileText size={14} />} label="Chú thích" title="Chú thích cuối trang (Ctrl+Alt+F)" onClick={() => void insertFootnote(ctx)} />
           <Small icon={<SquareSplitVertical size={14} />} label="Mã code" title="Chèn khối mã" onClick={() => chain().toggleCodeBlock().run()} />
         </Rows>
-      </Group>
-
-      <Group label="Ký hiệu">
-        <Dropdown large title="Công thức" trigger={<><Sigma size={22} color="#7c3aed" /><span>Công thức</span></>} width={420}>
-          {(close) => (
-            <>
-              <MenuHeading>Công thức dựng sẵn</MenuHeading>
-              <EquationGallery onPick={(latex) => { close(); chain().insertEquation(latex, true).run(); }} />
-              <MenuSeparator />
-              <MenuItem icon={<Sigma size={14} />} label="Viết công thức mới…" onClick={() => { close(); ctx.setEditing(null); ctx.openDialog('equation'); }} />
-            </>
-          )}
-        </Dropdown>
-        <Dropdown large title="Ký hiệu" trigger={<><Omega size={22} color="#d98e04" /><span>Ký hiệu</span></>} width={260}>
-          {(close) => (
-            <>
-              <MenuHeading>Dùng gần đây</MenuHeading>
-              <SymbolGallery onPick={(symbol) => { close(); chain().insertContent(symbol).run(); }} />
-              <MenuSeparator />
-              <MenuItem icon={<Omega size={14} />} label="Ký hiệu khác…" onClick={() => { close(); ctx.openDialog('symbols'); }} />
-            </>
-          )}
-        </Dropdown>
       </Group>
 
       <Group label="Chữ ký điện tử">

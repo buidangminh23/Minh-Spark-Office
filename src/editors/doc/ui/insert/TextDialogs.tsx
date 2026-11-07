@@ -24,7 +24,7 @@ export function VideoDialog({ onClose }: { onClose: () => void }) {
       <label className="field"><span className="field-label">Địa chỉ video</span><input className="text-field" autoFocus placeholder="https://www.youtube.com/watch?v=…" value={url} onChange={(e) => setUrl(e.target.value)} /></label>
       <label className="field"><span className="field-label">Chiều rộng: {width}% khổ trang</span><input type="range" min={30} max={100} step={5} value={width} onChange={(e) => setWidth(Number(e.target.value))} /></label>
       {url.trim() && !embed && <div className="field-error">Chỉ nhận liên kết YouTube hoặc Vimeo.</div>}
-      {embed && <div className="insert-video-preview"><iframe src={embed} title="Xem trước video" allowFullScreen /></div>}
+      {embed && <div className="insert-video-preview"><iframe src={embed} title="Xem trước video" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" allow="encrypted-media; picture-in-picture" /></div>}
     </Modal>
   );
 }

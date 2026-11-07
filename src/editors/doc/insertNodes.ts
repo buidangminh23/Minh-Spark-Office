@@ -180,7 +180,7 @@ export const VideoEmbed = Node.create({
     const url = String(node.attrs.url);
     const embed = videoEmbedUrl(url);
     return ['div', mergeAttributes(HTMLAttributes, { 'data-video-embed': 'true', class: 'doc-video', style: `width: ${node.attrs.width}%` }),
-      ['div', { class: 'doc-video-bar', contenteditable: 'false' }, `Video trực tuyến: ${url}`],
+      ['div', { class: 'doc-video-handle', contenteditable: 'false', title: 'Bấm để chọn, kéo để di chuyển video', 'aria-label': 'Chọn video' }],
       embed ? ['iframe', { src: embed, title: 'Video trực tuyến', loading: 'lazy', allowfullscreen: 'true', referrerpolicy: 'strict-origin-when-cross-origin', allow: 'encrypted-media; picture-in-picture' }] : ['a', { href: url }, url],
     ];
   },
