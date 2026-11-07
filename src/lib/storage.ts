@@ -247,6 +247,24 @@ function createPersistentStorage(store: UseStore) {
     return (await get<FileVersion[]>(versionsKey(fileId), store)) ?? [];
   }
 
+  async function replaceFile(meta: FileMeta, content: FileContent | undefined, versions: FileVersion[]) {
+    const snapshot = structuredClone({ meta, content, versions });
+    await store('readwrite', (target) => {
+      const request = target.get(INDEX_KEY);
+      request.onsuccess = () => {
+        const files: FileMeta[] = request.result ?? [];
+        const index = files.findIndex((file) => file.id === snapshot.meta.id);
+        if (index < 0) files.unshift(snapshot.meta);
+        else files[index] = snapshot.meta;
+        target.put(files, INDEX_KEY);
+        if (snapshot.content !== undefined) target.put(snapshot.content, contentKey(snapshot.meta.id));
+        else target.delete(contentKey(snapshot.meta.id));
+        target.put(snapshot.versions, versionsKey(snapshot.meta.id));
+      };
+      return promisifyRequest(target.transaction);
+    });
+  }
+
   async function saveVersion(
     fileId: string,
     content: FileContent,
@@ -312,7 +330,7 @@ function createPersistentStorage(store: UseStore) {
     return count;
   }
 
-  return { listFiles, loadContent, saveFile, updateMeta, removeFile, listVersions, saveVersion, restoreVersion, deleteVersion, exportBackup, importBackup };
+  return { listFiles, loadContent, saveFile, updateMeta, removeFile, listVersions, saveVersion, restoreVersion, deleteVersion, exportBackup, importBackup, replaceFile };
 }
 
 export type WorkspaceStorage = ReturnType<typeof createPersistentStorage>;

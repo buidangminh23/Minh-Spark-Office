@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut, type Auth, type User } from 'firebase/auth';
+import { GoogleAuthProvider, onAuthStateChanged, signInWithCredential, signInWithPopup, signOut, type Auth, type User } from 'firebase/auth';
 import { authenticationError, authConfigured, initializeAuthentication } from '../lib/auth';
+import { cancelDesktopSignIn, desktopGoogleToken, isDesktop } from '../lib/desktop';
 
 type Account = {
   user: User | null;
@@ -106,10 +107,20 @@ export function Authentication({ children }: { children: (user: User | null, ses
     try {
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: 'select_account' });
-      const result = await signInWithPopup(authRef.current, provider);
+      const result = isDesktop()
+        ? await signInWithCredential(authRef.current, GoogleAuthProvider.credential(await desktopGoogleToken()))
+        : await signInWithPopup(authRef.current, provider);
       finish(result.user);
     } catch (failure) {
-      setError(authenticationError(failure));
+      const code = failure instanceof Error ? failure.message : '';
+      const messages: Record<string, string> = {
+        'auth/desktop-timeout': 'Yêu cầu đăng nhập đã hết hạn sau 5 phút. Hãy đăng nhập lại.',
+        'auth/desktop-cancelled': 'Đã hủy đăng nhập.',
+        'auth/desktop-pending': 'Một yêu cầu đăng nhập đang mở trên trình duyệt.',
+        'auth/desktop-listener': 'Không mở được kết nối đăng nhập trên máy. Hãy thử lại.',
+        'auth/desktop-browser': 'Không mở được trình duyệt mặc định. Hãy kiểm tra trình duyệt rồi thử lại.',
+      };
+      setError(messages[code] || authenticationError(failure));
     } finally {
       busy.current = false;
       setPending(false);
@@ -149,11 +160,14 @@ export function Authentication({ children }: { children: (user: User | null, ses
               }
             }}>
             <h2 id="login-title">Đăng nhập để lưu tài liệu</h2>
-            <p className="dialog-subtitle" id="login-description">Nội dung đang soạn được giữ nguyên. Đăng nhập Google để lưu vào kho riêng trên trình duyệt này; tài liệu chưa đồng bộ cloud.</p>
+            <p className="dialog-subtitle" id="login-description">Nội dung đang soạn được giữ nguyên. Đăng nhập cùng tài khoản Google để đồng bộ tài liệu giữa web và ứng dụng Windows.{isDesktop() && ' Hoàn tất đăng nhập trong trình duyệt mặc định, rồi quay lại ứng dụng.'}</p>
             {error && <p className="auth-error" role="alert">{error}</p>}
             <p className="auth-disclosure">Chỉ xác thực tên, email và ảnh đại diện. Không yêu cầu quyền đọc Gmail hoặc Google Drive.</p>
             <div className="dialog-actions">
-              <button className="btn" disabled={pending} onClick={() => finish(null)}>Tiếp tục chỉnh sửa</button>
+              <button className="btn" disabled={pending && !isDesktop()} onClick={() => {
+                if (pending && isDesktop()) void cancelDesktopSignIn().then(() => finish(null)).catch(() => setError('Chưa hủy được đăng nhập. Vui lòng thử lại.'));
+                else finish(null);
+              }}>{pending && isDesktop() ? 'Hủy đăng nhập' : 'Tiếp tục chỉnh sửa'}</button>
               <button className="btn btn-primary google-signin" disabled={pending || !ready || !authConfigured} onClick={() => void signIn()}><img src="/google.svg" width="20" height="20" alt="" />{pending ? 'Đang chờ Google…' : !ready ? 'Đang kiểm tra tài khoản…' : 'Đăng nhập bằng Google'}</button>
             </div>
           </section>

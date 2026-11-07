@@ -1,6 +1,10 @@
 import { suiteLogos } from './lib/suiteBranding';
 import { Authentication, useAccount } from './components/Authentication';
-import { createDraftWorkspaceStorage, createWorkspaceStorage, WorkspaceContext, useWorkspace } from './lib/storage';
+import { createDraftWorkspaceStorage, WorkspaceContext, useWorkspace } from './lib/storage';
+import { accountWorkspace, syncedWorkspace } from './lib/workspaces';
+import { WorkspaceStatus } from './components/WorkspaceStatus';
+import { DesktopUpdater } from './components/DesktopUpdater';
+import { DesktopSignIn, isDesktopSignInRequest } from './components/DesktopSignIn';
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import Home from './components/Home';
 import DocEditor from './editors/doc/DocEditor';
@@ -23,7 +27,7 @@ import { extractHtmlBody, importDocxFull, markdownToHtml, textToHtml } from './l
 import { isEncryptedOffice, decryptOfficeFile, DEFAULT_EXCEL_PASSWORD } from './lib/officeCrypto';
 import { downloadBlob } from './lib/download';
 
-function MainApp() {
+function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
   const ui = useUi();
   const toast = ui.toast;
   const { user, ready, login } = useAccount();
@@ -50,6 +54,40 @@ function MainApp() {
   const openDocumentKey = `minh-office-open:${user?.uid ?? 'drafts'}`;
 
   useEffect(() => {
+    onEditing(Boolean(activeMeta));
+    syncedWorkspace(storage)?.setActiveFile(activeMeta?.id ?? null);
+    return () => { syncedWorkspace(storage)?.setActiveFile(null); onEditing(false); };
+  }, [activeMeta?.id, storage, onEditing]);
+
+  useEffect(() => {
+    let mounted = true;
+    const sync = syncedWorkspace(storage);
+    const refresh = () => { void storage.listFiles().then(async (list) => {
+      if (!mounted) return;
+      setFiles(list);
+      const requested = sessionStorage.getItem(openDocumentKey);
+      const meta = !activeDocument.current && requested ? list.find((file) => file.id === requested && !file.deletedAt) : undefined;
+      if (meta) sync?.setActiveFile(meta.id);
+      const content = meta ? await storage.loadContent(meta.id) : undefined;
+      if (mounted && meta && content && !activeDocument.current && sessionStorage.getItem(openDocumentKey) === requested) { activeDocument.current = meta; setActiveMeta(meta); setActiveContent(content); }
+    }); };
+    const stop = sync?.subscribe(refresh);
+    const openSaved = (event: Event) => {
+      const { uid, id } = (event as CustomEvent<{ uid: string; id: string }>).detail;
+      if (uid !== user?.uid) return;
+      void storage.listFiles().then(async (list) => {
+        const meta = list.find((file) => file.id === id);
+        if (activeDocument.current || sessionStorage.getItem(openDocumentKey) !== id) return;
+        if (meta) sync?.setActiveFile(meta.id);
+        const content = meta && await storage.loadContent(id);
+        if (mounted && meta && content && !activeDocument.current && sessionStorage.getItem(openDocumentKey) === id) { activeDocument.current = meta; setActiveMeta(meta); setActiveContent(content); }
+      });
+    };
+    window.addEventListener('office-open-saved', openSaved);
+    return () => { mounted = false; stop?.(); window.removeEventListener('office-open-saved', openSaved); };
+  }, [storage, user?.uid, openDocumentKey]);
+
+  useEffect(() => {
     if (!ready) return;
     let active = true;
     const restore = async () => {
@@ -57,6 +95,7 @@ function MainApp() {
         const id = sessionStorage.getItem(openDocumentKey);
         if (!id || activeDocument.current) return;
         const meta = (await storage.listFiles()).find((file) => file.id === id && !file.deletedAt);
+        if (meta && !activeDocument.current) syncedWorkspace(storage)?.setActiveFile(meta.id);
         const content = meta ? await storage.loadContent(meta.id) : undefined;
         if (active && meta && content?.kind === meta.kind && !activeDocument.current) {
           activeDocument.current = meta;
@@ -98,7 +137,7 @@ function MainApp() {
     initialized.current = storage;
     const init = async () => {
       const list = await listFiles();
-      if (list.length === 0) {
+      if (list.length === 0 && !user) {
         // Seed initial Word doc
         const docId = `doc-${Date.now()}`;
         const docMeta: FileMeta = {
@@ -170,14 +209,16 @@ function MainApp() {
     };
 
     void init();
-  }, [listFiles, saveFile, storage]);
+  }, [listFiles, saveFile, storage, user]);
 
   // Open Document
   const handleOpenDoc = async (meta: FileMeta) => {
     try {
       ui.showBusy('Đang mở tài liệu…');
+      syncedWorkspace(storage)?.setActiveFile(meta.id);
       const content = await loadContent(meta.id);
       if (content && content.kind === 'doc') {
+        activeDocument.current = meta;
         setActiveMeta(meta);
         setActiveContent(content);
         await updateMeta(meta.id, { openedAt: Date.now() });
@@ -195,8 +236,10 @@ function MainApp() {
   const handleOpenSheet = async (meta: FileMeta) => {
     try {
       ui.showBusy('Đang mở bảng tính…');
+      syncedWorkspace(storage)?.setActiveFile(meta.id);
       const content = await loadContent(meta.id);
       if (content && content.kind === 'sheet') {
+        activeDocument.current = meta;
         setActiveMeta(meta);
         setActiveContent(content);
         await updateMeta(meta.id, { openedAt: Date.now() });
@@ -272,8 +315,10 @@ function MainApp() {
   const handleOpenPdf = async (meta: FileMeta) => {
     try {
       ui.showBusy('Đang mở tài liệu PDF…');
+      syncedWorkspace(storage)?.setActiveFile(meta.id);
       const content = await loadContent(meta.id);
       if (content && content.kind === 'pdf') {
+        activeDocument.current = meta;
         setActiveMeta(meta);
         setActiveContent(content);
         await updateMeta(meta.id, { openedAt: Date.now() });
@@ -448,6 +493,12 @@ function MainApp() {
         const content: PdfContent = {
           kind: 'pdf',
           pageCount: 3,
+          pdfDataUrl: await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result));
+            reader.onerror = () => reject(reader.error);
+            reader.readAsDataURL(new Blob([bytes], { type: 'application/pdf' }));
+          }),
         };
         await saveFile(meta, content);
         await refreshFiles();
@@ -470,9 +521,17 @@ function MainApp() {
       if (explicit && !user) await storage.saveFile(meta, content);
       const account = explicit ? await login() : user;
       if (explicit && !account) return false;
-      const target = account ? createWorkspaceStorage(account.uid) : storage;
-      await target.saveFile(meta, content);
-      if (explicit || currentStorage.current === storage) {
+      const target = account ? accountWorkspace(account.uid) : storage;
+      if (account && !user) {
+        const id = `${meta.kind}-${crypto.randomUUID()}`;
+        const versions = (await storage.listVersions(meta.id)).map((version) => ({ ...version, fileId: id }));
+        await target.replaceFile({ ...meta, id }, content, versions);
+        sessionStorage.setItem(`minh-office-open:${account.uid}`, id);
+        window.dispatchEvent(new CustomEvent('office-open-saved', { detail: { uid: account.uid, id } }));
+      } else {
+        await target.saveFile(meta, content);
+      }
+      if (currentStorage.current === storage && activeDocument.current?.id === meta.id) {
         setActiveMeta(meta);
         setActiveContent(content);
         setFiles(await target.listFiles());
@@ -658,17 +717,20 @@ function MainApp() {
   );
 }
 
-function Workspace({ userId }: { userId: string | null }) {
-  const workspace = useMemo(() => userId ? createWorkspaceStorage(userId) : createDraftWorkspaceStorage(), [userId]);
+function Workspace({ userId, onEditing, editing }: { userId: string | null; onEditing: (editing: boolean) => void; editing: boolean }) {
+  const workspace = useMemo(() => userId ? accountWorkspace(userId) : createDraftWorkspaceStorage(), [userId]);
+  useEffect(() => syncedWorkspace(workspace)?.start(), [workspace]);
   return (
     <WorkspaceContext value={workspace}>
       <UiProvider>
-        <MainApp />
+        <div className={`workspace-frame ${editing ? 'is-editing' : ''}`}><div className="workspace-content"><MainApp onEditing={onEditing} /></div><WorkspaceStatus /></div>
       </UiProvider>
     </WorkspaceContext>
   );
 }
 
 export default function App() {
-  return <Authentication>{(user, session) => <Workspace key={session} userId={user?.uid ?? null} />}</Authentication>;
+  const [editing, setEditing] = useState(false);
+  if (isDesktopSignInRequest()) return <DesktopSignIn />;
+  return <><Authentication>{(user, session) => <Workspace key={`${session}:${user?.uid ?? 'guest'}`} userId={user?.uid ?? null} onEditing={setEditing} editing={editing} />}</Authentication><DesktopUpdater editing={editing} /></>;
 }

@@ -28,3 +28,8 @@ dist-ssr
 !.env.example
 /public/downloads/*.exe
 /public/downloads/*.msi
+/public/downloads/*.sig
+/src-tauri/target
+/src-tauri/gen
+/release
+/.firebase

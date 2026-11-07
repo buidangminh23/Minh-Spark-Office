@@ -4,3 +4,12 @@ dist
 node_modules
 .vercel
 !public/downloads/**
+src-tauri
+scripts
+tests
+release
+firebase.json
+firestore.rules
+firestore.indexes.json
+.firebaserc
+.firebase

@@ -3,7 +3,8 @@ import { Keyboard, Square, Wand2, ArrowLeft, Bookmark, BookText, Clipboard, Copy
 import { useEditorState } from '@tiptap/react';
 import { pickFile, formatBytes } from '../../../lib/download';
 import { useAccount } from '../../../components/Authentication';
-import { createWorkspaceStorage, type DocContent } from '../../../lib/storage';
+import { useWorkspace, type DocContent } from '../../../lib/storage';
+import { saveAccountSnapshot } from '../../../lib/accountSnapshots';
 import { useDoc } from '../DocContext';
 import { textStats } from '../docTools';
 import { exportAsDocx, toggleProtection } from '../actions';
@@ -25,7 +26,8 @@ function FormatIcon({ format }: { format: ExportFormat }) {
 
 export function Backstage({ onClose }: { onClose: () => void }) {
   const ctx = useDoc();
-  const { login } = useAccount();
+  const { login, user: sourceUser } = useAccount();
+  const sourceStorage = useWorkspace();
   const [section, setSection] = useState<Section>('info');
   const stats = useMemo(() => textStats(ctx.editor.getText({ blockSeparator: '\n' })), [ctx.editor]);
   const nav: { id: Section; label: string; icon: React.ReactNode }[] = [
@@ -40,11 +42,10 @@ export function Backstage({ onClose }: { onClose: () => void }) {
     const content: DocContent = structuredClone({ kind: 'doc', json: ctx.editor.getJSON(), page: ctx.page, comments: ctx.comments });
     const meta = { ...ctx.meta, name: ctx.title, updatedAt: Date.now(), size: JSON.stringify(content.json).length, preview: ctx.editor.getText().slice(0, 160) };
     try {
+      if (!sourceUser) await sourceStorage.saveFile(meta, content);
       const user = await login();
       if (!user) return;
-      const storage = createWorkspaceStorage(user.uid);
-      await storage.saveFile(meta, content);
-      await storage.saveVersion(meta.id, content);
+      await saveAccountSnapshot({ accountId: user.uid, sourceUserId: sourceUser?.uid, sourceStorage, meta, content });
       ctx.ui.toast('Đã lưu một phiên bản');
     } catch {
       ctx.ui.toast('Chưa lưu được phiên bản. Nội dung đang soạn vẫn được giữ nguyên.', true);

@@ -1,5 +1,5 @@
 import { SuiteLogo } from '../../components/SuiteLogo';
-import { createWorkspaceStorage } from '../../lib/storage';
+import { saveAccountSnapshot } from '../../lib/accountSnapshots';
 import { useAccount } from '../../components/Authentication';
 import { useWorkspace } from '../../lib/storage';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -297,7 +297,8 @@ const inlineSheetStyles = (sheet: SheetData, styles: Record<string, CellStyle>):
 export default function SheetEditor({ meta, content, onSave, onBack }: SheetEditorProps) {
   const ui = useUi();
   const { user, login } = useAccount();
-  const { listFiles, loadContent, saveFile, listVersions, restoreVersion, deleteVersion } = useWorkspace();
+  const sourceStorage = useWorkspace();
+  const { listFiles, loadContent, saveFile, listVersions, restoreVersion, deleteVersion } = sourceStorage;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const importSheetInputRef = useRef<HTMLInputElement | null>(null);
@@ -2665,12 +2666,11 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
   const handleCreateSnapshot = async (label: string) => {
     const draft: SheetContent = { kind: 'sheet', workbook: captureHydratedWorkbook(), comments, printSettings };
     const currentMeta = { ...meta, name: title.trim() || meta.name, updatedAt: Date.now() };
-    const account = await login();
-    if (!account) return;
     try {
-      const target = createWorkspaceStorage(account.uid);
-      await target.saveFile(currentMeta, draft);
-      const saved = await target.saveVersion(meta.id, draft, label.trim() || undefined);
+      if (!user) await sourceStorage.saveFile(currentMeta, draft);
+      const account = await login();
+      if (!account) return;
+      const { version: saved } = await saveAccountSnapshot({ accountId: account.uid, sourceUserId: user?.uid, sourceStorage, meta: currentMeta, content: draft, label: label.trim() || undefined });
       setVersions((prev) => [saved, ...prev]);
       ui.toast('Đã lưu mốc lịch sử phiên bản');
     } catch {

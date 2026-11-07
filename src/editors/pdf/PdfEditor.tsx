@@ -1,5 +1,5 @@
 import { SuiteLogo } from '../../components/SuiteLogo';
-import { createWorkspaceStorage } from '../../lib/storage';
+import { saveAccountSnapshot } from '../../lib/accountSnapshots';
 import { useAccount } from '../../components/Authentication';
 import { useWorkspace } from '../../lib/storage';
 import { useState, useRef, useEffect, useCallback } from 'react';
@@ -63,7 +63,8 @@ type PdfRibbonTab = 'file' | 'home' | 'minh_pdf' | 'insert' | 'view' | 'tools' |
 export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorProps) {
   const ui = useUi();
   const { user, login } = useAccount();
-  const { listVersions, deleteVersion } = useWorkspace();
+  const sourceStorage = useWorkspace();
+  const { listVersions, deleteVersion } = sourceStorage;
   const [activeTab, setActiveTab] = useState<PdfRibbonTab>('minh_pdf');
   const [title, setTitle] = useState(meta.name);
   const [savedStatus, setSavedStatus] = useState<'saved' | 'saving'>('saved');
@@ -119,12 +120,11 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
   const handleCreateSnapshot = async () => {
     const draft: PdfContent = { ...content, comments };
     const currentMeta = { ...meta, name: title, updatedAt: Date.now() };
-    const account = await login();
-    if (!account) return;
     try {
-      const target = createWorkspaceStorage(account.uid);
-      await target.saveFile(currentMeta, draft);
-      const saved = await target.saveVersion(meta.id, draft, `Bản lưu ${new Date().toLocaleTimeString('vi-VN')}`);
+      if (!user) await sourceStorage.saveFile(currentMeta, draft);
+      const account = await login();
+      if (!account) return;
+      const { version: saved } = await saveAccountSnapshot({ accountId: account.uid, sourceUserId: user?.uid, sourceStorage, meta: currentMeta, content: draft, label: `Bản lưu ${new Date().toLocaleTimeString('vi-VN')}` });
       setVersions((prev) => [saved, ...prev]);
       ui.toast('Đã lưu bản chụp tài liệu PDF vào lịch sử');
     } catch {

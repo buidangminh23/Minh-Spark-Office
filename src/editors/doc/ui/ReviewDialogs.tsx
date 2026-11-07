@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Bookmark, FileDiff, History, SpellCheck, Trash2 } from 'lucide-react';
-import { createWorkspaceStorage, useWorkspace, type DocContent, type FileVersion } from '../../../lib/storage';
+import { useWorkspace, type DocContent, type FileVersion } from '../../../lib/storage';
+import { saveAccountSnapshot } from '../../../lib/accountSnapshots';
 import { useAccount } from '../../../components/Authentication';
 import { useDoc } from '../DocContext';
 import { diffWords, jsonText, proofread, textStats, type ProofIssue } from '../docTools';
@@ -69,8 +70,9 @@ export function ProofreadDialog({ onClose }: { onClose: () => void }) {
 }
 
 export function HistoryDialog({ onClose }: { onClose: () => void }) {
-  const { deleteVersion, listVersions, restoreVersion, saveVersion } = useWorkspace();
-  const { login } = useAccount();
+  const sourceStorage = useWorkspace();
+  const { deleteVersion, listVersions, restoreVersion, saveVersion } = sourceStorage;
+  const { login, user: sourceUser } = useAccount();
   const ctx = useDoc();
   const [versions, setVersions] = useState<FileVersion[]>([]);
   const [label, setLabel] = useState('');
@@ -86,12 +88,11 @@ export function HistoryDialog({ onClose }: { onClose: () => void }) {
     const meta = { ...ctx.meta, name: ctx.title, updatedAt: Date.now(), size: JSON.stringify(current.json).length, preview: ctx.editor.getText().slice(0, 160) };
     const versionLabel = label.trim() || undefined;
     try {
+      if (!sourceUser) await sourceStorage.saveFile(meta, current);
       const user = await login();
       if (!user) return;
-      const storage = createWorkspaceStorage(user.uid);
-      await storage.saveFile(meta, current);
-      await storage.saveVersion(meta.id, current, versionLabel);
-      setVersions(await storage.listVersions(meta.id));
+      const saved = await saveAccountSnapshot({ accountId: user.uid, sourceUserId: sourceUser?.uid, sourceStorage, meta, content: current, label: versionLabel });
+      setVersions(await saved.storage.listVersions(saved.meta.id));
       setLabel('');
       ctx.ui.toast('Đã lưu phiên bản');
     } catch {

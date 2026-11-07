@@ -1,0 +1,19 @@
+{
+  "version": "0.2.0",
+  "notes": "Đồng bộ tài liệu giữa web và Windows; đăng nhập Google; kiểm tra và cài đặt bản cập nhật.",
+  "pub_date": "2026-11-07T09:47:35.002Z",
+  "platforms": {
+    "windows-x86_64-nsis": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRK1h4TVEzZ3c1YzVRWGdGQTFFNmRhZnBpaXNPUlBPbW9uSXpvRmxrU2JTd0d6ZUFPWW5hWXVPRngzUTJUSXZQc1d1SndaUTJ6NVhHVm1mQ2QxOTNxK2pFQlFaUGE4dUFzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0MDQ0ODU0CWZpbGU6TWluaCBTcGFyayBPZmZpY2VfMC4yLjBfeDY0LXNldHVwLmV4ZQl2ZXJzaW9uOjAuMi4wCkdSaitYckh4RXdyU1pTY1lDTWhmYkhXR0JDK2JodGc2WXJWQkFGdjcvL3ZSaEFUMXdmalpYUndkc1FZb3A3ZUxkNEJLU3g5eDVRSGphUzVBUlhmZ0NnPT0K",
+      "url": "https://office.minhspark.com/downloads/MinhSparkOffice-0.2.0-windows-x64-vi-Setup.exe"
+    },
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRK1h4TVEzZ3c1YzVRWGdGQTFFNmRhZnBpaXNPUlBPbW9uSXpvRmxrU2JTd0d6ZUFPWW5hWXVPRngzUTJUSXZQc1d1SndaUTJ6NVhHVm1mQ2QxOTNxK2pFQlFaUGE4dUFzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0MDQ0ODU0CWZpbGU6TWluaCBTcGFyayBPZmZpY2VfMC4yLjBfeDY0LXNldHVwLmV4ZQl2ZXJzaW9uOjAuMi4wCkdSaitYckh4RXdyU1pTY1lDTWhmYkhXR0JDK2JodGc2WXJWQkFGdjcvL3ZSaEFUMXdmalpYUndkc1FZb3A3ZUxkNEJLU3g5eDVRSGphUzVBUlhmZ0NnPT0K",
+      "url": "https://office.minhspark.com/downloads/MinhSparkOffice-0.2.0-windows-x64-vi-Setup.exe"
+    },
+    "windows-x86_64-msi": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRK1h4TVEzZ3c1YzFMV1NaVWR2M0RpazVRSXJvbnB2YTFGV2RxYy9UZS9jM0ZSTmRxRWhEN2c1NU1lOUlVR29CcnVraWpnUC9HTFNRQk5ITVl6WGhIUDFoYWQ4SHUxcGdBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0MDQ0ODU0CWZpbGU6TWluaCBTcGFyayBPZmZpY2VfMC4yLjBfeDY0X2VuLVVTLm1zaQl2ZXJzaW9uOjAuMi4wCjY0dytyOE1aK29tMG1aOCtEVUhSc0tDYkdNT3E1cHRVM2JRcGdDUUVQNSt5d2tLL3BKZEx5dURxbHo0RFBVSmlXRUNpU3VTS0N6VC9JNDB5RkpjRER3PT0K",
+      "url": "https://office.minhspark.com/downloads/MinhSparkOffice-0.2.0-windows-x64-en-US.msi"
+    }
+  }
+}

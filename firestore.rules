@@ -1,0 +1,67 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function owner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+    function safeNumber(value) {
+      return value is number && value >= 0 && value <= 9007199254740991;
+    }
+    function validRevision(value) {
+      return value is string && value.matches('^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$');
+    }
+    function validMeta(meta, id) {
+      return meta is map
+        && meta.keys().hasAll(['id', 'name', 'kind', 'createdAt', 'updatedAt', 'openedAt', 'starred', 'deletedAt', 'size', 'preview'])
+        && meta.keys().hasOnly(['id', 'name', 'kind', 'createdAt', 'updatedAt', 'openedAt', 'starred', 'deletedAt', 'size', 'preview'])
+        && meta.id == id && meta.name is string && meta.name.size() <= 1024
+        && meta.kind in ['doc', 'sheet', 'pdf']
+        && safeNumber(meta.createdAt) && safeNumber(meta.updatedAt) && safeNumber(meta.openedAt) && safeNumber(meta.size)
+        && meta.starred is bool && (meta.deletedAt == null || safeNumber(meta.deletedAt))
+        && meta.preview is string && meta.preview.size() <= 8000;
+    }
+    function validManifest(data, id) {
+      return id.matches('^[A-Za-z0-9_-]{1,160}$')
+        && data.keys().hasAll(['schema', 'revision', 'deleted', 'meta', 'chunkCount', 'encoding', 'compressedBytes', 'uncompressedBytes', 'sha256', 'updatedAt'])
+        && data.keys().hasOnly(['schema', 'revision', 'deleted', 'meta', 'chunkCount', 'encoding', 'compressedBytes', 'uncompressedBytes', 'sha256', 'updatedAt'])
+        && data.schema == 1 && validRevision(data.revision) && data.deleted is bool
+        && data.encoding == 'gzip-base64' && data.updatedAt == request.time
+        && data.chunkCount is int && data.chunkCount >= 0 && data.chunkCount <= 14
+        && data.compressedBytes is int && data.uncompressedBytes is int && data.sha256 is string
+        && ((data.deleted && data.meta == null && data.chunkCount == 0 && data.compressedBytes == 0 && data.uncompressedBytes == 0 && data.sha256 == '')
+          || (!data.deleted && validMeta(data.meta, id) && data.chunkCount >= 1
+            && data.compressedBytes >= 1 && data.compressedBytes <= 6291456
+            && data.compressedBytes > (data.chunkCount - 1) * 450000 && data.compressedBytes <= data.chunkCount * 450000
+            && data.uncompressedBytes >= 1 && data.uncompressedBytes <= 33554432
+            && data.sha256.matches('^[a-f0-9]{64}$')));
+    }
+    match /users/{uid}/files/{fileId} {
+      allow read: if owner(uid);
+      allow create: if owner(uid) && validManifest(request.resource.data, fileId);
+      allow update: if owner(uid) && validManifest(request.resource.data, fileId) && request.resource.data.revision != resource.data.revision;
+      allow delete: if false;
+      match /chunks/{chunkId} {
+        function parentPath() {
+          return /databases/$(database)/documents/users/$(uid)/files/$(fileId);
+        }
+        function parentChanged() {
+          return existsAfter(parentPath()) && (!exists(parentPath()) || getAfter(parentPath()).data.revision != get(parentPath()).data.revision);
+        }
+        function validChunk() {
+          let data = request.resource.data;
+          let parent = getAfter(parentPath()).data;
+          return data.keys().hasAll(['revision', 'index', 'data']) && data.keys().hasOnly(['revision', 'index', 'data'])
+            && data.index is int && data.index >= 0 && data.index < 14 && chunkId == string(data.index)
+            && !parent.deleted && data.index < parent.chunkCount && data.revision == parent.revision
+            && data.data is string && data.data.size() > 0 && data.data.size() <= 600000
+            && data.data.size() == (data.index < parent.chunkCount - 1 ? 600000 : int((parent.compressedBytes + 2) / 3) * 4 - data.index * 600000)
+            && data.data.matches('^[A-Za-z0-9+/]*={0,2}$');
+        }
+        allow read: if owner(uid);
+        allow create, update: if owner(uid) && parentChanged() && validChunk();
+        allow delete: if owner(uid) && chunkId.matches('^([0-9]|1[0-3])$') && parentChanged()
+          && (getAfter(parentPath()).data.deleted || int(chunkId) >= getAfter(parentPath()).data.chunkCount);
+      }
+    }
+  }
+}
