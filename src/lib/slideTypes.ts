@@ -27,9 +27,120 @@ export type ShapeType =
 
 export type ChartType = 'bar' | 'column' | 'line' | 'pie' | 'doughnut';
 
-export type TransitionType = 'none' | 'fade' | 'push' | 'wipe' | 'split' | 'zoom' | 'flip';
+export type TransitionCategory = 'subtle' | 'exciting' | 'dynamic';
 
-export type AnimationType = 'none' | 'appear' | 'fade-in' | 'fly-in-up' | 'fly-in-left' | 'zoom-in' | 'bounce';
+export type TransitionType =
+  | 'none'
+  | 'morph'
+  | 'fade'
+  | 'push'
+  | 'wipe'
+  | 'split'
+  | 'reveal'
+  | 'cut'
+  | 'random-bars'
+  | 'uncover'
+  | 'cover'
+  | 'flip'
+  | 'cube'
+  | 'doors'
+  | 'box'
+  | 'zoom'
+  | 'conveyor'
+  | 'rotate'
+  | 'vortex'
+  | 'ripple'
+  | 'honeycomb'
+  | 'fracture'
+  | 'pan'
+  | 'ferris'
+  | 'carousel'
+  | 'gallery';
+
+export type TransitionDirection =
+  | 'from-bottom'
+  | 'from-left'
+  | 'from-right'
+  | 'from-top'
+  | 'horizontal'
+  | 'vertical'
+  | 'in'
+  | 'out';
+
+export type TransitionSound =
+  | 'none'
+  | 'applause'
+  | 'camera'
+  | 'chime'
+  | 'click'
+  | 'coin'
+  | 'drum'
+  | 'laser'
+  | 'whoosh'
+  | 'wind';
+
+export type AnimationCategory = 'entrance' | 'emphasis' | 'exit';
+
+export type AnimationType =
+  | 'none'
+  // Entrance (Xuất hiện - 🟢)
+  | 'appear'
+  | 'fade-in'
+  | 'fly-in'
+  | 'float-in'
+  | 'split-in'
+  | 'wipe-in'
+  | 'zoom-in'
+  | 'bounce-in'
+  | 'swivel-in'
+  | 'wheel-in'
+  | 'grow-turn'
+  // Emphasis (Nhấn mạnh - 🟡)
+  | 'pulse'
+  | 'spin'
+  | 'teeter'
+  | 'grow-shrink'
+  | 'color-pulse'
+  | 'wave'
+  | 'darken'
+  | 'lighten'
+  // Exit (Thoát - 🔴)
+  | 'disappear'
+  | 'fade-out'
+  | 'fly-out'
+  | 'float-out'
+  | 'split-out'
+  | 'wipe-out'
+  | 'zoom-out'
+  | 'bounce-out'
+  | 'swivel-out';
+
+export type AnimationTrigger = 'on-click' | 'with-previous' | 'after-previous';
+
+export type AnimationDirection =
+  | 'bottom'
+  | 'left'
+  | 'right'
+  | 'top'
+  | 'bottom-left'
+  | 'bottom-right'
+  | 'top-left'
+  | 'top-right'
+  | 'horizontal'
+  | 'vertical'
+  | 'in'
+  | 'out';
+
+export interface ElementAnimation {
+  id: string;
+  type: AnimationType;
+  category: AnimationCategory;
+  duration: number;
+  delay: number;
+  trigger: AnimationTrigger;
+  direction?: AnimationDirection;
+  order: number;
+}
 
 export type ElementType = 'text' | 'shape' | 'image' | 'table' | 'chart' | 'smartart' | 'qr' | 'ink';
 
@@ -77,10 +188,21 @@ export interface SlideElement {
   // Shape properties
   shapeType?: ShapeType;
   fill?: string;
+  fillType?: 'solid' | 'gradient' | 'none';
+  gradient?: string;
   stroke?: string;
   strokeWidth?: number;
+  borderStyle?: 'solid' | 'dashed' | 'dotted';
   borderRadius?: number;
   shapeShadow?: boolean;
+  shadowColor?: string;
+  shadowBlur?: number;
+  shadowOffsetX?: number;
+  shadowOffsetY?: number;
+  glow?: boolean;
+  glowColor?: string;
+  padding?: number;
+  letterSpacing?: number;
 
   // Image properties
   src?: string;
@@ -119,7 +241,10 @@ export interface SlideElement {
     type: AnimationType;
     duration: number;
     delay: number;
+    direction?: AnimationDirection;
+    trigger?: AnimationTrigger;
   };
+  animations?: ElementAnimation[];
 }
 
 export interface SlideBackground {
@@ -130,6 +255,10 @@ export interface SlideBackground {
 export interface SlideTransition {
   type: TransitionType;
   duration: number; // in seconds, e.g. 0.5
+  direction?: TransitionDirection;
+  sound?: TransitionSound;
+  advanceOnClick?: boolean;
+  advanceAfterSeconds?: number;
 }
 
 export interface SlideData {

@@ -7,7 +7,9 @@ import {
   Save,
   Undo2,
   Redo2,
-  Presentation,
+  Sliders,
+  Ruler,
+  Grid,
 } from 'lucide-react';
 import type { FileMeta, SlideContent } from '../../lib/storage';
 import type {
@@ -18,19 +20,35 @@ import type {
   ShapeType,
   ChartType,
   TransitionType,
+  TransitionDirection,
+  TransitionSound,
+  AnimationType,
+  AnimationCategory,
+  AnimationDirection,
+  AnimationTrigger,
+  ElementAnimation,
+  SlideBackground,
 } from '../../lib/slideTypes';
 import { SuiteLogo } from '../../components/SuiteLogo';
 import { useUi } from '../../components/ui';
+import { useDocumentCloser } from '../../lib/documentCloser';
 import { SLIDE_THEMES } from '../../lib/slideThemes';
 import { createSlideFromLayout } from '../../lib/slideTemplates';
 import { exportToPptx } from '../../lib/pptxExport';
+import { playTransitionSound } from '../../lib/slideAudio';
 import { SlideCanvas } from './SlideCanvas';
 import { SlideThumbnails } from './SlideThumbnails';
 import { SlideRibbon, type RibbonTab } from './SlideRibbon';
 import { SlideShow } from './SlideShow';
 import { SlideBackstage } from './SlideBackstage';
+import { SlideFormatPane } from './SlideFormatPane';
+import { SlideAnimationPane } from './SlideAnimationPane';
+import { SlideContextMenu, type ContextMenuPosition } from './SlideContextMenu';
+import { SlideHorizontalRuler, SlideVerticalRuler } from './SlideRuler';
+import { SlideFindReplaceModal } from './SlideFindReplaceModal';
+import { SlideExportModal } from './SlideExportModal';
+import { SlideAiModal } from './SlideAiModal';
 import './slideEditor.css';
-import { useDocumentCloser } from '../../lib/documentCloser';
 
 interface SlideEditorProps {
   meta: FileMeta;
@@ -58,9 +76,36 @@ export default function SlideEditor({
   const [viewMode, setViewMode] = useState<'normal' | 'sorter'>('normal');
   const [showNotes, setShowNotes] = useState(true);
 
+  // Advanced features state
+  const [showRuler, setShowRuler] = useState(true);
+  const [showGridlines, setShowGridlines] = useState(false);
+  const [showGuides, setShowGuides] = useState(false);
+  const [isFormatPaneOpen, setIsFormatPaneOpen] = useState(false);
+
+  // Drawing state
+  const [drawMode, setDrawMode] = useState<'select' | 'pen' | 'highlighter' | 'eraser'>('select');
+  const [inkColor, setInkColor] = useState('#000000');
+  const [inkWidth, setInkWidth] = useState(3);
+
+  // Context menu state
+  const [contextMenuPos, setContextMenuPos] = useState<ContextMenuPosition | null>(null);
+  const [contextMenuElementId, setContextMenuElementId] = useState<string | null>(null);
+
+  // Modals state
+  const [isFindReplaceOpen, setIsFindReplaceOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [isSlideShowActive, setIsSlideShowActive] = useState(false);
   const [isPresenterMode, setIsPresenterMode] = useState(false);
   const [isBackstageOpen, setIsBackstageOpen] = useState(false);
+  const [isAnimationPaneOpen, setIsAnimationPaneOpen] = useState(false);
+  const [isPreviewingTransition, setIsPreviewingTransition] = useState(false);
+  const [previewingAnimElementId, setPreviewingAnimElementId] = useState<string | null>(null);
+  const [animationPainterActive, setAnimationPainterActive] = useState(false);
+  const [copiedAnimation, setCopiedAnimation] = useState<ElementAnimation | null>(null);
+
+  // Clipboard
+  const [clipboardElement, setClipboardElement] = useState<SlideElement | null>(null);
 
   // Undo / Redo stacks
   const [undoStack, setUndoStack] = useState<PresentationData[]>([]);
@@ -72,6 +117,25 @@ export default function SlideEditor({
 
   const currentSlide = presentation.slides[activeSlideIndex] || presentation.slides[0];
   const selectedElement = currentSlide?.elements.find((el) => el.id === selectedElementId) || null;
+
+  // Auto-switch contextual tab when element is selected
+  useEffect(() => {
+    if (selectedElement) {
+      if (selectedElement.type === 'shape') {
+        // Can be viewed via shape-format
+      } else if (selectedElement.type === 'image') {
+        // Can be viewed via picture-format
+      } else if (selectedElement.type === 'table') {
+        // Can be viewed via table-design
+      } else if (selectedElement.type === 'chart') {
+        // Can be viewed via chart-design
+      }
+    } else {
+      if (['shape-format', 'picture-format', 'table-design', 'chart-design'].includes(activeTab)) {
+        setActiveTab('home');
+      }
+    }
+  }, [selectedElement, activeTab]);
 
   // Record history for Undo
   const pushHistory = useCallback((currentPres: PresentationData) => {
@@ -153,6 +217,15 @@ export default function SlideEditor({
       ) {
         e.preventDefault();
         handleRedo();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        setIsFindReplaceOpen(true);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        setIsExportModalOpen(true);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        if (selectedElementId) handleDuplicateElement();
       } else if (e.key === 'F5') {
         e.preventDefault();
         if (e.shiftKey) {
@@ -166,7 +239,7 @@ export default function SlideEditor({
 
     window.addEventListener('keydown', handleGlobalKeys);
     return () => window.removeEventListener('keydown', handleGlobalKeys);
-  }, [handleExplicitSave, handleUndo, handleRedo]);
+  }, [handleExplicitSave, handleUndo, handleRedo, selectedElementId]);
 
   // Update elements
   const updateSlideElement = (elementId: string, updates: Partial<SlideElement>) => {
@@ -198,6 +271,146 @@ export default function SlideEditor({
     setPresentation(newPres);
     setSelectedElementId(null);
     triggerAutoSave(newPres);
+  };
+
+  // Duplicate Element
+  const handleDuplicateElement = () => {
+    if (!selectedElement) return;
+    pushHistory(presentation);
+    const duplicated: SlideElement = {
+      ...selectedElement,
+      id: `el-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      x: Math.min(90, selectedElement.x + 3),
+      y: Math.min(90, selectedElement.y + 3),
+    };
+
+    const updatedSlides = presentation.slides.map((s, idx) =>
+      idx === activeSlideIndex ? { ...s, elements: [...s.elements, duplicated] } : s
+    );
+    const newPres = { ...presentation, slides: updatedSlides };
+    setPresentation(newPres);
+    setSelectedElementId(duplicated.id);
+    triggerAutoSave(newPres);
+    ui.toast('Đã nhân bản phần tử');
+  };
+
+  // Clipboard Cut / Copy / Paste
+  const handleCut = () => {
+    if (!selectedElement) return;
+    setClipboardElement({ ...selectedElement });
+    deleteSlideElement(selectedElement.id);
+    ui.toast('Đã cắt phần tử');
+  };
+
+  const handleCopy = () => {
+    if (!selectedElement) return;
+    setClipboardElement({ ...selectedElement });
+    ui.toast('Đã sao chép phần tử');
+  };
+
+  const handlePaste = () => {
+    if (!clipboardElement) return;
+    pushHistory(presentation);
+    const pasted: SlideElement = {
+      ...clipboardElement,
+      id: `el-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      x: Math.min(90, clipboardElement.x + 4),
+      y: Math.min(90, clipboardElement.y + 4),
+    };
+
+    const updatedSlides = presentation.slides.map((s, idx) =>
+      idx === activeSlideIndex ? { ...s, elements: [...s.elements, pasted] } : s
+    );
+    const newPres = { ...presentation, slides: updatedSlides };
+    setPresentation(newPres);
+    setSelectedElementId(pasted.id);
+    triggerAutoSave(newPres);
+    ui.toast('Đã dán phần tử');
+  };
+
+  // Layers Arrangement
+  const handleBringToFront = () => {
+    if (!selectedElement) return;
+    const maxZ = Math.max(...currentSlide.elements.map((e) => e.zIndex || 10), 10);
+    updateSlideElement(selectedElement.id, { zIndex: maxZ + 1 });
+  };
+
+  const handleSendToBack = () => {
+    if (!selectedElement) return;
+    const minZ = Math.min(...currentSlide.elements.map((e) => e.zIndex || 10), 10);
+    updateSlideElement(selectedElement.id, { zIndex: Math.max(1, minZ - 1) });
+  };
+
+  const handleBringForward = () => {
+    if (!selectedElement) return;
+    updateSlideElement(selectedElement.id, { zIndex: (selectedElement.zIndex || 10) + 1 });
+  };
+
+  const handleSendBackward = () => {
+    if (!selectedElement) return;
+    updateSlideElement(selectedElement.id, { zIndex: Math.max(1, (selectedElement.zIndex || 10) - 1) });
+  };
+
+  // Element Alignment
+  const handleAlignElement = (align: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom') => {
+    if (!selectedElement) return;
+    let { x, y } = selectedElement;
+    if (align === 'left') x = 5;
+    if (align === 'center') x = (100 - selectedElement.width) / 2;
+    if (align === 'right') x = 95 - selectedElement.width;
+    if (align === 'top') y = 5;
+    if (align === 'middle') y = (100 - selectedElement.height) / 2;
+    if (align === 'bottom') y = 95 - selectedElement.height;
+
+    updateSlideElement(selectedElement.id, {
+      x: Math.round(x * 10) / 10,
+      y: Math.round(y * 10) / 10,
+    });
+  };
+
+  // Add Freehand Ink Element
+  const handleAddInkElement = (inkData: Partial<SlideElement>) => {
+    pushHistory(presentation);
+    const newEl: SlideElement = {
+      id: `el-ink-${Date.now()}`,
+      type: 'ink',
+      x: inkData.x || 10,
+      y: inkData.y || 10,
+      width: inkData.width || 30,
+      height: inkData.height || 30,
+      inkPoints: inkData.inkPoints || [],
+      inkColor: inkData.inkColor || inkColor,
+      inkWidth: inkData.inkWidth || inkWidth,
+    };
+
+    const updatedSlides = presentation.slides.map((s, idx) =>
+      idx === activeSlideIndex ? { ...s, elements: [...s.elements, newEl] } : s
+    );
+    const newPres = { ...presentation, slides: updatedSlides };
+    setPresentation(newPres);
+    setSelectedElementId(newEl.id);
+    triggerAutoSave(newPres);
+  };
+
+  // Slide Background
+  const handleUpdateSlideBackground = (bg: SlideBackground) => {
+    pushHistory(presentation);
+    const updatedSlides = presentation.slides.map((s, idx) =>
+      idx === activeSlideIndex ? { ...s, background: bg } : s
+    );
+    const newPres = { ...presentation, slides: updatedSlides };
+    setPresentation(newPres);
+    triggerAutoSave(newPres);
+  };
+
+  const handleApplyBgToAll = () => {
+    pushHistory(presentation);
+    const bg = currentSlide.background;
+    const updatedSlides = presentation.slides.map((s) => ({ ...s, background: { ...bg } }));
+    const newPres = { ...presentation, slides: updatedSlides };
+    setPresentation(newPres);
+    triggerAutoSave(newPres);
+    ui.toast('Đã áp dụng nền cho tất cả trang chiếu');
   };
 
   // Add Slide
@@ -485,14 +698,223 @@ export default function SlideEditor({
     ui.toast(`Đã áp dụng chủ đề "${theme.name}"`);
   };
 
-  // Transitions
+  // Transitions & Animations Handlers
   const handleChangeTransition = (type: TransitionType) => {
+    const prevTrans = currentSlide?.transition || { type: 'none', duration: 0.5 };
     const updatedSlides = presentation.slides.map((s, idx) =>
-      idx === activeSlideIndex ? { ...s, transition: { type, duration: 0.5 } } : s
+      idx === activeSlideIndex ? { ...s, transition: { ...prevTrans, type } } : s
     );
     const newPres = { ...presentation, slides: updatedSlides };
     setPresentation(newPres);
     triggerAutoSave(newPres);
+  };
+
+  const handleChangeTransitionDuration = (duration: number) => {
+    const prevTrans = currentSlide?.transition || { type: 'none', duration: 0.5 };
+    const updatedSlides = presentation.slides.map((s, idx) =>
+      idx === activeSlideIndex ? { ...s, transition: { ...prevTrans, duration } } : s
+    );
+    const newPres = { ...presentation, slides: updatedSlides };
+    setPresentation(newPres);
+    triggerAutoSave(newPres);
+  };
+
+  const handleChangeTransitionDirection = (direction: TransitionDirection) => {
+    const prevTrans = currentSlide?.transition || { type: 'none', duration: 0.5 };
+    const updatedSlides = presentation.slides.map((s, idx) =>
+      idx === activeSlideIndex ? { ...s, transition: { ...prevTrans, direction } } : s
+    );
+    const newPres = { ...presentation, slides: updatedSlides };
+    setPresentation(newPres);
+    triggerAutoSave(newPres);
+  };
+
+  const handleChangeTransitionSound = (sound: TransitionSound) => {
+    const prevTrans = currentSlide?.transition || { type: 'none', duration: 0.5 };
+    const updatedSlides = presentation.slides.map((s, idx) =>
+      idx === activeSlideIndex ? { ...s, transition: { ...prevTrans, sound } } : s
+    );
+    const newPres = { ...presentation, slides: updatedSlides };
+    setPresentation(newPres);
+    triggerAutoSave(newPres);
+    playTransitionSound(sound);
+  };
+
+  const handleChangeAdvanceOnClick = (advanceOnClick: boolean) => {
+    const prevTrans = currentSlide?.transition || { type: 'none', duration: 0.5 };
+    const updatedSlides = presentation.slides.map((s, idx) =>
+      idx === activeSlideIndex ? { ...s, transition: { ...prevTrans, advanceOnClick } } : s
+    );
+    const newPres = { ...presentation, slides: updatedSlides };
+    setPresentation(newPres);
+    triggerAutoSave(newPres);
+  };
+
+  const handleChangeAdvanceAfterSeconds = (advanceAfterSeconds: number) => {
+    const prevTrans = currentSlide?.transition || { type: 'none', duration: 0.5 };
+    const updatedSlides = presentation.slides.map((s, idx) =>
+      idx === activeSlideIndex ? { ...s, transition: { ...prevTrans, advanceAfterSeconds } } : s
+    );
+    const newPres = { ...presentation, slides: updatedSlides };
+    setPresentation(newPres);
+    triggerAutoSave(newPres);
+  };
+
+  const handlePreviewTransition = () => {
+    const sound = currentSlide?.transition?.sound || 'none';
+    playTransitionSound(sound);
+    setIsPreviewingTransition(true);
+    const durMs = Math.max(500, (currentSlide?.transition?.duration || 0.8) * 1000);
+    setTimeout(() => {
+      setIsPreviewingTransition(false);
+    }, durMs);
+  };
+
+  const handlePreviewAnimation = () => {
+    if (selectedElementId) {
+      setPreviewingAnimElementId(selectedElementId);
+      setTimeout(() => setPreviewingAnimElementId(null), 1000);
+    } else {
+      setPreviewingAnimElementId('ALL');
+      setTimeout(() => setPreviewingAnimElementId(null), 1200);
+    }
+  };
+
+  const handleAddAnimation = (type: AnimationType, category: AnimationCategory) => {
+    if (!selectedElement) {
+      ui.toast('Vui lòng chọn một đối tượng trên trang chiếu trước khi gán hoạt hình');
+      return;
+    }
+
+    const newAnim: ElementAnimation = {
+      id: `anim-${Date.now()}`,
+      type,
+      category,
+      duration: 0.5,
+      delay: 0,
+      trigger: 'on-click',
+      direction: 'bottom',
+      order: (selectedElement.animations?.length || 0) + 1,
+    };
+
+    const existingAnims = selectedElement.animations || (selectedElement.animation && selectedElement.animation.type !== 'none' ? [{
+      id: `anim-prev-${Date.now()}`,
+      type: selectedElement.animation.type,
+      category: 'entrance' as const,
+      duration: selectedElement.animation.duration || 0.5,
+      delay: selectedElement.animation.delay || 0,
+      trigger: selectedElement.animation.trigger || 'on-click',
+      direction: selectedElement.animation.direction || 'bottom',
+      order: 1,
+    }] : []);
+
+    const updatedAnims = [...existingAnims, newAnim];
+    updateSlideElement(selectedElement.id, {
+      animations: updatedAnims,
+      animation: {
+        type,
+        duration: 0.5,
+        delay: 0,
+        direction: 'bottom',
+        trigger: 'on-click',
+      },
+    });
+
+    // Quick visual preview on canvas
+    setPreviewingAnimElementId(selectedElement.id);
+    setTimeout(() => setPreviewingAnimElementId(null), 800);
+    ui.toast(`Đã gán hoạt hình "${type}"`);
+  };
+
+  const handleUpdateAnimationTiming = (timing: {
+    trigger?: AnimationTrigger;
+    duration?: number;
+    delay?: number;
+    direction?: AnimationDirection;
+  }) => {
+    if (!selectedElement) return;
+    const currentAnim = selectedElement.animation || {
+      type: 'fade-in',
+      duration: 0.5,
+      delay: 0,
+      direction: 'bottom',
+      trigger: 'on-click',
+    };
+    const updatedAnim = { ...currentAnim, ...timing };
+
+    let updatedAnims = selectedElement.animations;
+    if (updatedAnims && updatedAnims.length > 0) {
+      updatedAnims = updatedAnims.map((a, i) => (i === 0 ? { ...a, ...timing } : a));
+    }
+
+    updateSlideElement(selectedElement.id, {
+      animation: updatedAnim,
+      animations: updatedAnims,
+    });
+  };
+
+  const handleReorderAnimation = (direction: 'earlier' | 'later') => {
+    if (!selectedElement || !selectedElement.animations || selectedElement.animations.length <= 1) return;
+    const list = [...selectedElement.animations];
+    if (direction === 'earlier') {
+      const first = list.shift()!;
+      list.push(first);
+    } else {
+      const last = list.pop()!;
+      list.unshift(last);
+    }
+    const reordered = list.map((a, idx) => ({ ...a, order: idx + 1 }));
+    updateSlideElement(selectedElement.id, { animations: reordered });
+    ui.toast(direction === 'earlier' ? 'Đã di chuyển hoạt hình sớm hơn' : 'Đã di chuyển hoạt hình muộn hơn');
+  };
+
+  const handleToggleAnimationPainter = () => {
+    if (!selectedElement) return;
+    if (animationPainterActive) {
+      setAnimationPainterActive(false);
+      setCopiedAnimation(null);
+      ui.toast('Đã tắt sao chép hoạt hình');
+    } else {
+      const anim = selectedElement.animations?.[0] || (selectedElement.animation?.type !== 'none' ? {
+        id: `anim-copy-${Date.now()}`,
+        type: selectedElement.animation!.type,
+        category: 'entrance' as const,
+        duration: selectedElement.animation!.duration || 0.5,
+        delay: selectedElement.animation!.delay || 0,
+        trigger: selectedElement.animation!.trigger || 'on-click',
+        direction: selectedElement.animation!.direction || 'bottom',
+        order: 1,
+      } : null);
+
+      if (!anim) {
+        ui.toast('Đối tượng này chưa có hoạt hình để sao chép');
+        return;
+      }
+      setCopiedAnimation(anim);
+      setAnimationPainterActive(true);
+      ui.toast('Đã sao chép hoạt hình. Hãy bấm vào đối tượng khác để áp dụng');
+    }
+  };
+
+  const handleSelectElementWithPainter = (elId: string | null) => {
+    if (animationPainterActive && copiedAnimation && elId && elId !== selectedElementId) {
+      updateSlideElement(elId, {
+        animations: [{ ...copiedAnimation, id: `anim-${Date.now()}` }],
+        animation: {
+          type: copiedAnimation.type,
+          duration: copiedAnimation.duration,
+          delay: copiedAnimation.delay,
+          direction: copiedAnimation.direction,
+          trigger: copiedAnimation.trigger,
+        },
+      });
+      setPreviewingAnimElementId(elId);
+      setTimeout(() => setPreviewingAnimElementId(null), 800);
+      ui.toast('Đã dán định dạng hoạt hình vào đối tượng mới!');
+      setAnimationPainterActive(false);
+      setCopiedAnimation(null);
+    }
+    setSelectedElementId(elId);
   };
 
   const handleApplyTransitionToAll = () => {
@@ -517,45 +939,26 @@ export default function SlideEditor({
     triggerAutoSave(newPres);
   };
 
-  // AI Copilot generator
-  const handleAiGenerate = async () => {
-    const res = await ui.ask({
-      title: 'AI Copilot · Tạo nội dung thuyết trình',
-      message: 'Nhập chủ đề hoặc bài thuyết trình bạn muốn tạo để AI soạn thảo bài thuyết trình hoàn chỉnh:',
-      fields: [
-        {
-          name: 'prompt',
-          label: 'Chủ đề thuyết trình',
-          type: 'text',
-          placeholder: 'Ví dụ: Kế hoạch mở rộng kinh doanh tại TP. Hồ Chí Minh quý 4',
-        },
-      ],
-      confirmText: 'Tạo bài thuyết trình',
-      cancelText: 'Huỷ',
-    });
+  // Find & Replace All
+  const handleReplaceAll = (find: string, replaceWith: string, matchCase: boolean) => {
+    pushHistory(presentation);
+    let count = 0;
+    const updatedSlides = presentation.slides.map((s) => ({
+      ...s,
+      elements: s.elements.map((el) => {
+        if (!el.text) return el;
+        const flags = matchCase ? 'g' : 'gi';
+        const regex = new RegExp(find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), flags);
+        const matches = el.text.match(regex);
+        if (matches) count += matches.length;
+        return { ...el, text: el.text.replace(regex, replaceWith) };
+      }),
+    }));
 
-    if (!res || !res.prompt) return;
-
-    ui.showBusy('AI Copilot đang soạn thảo bài thuyết trình…');
-    setTimeout(() => {
-      pushHistory(presentation);
-      const newSlide = createSlideFromLayout(
-        'title-content',
-        presentation.slides.length,
-        presentation.themeId,
-        String(res.prompt).toUpperCase()
-      );
-      newSlide.elements[1].text = `• Tổng quan chiến lược triển khai cho chủ đề "${res.prompt}"\n• Phân tích cơ hội thị trường và các yếu tố cạnh tranh\n• Nguồn lực và kinh phí cần chuẩn bị\n• Dự kiến các cột mốc quan trọng trong năm 2026`;
-
-      const newPres = {
-        ...presentation,
-        slides: [...presentation.slides, newSlide],
-      };
-      setPresentation(newPres);
-      setActiveSlideIndex(presentation.slides.length);
-      ui.showBusy(null);
-      ui.toast('AI Copilot đã tạo trang chiếu mới thành công!');
-    }, 1200);
+    const newPres = { ...presentation, slides: updatedSlides };
+    setPresentation(newPres);
+    triggerAutoSave(newPres);
+    return count;
   };
 
   return (
@@ -654,7 +1057,26 @@ export default function SlideEditor({
         }}
         currentTransition={currentSlide?.transition.type || 'none'}
         onChangeTransition={handleChangeTransition}
+        transitionDuration={currentSlide?.transition.duration ?? 0.5}
+        onChangeTransitionDuration={handleChangeTransitionDuration}
+        transitionDirection={currentSlide?.transition.direction ?? 'from-bottom'}
+        onChangeTransitionDirection={handleChangeTransitionDirection}
+        transitionSound={currentSlide?.transition.sound ?? 'none'}
+        onChangeTransitionSound={handleChangeTransitionSound}
+        advanceOnClick={currentSlide?.transition.advanceOnClick ?? true}
+        onChangeAdvanceOnClick={handleChangeAdvanceOnClick}
+        advanceAfterSeconds={currentSlide?.transition.advanceAfterSeconds ?? 0}
+        onChangeAdvanceAfterSeconds={handleChangeAdvanceAfterSeconds}
         onApplyTransitionToAll={handleApplyTransitionToAll}
+        onPreviewTransition={handlePreviewTransition}
+        onPreviewAnimation={handlePreviewAnimation}
+        isAnimationPaneOpen={isAnimationPaneOpen}
+        onToggleAnimationPane={() => setIsAnimationPaneOpen(!isAnimationPaneOpen)}
+        onAddAnimation={handleAddAnimation}
+        animationPainterActive={animationPainterActive}
+        onToggleAnimationPainter={handleToggleAnimationPainter}
+        onUpdateAnimationTiming={handleUpdateAnimationTiming}
+        onReorderAnimation={handleReorderAnimation}
         onStartSlideShow={(fromCurrent) => {
           if (!fromCurrent) setActiveSlideIndex(0);
           setIsSlideShowActive(true);
@@ -673,7 +1095,28 @@ export default function SlideEditor({
         onViewModeChange={setViewMode}
         showNotes={showNotes}
         onToggleNotes={() => setShowNotes(!showNotes)}
-        onAiGenerate={handleAiGenerate}
+        showRuler={showRuler}
+        onToggleRuler={() => setShowRuler(!showRuler)}
+        showGridlines={showGridlines}
+        onToggleGridlines={() => setShowGridlines(!showGridlines)}
+        showGuides={showGuides}
+        onToggleGuides={() => setShowGuides(!showGuides)}
+        isFormatPaneOpen={isFormatPaneOpen}
+        onToggleFormatPane={() => setIsFormatPaneOpen(!isFormatPaneOpen)}
+        onOpenFindReplace={() => setIsFindReplaceOpen(true)}
+        onOpenExportModal={() => setIsExportModalOpen(true)}
+        onOpenAiModal={() => setIsAiModalOpen(true)}
+        drawMode={drawMode}
+        onChangeDrawMode={setDrawMode}
+        inkColor={inkColor}
+        onChangeInkColor={setInkColor}
+        inkWidth={inkWidth}
+        onChangeInkWidth={setInkWidth}
+        onBringToFront={handleBringToFront}
+        onSendToBack={handleSendToBack}
+        onBringForward={handleBringForward}
+        onSendBackward={handleSendBackward}
+        onAlignElement={handleAlignElement}
       />
 
       {/* 3. Main Workspace Area */}
@@ -696,16 +1139,45 @@ export default function SlideEditor({
         <div className="ppt-stage">
           {viewMode === 'normal' ? (
             <>
-              <div className="ppt-canvas-container">
-                <SlideCanvas
-                  slide={currentSlide}
-                  aspectRatio={presentation.aspectRatio}
-                  zoom={zoom}
-                  selectedElementId={selectedElementId}
-                  onSelectElement={setSelectedElementId}
-                  onUpdateElement={updateSlideElement}
-                  onDeleteElement={deleteSlideElement}
-                />
+              {/* Optional Horizontal Ruler */}
+              {showRuler && (
+                <div className="ppt-ruler-h-container">
+                  <SlideHorizontalRuler aspectRatio={presentation.aspectRatio} zoom={zoom} />
+                </div>
+              )}
+
+              <div className="ppt-canvas-outer-wrap">
+                {/* Optional Vertical Ruler */}
+                {showRuler && (
+                  <div className="ppt-ruler-v-container">
+                    <SlideVerticalRuler aspectRatio={presentation.aspectRatio} zoom={zoom} />
+                  </div>
+                )}
+
+                <div className="ppt-canvas-container">
+                  <SlideCanvas
+                    slide={currentSlide}
+                    aspectRatio={presentation.aspectRatio}
+                    zoom={zoom}
+                    selectedElementId={selectedElementId}
+                    onSelectElement={handleSelectElementWithPainter}
+                    onUpdateElement={updateSlideElement}
+                    onDeleteElement={deleteSlideElement}
+                    showGridlines={showGridlines}
+                    showGuides={showGuides}
+                    drawMode={drawMode}
+                    inkColor={inkColor}
+                    inkWidth={inkWidth}
+                    onAddInkElement={handleAddInkElement}
+                    onContextMenu={(e, elId) => {
+                      setContextMenuPos({ x: e.clientX, y: e.clientY });
+                      setContextMenuElementId(elId);
+                    }}
+                    isPreviewingTransition={isPreviewingTransition}
+                    previewingAnimElementId={previewingAnimElementId}
+                    showAnimBadges={activeTab === 'animations' || isAnimationPaneOpen}
+                  />
+                </div>
               </div>
 
               {/* Bottom Speaker Notes */}
@@ -763,6 +1235,36 @@ export default function SlideEditor({
             </div>
           )}
         </div>
+
+        {/* Right-Hand Format Inspector Pane */}
+        {isFormatPaneOpen && (
+          <SlideFormatPane
+            selectedElement={selectedElement}
+            slide={currentSlide}
+            onUpdateElement={(updates) => selectedElementId && updateSlideElement(selectedElementId, updates)}
+            onUpdateSlideBackground={handleUpdateSlideBackground}
+            onApplyBgToAll={handleApplyBgToAll}
+            onClose={() => setIsFormatPaneOpen(false)}
+            onBringToFront={handleBringToFront}
+            onSendToBack={handleSendToBack}
+            onBringForward={handleBringForward}
+            onSendBackward={handleSendBackward}
+            onAlignElement={handleAlignElement}
+          />
+        )}
+
+        {/* Right-Hand Animation Pane */}
+        {isAnimationPaneOpen && (
+          <SlideAnimationPane
+            slide={currentSlide}
+            selectedElementId={selectedElementId}
+            onSelectElement={setSelectedElementId}
+            onUpdateElement={updateSlideElement}
+            onClose={() => setIsAnimationPaneOpen(false)}
+            onPlayPreview={handlePreviewAnimation}
+            isPlayingPreview={previewingAnimElementId !== null}
+          />
+        )}
       </div>
 
       {/* 4. Office Status Bar */}
@@ -780,6 +1282,37 @@ export default function SlideEditor({
         </div>
 
         <div className="ppt-status-right">
+          <button
+            className={`ppt-status-btn ${showRuler ? 'is-active' : ''}`}
+            onClick={() => setShowRuler(!showRuler)}
+            title="Thước kẻ"
+          >
+            <Ruler size={13} />
+          </button>
+          <button
+            className={`ppt-status-btn ${showGridlines ? 'is-active' : ''}`}
+            onClick={() => setShowGridlines(!showGridlines)}
+            title="Đường lưới"
+          >
+            <Grid size={13} />
+          </button>
+          <button
+            className={`ppt-status-btn ${isFormatPaneOpen ? 'is-active' : ''}`}
+            onClick={() => setIsFormatPaneOpen(!isFormatPaneOpen)}
+            title="Khung định dạng"
+          >
+            <Sliders size={13} />
+          </button>
+          <button
+            className={`ppt-status-btn ${isAnimationPaneOpen ? 'is-active' : ''}`}
+            onClick={() => setIsAnimationPaneOpen(!isAnimationPaneOpen)}
+            title="Ngăn Hoạt hình"
+          >
+            Ngăn Hoạt hình
+          </button>
+
+          <span style={{ color: '#CBD5E1' }}>|</span>
+
           <button
             className={`ppt-status-btn ${viewMode === 'normal' ? 'is-active' : ''}`}
             onClick={() => setViewMode('normal')}
@@ -799,7 +1332,7 @@ export default function SlideEditor({
             onClick={() => setIsSlideShowActive(true)}
             title="Bắt đầu Trình chiếu (F5)"
           >
-            <Presentation size={14} /> Chiếu
+            Chiếu
           </button>
 
           <span style={{ color: '#CBD5E1' }}>|</span>
@@ -827,6 +1360,71 @@ export default function SlideEditor({
         </div>
       </footer>
 
+      {/* Floating Context Menu */}
+      <SlideContextMenu
+        position={contextMenuPos}
+        targetElementId={contextMenuElementId}
+        canPaste={!!clipboardElement}
+        onClose={() => setContextMenuPos(null)}
+        onCut={handleCut}
+        onCopy={handleCopy}
+        onPaste={handlePaste}
+        onDuplicate={handleDuplicateElement}
+        onDelete={() => contextMenuElementId && deleteSlideElement(contextMenuElementId)}
+        onEditText={() => {
+          // Double click triggers edit
+        }}
+        onBringToFront={handleBringToFront}
+        onSendToBack={handleSendToBack}
+        onBringForward={handleBringForward}
+        onSendBackward={handleSendBackward}
+        onChangeShape={(shape) => {
+          if (contextMenuElementId) updateSlideElement(contextMenuElementId, { shapeType: shape });
+        }}
+        onOpenFormat={() => setIsFormatPaneOpen(true)}
+        onAddSlide={handleAddSlide}
+        onDuplicateSlide={() => handleDuplicateSlide(activeSlideIndex)}
+      />
+
+      {/* Find & Replace Modal */}
+      <SlideFindReplaceModal
+        isOpen={isFindReplaceOpen}
+        onClose={() => setIsFindReplaceOpen(false)}
+        presentation={presentation}
+        onReplaceAll={handleReplaceAll}
+        onNavigateToSlide={(idx) => {
+          setActiveSlideIndex(idx);
+          setIsFindReplaceOpen(false);
+        }}
+      />
+
+      {/* Export & Print Modal */}
+      <SlideExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        presentation={presentation}
+        onExportPptx={() => exportToPptx(presentation, meta.name)}
+        onExportPdf={() => {
+          ui.toast('Đang chuẩn bị tệp PDF xuất ra...');
+          window.print();
+        }}
+      />
+
+      {/* AI Presentation Copilot Modal */}
+      <SlideAiModal
+        isOpen={isAiModalOpen}
+        onClose={() => setIsAiModalOpen(false)}
+        currentThemeId={presentation.themeId}
+        onApplyGeneratedDeck={(newSlides, themeId) => {
+          pushHistory(presentation);
+          const newPres = { ...presentation, slides: newSlides, themeId };
+          setPresentation(newPres);
+          setActiveSlideIndex(0);
+          triggerAutoSave(newPres);
+          ui.toast('AI Copilot đã tạo bài thuyết trình mới hoàn chỉnh!');
+        }}
+      />
+
       {/* Fullscreen Slide Show Mode */}
       {isSlideShowActive && (
         <SlideShow
@@ -849,7 +1447,7 @@ export default function SlideEditor({
           onClose={() => setIsBackstageOpen(false)}
           onSave={handleExplicitSave}
           onExportPptx={() => exportToPptx(presentation, meta.name)}
-          onPrint={() => window.print()}
+          onPrint={() => setIsExportModalOpen(true)}
           onNew={() => {
             setIsBackstageOpen(false);
             onBack();

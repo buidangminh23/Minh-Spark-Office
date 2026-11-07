@@ -4,12 +4,22 @@ import type { SlideData, SlideElement, ShapeType } from '../../lib/slideTypes';
 interface SlideCanvasProps {
   slide: SlideData;
   aspectRatio: '16:9' | '4:3';
-  zoom: number; // percentage, e.g. 100
+  zoom: number;
   selectedElementId: string | null;
   onSelectElement: (id: string | null) => void;
   onUpdateElement: (id: string, updates: Partial<SlideElement>) => void;
   onDeleteElement?: (id: string) => void;
   readOnly?: boolean;
+  showGridlines?: boolean;
+  showGuides?: boolean;
+  drawMode?: 'select' | 'pen' | 'highlighter' | 'eraser';
+  inkColor?: string;
+  inkWidth?: number;
+  onAddInkElement?: (el: Partial<SlideElement>) => void;
+  onContextMenu?: (e: React.MouseEvent, elementId: string | null) => void;
+  isPreviewingTransition?: boolean;
+  previewingAnimElementId?: string | null;
+  showAnimBadges?: boolean;
 }
 
 export function SlideCanvas({
@@ -21,12 +31,35 @@ export function SlideCanvas({
   onUpdateElement,
   onDeleteElement,
   readOnly = false,
+  showGridlines = false,
+  showGuides = false,
+  drawMode = 'select',
+  inkColor = '#000000',
+  inkWidth = 3,
+  onAddInkElement,
+  onContextMenu,
+  isPreviewingTransition = false,
+  previewingAnimElementId = null,
+  showAnimBadges = true,
 }: SlideCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [resizingHandle, setResizingHandle] = useState<string | null>(null);
-  const [dragStart, setDragStart] = useState<{ x: number; y: number; elX: number; elY: number; elW: number; elH: number } | null>(null);
+  const [isRotating, setIsRotating] = useState(false);
+  const [dragStart, setDragStart] = useState<{
+    x: number;
+    y: number;
+    elX: number;
+    elY: number;
+    elW: number;
+    elH: number;
+    rotation?: number;
+  } | null>(null);
+
+  // Freehand drawing live points
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [currentInkPoints, setCurrentInkPoints] = useState<number[]>([]);
 
   const selectedElement = slide.elements.find((el) => el.id === selectedElementId);
 
@@ -37,8 +70,20 @@ export function SlideCanvas({
     transformOrigin: 'center center',
   };
 
+  // Pointer Down on Element
   const handlePointerDown = (e: React.PointerEvent, el: SlideElement) => {
     if (readOnly) return;
+
+    if (drawMode === 'eraser') {
+      e.stopPropagation();
+      if (el.type === 'ink') {
+        onDeleteElement?.(el.id);
+      }
+      return;
+    }
+
+    if (drawMode !== 'select') return; // In draw mode, canvas handles it
+
     e.stopPropagation();
     onSelectElement(el.id);
 
@@ -58,6 +103,7 @@ export function SlideCanvas({
     });
   };
 
+  // Pointer Down on Resize Handle
   const handleHandlePointerDown = (e: React.PointerEvent, handle: string) => {
     if (readOnly || !selectedElement) return;
     e.stopPropagation();
@@ -72,19 +118,64 @@ export function SlideCanvas({
     });
   };
 
+  // Pointer Down on Rotate Handle
+  const handleRotatePointerDown = (e: React.PointerEvent) => {
+    if (readOnly || !selectedElement) return;
+    e.stopPropagation();
+    setIsRotating(true);
+    setDragStart({
+      x: e.clientX,
+      y: e.clientY,
+      elX: selectedElement.x,
+      elY: selectedElement.y,
+      elW: selectedElement.width,
+      elH: selectedElement.height,
+      rotation: selectedElement.rotation || 0,
+    });
+  };
+
+  // Canvas Drawing Pointer Down
+  const handleCanvasPointerDown = (e: React.PointerEvent) => {
+    if (readOnly) return;
+    if (drawMode === 'pen' || drawMode === 'highlighter') {
+      const container = containerRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const ptX = Math.round((((e.clientX - rect.left) / rect.width) * 100) * 10) / 10;
+      const ptY = Math.round((((e.clientY - rect.top) / rect.height) * 100) * 10) / 10;
+
+      setIsDrawing(true);
+      setCurrentInkPoints([ptX, ptY]);
+    }
+  };
+
+  // Drag, Resize & Rotation window listeners
   useEffect(() => {
     const handlePointerMove = (e: PointerEvent) => {
-      if (!dragStart || !selectedElement || !containerRef.current) return;
-
       const container = containerRef.current;
+      if (!container) return;
       const rect = container.getBoundingClientRect();
+
+      // Freehand drawing in progress
+      if (isDrawing && (drawMode === 'pen' || drawMode === 'highlighter')) {
+        const ptX = Math.round((((e.clientX - rect.left) / rect.width) * 100) * 10) / 10;
+        const ptY = Math.round((((e.clientY - rect.top) / rect.height) * 100) * 10) / 10;
+        setCurrentInkPoints((prev) => [...prev, ptX, ptY]);
+        return;
+      }
+
+      if (!dragStart || !selectedElement) return;
+
       const deltaXPct = ((e.clientX - dragStart.x) / rect.width) * 100;
       const deltaYPct = ((e.clientY - dragStart.y) / rect.height) * 100;
 
       if (isDragging) {
         const newX = Math.max(0, Math.min(100 - selectedElement.width, dragStart.elX + deltaXPct));
         const newY = Math.max(0, Math.min(100 - selectedElement.height, dragStart.elY + deltaYPct));
-        onUpdateElement(selectedElement.id, { x: Math.round(newX * 10) / 10, y: Math.round(newY * 10) / 10 });
+        onUpdateElement(selectedElement.id, {
+          x: Math.round(newX * 10) / 10,
+          y: Math.round(newY * 10) / 10,
+        });
       } else if (resizingHandle) {
         let newX = dragStart.elX;
         let newY = dragStart.elY;
@@ -114,16 +205,62 @@ export function SlideCanvas({
           width: Math.round(newW * 10) / 10,
           height: Math.round(newH * 10) / 10,
         });
+      } else if (isRotating) {
+        // Calculate angle relative to element center
+        const centerX = rect.left + ((dragStart.elX + dragStart.elW / 2) / 100) * rect.width;
+        const centerY = rect.top + ((dragStart.elY + dragStart.elH / 2) / 100) * rect.height;
+        const rad = Math.atan2(e.clientY - centerY, e.clientX - centerX);
+        let deg = Math.round((rad * (180 / Math.PI)) + 90);
+        if (deg < 0) deg += 360;
+        // Snap to 15 deg if Shift is held
+        if (e.shiftKey) deg = Math.round(deg / 15) * 15;
+
+        onUpdateElement(selectedElement.id, { rotation: deg });
       }
     };
 
     const handlePointerUp = () => {
+      if (isDrawing && currentInkPoints.length >= 4) {
+        // Calculate bounding box
+        const xs = currentInkPoints.filter((_, idx) => idx % 2 === 0);
+        const ys = currentInkPoints.filter((_, idx) => idx % 2 !== 0);
+        const minX = Math.min(...xs);
+        const maxX = Math.max(...xs);
+        const minY = Math.min(...ys);
+        const maxY = Math.max(...ys);
+
+        const w = Math.max(2, maxX - minX);
+        const h = Math.max(2, maxY - minY);
+
+        // Normalize points relative to element width and height
+        const normalizedPoints: number[] = [];
+        for (let i = 0; i < currentInkPoints.length; i += 2) {
+          const relX = ((currentInkPoints[i] - minX) / w) * 100;
+          const relY = ((currentInkPoints[i + 1] - minY) / h) * 100;
+          normalizedPoints.push(Math.round(relX * 10) / 10, Math.round(relY * 10) / 10);
+        }
+
+        onAddInkElement?.({
+          type: 'ink',
+          x: minX,
+          y: minY,
+          width: w,
+          height: h,
+          inkPoints: normalizedPoints,
+          inkColor: drawMode === 'highlighter' ? 'rgba(250, 204, 21, 0.45)' : inkColor,
+          inkWidth: drawMode === 'highlighter' ? 12 : inkWidth,
+        });
+      }
+
       setIsDragging(false);
       setResizingHandle(null);
+      setIsRotating(false);
       setDragStart(null);
+      setIsDrawing(false);
+      setCurrentInkPoints([]);
     };
 
-    if (isDragging || resizingHandle) {
+    if (isDragging || resizingHandle || isRotating || isDrawing) {
       window.addEventListener('pointermove', handlePointerMove);
       window.addEventListener('pointerup', handlePointerUp);
       return () => {
@@ -131,7 +268,20 @@ export function SlideCanvas({
         window.removeEventListener('pointerup', handlePointerUp);
       };
     }
-  }, [isDragging, resizingHandle, dragStart, selectedElement, onUpdateElement]);
+  }, [
+    isDragging,
+    resizingHandle,
+    isRotating,
+    isDrawing,
+    dragStart,
+    selectedElement,
+    currentInkPoints,
+    drawMode,
+    inkColor,
+    inkWidth,
+    onAddInkElement,
+    onUpdateElement,
+  ]);
 
   // Keyboard navigation & delete
   useEffect(() => {
@@ -163,19 +313,71 @@ export function SlideCanvas({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [readOnly, selectedElementId, editingTextId, slide.elements, onDeleteElement, onSelectElement, onUpdateElement]);
 
+  const canvasCursor =
+    drawMode === 'pen'
+      ? 'crosshair'
+      : drawMode === 'highlighter'
+      ? 'cell'
+      : drawMode === 'eraser'
+      ? 'not-allowed'
+      : 'default';
+
+  // Map all animated elements to sequential 1-based order
+  const animBadgeMap: Record<string, { num: number; category: 'entrance' | 'emphasis' | 'exit' }> = {};
+  let animCount = 1;
+  slide.elements.forEach((el) => {
+    if ((el.animations && el.animations.length > 0) || (el.animation && el.animation.type !== 'none')) {
+      const firstAnim = el.animations?.[0];
+      let cat: 'entrance' | 'emphasis' | 'exit' = 'entrance';
+      if (firstAnim?.category) {
+        cat = firstAnim.category;
+      } else if (el.animation?.type) {
+        const t = el.animation.type;
+        if (t.includes('out') || t.includes('disappear')) cat = 'exit';
+        else if (t.includes('pulse') || t.includes('spin') || t.includes('teeter') || t.includes('grow-shrink') || t.includes('wave') || t.includes('darken') || t.includes('lighten')) cat = 'emphasis';
+        else cat = 'entrance';
+      }
+      animBadgeMap[el.id] = { num: animCount++, category: cat };
+    }
+  });
+
   return (
     <div
       ref={containerRef}
-      className={`ppt-slide-canvas ${aspectRatio === '4:3' ? 'ratio-4-3' : ''}`}
-      style={backgroundStyle}
+      className={`ppt-slide-canvas ${aspectRatio === '4:3' ? 'ratio-4-3' : ''} ${
+        isPreviewingTransition ? `is-previewing-transition trans-${slide.transition?.type || 'fade'}` : ''
+      }`}
+      style={{ ...backgroundStyle, cursor: canvasCursor }}
+      onPointerDown={handleCanvasPointerDown}
       onClick={() => {
-        onSelectElement(null);
-        setEditingTextId(null);
+        if (drawMode === 'select') {
+          onSelectElement(null);
+          setEditingTextId(null);
+        }
+      }}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onContextMenu?.(e, null);
       }}
     >
+      {/* Gridlines Overlay */}
+      {showGridlines && <div className="ppt-gridlines-overlay" />}
+
+      {/* Guides Overlay (Center crosshairs) */}
+      {showGuides && (
+        <div className="ppt-guides-overlay">
+          <div className="ppt-guide-line-h" />
+          <div className="ppt-guide-line-v" />
+        </div>
+      )}
+
+      {/* Slide Elements */}
       {slide.elements.map((el) => {
         const isSelected = !readOnly && el.id === selectedElementId;
         const isEditing = el.id === editingTextId;
+        const isAnimPreview = previewingAnimElementId === 'ALL' || previewingAnimElementId === el.id;
+        const animType = el.animations?.[0]?.type || el.animation?.type || 'fade-in';
+        const animBadge = animBadgeMap[el.id];
 
         const elStyle: React.CSSProperties = {
           left: `${el.x}%`,
@@ -185,27 +387,60 @@ export function SlideCanvas({
           transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined,
           opacity: el.opacity ?? 1,
           zIndex: el.zIndex ?? (isSelected ? 20 : 10),
+          boxShadow: el.shapeShadow
+            ? `0 ${el.shadowOffsetY ?? 6}px ${el.shadowBlur ?? 12}px ${el.shadowColor || 'rgba(0,0,0,0.25)'}`
+            : undefined,
         };
 
         return (
           <div
             key={el.id}
-            className={`ppt-element ${isSelected ? 'is-selected' : ''}`}
+            className={`ppt-element ${isSelected ? 'is-selected' : ''} ${
+              isAnimPreview ? `is-previewing-anim anim-${animType}` : ''
+            }`}
             style={elStyle}
             onPointerDown={(e) => handlePointerDown(e, el)}
+            onClick={(e) => {
+              if (drawMode === 'select') {
+                e.stopPropagation();
+                onSelectElement(el.id);
+              }
+            }}
             onDoubleClick={(e) => {
               if (readOnly) return;
               e.stopPropagation();
               if (el.type === 'text') setEditingTextId(el.id);
             }}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onSelectElement(el.id);
+              onContextMenu?.(e, el.id);
+            }}
           >
+            {/* Numbered Animation Badge */}
+            {showAnimBadges && animBadge && (
+              <div
+                className={`ppt-canvas-anim-badge is-${animBadge.category}`}
+                title={`Thứ tự hoạt hình: [${animBadge.num}]`}
+              >
+                {animBadge.num}
+              </div>
+            )}
+
             {renderElementContent(el, isEditing, (newText) => onUpdateElement(el.id, { text: newText }))}
 
-            {isSelected && (
+            {isSelected && drawMode === 'select' && (
               <>
+                {/* Rotate Handle */}
                 <div className="ppt-rotate-stem" />
-                <div className="ppt-rotate-handle" title="Xoay phần tử" />
+                <div
+                  className="ppt-rotate-handle"
+                  title="Kéo để xoay phần tử (Giữ Shift để xoay 15°)"
+                  onPointerDown={handleRotatePointerDown}
+                />
 
+                {/* 8 Resize Handles */}
                 <div className="ppt-resize-handle ppt-handle-nw" onPointerDown={(e) => handleHandlePointerDown(e, 'nw')} />
                 <div className="ppt-resize-handle ppt-handle-n" onPointerDown={(e) => handleHandlePointerDown(e, 'n')} />
                 <div className="ppt-resize-handle ppt-handle-ne" onPointerDown={(e) => handleHandlePointerDown(e, 'ne')} />
@@ -219,6 +454,31 @@ export function SlideCanvas({
           </div>
         );
       })}
+
+      {/* Live Freehand Ink drawing preview */}
+      {isDrawing && currentInkPoints.length >= 4 && (
+        <svg
+          style={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            pointerEvents: 'none',
+            zIndex: 999,
+          }}
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+        >
+          <polyline
+            points={currentInkPoints.join(' ')}
+            fill="none"
+            stroke={drawMode === 'highlighter' ? 'rgba(250, 204, 21, 0.45)' : inkColor}
+            strokeWidth={drawMode === 'highlighter' ? 3.5 : (inkWidth / 10)}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      )}
     </div>
   );
 }
@@ -237,8 +497,14 @@ function renderElementContent(
       textDecoration: el.textDecoration || 'none',
       color: el.color || '#1E293B',
       textAlign: el.textAlign || 'left',
-      justifyContent: el.verticalAlign === 'bottom' ? 'flex-end' : el.verticalAlign === 'middle' ? 'center' : 'flex-start',
+      justifyContent:
+        el.verticalAlign === 'bottom'
+          ? 'flex-end'
+          : el.verticalAlign === 'middle'
+          ? 'center'
+          : 'flex-start',
       lineHeight: el.lineHeight || 1.4,
+      padding: `${el.padding ?? 8}px`,
       textShadow: el.textShadow ? '0 2px 4px rgba(0,0,0,0.3)' : 'none',
     };
 
@@ -273,10 +539,27 @@ function renderElementContent(
   }
 
   if (el.type === 'shape') {
+    const isGradient = el.fillType === 'gradient' && el.gradient;
+
     return (
-      <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+      <div
+        style={{
+          width: '100%',
+          height: '100%',
+          position: 'relative',
+          borderRadius: `${el.borderRadius || 0}px`,
+          background: isGradient ? el.gradient : undefined,
+          overflow: 'hidden',
+        }}
+      >
         <svg className="ppt-shape-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
-          {renderSvgShape(el.shapeType || 'rectangle', el.fill || '#0284C7', el.stroke || 'transparent', el.strokeWidth || 1)}
+          {renderSvgShape(
+            el.shapeType || 'rectangle',
+            isGradient ? 'transparent' : (el.fill || '#0284C7'),
+            el.stroke || 'transparent',
+            el.strokeWidth || 1,
+            el.borderStyle || 'solid'
+          )}
         </svg>
         {el.text && (
           <div
@@ -323,7 +606,9 @@ function renderElementContent(
                   <td
                     key={cIdx}
                     style={{
-                      background: isHeader ? (el.tableHeaderColor || '#D83B01') : (rIdx % 2 === 0 ? '#F8FAFC' : '#FFFFFF'),
+                      background: isHeader
+                        ? (el.tableHeaderColor || '#D83B01')
+                        : (rIdx % 2 === 0 ? '#F8FAFC' : '#FFFFFF'),
                       color: isHeader ? (el.tableHeaderTextColor || '#FFFFFF') : '#1E293B',
                       fontWeight: isHeader ? 'bold' : 'normal',
                       textAlign: 'center',
@@ -392,19 +677,46 @@ function renderElementContent(
     );
   }
 
+  if (el.type === 'ink' && el.inkPoints) {
+    return (
+      <svg
+        style={{ width: '100%', height: '100%', pointerEvents: 'none' }}
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+      >
+        <polyline
+          points={el.inkPoints.join(' ')}
+          fill="none"
+          stroke={el.inkColor || '#000000'}
+          strokeWidth={el.inkWidth || 3}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    );
+  }
+
   return <div style={{ width: '100%', height: '100%' }} />;
 }
 
-function renderSvgShape(shapeType: ShapeType, fill: string, stroke: string, strokeWidth: number) {
+function renderSvgShape(
+  shapeType: ShapeType,
+  fill: string,
+  stroke: string,
+  strokeWidth: number,
+  borderStyle: 'solid' | 'dashed' | 'dotted' = 'solid'
+) {
+  const dashArray = borderStyle === 'dashed' ? '6,3' : borderStyle === 'dotted' ? '2,2' : undefined;
+
   switch (shapeType) {
     case 'circle':
-      return <circle cx="50" cy="50" r="48" fill={fill} stroke={stroke} strokeWidth={strokeWidth} />;
+      return <circle cx="50" cy="50" r="48" fill={fill} stroke={stroke} strokeWidth={strokeWidth} strokeDasharray={dashArray} />;
     case 'triangle':
-      return <polygon points="50,4 96,96 4,96" fill={fill} stroke={stroke} strokeWidth={strokeWidth} />;
+      return <polygon points="50,4 96,96 4,96" fill={fill} stroke={stroke} strokeWidth={strokeWidth} strokeDasharray={dashArray} />;
     case 'diamond':
-      return <polygon points="50,4 96,50 50,96 4,50" fill={fill} stroke={stroke} strokeWidth={strokeWidth} />;
+      return <polygon points="50,4 96,50 50,96 4,50" fill={fill} stroke={stroke} strokeWidth={strokeWidth} strokeDasharray={dashArray} />;
     case 'hexagon':
-      return <polygon points="25,4 75,4 96,50 75,96 25,96 4,50" fill={fill} stroke={stroke} strokeWidth={strokeWidth} />;
+      return <polygon points="25,4 75,4 96,50 75,96 25,96 4,50" fill={fill} stroke={stroke} strokeWidth={strokeWidth} strokeDasharray={dashArray} />;
     case 'star':
       return (
         <polygon
@@ -412,6 +724,7 @@ function renderSvgShape(shapeType: ShapeType, fill: string, stroke: string, stro
           fill={fill}
           stroke={stroke}
           strokeWidth={strokeWidth}
+          strokeDasharray={dashArray}
         />
       );
     case 'right-arrow':
@@ -421,6 +734,7 @@ function renderSvgShape(shapeType: ShapeType, fill: string, stroke: string, stro
           fill={fill}
           stroke={stroke}
           strokeWidth={strokeWidth}
+          strokeDasharray={dashArray}
         />
       );
     case 'left-arrow':
@@ -430,10 +744,11 @@ function renderSvgShape(shapeType: ShapeType, fill: string, stroke: string, stro
           fill={fill}
           stroke={stroke}
           strokeWidth={strokeWidth}
+          strokeDasharray={dashArray}
         />
       );
     case 'rounded-rectangle':
-      return <rect x="2" y="2" width="96" height="96" rx="14" fill={fill} stroke={stroke} strokeWidth={strokeWidth} />;
+      return <rect x="2" y="2" width="96" height="96" rx="14" fill={fill} stroke={stroke} strokeWidth={strokeWidth} strokeDasharray={dashArray} />;
     case 'callout':
       return (
         <polygon
@@ -441,6 +756,7 @@ function renderSvgShape(shapeType: ShapeType, fill: string, stroke: string, stro
           fill={fill}
           stroke={stroke}
           strokeWidth={strokeWidth}
+          strokeDasharray={dashArray}
         />
       );
     case 'heart':
@@ -450,9 +766,10 @@ function renderSvgShape(shapeType: ShapeType, fill: string, stroke: string, stro
           fill={fill}
           stroke={stroke}
           strokeWidth={strokeWidth}
+          strokeDasharray={dashArray}
         />
       );
     default:
-      return <rect x="2" y="2" width="96" height="96" fill={fill} stroke={stroke} strokeWidth={strokeWidth} />;
+      return <rect x="2" y="2" width="96" height="96" fill={fill} stroke={stroke} strokeWidth={strokeWidth} strokeDasharray={dashArray} />;
   }
 }
