@@ -11,6 +11,9 @@ import './workspaceStatus.css';
 type Phase = 'idle' | 'checking' | 'current' | 'available' | 'downloading' | 'downloaded' | 'installing' | 'error';
 const bytes = (value: number) => `${(value / 1048576).toFixed(1)} MB`;
 const ringModes: Record<Phase, RingMode> = { idle: 'idle', checking: 'spinning', current: 'complete', available: 'idle', downloading: 'progress', downloaded: 'complete', installing: 'spinning', error: 'error' };
+const AUTO_CHECK_MS = 15 * 60 * 1000;
+const FIRST_CHECK_MS = 3000;
+const INSTALL_COUNTDOWN_SECONDS = 10;
 const CheckMark = () => <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" /></svg>;
 
 export function DesktopUpdater({ editing }: { editing: boolean }) {
@@ -22,6 +25,8 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
   const [total, setTotal] = useState(0);
   const [error, setError] = useState('');
   const [automatic, setAutomatic] = useState(() => localStorage.getItem('office-auto-check') !== 'false');
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const [postponed, setPostponed] = useState(false);
   const update = useRef<Update | null>(null);
   const ready = useRef(false);
   const busy = useRef(false);
@@ -43,7 +48,10 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
       setNextVersion(result?.version ?? '');
       if (result && !silent) setOpen(true);
     } catch {
-      if (mounted.current) { setPhase('error'); setError('Không kiểm tra được bản cập nhật. Kiểm tra kết nối mạng rồi thử lại.'); }
+      if (mounted.current) {
+        if (silent) setPhase('idle');
+        else { setPhase('error'); setError('Không kiểm tra được bản cập nhật. Kiểm tra kết nối mạng rồi thử lại.'); }
+      }
     } finally { busy.current = false; }
   };
   useEffect(() => {
@@ -53,41 +61,48 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
     return () => { mounted.current = false; if (!busy.current) void update.current?.close(); };
   }, []);
   useEffect(() => {
-    if (!isDesktop()) return;
-    const timer = automatic ? setTimeout(() => void checkUpdate(true), 12000) : undefined;
-    const interval = automatic ? setInterval(() => void checkUpdate(true), 6 * 60 * 60 * 1000) : undefined;
-    return () => { clearTimeout(timer); clearInterval(interval); };
-  }, [automatic]);
-  useEffect(() => {
     if (!open) return;
     const previous = document.activeElement as HTMLElement | null;
     dialog.current?.focus();
     return () => previous?.focus();
   }, [open]);
+  const fetchUpdate = async (selectedUpdate: Update) => {
+    setDownloaded(0); setTotal(0);
+    await selectedUpdate.download((event) => {
+      if (!mounted.current) return;
+      if (event.event === 'Started') setTotal(event.data.contentLength ?? 0);
+      if (event.event === 'Progress') setDownloaded((value) => value + event.data.chunkLength);
+    }, { timeout: 120000 });
+  };
   const download = async () => {
     if (!update.current || busy.current) return;
-    const selectedUpdate = update.current;
     busy.current = true;
-    setError(''); setDownloaded(0); setTotal(0); setPhase('downloading');
+    setError(''); setPhase('downloading');
     try {
-      await selectedUpdate.download((event) => {
-        if (!mounted.current) return;
-        if (event.event === 'Started') setTotal(event.data.contentLength ?? 0);
-        if (event.event === 'Progress') setDownloaded((value) => value + event.data.chunkLength);
-      }, { timeout: 120000 });
+      try {
+        await fetchUpdate(update.current);
+      } catch {
+        const latest = await check({ timeout: 20000 });
+        if (!latest) throw new Error('No update available');
+        await update.current?.close();
+        update.current = latest;
+        if (mounted.current) setNextVersion(latest.version);
+        await fetchUpdate(latest);
+      }
       if (mounted.current) { ready.current = true; setPhase('downloaded'); }
     } catch {
       if (mounted.current) {
         setPhase('available');
         setError('Tải hoặc xác minh chữ ký chưa thành công. App hiện tại vẫn dùng được; hãy thử tải lại.');
       }
-    } finally { busy.current = false; if (!mounted.current) await selectedUpdate.close(); }
+    } finally { busy.current = false; if (!mounted.current) await update.current?.close(); }
   };
   const install = async () => {
     if (!update.current || busy.current) return;
     busy.current = true; setError('');
     if (editing && !(await saveAndCloseActiveDocument())) {
       busy.current = false;
+      setPostponed(true);
       setError('Chưa lưu được tài liệu đang mở nên chưa cài. Hãy lưu tài liệu rồi thử lại.');
       return;
     }
@@ -96,8 +111,31 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
       await update.current.install({ restartAfterInstall: true });
       if (/Mac/.test(navigator.platform)) await relaunch();
     }
-    catch { setPhase('downloaded'); setError('Chưa khởi chạy được bộ cài. Hãy thử lại.'); busy.current = false; }
+    catch { setPostponed(true); setPhase('downloaded'); setError('Chưa khởi chạy được bộ cài. Hãy thử lại.'); busy.current = false; }
   };
+  const autoUpdate = async () => {
+    await checkUpdate(true);
+    if (update.current && !ready.current) await download();
+  };
+  const latestActions = useRef({ autoUpdate, install });
+  useEffect(() => { latestActions.current = { autoUpdate, install }; });
+  useEffect(() => {
+    if (!isDesktop() || !automatic) return;
+    const timer = setTimeout(() => void latestActions.current.autoUpdate(), FIRST_CHECK_MS);
+    const interval = setInterval(() => void latestActions.current.autoUpdate(), AUTO_CHECK_MS);
+    return () => { clearTimeout(timer); clearInterval(interval); };
+  }, [automatic]);
+  useEffect(() => {
+    if (phase !== 'downloaded' || !automatic || editing || postponed) { setCountdown(null); return; }
+    setOpen(true);
+    setCountdown(INSTALL_COUNTDOWN_SECONDS);
+  }, [phase, automatic, editing, postponed]);
+  useEffect(() => {
+    if (countdown === null) return;
+    if (countdown <= 0) { setCountdown(null); void latestActions.current.install(); return; }
+    const tick = setTimeout(() => setCountdown((value) => (value === null ? null : value - 1)), 1000);
+    return () => clearTimeout(tick);
+  }, [countdown]);
   const percent = total ? Math.min(100, Math.round(downloaded / total * 100)) : null;
   useEffect(() => {
     if (phase === 'downloading') showDockProgress(percent ?? 0);
@@ -137,11 +175,12 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
       </div>
       {phase === 'downloading' && <div className="update-metrics"><span>{bytes(downloaded)}{total ? ` / ${bytes(total)}` : ''}</span><strong>{percent === null ? 'Đang tải…' : `${percent}%`}</strong></div>}
       {phase === 'downloaded' && editing && <p>Tài liệu đang mở sẽ được lưu và đóng trước khi cài.</p>}
+      {phase === 'downloaded' && countdown !== null && <p>Tự cài đặt và mở lại sau {countdown} giây.</p>}
       {phase === 'installing' && <p>Đang mở bộ cài. Tài liệu đã lưu trên máy vẫn được giữ.</p>}
       {error && <p className="update-error" role="alert">{error}</p>}
-      <label className="update-setting"><input type="checkbox" checked={automatic} disabled={working} onChange={(event) => { const value = event.target.checked; setAutomatic(value); localStorage.setItem('office-auto-check', String(value)); }} />Tự động kiểm tra phiên bản mới</label>
+      <label className="update-setting"><input type="checkbox" checked={automatic} disabled={working} onChange={(event) => { const value = event.target.checked; setAutomatic(value); localStorage.setItem('office-auto-check', String(value)); }} />Tự động cập nhật để app luôn giống bản web</label>
       <div className="sync-dialog-actions">
-        {phase !== 'installing' && <button className="btn" onClick={() => setOpen(false)}>{phase === 'downloading' ? 'Tải trong nền' : 'Để sau'}</button>}
+        {phase !== 'installing' && <button className="btn" onClick={() => { if (phase === 'downloaded') setPostponed(true); setOpen(false); }}>{phase === 'downloading' ? 'Tải trong nền' : 'Để sau'}</button>}
         {phase === 'available' && <button className="btn btn-primary" onClick={() => void download()}>Tải bản cập nhật</button>}
         {phase === 'downloaded' && <button className="btn btn-primary" onClick={() => void install()}>{editing ? 'Lưu, cài đặt và mở lại' : 'Cài đặt và mở lại'}</button>}
         {['idle', 'current', 'error'].includes(phase) && <button className="btn btn-primary" onClick={() => void checkUpdate()}>Kiểm tra lại</button>}

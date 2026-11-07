@@ -7,6 +7,7 @@ import {
   nextPatchVersion,
   parseChecksums,
   releaseArtifactNames,
+  retainedUpdaterFiles,
 } from '../scripts/release-lib.mjs';
 
 const file = (path: string) => VERSION_FILES.find((entry) => entry.path === path)!;
@@ -50,4 +51,19 @@ test('releaseArtifactNames and missingPlatforms describe a complete release', ()
   const full = { platforms: { 'windows-x86_64-nsis': { signature: 's' }, 'windows-x86_64': { signature: 's' }, 'windows-x86_64-msi': { signature: 's' }, 'darwin-aarch64': { signature: 's' } } };
   assert.deepEqual(missingPlatforms(full), []);
   assert.deepEqual(missingPlatforms({ platforms: {} }).length, 4);
+});
+
+test('retainedUpdaterFiles keeps the updater files of the last releases before this one', () => {
+  const files = ['0.2.9', '0.2.10', '0.2.15', '0.2.16', '0.2.17', '0.2.18'].flatMap((version) => [
+    `MinhSparkOffice-${version}-windows-x64-vi-Setup.exe`,
+    `MinhSparkOffice-${version}-windows-x64-en-US.msi`,
+    `MinhSparkOffice-${version}-macos-arm64.app.tar.gz`,
+    `MinhSparkOffice-${version}-macos-arm64.dmg`,
+  ]).concat('SHA256SUMS.txt');
+  const kept = retainedUpdaterFiles(files, '0.2.18');
+  assert.deepEqual([...new Set(kept.map((name) => name.split('-')[1]))], ['0.2.15', '0.2.16', '0.2.17']);
+  assert.equal(kept.length, 9);
+  assert.ok(kept.every((name) => !name.endsWith('.dmg')));
+  assert.deepEqual(retainedUpdaterFiles(files, '0.2.10'), retainedUpdaterFiles(files, '0.2.10', 3));
+  assert.deepEqual([...new Set(retainedUpdaterFiles(files, '0.2.10').map((name) => name.split('-')[1]))], ['0.2.9']);
 });

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,6 +12,7 @@ import {
   nextPatchVersion,
   parseChecksums,
   releaseArtifactNames,
+  retainedUpdaterFiles,
 } from './release-lib.mjs';
 
 const root = resolve(fileURLToPath(new URL('../', import.meta.url)));
@@ -218,6 +219,9 @@ function deploy(version) {
     if (!existsSync(source)) throw new Error(`Missing installer ${name}`);
     copyFileSync(source, join(site, 'public/downloads', name));
   }
+  const retained = retainedUpdaterFiles(readdirSync(join(root, 'public/downloads')), version);
+  for (const name of retained) copyFileSync(join(root, 'public/downloads', name), join(site, 'public/downloads', name));
+  console.log(`Keeping ${retained.length} installers of earlier versions for apps that found them before this release`);
   for (const { hash, file } of parseChecksums(readFileSync(join(site, 'public/downloads/SHA256SUMS.txt'), 'utf8'))) {
     if (sha256(readFileSync(join(site, 'public/downloads', file))) !== hash) throw new Error(`${file} does not match SHA256SUMS.txt`);
   }
