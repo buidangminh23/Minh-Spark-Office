@@ -124,6 +124,18 @@ import {
   FileCode,
   Tv,
   Zap,
+  Shapes,
+  Omega,
+  Crosshair,
+  Accessibility,
+  Sigma,
+  TextCursorInput,
+  ArrowDownUp,
+  ChartNoAxesColumn,
+  TableProperties,
+  ChevronLeft,
+  ChevronRight,
+  SquarePen,
 } from 'lucide-react';
 
 import {
@@ -161,6 +173,7 @@ import {
   stripSpreadsheetExt,
   formatA1Cell,
   formatA1Range,
+  colIndexToLetter,
   parseA1Range,
   readVietnameseMoneyWords,
   THEME_COLOR_SWATCHES,
@@ -198,6 +211,46 @@ import {
   type DefinedNameEntry,
   type FindMatchItem,
 } from './SheetModals';
+import {
+  FormatCellsModal,
+  CustomSortModal,
+  SubtotalModal,
+  AdvancedFilterModal,
+  DataTableModal,
+  SymbolPickerModal,
+  ShapeInsertModal,
+  GoToSpecialModal,
+  AccessibilityCheckerModal,
+  type FormatCellsState,
+  type SortLevel,
+} from './SheetProModals';
+import {
+  buildSubtotalGrid,
+  buildStatisticsGrid,
+  buildDataTableGrid,
+  buildShapeSvg,
+  rasterizeSvg,
+  describeColumns,
+  filterRecords,
+  findSpecialCells,
+  cellsToRects,
+  rectToA1,
+  auditAccessibility,
+  STAT_ROW_LABELS,
+  numberFormatForValues,
+  estimateColumnWidths,
+  SUBTOTAL_FN_LABELS,
+  SPECIAL_CELL_LABELS,
+  SHAPE_LABELS,
+  type AccessibilityIssue,
+  type AccessibilitySheetInput,
+  type FilterCriterion,
+  type GridValue,
+  type ShapeKind,
+  type ShapeSpec,
+  type SpecialCellKind,
+  type SubtotalFn,
+} from './sheetPro';
 
 interface SheetEditorProps {
   meta: FileMeta;
@@ -296,6 +349,41 @@ export interface WatchedCellItem {
   value: string;
   formula: string;
 }
+
+const autoSumFormat = (
+  fn: 'SUM' | 'AVERAGE' | 'COUNT' | 'MAX' | 'MIN',
+  source: { getCellStyleData: () => unknown }
+): string => {
+  if (fn === 'COUNT') return '#,##0';
+  const pattern = (source.getCellStyleData() as CellStyle | null)?.n?.pattern;
+  if (pattern && pattern !== 'General') return fn === 'AVERAGE' && pattern === '#,##0' ? '#,##0.00' : pattern;
+  return fn === 'AVERAGE' ? '#,##0.00' : '#,##0';
+};
+
+const waitForRecalc = async (api: { getFormula: () => { executeCalculation: () => void; onCalculationResultApplied: (timeout?: number) => Promise<void> } | null | undefined }) => {
+  const formula = api.getFormula();
+  try {
+    formula?.executeCalculation();
+  } catch {
+    void 0;
+  }
+  await new Promise((r) => setTimeout(r, 0));
+  try {
+    await formula?.onCalculationResultApplied(2500);
+  } catch {
+    void 0;
+  }
+  await new Promise((r) => setTimeout(r, 16));
+};
+
+const copyTextSafely = async (text: string): Promise<boolean> => {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 const DEFAULT_PRINT_SETTINGS: SheetPrintSettings = {
   orientation: 'landscape',
@@ -451,9 +539,30 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
     | 'templates'
     | 'history'
     | 'share'
+    | 'formatCells'
+    | 'customSort'
+    | 'subtotal'
+    | 'advFilter'
+    | 'dataTable'
+    | 'symbol'
+    | 'shape'
+    | 'gotoSpecial'
+    | 'a11y'
     | 'help';
 
   const [modal, setModalState] = useState<SheetModalKind>(null);
+  const [proTable, setProTable] = useState<{
+    a1: string;
+    parsed: NonNullable<ReturnType<typeof parseA1Range>>;
+    headers: string[];
+    rows: GridValue[][];
+    numericColumns: number[];
+    formats: (string | null)[];
+  } | null>(null);
+  const [formatCellsInit, setFormatCellsInit] = useState<{ state: FormatCellsState; sample: unknown } | null>(null);
+  const [a11yIssues, setA11yIssues] = useState<AccessibilityIssue[]>([]);
+  const [shapeKind, setShapeKind] = useState<ShapeKind>('rounded');
+  const [gotoScope, setGotoScope] = useState<{ startRow: number; startColumn: number; endRow: number; endColumn: number } | null>(null);
   const [modalSmartRange, setModalSmartRange] = useState('A1:F8');
   const [modalActiveSheetId, setModalActiveSheetId] = useState(() => content.workbook.sheetOrder[0] || 'sheet-1');
   const [pivotSourceInfo, setPivotSourceInfo] = useState<{ range: string; headers: string[]; rowCount: number }>({
@@ -482,6 +591,15 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
     const fRange = fSelection?.getActiveRange() ?? fWorksheet.getRange(0, 0, 1, 1);
     return { api, fWorkbook, fWorksheet, fRange };
   }, []);
+
+  const isProtectedRef = useRef(false);
+  const getEditableContext = useCallback(() => {
+    if (isProtectedRef.current) {
+      ui.toast('Bảng tính đang khoá bảo vệ (chỉ đọc). Vào Review → Mở khoá Sheet để chỉnh sửa.', true);
+      return null;
+    }
+    return getActiveContext();
+  }, [getActiveContext, ui]);
 
   const syncDefinedNames = useCallback(() => {
     const ctx = getActiveContext();
@@ -715,8 +833,11 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
         });
         const commandSub = fWb.onCommandExecuted((cmd) => {
           const id = cmd.id || '';
+          const isSheetSwitch = id.includes('set-worksheet-activ');
           if (
-            id.includes('mutation') ||
+            !isSheetSwitch &&
+            !id.includes('set-selections') &&
+            (id.includes('mutation') ||
             id.includes('set-') ||
             id.includes('insert-') ||
             id.includes('remove-') ||
@@ -725,11 +846,11 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
             id.includes('sort') ||
             id.includes('filter') ||
             id.includes('validation') ||
-            id.includes('conditional')
+            id.includes('conditional'))
           ) {
             setSavedStatus('saving');
           }
-          if (id.includes('active-sheet') || id.includes('set-style') || id.includes('zoom') || id.includes('freeze') || id.includes('gridlines')) {
+          if (isSheetSwitch || id.includes('active-sheet') || id.includes('set-style') || id.includes('zoom') || id.includes('freeze') || id.includes('gridlines')) {
             setTimeout(() => syncUiFromSelection(), 20);
           }
         });
@@ -982,7 +1103,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
 
   const handleCopyOrCut = useCallback(
     async (isCut: boolean) => {
-      const ctx = getActiveContext();
+      const ctx = isCut ? getEditableContext() : getActiveContext();
       if (!ctx) return;
       const raw = ctx.fRange.getRange();
       const values = ctx.fRange.getRawValues();
@@ -1020,13 +1141,13 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
       }
       ui.toast(isCut ? `Đã cắt vùng ${activeRangeA1}` : `Đã sao chép vùng ${activeRangeA1}`);
     },
-    [getActiveContext, activeRangeA1, ui]
+    [getActiveContext, getEditableContext, activeRangeA1, ui]
   );
 
   const handlePasteMode = useCallback(
     async (mode: 'all' | 'values' | 'formulas' | 'formats' | 'transpose') => {
       setPopover(null);
-      const ctx = getActiveContext();
+      const ctx = getEditableContext();
       if (!ctx) return;
       const dest = ctx.fRange.getRange();
 
@@ -1106,7 +1227,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
         ui.toast('Hãy sao chép vùng ô trong bảng hoặc nhấn Ctrl+V trực tiếp');
       }
     },
-    [clipboardBuf, getActiveContext, applyStyleObjectToRange, syncUiFromSelection, ui]
+    [clipboardBuf, getEditableContext, applyStyleObjectToRange, syncUiFromSelection, ui]
   );
 
   const handleFormatPainter = useCallback(() => {
@@ -1126,7 +1247,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
 
   const applyFontFamily = (font: string) => {
     setSelectedFont(font);
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     ctx.fRange.setFontFamily(font);
     setSavedStatus('saving');
@@ -1135,14 +1256,14 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
   const applyFontSize = (sizeStr: string) => {
     const num = Math.max(6, Math.min(72, Number(sizeStr) || 11));
     setSelectedFontSize(String(num));
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     ctx.fRange.setFontSize(num);
     setSavedStatus('saving');
   };
 
   const toggleBold = () => {
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     const next = !isBold;
     ctx.fRange.setFontWeight(next ? 'bold' : 'normal');
@@ -1151,7 +1272,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
   };
 
   const toggleItalic = () => {
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     const next = !isItalic;
     ctx.fRange.setFontStyle(next ? 'italic' : 'normal');
@@ -1160,7 +1281,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
   };
 
   const toggleUnderline = () => {
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     const next = !isUnderline;
     ctx.fRange.setFontLine(next ? 'underline' : 'none');
@@ -1170,7 +1291,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
   };
 
   const toggleStrike = () => {
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     const next = !isStrike;
     ctx.fRange.setFontLine(next ? 'line-through' : 'none');
@@ -1181,7 +1302,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
 
   const applyFill = (color: string | null) => {
     setPopover(null);
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     if (color) {
       setFillColor(color);
@@ -1194,7 +1315,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
 
   const applyFontClr = (color: string | null) => {
     setPopover(null);
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     if (color) setFontColor(color);
     ctx.fRange.setFontColor(color ?? '#0f172a');
@@ -1203,7 +1324,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
 
   const applyBorder = (preset: 'all' | 'outside' | 'thickOutside' | 'bottom' | 'topBottomDouble' | 'dashed' | 'none') => {
     setPopover(null);
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     const { fRange } = ctx;
     if (preset === 'none') {
@@ -1226,7 +1347,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
   };
 
   const applyHAlign = (align: 'left' | 'center' | 'normal') => {
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     ctx.fRange.setHorizontalAlignment(align);
     setHAlign(align);
@@ -1234,7 +1355,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
   };
 
   const applyVAlign = (align: 'top' | 'middle' | 'bottom') => {
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     ctx.fRange.setVerticalAlignment(align);
     setVAlign(align);
@@ -1242,7 +1363,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
   };
 
   const toggleWrapText = () => {
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     const next = !isWrap;
     ctx.fRange.setWrap(next);
@@ -1251,7 +1372,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
   };
 
   const applyTextRotation = (angle: number) => {
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     ctx.fRange.setTextRotation(angle);
     setSavedStatus('saving');
@@ -1259,7 +1380,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
 
   const handleMergeCells = (mode: 'toggle' | 'center' | 'across' | 'vertical' | 'unmerge') => {
     setPopover(null);
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     const { fRange } = ctx;
     if (mode === 'unmerge' || (mode === 'toggle' && (fRange.isMerged() || fRange.isPartOfMerge()))) {
@@ -1285,7 +1406,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
   };
 
   const applyNumberFormat = (pattern: string) => {
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     setSelectedNumberFormat(pattern);
     ctx.fRange.setNumberFormat(pattern === 'General' ? '@' : pattern);
@@ -1293,7 +1414,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
   };
 
   const adjustDecimals = (delta: number) => {
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     const cur = selectedNumberFormat;
     const isPct = cur.includes('%');
@@ -1312,7 +1433,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
 
   const handleApplyCellPreset = (preset: CellStylePreset) => {
     setPopover(null);
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     const { fRange } = ctx;
     fRange.setBackgroundColor(preset.bg ?? '#ffffff');
@@ -1331,7 +1452,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
 
   const handleFormatAsTable = (theme: TableThemePreset) => {
     setPopover(null);
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     const targetA1 = getSmartDataRangeA1();
     const parsed = parseA1Range(targetA1);
@@ -1375,7 +1496,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
   };
 
   const handleApplyWorkbookTheme = (wbTheme: WorkbookThemePreset) => {
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     const targetA1 = getSmartDataRangeA1();
     const parsed = parseA1Range(targetA1);
@@ -1399,7 +1520,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
   };
 
   const handleApplyConditionalRule = (input: ConditionalRuleInput) => {
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     const targetRange = ctx.fRange;
     const raw = targetRange.getRange();
@@ -1467,7 +1588,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
   };
 
   const handleClearSheetCfRules = () => {
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     ctx.fWorksheet.clearConditionalFormatRules();
     setCfRuleCount(0);
@@ -1500,7 +1621,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
       | 'unhideCols'
   ) => {
     setPopover(null);
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     const { fWorkbook, fWorksheet, fRange } = ctx;
     const r = fRange.getRange();
@@ -1572,7 +1693,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
   const handleAutoSum = useCallback(
     (fn: 'SUM' | 'AVERAGE' | 'COUNT' | 'MAX' | 'MIN') => {
       setPopover(null);
-      const ctx = getActiveContext();
+      const ctx = getEditableContext();
       if (!ctx) return;
       const { fWorksheet, fRange } = ctx;
       const r = fRange.getRange();
@@ -1584,7 +1705,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
             const dest = fWorksheet.getRange(r.endRow + 1, c, 1, 1);
             dest.setValue(`=${fn}(${ref})`);
             dest.setFontWeight('bold');
-            dest.setNumberFormat('#,##0.##');
+            dest.setNumberFormat(autoSumFormat(fn, fWorksheet.getRange(r.startRow, c, 1, 1)));
           }
           ui.toast(`Đã điền công thức =${fn}(...) xuống dòng ${r.endRow + 2}`);
         } else {
@@ -1592,7 +1713,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
           const dest = fWorksheet.getRange(r.startRow, r.endColumn + 1, 1, 1);
           dest.setValue(`=${fn}(${ref})`);
           dest.setFontWeight('bold');
-          dest.setNumberFormat('#,##0.##');
+          dest.setNumberFormat(autoSumFormat(fn, fWorksheet.getRange(r.startRow, r.startColumn, 1, 1)));
           ui.toast(`Đã điền =${fn}(${ref})`);
         }
         setSavedStatus('saving');
@@ -1632,13 +1753,13 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
       fRange.setValue(`=${fn}(B3:D7)`);
       setSavedStatus('saving');
     },
-    [getActiveContext, ui]
+    [getEditableContext, ui]
   );
 
   const handleFillRange = useCallback(
     async (mode: 'down' | 'right' | 'series') => {
       setPopover(null);
-      const ctx = getActiveContext();
+      const ctx = getEditableContext();
       if (!ctx) return;
       const { fWorksheet, fRange } = ctx;
       const r = fRange.getRange();
@@ -1686,11 +1807,11 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
       }
       setSavedStatus('saving');
     },
-    [getActiveContext, ui]
+    [getEditableContext, ui]
   );
 
   const handleFlashFill = useCallback(() => {
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     const { fWorksheet, fRange } = ctx;
     const r = fRange.getRange();
@@ -1800,7 +1921,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
     fWorksheet.getRange(sampleRow + 1, targetCol, rowCount, 1).setValues(filledValues);
     setSavedStatus('saving');
     ui.toast(`Đã điền thông minh (Flash Fill) cho ${rowCount} dòng ${ruleDesc}`);
-  }, [getActiveContext, ui]);
+  }, [getEditableContext, ui]);
 
   const handleTracePrecedents = useCallback(() => {
     const ctx = getActiveContext();
@@ -1943,16 +2064,19 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
     ui.toast(`Tìm thấy ${dependents.length} ô công thức phụ thuộc vào ${targetA1}`);
   }, [getActiveContext, activeCellA1, getSmartDataRangeA1, ui]);
 
+  const showFormulasRef = useRef(false);
+  useEffect(() => {
+    showFormulasRef.current = showFormulasMode;
+  }, [showFormulasMode]);
   const handleToggleShowFormulas = useCallback(() => {
-    setShowFormulasMode((prev) => {
-      const next = !prev;
-      ui.toast(
-        next
-          ? 'Đã bật chế độ Hiện công thức (Show Formulas). Nhấn Ctrl + ` hoặc nhấn nút để tắt.'
-          : 'Đã tắt chế độ Hiện công thức, trở lại chế độ xem kết quả số liệu.'
-      );
-      return next;
-    });
+    const next = !showFormulasRef.current;
+    showFormulasRef.current = next;
+    setShowFormulasMode(next);
+    ui.toast(
+      next
+        ? 'Đã bật chế độ Hiện công thức (Show Formulas). Nhấn Ctrl + ` hoặc nhấn nút để tắt.'
+        : 'Đã tắt chế độ Hiện công thức, trở lại chế độ xem kết quả số liệu.'
+    );
   }, [ui]);
 
   const handleAddWatch = useCallback(() => {
@@ -2023,22 +2147,35 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
   }, [meta.id, ui]);
 
   const handleSortSheet = (ascending: boolean) => {
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     const raw = ctx.fRange.getRange();
     if (raw.endRow > raw.startRow) {
-      ctx.fRange.sort({ column: 0, ascending });
+      let activeCol = raw.startColumn;
+      try {
+        activeCol = ctx.fWorksheet.getActiveCell()?.getColumn() ?? raw.startColumn;
+      } catch {
+        activeCol = raw.startColumn;
+      }
+      const relCol = Math.max(0, Math.min(raw.endColumn - raw.startColumn, activeCol - raw.startColumn));
+      ctx.fRange.sort({ column: relCol, ascending });
       setSavedStatus('saving');
-      ui.toast(`Đã sắp xếp vùng chọn ${ascending ? 'tăng dần (A → Z)' : 'giảm dần (Z → A)'}`);
+      ui.toast(`Đã sắp xếp vùng chọn theo cột ${colIndexToLetter(raw.startColumn + relCol)} ${ascending ? 'tăng dần (A → Z)' : 'giảm dần (Z → A)'}`);
       return;
     }
     const smart = parseA1Range(getSmartDataRangeA1());
-    if (!smart || smart.endRow <= smart.startRow + 1) return;
+    if (!smart || smart.endRow <= smart.startRow + 1) {
+      ui.toast('Không tìm thấy bảng dữ liệu để sắp xếp. Hãy chọn vùng cần sắp xếp (từ 2 dòng trở lên).', true);
+      return;
+    }
     const bodyStartRow = smart.startRow + 1;
     let bodyEndRow = smart.endRow;
     const lastLbl = String(ctx.fWorksheet.getRange(bodyEndRow, smart.startColumn, 1, 1).getValue() ?? '').toLowerCase();
     if (lastLbl.startsWith('tổng') || lastLbl.startsWith('total')) bodyEndRow -= 1;
-    if (bodyEndRow <= bodyStartRow) return;
+    if (bodyEndRow <= bodyStartRow) {
+      ui.toast('Bảng chỉ có 1 dòng dữ liệu, không cần sắp xếp.');
+      return;
+    }
     const relCol = Math.max(0, Math.min(smart.endColumn - smart.startColumn, raw.startColumn - smart.startColumn));
     const sortRange = ctx.fWorksheet.getRange(
       bodyStartRow,
@@ -2052,7 +2189,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
   };
 
   const handleToggleFilter = () => {
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     const existing = ctx.fWorksheet.getFilter();
     if (existing) {
@@ -2080,7 +2217,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
 
   const handleClearSelection = (kind: 'all' | 'contents' | 'formats' | 'notes' | 'links') => {
     setPopover(null);
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     if (kind === 'all') ctx.fRange.clear();
     else if (kind === 'contents') ctx.fRange.clearContent();
@@ -2093,7 +2230,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
   };
 
   const handleTextToColumns = async () => {
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     const res = await ui.ask({
       title: 'Tách văn bản thành nhiều cột (Text to Columns)',
@@ -2134,7 +2271,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
   };
 
   const handleRemoveDuplicates = () => {
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     const targetA1 = ctx.fRange.getRange().endRow > ctx.fRange.getRange().startRow ? activeRangeA1 : getSmartDataRangeA1();
     const parsed = parseA1Range(targetA1);
@@ -2171,7 +2308,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
   };
 
   const handleApplyValidation = (input: ValidationRuleInput) => {
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     try {
       const builder = ctx.api.newDataValidation();
@@ -2218,7 +2355,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
   };
 
   const handleClearValidation = () => {
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     (ctx.fRange as unknown as { setDataValidation: (rule: null) => void }).setDataValidation(null);
     setSavedStatus('saving');
@@ -2226,7 +2363,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
   };
 
   const handleDataCleanup = (op: 'trim' | 'toNumber' | 'upper' | 'lower' | 'proper') => {
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     const raw = ctx.fRange.getRange();
     const targetA1 = raw.endRow > raw.startRow || raw.endColumn > raw.startColumn ? activeRangeA1 : getSmartDataRangeA1();
@@ -2268,7 +2405,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
   };
 
   const handleWrapErrorsWithIfError = () => {
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     const analysis = computeLiveAnalysis();
     let fixed = 0;
@@ -2285,7 +2422,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
   };
 
   const handleInsertFormula = (formula: string) => {
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     ctx.fRange.setValue(formula.startsWith('=') ? formula : `=${formula}`);
     setSavedStatus('saving');
@@ -2294,7 +2431,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
   };
 
   const handleReadMoneyWords = () => {
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     const val = coerceNumeric(ctx.fRange.getRawValue());
     if (val === null) {
@@ -2310,8 +2447,9 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
       setSavedStatus('saving');
       ui.toast(`Đã điền dòng chữ số tiền tại ${formatA1Cell(raw.endRow + 1, raw.startColumn)}: "${words}"`);
     } else {
-      void navigator.clipboard?.writeText(words);
-      ui.toast(`${words} (Đã sao chép vào Clipboard)`);
+      void copyTextSafely(words).then((copied) =>
+        ui.toast(copied ? `${words} (Đã sao chép vào Clipboard)` : `${words} — ô bên dưới đã có dữ liệu, hãy sao chép thủ công`)
+      );
     }
   };
 
@@ -2335,7 +2473,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
   };
 
   const handleReplaceOne = async (query: string, replacement: string, matchCase: boolean, wholeCell: boolean) => {
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return 0;
     const finder = await ctx.api.createTextFinderAsync(query);
     if (!finder) return 0;
@@ -2349,7 +2487,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
   };
 
   const handleReplaceAll = async (query: string, replacement: string, matchCase: boolean, wholeCell: boolean) => {
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return 0;
     const finder = await ctx.api.createTextFinderAsync(query);
     if (!finder) return 0;
@@ -2391,7 +2529,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
   );
 
   const handleCommitFormulaBar = useCallback(() => {
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     const raw = ctx.fRange.getRange();
     const cell = ctx.fWorksheet.getRange(raw.startRow, raw.startColumn, 1, 1);
@@ -2411,7 +2549,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
     }
     setSavedStatus('saving');
     setTimeout(() => syncUiFromSelection(), 35);
-  }, [getActiveContext, formulaBarText, syncUiFromSelection]);
+  }, [getEditableContext, formulaBarText, syncUiFromSelection]);
 
   const handleGoalSeek = async (formulaCellRef: string, targetValue: number, variableCellRef: string): Promise<string> => {
     const ctx = getActiveContext();
@@ -2426,15 +2564,9 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
       return `Ô ${formulaCellRef} không chứa công thức (fx) để giải nghiệm ngược.`;
     }
 
-    const waitTick = () => new Promise((r) => setTimeout(r, 25));
     const evalAt = async (x: number): Promise<number> => {
       vCell.setValue(x);
-      try {
-        ctx.api.getFormula()?.executeCalculation();
-      } catch {
-        void 0;
-      }
-      await waitTick();
+      await waitForRecalc(ctx.api);
       return coerceNumeric(fCell.getRawValue()) ?? Number.NaN;
     };
 
@@ -2477,7 +2609,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
 
   const embedBase64ImageAtSelection = useCallback(
     async (dataUrl: string, widthPx: number, heightPx: number, colOffsetCells = 0) => {
-      const ctx = getActiveContext();
+      const ctx = getEditableContext();
       if (!ctx) return;
       const r = ctx.fRange.getRange();
       const col = Math.max(0, r.startColumn + colOffsetCells);
@@ -2493,8 +2625,366 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
       ctx.fWorksheet.insertImages([img]);
       setSavedStatus('saving');
     },
-    [getActiveContext]
+    [getEditableContext]
   );
+
+  const uniqueSheetName = useCallback((base: string): string => {
+    const ctx = getActiveContext();
+    const taken = new Set((ctx?.fWorkbook.getSheets() ?? []).map((s) => s.getSheetName()));
+    const clean = base.replace(/[\\/?*[\]:]/g, ' ').trim().slice(0, 28) || 'Trang tính';
+    if (!taken.has(clean)) return clean;
+    for (let i = 2; i < 200; i++) {
+      const candidate = `${clean.slice(0, 26)} ${i}`;
+      if (!taken.has(candidate)) return candidate;
+    }
+    return `${clean.slice(0, 20)} ${Date.now() % 10000}`;
+  }, [getActiveContext]);
+
+  const writeGridToNewSheet = useCallback(
+    (baseName: string, grid: GridValue[][], boldRows: number[] = [0], columnFormats: (string | null)[] = []) => {
+      const ctx = getEditableContext();
+      if (!ctx || grid.length === 0) return null;
+      const width = Math.max(...grid.map((r) => r.length));
+      const normalized = grid.map((r) => Array.from({ length: width }, (_, c) => (r[c] === null || r[c] === undefined ? '' : r[c])));
+      const sheet = ctx.fWorkbook.insertSheet(uniqueSheetName(baseName));
+      ctx.fWorkbook.setActiveSheet(sheet);
+      sheet.getRange(0, 0, normalized.length, width).setValues(normalized as (string | number | boolean)[][]);
+      for (const r of boldRows) {
+        if (r < normalized.length) sheet.getRange(r, 0, 1, width).setFontWeight('bold');
+      }
+      sheet.getRange(0, 0, 1, width).setBackgroundColor('#e8f5ee');
+      sheet.getRange(0, 0, normalized.length, width).setBorder(BorderType.ALL, BorderStyleTypes.THIN, '#cbd5e1');
+      estimateColumnWidths(grid).forEach((px, c) => sheet.setColumnWidth(c, px));
+      for (let c = 0; c < width; c++) {
+        const fmt = columnFormats[c] ?? numberFormatForValues(normalized.slice(1).map((r) => r[c]));
+        if (fmt && normalized.length > 1) sheet.getRange(1, c, normalized.length - 1, 1).setNumberFormat(fmt);
+      }
+      setSavedStatus('saving');
+      return sheet;
+    },
+    [getEditableContext, uniqueSheetName]
+  );
+
+  const readTableAtSelection = useCallback(() => {
+    const ctx = getActiveContext();
+    if (!ctx) return null;
+    const raw = ctx.fRange.getRange();
+    const a1 = raw.endRow > raw.startRow ? activeRangeA1 : getSmartDataRangeA1();
+    const parsed = parseA1Range(a1);
+    if (!parsed) return null;
+    const grid = ctx.fWorksheet
+      .getRange(parsed.startRow, parsed.startColumn, parsed.endRow - parsed.startRow + 1, parsed.endColumn - parsed.startColumn + 1)
+      .getRawValues();
+    if (grid.length < 2) return null;
+    const headers = grid[0].map((h, i) => (h === null || h === undefined || h === '' ? `Cột ${colIndexToLetter(parsed.startColumn + i)}` : String(h)));
+    const rows = grid.slice(1).filter((r) => r.some((v) => v !== null && v !== undefined && v !== ''));
+    const numericColumns = headers
+      .map((_, c) => c)
+      .filter((c) => rows.length > 0 && rows.filter((r) => coerceNumeric(r[c]) !== null).length >= Math.ceil(rows.length / 2));
+    const formats = headers.map((_, c) => {
+      const st = ctx.fWorksheet.getRange(parsed.startRow + 1, parsed.startColumn + c, 1, 1).getCellStyleData() as CellStyle | null;
+      const pattern = st?.n?.pattern;
+      return pattern && pattern !== 'General' ? pattern : numberFormatForValues(rows.map((r) => r[c]));
+    });
+    return { a1, parsed, headers, rows: rows as GridValue[][], numericColumns, formats };
+  }, [getActiveContext, activeRangeA1, getSmartDataRangeA1]);
+
+  const openTableTool = useCallback(
+    (kind: 'customSort' | 'subtotal' | 'advFilter') => {
+      const table = readTableAtSelection();
+      if (!table) {
+        ui.toast('Hãy chọn vùng dữ liệu có dòng tiêu đề và ít nhất 1 dòng số liệu', true);
+        return;
+      }
+      setProTable(table);
+      setModal(kind);
+    },
+    [readTableAtSelection, ui, setModal]
+  );
+
+  const handleCustomSort = (levels: SortLevel[], hasHeader: boolean) => {
+    const ctx = getEditableContext();
+    if (!ctx || !proTable) return;
+    const p = proTable.parsed;
+    const top = hasHeader ? p.startRow + 1 : p.startRow;
+    if (p.endRow < top) return;
+    ctx.fWorksheet
+      .getRange(top, p.startColumn, p.endRow - top + 1, p.endColumn - p.startColumn + 1)
+      .sort(levels.map((l) => ({ column: l.column, ascending: l.ascending })));
+    setModal(null);
+    setSavedStatus('saving');
+    ui.toast(`Đã sắp xếp ${p.endRow - top + 1} dòng theo ${levels.length} cấp`);
+  };
+
+  const handleSubtotal = (groupCol: number, fn: SubtotalFn, valueCols: number[]) => {
+    if (!proTable) return;
+    const res = buildSubtotalGrid(proTable.headers, proTable.rows, groupCol, fn, valueCols);
+    const sheet = writeGridToNewSheet(`Tổng phụ ${activeSheetName}`, res.grid, [0, ...res.subtotalRows, res.grandTotalRow], proTable.formats);
+    if (!sheet) return;
+    const width = proTable.headers.length;
+    for (const r of res.subtotalRows) sheet.getRange(r, 0, 1, width).setBackgroundColor('#f1f5f9');
+    sheet.getRange(res.grandTotalRow, 0, 1, width).setBackgroundColor('#dcfce7');
+    setModal(null);
+    ui.toast(`Đã tạo ${res.groupCount} nhóm tổng phụ (${SUBTOTAL_FN_LABELS[fn]}) ở Sheet mới`);
+  };
+
+  const handleAdvancedFilter = (criteria: FilterCriterion[], mode: 'and' | 'or', unique: boolean) => {
+    if (!proTable) return;
+    const kept = filterRecords(proTable.rows, criteria, mode, unique) as GridValue[][];
+    const sheet = writeGridToNewSheet(`Lọc ${activeSheetName}`, [proTable.headers, ...kept], [0], proTable.formats);
+    if (!sheet) return;
+    setModal(null);
+    ui.toast(`Đã xuất ${kept.length}/${proTable.rows.length} dòng khớp điều kiện ra Sheet mới`);
+  };
+
+  const handleDescriptiveStats = () => {
+    const table = readTableAtSelection();
+    if (!table) {
+      ui.toast('Hãy chọn vùng dữ liệu có dòng tiêu đề và cột số', true);
+      return;
+    }
+    const stats = describeColumns(table.headers, table.rows);
+    if (!stats.length) {
+      ui.toast('Vùng chọn không có cột số nào để thống kê', true);
+      return;
+    }
+    const sheet = writeGridToNewSheet(`Thống kê ${activeSheetName}`, buildStatisticsGrid(stats));
+    if (!sheet) return;
+    sheet.getRange(1, 0, STAT_ROW_LABELS.length, 1).setFontWeight('bold');
+    sheet.getRange(1, 1, STAT_ROW_LABELS.length, stats.length).setNumberFormat('#,##0.00');
+    ui.toast(`Đã lập bảng thống kê mô tả cho ${stats.length} cột số (${table.rows.length} quan sát)`);
+  };
+
+  const handleRunDataTable = async (inputRef: string, outputRef: string, values: number[]): Promise<string> => {
+    const ctx = getEditableContext();
+    if (!ctx) return 'Bảng tính đang khoá hoặc chưa sẵn sàng.';
+    const inCoord = parseA1Range(inputRef);
+    const outCoord = parseA1Range(outputRef);
+    if (!inCoord || !outCoord) return 'Địa chỉ ô không hợp lệ (ví dụ: B3 và E8).';
+    const inCell = ctx.fWorksheet.getRange(inCoord.startRow, inCoord.startColumn, 1, 1);
+    const outCell = ctx.fWorksheet.getRange(outCoord.startRow, outCoord.startColumn, 1, 1);
+    if (!outCell.getFormula()) return `Ô ${outputRef.toUpperCase()} không chứa công thức nên không phụ thuộc ô đầu vào.`;
+    if (inCell.getFormula()) return `Ô đầu vào ${inputRef.toUpperCase()} đang là công thức; hãy chọn ô nhập số.`;
+    const original = inCell.getRawValue();
+    const results: { input: number; output: number | string }[] = [];
+    for (const v of values) {
+      inCell.setValue(v);
+      await waitForRecalc(ctx.api);
+      const raw = outCell.getRawValue();
+      results.push({ input: v, output: coerceNumeric(raw) ?? String(raw ?? '') });
+    }
+    inCell.setValue(original === null || original === undefined ? '' : (original as string | number | boolean));
+    await waitForRecalc(ctx.api);
+    const patternOf = (cell: { getCellStyleData: () => unknown }) => {
+      const pattern = (cell.getCellStyleData() as CellStyle | null)?.n?.pattern;
+      return pattern && pattern !== 'General' ? pattern : null;
+    };
+    const created = writeGridToNewSheet(
+      `What-If ${inputRef.toUpperCase()}`,
+      buildDataTableGrid(`Giá trị ${inputRef.toUpperCase()}`, `Kết quả ${outputRef.toUpperCase()}`, results),
+      [0],
+      [patternOf(inCell), patternOf(outCell)]
+    );
+    if (!created) return 'Không tạo được Sheet kết quả.';
+    return `Đã thử ${results.length} giá trị và ghi bảng kết quả ra Sheet mới. Ô ${inputRef.toUpperCase()} đã trả về giá trị cũ.`;
+  };
+
+  const handleInsertSymbol = (symbol: string) => {
+    const ctx = getEditableContext();
+    if (!ctx) return;
+    const cell = ctx.fWorksheet.getRange(ctx.fRange.getRange().startRow, ctx.fRange.getRange().startColumn, 1, 1);
+    if (cell.getFormula()) {
+      ui.toast('Ô đang chứa công thức; hãy chọn ô văn bản để chèn ký hiệu', true);
+      return;
+    }
+    const current = cell.getRawValue();
+    cell.setValue(`${current === null || current === undefined ? '' : String(current)}${symbol}`);
+    setModal(null);
+    setSavedStatus('saving');
+    syncUiFromSelection();
+    ui.toast(`Đã chèn "${symbol}" vào ${activeCellA1}`);
+  };
+
+  const handleInsertShape = async (spec: ShapeSpec) => {
+    if (isProtectedRef.current) {
+      getEditableContext();
+      return;
+    }
+    try {
+      const png = await rasterizeSvg(buildShapeSvg(spec), spec.width, spec.height);
+      await embedBase64ImageAtSelection(png, spec.width, spec.height);
+      setModal(null);
+      ui.toast(`Đã chèn ${SHAPE_LABELS[spec.kind].toLowerCase()} tại ${activeCellA1}`);
+    } catch {
+      ui.toast('Không dựng được hình, hãy thử lại', true);
+    }
+  };
+
+  const handleGoToSpecial = (kind: SpecialCellKind, action: 'select' | 'highlight'): string => {
+    const ctx = action === 'highlight' ? getEditableContext() : getActiveContext();
+    if (!ctx) return 'Bảng tính đang khoá hoặc chưa sẵn sàng.';
+    const scope = gotoScope ?? ctx.fRange.getRange();
+    const range = ctx.fWorksheet.getRange(scope.startRow, scope.startColumn, scope.endRow - scope.startRow + 1, scope.endColumn - scope.startColumn + 1);
+    const hits = findSpecialCells(range.getRawValues(), range.getFormulas(), kind);
+    if (!hits.length) return `Không có ô nào thuộc loại "${SPECIAL_CELL_LABELS[kind]}" trong ${formatA1Range(scope.startRow, scope.startColumn, scope.endRow, scope.endColumn)}.`;
+    const rects = cellsToRects(hits.map((h) => ({ row: h.row + scope.startRow, col: h.col + scope.startColumn })));
+    if (action === 'highlight') {
+      for (const r of rects) ctx.fWorksheet.getRange(r.startRow, r.startColumn, r.endRow - r.startRow + 1, r.endColumn - r.startColumn + 1).setBackgroundColor('#fef08a');
+      setSavedStatus('saving');
+      return `Đã tô vàng ${hits.length} ô (${rects.length} vùng).`;
+    }
+    const selections = rects.slice(0, 300).map((r, i) => ({
+      range: { ...r, rangeType: 0 },
+      primary:
+        i === 0
+          ? { startRow: r.startRow, startColumn: r.startColumn, endRow: r.startRow, endColumn: r.startColumn, actualRow: r.startRow, actualColumn: r.startColumn, isMerged: false, isMergedMainCell: false }
+          : null,
+      style: null,
+    }));
+    void ctx.api
+      .executeCommand('sheet.operation.set-selections', {
+        unitId: ctx.fWorkbook.getId(),
+        subUnitId: ctx.fWorksheet.getSheetId(),
+        selections,
+        reveal: true,
+      })
+      .catch(() => ctx.fWorksheet.getRange(rects[0].startRow, rects[0].startColumn, 1, 1).activate());
+    return `Đã chọn ${hits.length} ô trong ${rects.length} vùng: ${rects.slice(0, 6).map(rectToA1).join(', ')}${rects.length > 6 ? ' …' : ''}`;
+  };
+
+  const openGoToSpecial = () => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const raw = ctx.fRange.getRange();
+    if (raw.endRow > raw.startRow || raw.endColumn > raw.startColumn) {
+      setGotoScope({ startRow: raw.startRow, startColumn: raw.startColumn, endRow: raw.endRow, endColumn: raw.endColumn });
+    } else {
+      const p = parseA1Range(getSmartDataRangeA1());
+      setGotoScope(p ? { startRow: p.startRow, startColumn: p.startColumn, endRow: p.endRow, endColumn: p.endColumn } : { ...raw });
+    }
+    setModal('gotoSpecial');
+  };
+
+  const handleOpenAccessibility = () => {
+    const wb = captureHydratedWorkbook();
+    const input: AccessibilitySheetInput[] = wb.sheetOrder
+      .map((id) => wb.sheets[id])
+      .filter(Boolean)
+      .map((raw) => {
+        const sh = inlineSheetStyles(raw, wb.styles ?? {});
+        const cells: AccessibilitySheetInput['cells'] = [];
+        for (const [rKey, rowObj] of Object.entries(sh.cellData ?? {})) {
+          for (const [cKey, cell] of Object.entries(rowObj ?? {})) {
+            if (!cell) continue;
+            const st = typeof cell.s === 'object' && cell.s ? cell.s : null;
+            cells.push({ row: Number(rKey), col: Number(cKey), value: cell.v, fontColor: st?.cl?.rgb, background: st?.bg?.rgb });
+          }
+        }
+        return { name: sh.name, hidden: sh.hidden === 1, mergeCount: (sh.mergeData ?? []).length, cells };
+      });
+    setA11yIssues(auditAccessibility(input));
+    setModal('a11y');
+  };
+
+  const handleSheetOp = async (op: 'hide' | 'unhideAll' | 'moveLeft' | 'moveRight') => {
+    setPopover(null);
+    const ctx = getEditableContext();
+    if (!ctx) return;
+    const { fWorkbook, fWorksheet } = ctx;
+    const sheets = fWorkbook.getSheets();
+    if (op === 'hide') {
+      if (sheets.filter((s) => !s.isSheetHidden()).length <= 1) {
+        ui.toast('Phải còn ít nhất 1 Sheet hiển thị', true);
+        return;
+      }
+      const name = fWorksheet.getSheetName();
+      fWorksheet.hideSheet();
+      ui.toast(`Đã ẩn Sheet "${name}"`);
+    } else if (op === 'unhideAll') {
+      const hidden = sheets.filter((s) => s.isSheetHidden());
+      if (!hidden.length) {
+        ui.toast('Không có Sheet nào đang ẩn');
+        return;
+      }
+      hidden.forEach((s) => s.showSheet());
+      ui.toast(`Đã hiện lại ${hidden.length} Sheet: ${hidden.map((s) => s.getSheetName()).join(', ')}`);
+    } else {
+      const idx = sheets.findIndex((s) => s.getSheetId() === fWorksheet.getSheetId());
+      const target = op === 'moveLeft' ? idx - 1 : idx + 1;
+      if (target < 0 || target >= sheets.length) {
+        ui.toast(op === 'moveLeft' ? 'Sheet đã ở đầu' : 'Sheet đã ở cuối');
+        return;
+      }
+      fWorkbook.moveSheet(fWorksheet, target);
+      ui.toast(`Đã chuyển "${fWorksheet.getSheetName()}" sang vị trí ${target + 1}`);
+    }
+    setSavedStatus('saving');
+  };
+
+  const openFormatCells = useCallback(() => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const st = (ctx.fRange.getCellStyleData() as CellStyle | null) ?? {};
+    const h = ctx.fRange.getHorizontalAlignment();
+    const v = ctx.fRange.getVerticalAlignment();
+    const initial: FormatCellsState = {
+      numberFormat: st.n?.pattern || 'General',
+      hAlign: h === 'center' ? 'center' : h === 'normal' || h === 'right' ? 'normal' : 'left',
+      vAlign: v === 'top' ? 'top' : v === 'middle' ? 'middle' : 'bottom',
+      wrap: Boolean(ctx.fRange.getWrap()),
+      rotation: st.tr?.a ?? 0,
+      fontFamily: st.ff || 'Segoe UI',
+      fontSize: st.fs || 11,
+      bold: Boolean(st.bl),
+      italic: Boolean(st.it),
+      underline: Boolean(st.ul?.s),
+      strike: Boolean(st.st?.s),
+      fontColor: st.cl?.rgb || '#0f172a',
+      fill: st.bg?.rgb || '',
+      border: 'keep',
+      borderColor: borderColor || '#0f172a',
+    };
+    const raw = ctx.fRange.getRange();
+    setFormatCellsInit({ state: initial, sample: ctx.fWorksheet.getRange(raw.startRow, raw.startColumn, 1, 1).getRawValue() });
+    setModal('formatCells');
+  }, [getActiveContext, borderColor, setModal]);
+
+  const handleApplyFormatCells = (next: FormatCellsState) => {
+    const ctx = getEditableContext();
+    if (!ctx || !formatCellsInit) return;
+    const prev = formatCellsInit.state;
+    const r = ctx.fRange;
+    if (next.numberFormat !== prev.numberFormat) r.setNumberFormat(next.numberFormat);
+    if (next.hAlign !== prev.hAlign) r.setHorizontalAlignment(next.hAlign);
+    if (next.vAlign !== prev.vAlign) r.setVerticalAlignment(next.vAlign);
+    if (next.wrap !== prev.wrap) r.setWrap(next.wrap);
+    if (next.rotation !== prev.rotation) r.setTextRotation(next.rotation);
+    if (next.fontFamily !== prev.fontFamily) r.setFontFamily(next.fontFamily);
+    if (next.fontSize !== prev.fontSize) r.setFontSize(next.fontSize);
+    if (next.bold !== prev.bold) r.setFontWeight(next.bold ? 'bold' : 'normal');
+    if (next.italic !== prev.italic) r.setFontStyle(next.italic ? 'italic' : 'normal');
+    if (next.underline !== prev.underline || next.strike !== prev.strike) {
+      r.setFontLine(next.underline ? 'underline' : next.strike ? 'line-through' : 'none');
+    }
+    if (next.fontColor !== prev.fontColor) r.setFontColor(next.fontColor);
+    if (next.fill !== prev.fill) r.setBackgroundColor(next.fill || '#ffffff');
+    if (next.border !== 'keep') {
+      if (next.border === 'none') r.setBorder(BorderType.ALL, BorderStyleTypes.NONE);
+      else if (next.border === 'all') r.setBorder(BorderType.ALL, BorderStyleTypes.THIN, next.borderColor);
+      else if (next.border === 'outside') r.setBorder(BorderType.OUTSIDE, BorderStyleTypes.THIN, next.borderColor);
+      else if (next.border === 'thickOutside') r.setBorder(BorderType.OUTSIDE, BorderStyleTypes.MEDIUM, next.borderColor);
+      else if (next.border === 'bottom') r.setBorder(BorderType.BOTTOM, BorderStyleTypes.THIN, next.borderColor);
+    }
+    setModal(null);
+    setSavedStatus('saving');
+    syncUiFromSelection();
+    ui.toast(`Đã áp dụng định dạng ô cho ${activeRangeA1}`);
+  };
+
+  const openFormatCellsRef = useRef(openFormatCells);
+  useEffect(() => {
+    openFormatCellsRef.current = openFormatCells;
+  }, [openFormatCells]);
 
   const handleUploadImageFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -2523,7 +3013,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
     aggFn: PivotAggFn;
     targetSheetName: string;
   }) => {
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     const srcA1 = getSmartDataRangeA1();
     const rawVals = readRangeValuesByA1(srcA1);
@@ -2657,9 +3147,10 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
 
   const appendWorkbookSheetsIntoLive = useCallback(
     (incoming: WorkbookData) => {
-      const ctx = getActiveContext();
+      const ctx = getEditableContext();
       if (!ctx) return 0;
       let added = 0;
+      let firstCreated: ReturnType<typeof ctx.fWorkbook.insertSheet> | null = null;
       for (const sid of incoming.sheetOrder) {
         const sh = incoming.sheets[sid];
         if (!sh) continue;
@@ -2672,9 +3163,10 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
         }
         inlined.name = candidate;
         const created = ctx.fWorkbook.insertSheet(candidate, { sheet: inlined as never });
-        ctx.fWorkbook.setActiveSheet(created);
+        firstCreated = firstCreated ?? created;
         added += 1;
       }
+      if (firstCreated) ctx.fWorkbook.setActiveSheet(firstCreated);
       try {
         ctx.api.getFormula()?.executeCalculation();
       } catch {
@@ -2684,7 +3176,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
       syncUiFromSelection();
       return added;
     },
-    [getActiveContext, syncUiFromSelection]
+    [getEditableContext, syncUiFromSelection]
   );
 
   const handleMergeFiles = async (files: FileList) => {
@@ -2740,7 +3232,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
   const handleRunMacro = (
     macroId: 'normalizeTable' | 'autoNumberStt' | 'moneyWordsCol' | 'highlightVariance' | 'cleanBlankRows' | 'wrapIfError'
   ) => {
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     const targetA1 = getSmartDataRangeA1();
     const parsed = parseA1Range(targetA1);
@@ -2848,6 +3340,9 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
         e.preventDefault();
         syncDefinedNames();
         setModal('goto');
+      } else if (mod && e.key === '1') {
+        e.preventDefault();
+        openFormatCellsRef.current();
       } else if (mod && e.key.toLowerCase() === 'p') {
         e.preventDefault();
         setModal('pageSetup');
@@ -2871,7 +3366,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
         setShowWatchWindow((v) => !v);
       } else if (mod && e.key === ';') {
         e.preventDefault();
-        const ctx = getActiveContext();
+        const ctx = getEditableContext();
         if (ctx) {
           ctx.fRange.setValue(new Date().toLocaleDateString('vi-VN'));
           setSavedStatus('saving');
@@ -2889,6 +3384,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
     handleFlashFill,
     handleToggleShowFormulas,
     getActiveContext,
+    getEditableContext,
     syncDefinedNames,
     setModal,
     focusMode,
@@ -2896,7 +3392,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
   ]);
 
   const handleInsertHyperlink = async () => {
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     const existing = ctx.fRange.getHyperLinks()[0];
     const res = await ui.ask({
@@ -2915,7 +3411,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
   };
 
   const handleInsertCellNote = async () => {
-    const ctx = getActiveContext();
+    const ctx = getEditableContext();
     if (!ctx) return;
     const current = ctx.fRange.getNote();
     const res = await ui.ask({
@@ -2991,6 +3487,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
     if (!ctx) return;
     const nextProtected = !isProtected;
     ctx.fWorkbook.setEditable(!nextProtected);
+    isProtectedRef.current = nextProtected;
     setIsProtected(nextProtected);
     ui.toast(nextProtected ? 'Đã khoá bảo vệ bảng tính (Chỉ đọc)' : 'Đã mở khoá cho phép chỉnh sửa');
   };
@@ -3160,8 +3657,8 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
     if (!sh) return;
     const blob = exportSheetToTsv(sh, wb);
     const text = await blob.text();
-    await navigator.clipboard.writeText(text.replace(/^\uFEFF/, ''));
-    ui.toast('Đã sao chép toàn bộ bảng (TSV) vào Clipboard');
+    const copied = await copyTextSafely(text.replace(/^\uFEFF/, ''));
+    ui.toast(copied ? 'Đã sao chép toàn bộ bảng (TSV) vào Clipboard' : 'Trình duyệt chặn quyền ghi Clipboard, hãy dùng Xuất .tsv', !copied);
   };
 
   const handleAddComment = () => {
@@ -3755,6 +4252,9 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
                           <Search size={12} />
                           <span>Tìm</span>
                         </button>
+                        <button className="ribbon-btn-small" onClick={openGoToSpecial} title="Đi tới ô đặc biệt: ô trống, công thức, lỗi… (Go To Special)" aria-label="Đi tới ô đặc biệt">
+                          <Crosshair size={13} color="#4f46e5" />
+                        </button>
                         <button className="ribbon-btn-small" onClick={(e) => openPopover(e, 'clearMenu')} title="Xoá nội dung / định dạng">
                           <Eraser size={13} color="#dc2626" />
                         </button>
@@ -3802,6 +4302,31 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
                       <FileSignature size={20} color="#dc2626" />
                       <span>Con dấu ký</span>
                     </button>
+                    <button
+                      className="ribbon-btn-large"
+                      onClick={() => {
+                        setShapeKind('rounded');
+                        setModal('shape');
+                      }}
+                      title="Chèn hình chữ nhật, elip, mũi tên, khung chú thích, ngôi sao, băng rôn"
+                    >
+                      <Shapes size={20} color="#0d9488" />
+                      <span>Hình dạng</span>
+                    </button>
+                    <button
+                      className="ribbon-btn-large"
+                      onClick={() => {
+                        setShapeKind('textbox');
+                        setModal('shape');
+                      }}
+                    >
+                      <TextCursorInput size={20} color="#475569" />
+                      <span>Hộp văn bản</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => setModal('symbol')} title="Chèn ký hiệu ₫, ±, °, ✓, →, m²…">
+                      <Omega size={20} color="#7c3aed" />
+                      <span>Ký hiệu</span>
+                    </button>
                   </div>
                   <div className="ribbon-group-label">Minh hoạ</div>
                 </div>
@@ -3823,7 +4348,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
                     <button
                       className="ribbon-btn-large"
                       onClick={() => {
-                        const ctx = getActiveContext();
+                        const ctx = getEditableContext();
                         if (!ctx) return;
                         const raw = ctx.fRange.getRange();
                         const rule = ctx.fWorksheet
@@ -3934,12 +4459,13 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
                     </button>
                     <button
                       className="ribbon-btn-large"
-                      onClick={() =>
-                        setPrintSettings((p) => ({
-                          ...p,
-                          orientation: p.orientation === 'landscape' ? 'portrait' : 'landscape',
-                        }))
-                      }
+                      onClick={() => {
+                        const next = printSettings.orientation === 'landscape' ? 'portrait' : 'landscape';
+                        setPrintSettings((p) => ({ ...p, orientation: next }));
+                        setSavedStatus('saving');
+                        ui.toast(next === 'landscape' ? 'Đã đặt khổ giấy in: Ngang (Landscape)' : 'Đã đặt khổ giấy in: Dọc (Portrait)');
+                      }}
+                      title="Đổi hướng giấy in Ngang / Dọc"
                     >
                       <Rows size={20} color="#0284c7" />
                       <span>{printSettings.orientation === 'landscape' ? 'Khổ Ngang' : 'Khổ Dọc'}</span>
@@ -4101,6 +4627,14 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
                       <ListFilter size={20} color="#d97706" />
                       <span>Bộ lọc</span>
                     </button>
+                    <button className="ribbon-btn-large" onClick={() => openTableTool('customSort')} title="Sắp xếp theo nhiều cột, nhiều cấp">
+                      <ArrowDownUp size={20} color="#4f46e5" />
+                      <span>Sắp xếp tuỳ chỉnh</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => openTableTool('advFilter')} title="Lọc nhiều điều kiện VÀ/HOẶC, xuất ra Sheet mới">
+                      <Filter size={20} color="#0d9488" />
+                      <span>Lọc nâng cao</span>
+                    </button>
                   </div>
                   <div className="ribbon-group-label">Sắp xếp & Lọc</div>
                 </div>
@@ -4141,12 +4675,30 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
                       <TrendingUp size={20} color="#4f46e5" />
                       <span>Goal Seek</span>
                     </button>
+                    <button className="ribbon-btn-large" onClick={() => setModal('dataTable')} title="Thử nhiều giá trị đầu vào, lập bảng kết quả (Data Table)">
+                      <TableProperties size={20} color="#0284c7" />
+                      <span>Bảng What-If</span>
+                    </button>
                     <button className="ribbon-btn-large" onClick={() => setModal('pivot')}>
                       <Table size={20} color="#107c41" />
                       <span>PivotTable</span>
                     </button>
                   </div>
                   <div className="ribbon-group-label">Phân tích What-If</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={() => openTableTool('subtotal')} title="Nhóm theo cột và chèn dòng tổng phụ SUBTOTAL">
+                      <Sigma size={20} color="#107c41" />
+                      <span>Tổng phụ</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={handleDescriptiveStats} title="Trung bình, trung vị, độ lệch chuẩn, tứ phân vị… như Analysis ToolPak">
+                      <ChartNoAxesColumn size={20} color="#d97706" />
+                      <span>Thống kê mô tả</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Phân tích dữ liệu</div>
                 </div>
               </>
             )}
@@ -4162,6 +4714,10 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
                     <button className="ribbon-btn-large" onClick={() => setModal('aiAnalysis')}>
                       <BarChart3 size={20} color="#2563eb" />
                       <span>Thống kê Sheet</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={handleOpenAccessibility} title="Kiểm tra độ tương phản, ô gộp, Sheet ẩn theo WCAG">
+                      <Accessibility size={20} color="#0d9488" />
+                      <span>Trợ năng</span>
                     </button>
                   </div>
                   <div className="ribbon-group-label">Kiểm tra chất lượng</div>
@@ -4243,6 +4799,30 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
                     )}
                   </div>
                   <div className="ribbon-group-label">Cố định dòng/cột</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={() => void handleSheetOp('hide')}>
+                      <EyeOff size={20} color="#64748b" />
+                      <span>Ẩn Sheet</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => void handleSheetOp('unhideAll')}>
+                      <Eye size={20} color="#107c41" />
+                      <span>Hiện Sheet ẩn</span>
+                    </button>
+                    <div className="ribbon-two-rows">
+                      <button className="ribbon-btn-compact" onClick={() => void handleSheetOp('moveLeft')}>
+                        <ChevronLeft size={13} />
+                        <span>Chuyển trái</span>
+                      </button>
+                      <button className="ribbon-btn-compact" onClick={() => void handleSheetOp('moveRight')}>
+                        <ChevronRight size={13} />
+                        <span>Chuyển phải</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div className="ribbon-group-label">Trang tính</div>
                 </div>
 
                 <div className="ribbon-section">
@@ -4491,7 +5071,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
                       title={c}
                       onClick={() => {
                         setPopover(null);
-                        const ctx = getActiveContext();
+                        const ctx = getEditableContext();
                         if (!ctx) return;
                         ctx.fWorksheet.setTabColor(c);
                         setSavedStatus('saving');
@@ -4670,6 +5250,17 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
 
             {popover.kind === 'formatCells' && (
               <>
+                <button
+                  className="sheet-popover-item"
+                  onClick={() => {
+                    setPopover(null);
+                    openFormatCells();
+                  }}
+                >
+                  <SquarePen size={14} />
+                  <span>Định dạng ô… (Ctrl + 1)</span>
+                </button>
+                <div className="sheet-popover-sep" />
                 <div className="sheet-popover-title">Kích thước & Ẩn/Hiện Ô</div>
                 <button className="sheet-popover-item" onClick={() => void handleStructureMutation('rowHeight')}>
                   <span>Chiều cao dòng (Row Height)…</span>
@@ -4705,6 +5296,18 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
                 <div className="sheet-popover-sep" />
                 <button className="sheet-popover-item" onClick={() => void handleStructureMutation('renameSheet')}>
                   <span>Đổi tên Sheet "{activeSheetName}"…</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => void handleSheetOp('hide')}>
+                  <span>Ẩn Sheet này</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => void handleSheetOp('unhideAll')}>
+                  <span>Hiện mọi Sheet đang ẩn</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => void handleSheetOp('moveLeft')}>
+                  <span>Chuyển Sheet sang trái</span>
+                </button>
+                <button className="sheet-popover-item" onClick={() => void handleSheetOp('moveRight')}>
+                  <span>Chuyển Sheet sang phải</span>
                 </button>
               </>
             )}
@@ -5432,7 +6035,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
           sheetName={activeSheetName}
           definedNames={definedNames}
           onAddName={(name, ref) => {
-            const ctx = getActiveContext();
+            const ctx = getEditableContext();
             if (!ctx) return;
             ctx.fWorkbook.insertDefinedName(name, ref);
             syncDefinedNames();
@@ -5440,7 +6043,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
             ui.toast(`Đã thêm tên vùng "${name}"`);
           }}
           onDeleteName={(name) => {
-            const ctx = getActiveContext();
+            const ctx = getEditableContext();
             if (!ctx) return;
             ctx.fWorkbook.deleteDefinedName(name);
             syncDefinedNames();
@@ -5448,6 +6051,72 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
           }}
           onJumpToRef={(ref) => {
             handleGoToRef(ref);
+          }}
+          onClose={() => setModal(null)}
+        />
+      )}
+
+      {modal === 'formatCells' && formatCellsInit && (
+        <FormatCellsModal
+          rangeA1={activeRangeA1}
+          sampleValue={formatCellsInit.sample}
+          initial={formatCellsInit.state}
+          onApply={handleApplyFormatCells}
+          onClose={() => setModal(null)}
+        />
+      )}
+
+      {modal === 'customSort' && proTable && (
+        <CustomSortModal rangeA1={proTable.a1} headers={proTable.headers} onApply={handleCustomSort} onClose={() => setModal(null)} />
+      )}
+
+      {modal === 'subtotal' && proTable && (
+        <SubtotalModal
+          rangeA1={proTable.a1}
+          headers={proTable.headers}
+          numericColumns={proTable.numericColumns}
+          onApply={handleSubtotal}
+          onClose={() => setModal(null)}
+        />
+      )}
+
+      {modal === 'advFilter' && proTable && (
+        <AdvancedFilterModal
+          rangeA1={proTable.a1}
+          headers={proTable.headers}
+          rows={proTable.rows}
+          onApply={handleAdvancedFilter}
+          onClose={() => setModal(null)}
+        />
+      )}
+
+      {modal === 'dataTable' && <DataTableModal activeCellA1={activeCellA1} onRun={handleRunDataTable} onClose={() => setModal(null)} />}
+
+      {modal === 'symbol' && <SymbolPickerModal onInsert={handleInsertSymbol} onClose={() => setModal(null)} />}
+
+      {modal === 'shape' && (
+        <ShapeInsertModal key={shapeKind} initialKind={shapeKind} onInsert={(spec) => void handleInsertShape(spec)} onClose={() => setModal(null)} />
+      )}
+
+      {modal === 'gotoSpecial' && gotoScope && (
+        <GoToSpecialModal
+          scopeA1={formatA1Range(gotoScope.startRow, gotoScope.startColumn, gotoScope.endRow, gotoScope.endColumn)}
+          onApply={handleGoToSpecial}
+          onClose={() => setModal(null)}
+        />
+      )}
+
+      {modal === 'a11y' && (
+        <AccessibilityCheckerModal
+          issues={a11yIssues}
+          onGoTo={(sheetName, where) => {
+            const ctx = getActiveContext();
+            const target = ctx?.fWorkbook.getSheetByName(sheetName);
+            if (!ctx || !target) return;
+            ctx.fWorkbook.setActiveSheet(target);
+            const cell = parseA1Range(where.split(' ')[0]);
+            if (cell) target.getRange(cell.startRow, cell.startColumn, 1, 1).activate();
+            setModal(null);
           }}
           onClose={() => setModal(null)}
         />
