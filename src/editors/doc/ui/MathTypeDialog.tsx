@@ -6,17 +6,12 @@ import { useDoc } from '../DocContext';
 import Modal from './Modal';
 import { STRUCTURE_GROUPS, SYMBOL_GROUPS, TEMPLATE_SUBJECTS, fieldToLatex, katexStrict, latexForPreview, latexForSource, usesChemistry, type MathGroup, type MathItem } from '../mathCatalog';
 import { EQUATION_COLORS, EQUATION_SIZES, equationClassName, equationInlineStyle, normalizePresentation, type EquationAlign, type EquationPresentation } from '../equationStyle';
+import { createMathfield, type MathfieldLike } from '../mathliveLoader';
 import './mathType.css';
 
 type Panel = 'structure' | 'symbol' | 'template' | 'format';
 type Mode = 'visual' | 'latex';
 
-interface MathfieldLike extends HTMLElement {
-  value: string;
-  executeCommand: (command: unknown) => boolean;
-  mathVirtualKeyboardPolicy: string;
-  smartFence: boolean;
-}
 
 interface VirtualKeyboardLike {
   visible: boolean;
@@ -72,15 +67,9 @@ function useMathfield(host: React.RefObject<HTMLDivElement | null>, initial: str
     let cancelled = false;
     void (async () => {
       try {
-        const mod = await import('mathlive');
-        await import('mathlive/fonts.css');
-        mod.MathfieldElement.fontsDirectory = null;
-        mod.MathfieldElement.soundsDirectory = null;
+        const field = await createMathfield(initial);
         if (cancelled || !host.current) return;
-        const field = new mod.MathfieldElement() as unknown as MathfieldLike;
         field.mathVirtualKeyboardPolicy = 'manual';
-        field.smartFence = true;
-        field.value = initial;
         field.addEventListener('input', () => onInputRef.current(fieldToLatex(field.value)));
         host.current.append(field);
         fieldRef.current = field;

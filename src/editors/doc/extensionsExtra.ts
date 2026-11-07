@@ -5,6 +5,7 @@ import katex from 'katex';
 import 'katex/contrib/mhchem';
 import { equationClassName, equationInlineStyle, normalizePresentation, type EquationPresentation } from './equationStyle';
 import { katexStrict } from './mathCatalog';
+import { EquationInlineEditor } from './equationInline';
 import type { CitationSource, CitationStyle } from '../../lib/storage';
 import { getPagination, pageAtPos } from './pagination';
 import { SUPERSCRIPT_TRIGGER, SYMBOL_TRIGGER, isInsideOpenMath, looksLikeDisplayMath, looksLikeInlineMath, superscriptFor, symbolForCommand } from './mathInput';
@@ -542,8 +543,9 @@ export const Equation = Node.create({
     return String(node.attrs.latex);
   },
   addNodeView() {
-    return ({ node }) => {
+    return ({ node, getPos, editor }) => {
       const dom = document.createElement('span');
+      let current = node;
       const paint = (attrs: Record<string, unknown>) => {
         const presentation = normalizePresentation(attrs);
         dom.className = equationClassName(presentation);
@@ -551,14 +553,22 @@ export const Equation = Node.create({
         katex.render(String(attrs.latex ?? '') || '\\square', dom, { throwOnError: false, displayMode: presentation.display, output: 'htmlAndMathml', strict: katexStrict });
       };
       paint(node.attrs);
+      const inline = new EquationInlineEditor({ editor, dom, getPos, node: () => current, repaint: () => paint(current.attrs) });
+      dom.addEventListener('click', (event) => {
+        if (inline.active || event.detail > 1) return;
+        void inline.open();
+      });
       return {
         dom,
         ignoreMutation: () => true,
+        stopEvent: (event) => inline.active && event.target instanceof globalThis.Node && dom.contains(event.target),
         update: (updated) => {
           if (updated.type.name !== 'equation') return false;
-          paint(updated.attrs);
+          current = updated;
+          if (!inline.active) paint(updated.attrs);
           return true;
         },
+        destroy: () => inline.dispose(),
       };
     };
   },

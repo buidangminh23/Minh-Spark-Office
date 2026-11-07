@@ -19,6 +19,7 @@ import { CommentMark, Footnote, FontSizeStep, LayoutImage, MergeField, PageBreak
 import { AutoCorrect, Bibliography, Bookmark, Citation, ColumnSection, CrossRef, DocIndex, DocRefs, EndnoteList, Equation, FigureList, IndexEntry, ListStyles, SmartChip, TableExtras, TableOfContents, TextBox, TextStyleExtras, setRefs } from './extensionsExtra';
 import { Pagination, getPagination } from './pagination';
 import { editNodeAt } from './actionsExtra';
+import { EQUATION_OPEN_DIALOG } from './equationInline';
 import { SearchAndReplace } from './search';
 import { DeletionMark, InsertionMark, TrackChanges } from './trackChanges';
 import { DocContext, AUTHOR, type DialogId, type DocCtx, type EditingNode, type MergeData, type ViewState } from './DocContext';
@@ -235,6 +236,18 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
   useEffect(() => {
     setRefs(editor, page.sources ?? [], page.citationStyle ?? 'apa');
   }, [editor, page.sources, page.citationStyle]);
+
+  useEffect(() => {
+    if (!editor) return;
+    const dom = editor.view.dom;
+    const openFullEditor = (event: Event) => {
+      const pos = (event as CustomEvent<{ pos: number }>).detail.pos;
+      const node = editor.state.doc.nodeAt(pos);
+      if (ctxRef.current && node?.type.name === 'equation') void editNodeAt(ctxRef.current, node, pos);
+    };
+    dom.addEventListener(EQUATION_OPEN_DIALOG, openFullEditor);
+    return () => dom.removeEventListener(EQUATION_OPEN_DIALOG, openFullEditor);
+  }, [editor]);
 
   useEffect(() => {
     const storage = editor.storage as unknown as { autoCorrect?: { enabled: boolean } };

@@ -432,6 +432,13 @@ del.track-deletion { color: #b3261e; text-decoration: line-through; background: 
 .doc-equation { display: inline-block; padding-inline: 2px; border-radius: 3px; cursor: pointer; }
 .doc-equation.display { display: block; text-align: center; margin: var(--doc-gap-3) 0; }
 .doc-equation.ProseMirror-selectednode { outline: 2px solid #5b8def; }
+.doc-equation:hover:not(.editing) { background: #eef3fc; }
+.doc-equation.editing { position: relative; cursor: text; }
+.doc-equation.editing .doc-equation-field { display: inline-block; min-width: 3em; padding: 2px 6px; border: 1px solid #5b8def; border-radius: 4px; background: #fff; color: inherit; font-size: 1.1em; vertical-align: middle; --caret-color: #2b579a; --selection-background-color: #dbe6fb; --contains-highlight-background-color: #eef3fc; }
+.doc-equation.display.editing .doc-equation-field { max-width: 100%; }
+.doc-equation.editing::after { display: none; }
+.doc-equation-more { margin-left: 4px; width: 24px; height: 24px; border: 1px solid var(--line, #cbd5e1); border-radius: 4px; background: #fff; color: #334155; font-size: 14px; line-height: 1; cursor: pointer; vertical-align: middle; }
+.doc-equation-more:hover { border-color: #5b8def; background: #eef3fc; }
 .doc-equation.boxed .katex { border: 1px solid currentColor; border-radius: 2px; padding: 2px 6px; }
 .doc-equation.display.align-left { text-align: left; }
 .doc-equation.display.align-right { text-align: right; }
