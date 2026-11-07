@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.6.0",
     "@tiptap/extension-character-count": "^3.33.0",
     "@tiptap/extension-highlight": "^3.33.0",
     "@tiptap/extension-image": "^3.33.0",
@@ -39,6 +40,7 @@
     "exceljs": "^4.4.0",
     "file-saver": "^2.0.5",
     "idb-keyval": "^6.3.0",
+    "jszip": "^3.10.2",
     "lucide-react": "^1.70.0",
     "mammoth": "^1.13.0",
     "react": "^19.3.1",

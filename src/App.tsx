@@ -524,6 +524,8 @@ function MainApp() {
           content={activeContent}
           onSave={handleSaveActive}
           onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
+          onNewDocument={(html) => void handleCreateDoc(html)}
+          onOpenFile={(file) => void handleImportFile(file)}
           onBack={() => {
             setActiveMeta(null);
             setActiveContent(null);

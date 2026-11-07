@@ -3,6 +3,7 @@ import {
   BorderStyle,
   Document,
   ExternalHyperlink,
+  FootnoteReferenceRun,
   Footer,
   Header,
   HeadingLevel,
@@ -35,7 +36,9 @@ const ALIGN: Record<string, (typeof AlignmentType)[keyof typeof AlignmentType]> 
 const HEADINGS = [HeadingLevel.HEADING_1, HeadingLevel.HEADING_2, HeadingLevel.HEADING_3, HeadingLevel.HEADING_4, HeadingLevel.HEADING_5, HeadingLevel.HEADING_6];
 
 type Mark = { type: string; attrs?: Record<string, unknown> };
-type Context = { listDepth: number; ordered: boolean; listInstance: number; inTable: boolean; quote: boolean; contentWidth: number };
+type Context = { listDepth: number; ordered: boolean; listInstance: number; inTable: boolean; quote: boolean; contentWidth: number; headings: string[] };
+
+let footnoteStore: Record<string, { children: Paragraph[] }> = {};
 
 let orderedInstanceCounter = 0;
 
@@ -68,6 +71,8 @@ function runOptions(marks: Mark[] = [], base: Record<string, unknown> = {}) {
       case 'italic': options.italics = true; break;
       case 'underline': options.underline = {}; break;
       case 'strike': options.strike = true; break;
+      case 'insertion': options.underline = {}; options.color = '1E7B34'; break;
+      case 'deletion': options.strike = true; options.color = 'B3261E'; break;
       case 'subscript': options.subScript = true; break;
       case 'superscript': options.superScript = true; break;
       case 'code': options.font = 'Consolas'; options.shading = { type: ShadingType.CLEAR, fill: 'F1F3F5', color: 'auto' }; break;
@@ -110,13 +115,18 @@ async function imageRun(node: JSONContent, maxWidth: number): Promise<ImageRun |
       if (!png) return null;
       return imageRun({ ...node, attrs: { ...node.attrs, src: URL.createObjectURL(png) } }, maxWidth);
     }
-    let width = Number(node.attrs?.width) || 0;
+    const percent = typeof node.attrs?.width === 'string' && node.attrs.width.endsWith('%') ? parseFloat(node.attrs.width) / 100 : 0;
+    let width = percent ? 0 : Number(node.attrs?.width) || 0;
     let height = Number(node.attrs?.height) || 0;
     if (!width || !height) {
       const bitmap = await createImageBitmap(blob);
       const ratio = bitmap.height / bitmap.width;
       width = width || bitmap.width;
       height = height || Math.round(width * ratio);
+    }
+    if (percent) {
+      height = Math.round(height * ((maxWidth * percent) / width));
+      width = Math.round(maxWidth * percent);
     }
     if (width > maxWidth) {
       height = Math.round(height * (maxWidth / width));
@@ -140,6 +150,12 @@ async function inlineChildren(nodes: JSONContent[] = [], context: Context, base:
       } else {
         children.push(new TextRun({ ...options, text: node.text ?? '' }));
       }
+    } else if (node.type === 'footnote') {
+      const id = String(Object.keys(footnoteStore).length + 1);
+      footnoteStore[id] = { children: [new Paragraph({ children: [new TextRun({ text: String(node.attrs?.text ?? '') })] })] };
+      children.push(new FootnoteReferenceRun(Number(id)));
+    } else if (node.type === 'mergeField') {
+      children.push(new TextRun({ ...runOptions(node.marks as Mark[], base), text: `«${String(node.attrs?.name ?? '')}»` }));
     } else if (node.type === 'hardBreak') {
       children.push(new TextRun({ text: '', break: 1 }));
     } else if (node.type === 'image') {
@@ -196,6 +212,14 @@ async function blockNode(node: JSONContent, context: Context): Promise<(Paragrap
       return [new Paragraph({ border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: 'C8CED8', space: 1 } }, children: [] })];
     case 'pageBreak':
       return [new Paragraph({ children: [new PageBreak()] })];
+    case 'tableOfContents':
+      return [
+        new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text: 'MỤC LỤC' })] }),
+        ...context.headings.map((line) => {
+          const [level, text] = [Number(line[0]), line.slice(1)];
+          return new Paragraph({ indent: { left: (level - 1) * 360 }, children: [new TextRun({ text, bold: level === 1 })] });
+        }),
+      ];
     case 'image': {
       const run = await imageRun(node, context.contentWidth);
       return run ? [new Paragraph({ alignment: AlignmentType.CENTER, children: [run] })] : [];
@@ -286,11 +310,21 @@ const textParagraphs = (text: string, pageNumbers: boolean, align: 'left' | 'cen
 
 export async function exportDocx(json: JSONContent, page: PageSettings, title: string): Promise<Blob> {
   orderedInstanceCounter = 0;
+  footnoteStore = {};
+  const headings: string[] = [];
+  const collect = (node: JSONContent) => {
+    if (node.type === 'heading' && Number(node.attrs?.level) <= 3) {
+      const text = (node.content ?? []).map((child) => child.text ?? '').join('').trim();
+      if (text) headings.push(`${Number(node.attrs?.level)}${text}`);
+    }
+    (node.content ?? []).forEach(collect);
+  };
+  collect(json);
   const size = PAGE_SIZES[page.size];
   const landscape = page.orientation === 'landscape';
   const width = landscape ? size.height : size.width;
   const contentWidth = Math.max(200, width - page.margins.left - page.margins.right);
-  const children = await blockNodes(json.content, { listDepth: 0, ordered: false, listInstance: 0, inTable: false, quote: false, contentWidth });
+  const children = await blockNodes(json.content, { listDepth: 0, ordered: false, listInstance: 0, inTable: false, quote: false, contentWidth, headings });
   const levels = Array.from({ length: 9 }, (_, level) => ({
     level,
     format: [LevelFormat.DECIMAL, LevelFormat.LOWER_LETTER, LevelFormat.LOWER_ROMAN][level % 3],
@@ -301,7 +335,8 @@ export async function exportDocx(json: JSONContent, page: PageSettings, title: s
   const document = new Document({
     creator: 'Minh Office',
     title,
-    styles: { default: { document: { run: { font: 'Arial', size: 24 } } } },
+    styles: { default: { document: { run: { font: page.fontFamily ?? 'Arial', size: Math.round((page.fontSize ?? 12) * 2) } } } },
+    footnotes: footnoteStore,
     numbering: { config: [{ reference: 'minh-ordered', levels }] },
     sections: [{
       properties: {
