@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"><Fragment><DirectoryRef Id="INSTALLDIR"><Component Id="MinhSparkFileAssociations" Guid="D72911E7-CA87-47FB-B5D8-1B4A8C861A94">
+  <RegistryValue Root="HKCU" Key="Software\Minh Spark\Minh Spark Office\Capabilities" Name="ApplicationName" Type="string" Value="Minh Spark Office" KeyPath="yes" />
+  <RegistryValue Root="HKCU" Key="Software\Minh Spark\Minh Spark Office\Capabilities" Name="ApplicationDescription" Type="string" Value="Documents, spreadsheets and PDF" />
+  <RegistryValue Root="HKCU" Key="Software\Minh Spark\Minh Spark Office\Capabilities" Name="ApplicationIcon" Type="string" Value="&quot;[INSTALLDIR]minh-spark-office.exe&quot;,0" />
+  <RegistryValue Root="HKCU" Key="Software\RegisteredApplications" Name="MinhSparkOffice" Type="string" Value="Software\Minh Spark\Minh Spark Office\Capabilities" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\Applications\minh-spark-office.exe" Name="FriendlyAppName" Type="string" Value="Minh Spark Office" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\Applications\minh-spark-office.exe\shell\open\command" Type="string" Value="&quot;[INSTALLDIR]minh-spark-office.exe&quot; &quot;%1&quot;" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\MinhSparkOffice.docx" Type="string" Value="Minh Spark Office docx" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\MinhSparkOffice.docx\DefaultIcon" Type="string" Value="&quot;[INSTALLDIR]minh-spark-office.exe&quot;,0" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\MinhSparkOffice.docx\shell\open\command" Type="string" Value="&quot;[INSTALLDIR]minh-spark-office.exe&quot; &quot;%1&quot;" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\.docx\OpenWithProgids" Name="MinhSparkOffice.docx" Type="string" Value="" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\Applications\minh-spark-office.exe\SupportedTypes" Name=".docx" Type="string" Value="" />
+  <RegistryValue Root="HKCU" Key="Software\Minh Spark\Minh Spark Office\Capabilities\FileAssociations" Name=".docx" Type="string" Value="MinhSparkOffice.docx" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\MinhSparkOffice.xlsx" Type="string" Value="Minh Spark Office xlsx" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\MinhSparkOffice.xlsx\DefaultIcon" Type="string" Value="&quot;[INSTALLDIR]minh-spark-office.exe&quot;,0" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\MinhSparkOffice.xlsx\shell\open\command" Type="string" Value="&quot;[INSTALLDIR]minh-spark-office.exe&quot; &quot;%1&quot;" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\.xlsx\OpenWithProgids" Name="MinhSparkOffice.xlsx" Type="string" Value="" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\Applications\minh-spark-office.exe\SupportedTypes" Name=".xlsx" Type="string" Value="" />
+  <RegistryValue Root="HKCU" Key="Software\Minh Spark\Minh Spark Office\Capabilities\FileAssociations" Name=".xlsx" Type="string" Value="MinhSparkOffice.xlsx" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\MinhSparkOffice.xlsm" Type="string" Value="Minh Spark Office xlsm" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\MinhSparkOffice.xlsm\DefaultIcon" Type="string" Value="&quot;[INSTALLDIR]minh-spark-office.exe&quot;,0" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\MinhSparkOffice.xlsm\shell\open\command" Type="string" Value="&quot;[INSTALLDIR]minh-spark-office.exe&quot; &quot;%1&quot;" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\.xlsm\OpenWithProgids" Name="MinhSparkOffice.xlsm" Type="string" Value="" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\Applications\minh-spark-office.exe\SupportedTypes" Name=".xlsm" Type="string" Value="" />
+  <RegistryValue Root="HKCU" Key="Software\Minh Spark\Minh Spark Office\Capabilities\FileAssociations" Name=".xlsm" Type="string" Value="MinhSparkOffice.xlsm" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\MinhSparkOffice.xls" Type="string" Value="Minh Spark Office xls" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\MinhSparkOffice.xls\DefaultIcon" Type="string" Value="&quot;[INSTALLDIR]minh-spark-office.exe&quot;,0" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\MinhSparkOffice.xls\shell\open\command" Type="string" Value="&quot;[INSTALLDIR]minh-spark-office.exe&quot; &quot;%1&quot;" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\.xls\OpenWithProgids" Name="MinhSparkOffice.xls" Type="string" Value="" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\Applications\minh-spark-office.exe\SupportedTypes" Name=".xls" Type="string" Value="" />
+  <RegistryValue Root="HKCU" Key="Software\Minh Spark\Minh Spark Office\Capabilities\FileAssociations" Name=".xls" Type="string" Value="MinhSparkOffice.xls" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\MinhSparkOffice.csv" Type="string" Value="Minh Spark Office csv" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\MinhSparkOffice.csv\DefaultIcon" Type="string" Value="&quot;[INSTALLDIR]minh-spark-office.exe&quot;,0" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\MinhSparkOffice.csv\shell\open\command" Type="string" Value="&quot;[INSTALLDIR]minh-spark-office.exe&quot; &quot;%1&quot;" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\.csv\OpenWithProgids" Name="MinhSparkOffice.csv" Type="string" Value="" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\Applications\minh-spark-office.exe\SupportedTypes" Name=".csv" Type="string" Value="" />
+  <RegistryValue Root="HKCU" Key="Software\Minh Spark\Minh Spark Office\Capabilities\FileAssociations" Name=".csv" Type="string" Value="MinhSparkOffice.csv" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\MinhSparkOffice.tsv" Type="string" Value="Minh Spark Office tsv" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\MinhSparkOffice.tsv\DefaultIcon" Type="string" Value="&quot;[INSTALLDIR]minh-spark-office.exe&quot;,0" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\MinhSparkOffice.tsv\shell\open\command" Type="string" Value="&quot;[INSTALLDIR]minh-spark-office.exe&quot; &quot;%1&quot;" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\.tsv\OpenWithProgids" Name="MinhSparkOffice.tsv" Type="string" Value="" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\Applications\minh-spark-office.exe\SupportedTypes" Name=".tsv" Type="string" Value="" />
+  <RegistryValue Root="HKCU" Key="Software\Minh Spark\Minh Spark Office\Capabilities\FileAssociations" Name=".tsv" Type="string" Value="MinhSparkOffice.tsv" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\MinhSparkOffice.pdf" Type="string" Value="Minh Spark Office pdf" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\MinhSparkOffice.pdf\DefaultIcon" Type="string" Value="&quot;[INSTALLDIR]minh-spark-office.exe&quot;,0" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\MinhSparkOffice.pdf\shell\open\command" Type="string" Value="&quot;[INSTALLDIR]minh-spark-office.exe&quot; &quot;%1&quot;" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\.pdf\OpenWithProgids" Name="MinhSparkOffice.pdf" Type="string" Value="" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\Applications\minh-spark-office.exe\SupportedTypes" Name=".pdf" Type="string" Value="" />
+  <RegistryValue Root="HKCU" Key="Software\Minh Spark\Minh Spark Office\Capabilities\FileAssociations" Name=".pdf" Type="string" Value="MinhSparkOffice.pdf" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\MinhSparkOffice.txt" Type="string" Value="Minh Spark Office txt" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\MinhSparkOffice.txt\DefaultIcon" Type="string" Value="&quot;[INSTALLDIR]minh-spark-office.exe&quot;,0" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\MinhSparkOffice.txt\shell\open\command" Type="string" Value="&quot;[INSTALLDIR]minh-spark-office.exe&quot; &quot;%1&quot;" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\.txt\OpenWithProgids" Name="MinhSparkOffice.txt" Type="string" Value="" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\Applications\minh-spark-office.exe\SupportedTypes" Name=".txt" Type="string" Value="" />
+  <RegistryValue Root="HKCU" Key="Software\Minh Spark\Minh Spark Office\Capabilities\FileAssociations" Name=".txt" Type="string" Value="MinhSparkOffice.txt" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\MinhSparkOffice.md" Type="string" Value="Minh Spark Office md" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\MinhSparkOffice.md\DefaultIcon" Type="string" Value="&quot;[INSTALLDIR]minh-spark-office.exe&quot;,0" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\MinhSparkOffice.md\shell\open\command" Type="string" Value="&quot;[INSTALLDIR]minh-spark-office.exe&quot; &quot;%1&quot;" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\.md\OpenWithProgids" Name="MinhSparkOffice.md" Type="string" Value="" />
+  <RegistryValue Root="HKCU" Key="Software\Classes\Applications\minh-spark-office.exe\SupportedTypes" Name=".md" Type="string" Value="" />
+  <RegistryValue Root="HKCU" Key="Software\Minh Spark\Minh Spark Office\Capabilities\FileAssociations" Name=".md" Type="string" Value="MinhSparkOffice.md" />
+</Component></DirectoryRef></Fragment></Wix>

@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Minh Spark Office",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "identifier": "com.minhspark.office",
   "build": {
     "beforeDevCommand": "npm run dev -- --host 127.0.0.1 --port 1420 --strictPort",
@@ -27,6 +27,7 @@
     "active": true,
     "createUpdaterArtifacts": true,
     "targets": ["nsis", "msi"],
+    "resources": { "icons/icon.ico": "office-app.ico" },
     "publisher": "Minh Spark",
     "category": "Productivity",
     "shortDescription": "Documents, spreadsheets and PDF in one workspace",
@@ -40,10 +41,13 @@
         "installMode": "currentUser",
         "startMenuFolder": "Minh Spark Office",
         "installerIcon": "icons/icon.ico",
+        "installerHooks": "windows/installer-hooks.nsh",
         "sidebarImage": "windows/sidebar.bmp",
         "headerImage": "windows/header.bmp"
       },
       "wix": {
+        "fragmentPaths": ["windows/file-associations.wxs"],
+        "componentRefs": ["MinhSparkFileAssociations"],
         "language": "en-US",
         "upgradeCode": "D6A780C5-E410-42E8-A263-A27DC3F63C70",
         "bannerPath": "windows/wix-banner.bmp",

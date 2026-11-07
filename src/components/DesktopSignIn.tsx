@@ -63,13 +63,13 @@ export function DesktopSignIn() {
           <p role="alert">Yêu cầu đăng nhập không hợp lệ hoặc đã hết hạn. Hãy quay lại ứng dụng trên máy tính và đăng nhập lại.</p>
         ) : (
           <>
-            <p className="dialog-subtitle">Đăng nhập cùng tài khoản Google để mở chung kho tài liệu trên web và ứng dụng Windows.</p>
+            <p className="dialog-subtitle">Đăng nhập cùng tài khoản Google để mở chung kho tài liệu trên web và ứng dụng máy tính.</p>
             {error && <p className="auth-error" role="alert">{error}</p>}
             {credential ? (
               <form method="post" action={target.action} target="_self" encType="application/x-www-form-urlencoded" autoComplete="off">
                 <input type="hidden" name="state" value={target.state} />
                 <input type="hidden" name="idToken" value={credential.token} />
-                <p>Tiếp tục trong ứng dụng Windows với {credential.email}.</p>
+                <p>Tiếp tục trong ứng dụng máy tính với {credential.email}.</p>
                 <div className="dialog-actions">
                   <button className="btn" type="button" onClick={() => setCredential(null)}>Đổi tài khoản</button>
                   <button className="btn btn-primary" type="submit">Hoàn tất đăng nhập ứng dụng</button>

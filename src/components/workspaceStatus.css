@@ -2,3 +2,4 @@
 .workspace-content>.editor-shell{height:100%;width:100%}.workspace-content>.app-shell{min-height:100%;height:100%}.workspace-content .main-area{min-height:100%}
 
 .workspace-frame:not(.is-editing) .workspace-status{padding-left:256px}.workspace-status{flex-shrink:0;position:relative;z-index:10}@media print{.workspace-status,.update-launcher,.sync-dialog-backdrop{display:none!important}.workspace-frame,.workspace-content{height:auto;overflow:visible}}
+.desktop-default-button{font:inherit;font-size:12px;color:#34516d;border:1px solid #dce5ef;background:white;border-radius:8px;padding:8px 12px;cursor:pointer;min-height:36px}.desktop-default-button:focus-visible{outline:2px solid #2677df;outline-offset:2px}

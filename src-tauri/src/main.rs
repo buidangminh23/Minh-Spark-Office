@@ -1,8 +1,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use tauri::webview::NewWindowResponse;
-use tauri::{WebviewUrl, WebviewWindowBuilder};
+use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 mod desktop_auth;
+mod open_files;
 
 #[tauri::command]
 fn open_web_app() -> Result<(), String> {
@@ -11,16 +12,39 @@ fn open_web_app() -> Result<(), String> {
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+            open_files::queue_arguments(app, args, std::path::Path::new(&cwd));
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .manage(desktop_auth::DesktopLogin::default())
+        .manage(open_files::OpenFiles::default())
         .invoke_handler(tauri::generate_handler![
             open_web_app,
             desktop_auth::desktop_google_sign_in,
-            desktop_auth::cancel_desktop_sign_in
+            desktop_auth::cancel_desktop_sign_in,
+            open_files::drain_open_files,
+            open_files::open_default_apps
         ])
         .setup(|app| {
+            if let Ok(cwd) = std::env::current_dir() {
+                open_files::queue_arguments(
+                    app.handle(),
+                    std::env::args_os().map(|value| value.to_string_lossy().into_owned()),
+                    &cwd,
+                );
+            }
             WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
+                .icon(
+                    app.default_window_icon()
+                        .expect("Office window icon")
+                        .clone(),
+                )?
                 .title("Minh Spark Office")
                 .inner_size(1440.0, 940.0)
                 .min_inner_size(1024.0, 680.0)
@@ -44,6 +68,22 @@ fn main() {
                 .build()?;
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("Failed to run Minh Spark Office");
+        .build(tauri::generate_context!())
+        .expect("Failed to build Minh Spark Office")
+        .run(|app, event| {
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Opened { urls } = event {
+                open_files::queue_paths(
+                    app,
+                    urls.into_iter().filter_map(|url| url.to_file_path().ok()),
+                );
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.unminimize();
+                    let _ = window.set_focus();
+                }
+            }
+            #[cfg(not(target_os = "macos"))]
+            let _ = (app, event);
+        });
 }

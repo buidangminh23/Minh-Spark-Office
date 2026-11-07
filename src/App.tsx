@@ -5,6 +5,9 @@ import { accountWorkspace, syncedWorkspace } from './lib/workspaces';
 import { WorkspaceStatus } from './components/WorkspaceStatus';
 import { DesktopUpdater } from './components/DesktopUpdater';
 import { DesktopSignIn, isDesktopSignInRequest } from './components/DesktopSignIn';
+import { isDesktop } from './lib/desktop';
+import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import Home from './components/Home';
 import DocEditor from './editors/doc/DocEditor';
@@ -514,6 +517,42 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
       ui.showBusy(null);
     }
   };
+
+  const importFromDesktop = useRef(handleImportFile);
+  importFromDesktop.current = handleImportFile;
+  const drainDesktopFiles = useRef<() => void>(() => {});
+  useEffect(() => {
+    if (!ready || !isDesktop()) return;
+    let alive = true;
+    let busy = false;
+    let unlisten: (() => void) | undefined;
+    const drain = async (notify = false) => {
+      if (!alive || busy) return;
+      if (activeDocument.current) {
+        if (notify) toast('Đã nhận tệp từ hệ điều hành. Hãy lưu và trở về danh sách để mở tệp mới.');
+        return;
+      }
+      busy = true;
+      let remaining = false;
+      try {
+        const result = await invoke<{ files: { name: string; bytes: number[] }[]; errors: string[]; hasMore: boolean }>('drain_open_files');
+        if (!alive) return;
+        for (const error of result.errors) if (alive) toast(error, true);
+        for (const file of result.files) await importFromDesktop.current(new File([new Uint8Array(file.bytes)], file.name));
+        remaining = result.hasMore && result.files.length === 0;
+        if (result.hasMore && alive) toast('Còn tệp đang chờ. Trở về danh sách sau khi lưu để mở tệp tiếp theo.');
+      } catch { if (alive) toast('Chưa mở được tệp từ hệ điều hành. Có thể dùng nút Mở tệp từ máy để thử lại.', true); }
+      finally { busy = false; if (alive && remaining) queueMicrotask(() => { void drain(); }); }
+    };
+    drainDesktopFiles.current = () => { void drain(); };
+    void listen('office-open-files-changed', () => { void drain(true); }).then((stop) => {
+      if (!alive) { stop(); return; }
+      unlisten = stop;
+      void drain();
+    });
+    return () => { alive = false; unlisten?.(); drainDesktopFiles.current = () => {}; };
+  }, [ready, storage, toast]);
+  useEffect(() => { if (!activeMeta) drainDesktopFiles.current(); }, [activeMeta]);
 
   // Save current active document or sheet
   const handleSaveActive = async (meta: FileMeta, content: FileContent, explicit = false) => {

@@ -160,7 +160,7 @@ export function Authentication({ children }: { children: (user: User | null, ses
               }
             }}>
             <h2 id="login-title">Đăng nhập để lưu tài liệu</h2>
-            <p className="dialog-subtitle" id="login-description">Nội dung đang soạn được giữ nguyên. Đăng nhập cùng tài khoản Google để đồng bộ tài liệu giữa web và ứng dụng Windows.{isDesktop() && ' Hoàn tất đăng nhập trong trình duyệt mặc định, rồi quay lại ứng dụng.'}</p>
+            <p className="dialog-subtitle" id="login-description">Nội dung đang soạn được giữ nguyên. Đăng nhập cùng tài khoản Google để đồng bộ tài liệu giữa web và ứng dụng máy tính.{isDesktop() && ' Hoàn tất đăng nhập trong trình duyệt mặc định, rồi quay lại ứng dụng.'}</p>
             {error && <p className="auth-error" role="alert">{error}</p>}
             <p className="auth-disclosure">Chỉ xác thực tên, email và ảnh đại diện. Không yêu cầu quyền đọc Gmail hoặc Google Drive.</p>
             <div className="dialog-actions">

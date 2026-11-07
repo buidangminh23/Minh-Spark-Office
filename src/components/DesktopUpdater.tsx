@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { check, type Update } from '@tauri-apps/plugin-updater';
 import { getVersion } from '@tauri-apps/api/app';
+import { relaunch } from '@tauri-apps/plugin-process';
 import { isDesktop } from '../lib/desktop';
 import './workspaceStatus.css';
 
@@ -81,7 +82,10 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
   const install = async () => {
     if (!update.current || busy.current || editing) return;
     busy.current = true; setPhase('installing'); setError('');
-    try { await update.current.install({ restartAfterInstall: true }); }
+    try {
+      await update.current.install({ restartAfterInstall: true });
+      if (/Mac/.test(navigator.platform)) await relaunch();
+    }
     catch { setPhase('downloaded'); setError('Chưa khởi chạy được bộ cài. Hãy thử lại.'); busy.current = false; }
   };
   if (!isDesktop()) return null;

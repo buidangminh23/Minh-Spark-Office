@@ -1,0 +1,20 @@
+{
+  "build": { "beforeBuildCommand": "" },
+  "bundle": {
+    "targets": ["app"],
+    "createUpdaterArtifacts": false,
+    "icon": ["icons/128x128.png", "icons/icon.icns"],
+    "fileAssociations": [
+      {
+        "ext": ["docx", "xlsx", "xlsm", "xls", "csv", "tsv", "pdf", "txt", "md"],
+        "name": "Office documents",
+        "role": "Editor",
+        "rank": "Alternate"
+      }
+    ],
+    "macOS": {
+      "minimumSystemVersion": "13.3",
+      "signingIdentity": "-"
+    }
+  }
+}

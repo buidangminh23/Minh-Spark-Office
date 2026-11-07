@@ -1,6 +1,6 @@
 [package]
 name = "minh-spark-office"
-version = "0.2.0"
+version = "0.2.2"
 description = "Minh Spark Office desktop workspace"
 authors = ["Minh Spark"]
 edition = "2021"
@@ -13,6 +13,7 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
+tauri-plugin-single-instance = "2"
 open = "5"
 base64 = "0.23"
 minisign-verify = "0.3"
@@ -30,3 +31,6 @@ tokio = { version = "1", features = ["net", "time", "sync", "macros", "io-util"]
 strip = true
 lto = true
 codegen-units = 1
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

@@ -1,5 +1,7 @@
 import { AccountButton, useAccount } from './Authentication';
 import { SuiteLogo } from './SuiteLogo';
+import { DownloadMenu } from './DownloadMenu';
+import { DesktopFileSettings } from './DesktopFileSettings';
 import { useState, useMemo } from 'react';
 import {
   FileText,
@@ -461,7 +463,8 @@ export default function Home({
           </div>
 
           <div className="topbar-right">
-            <a className="btn" href="/tai-ung-dung.html" style={{ textDecoration: 'none' }}>Tải ứng dụng Windows</a>
+            <DownloadMenu />
+            <DesktopFileSettings />
             <AccountButton />
             <label className="btn btn-primary" style={{ cursor: 'pointer' }}>
               <Upload size={15} />
@@ -479,7 +482,7 @@ export default function Home({
                 <div>
                   <h1>Văn phòng online miễn phí</h1>
                   <p>Soạn thảo văn bản với Minh Docs, làm bảng tính với Minh Sheets ngay trên trình duyệt.</p>
-                  <p>{user ? 'Tài liệu được đồng bộ giữa web và ứng dụng Windows khi đăng nhập cùng tài khoản. Xem trạng thái đồng bộ ở cuối cửa sổ.' : 'Bản nháp tự động lưu trên thiết bị này. Đăng nhập Google để đồng bộ tài liệu với bản web và ứng dụng Windows.'}</p>
+                  <p>{user ? 'Tài liệu được đồng bộ giữa web và ứng dụng máy tính khi đăng nhập cùng tài khoản. Xem trạng thái đồng bộ ở cuối cửa sổ.' : 'Bản nháp tự động lưu trên thiết bị này. Đăng nhập Google để đồng bộ tài liệu với bản web và ứng dụng máy tính.'}</p>
                 </div>
               </div>
 
@@ -734,7 +737,7 @@ export default function Home({
           )}
           <section aria-labelledby="office-overview-title" style={{ marginTop: 28, paddingTop: 20, borderTop: '1px solid var(--line)', lineHeight: 1.7 }}>
             <h2 id="office-overview-title" style={{ fontSize: 18, marginBottom: 8 }}>Minh Spark Office — Free online office</h2>
-            <p style={{ color: 'var(--ink-secondary)', maxWidth: 760 }}>Soạn thảo văn bản và làm bảng tính miễn phí trên trình duyệt. Đăng nhập cùng tài khoản Google trên web và ứng dụng Windows để dùng chung kho tài liệu. Khi mất mạng, thay đổi được lưu trên thiết bị và đồng bộ khi kết nối lại.</p>
+            <p style={{ color: 'var(--ink-secondary)', maxWidth: 760 }}>Soạn thảo văn bản và làm bảng tính miễn phí trên trình duyệt. Đăng nhập cùng tài khoản Google trên web và ứng dụng máy tính để dùng chung kho tài liệu. Khi mất mạng, thay đổi được lưu trên thiết bị và đồng bộ khi kết nối lại.</p>
             <nav aria-label="Tìm hiểu sản phẩm" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 24px', marginTop: 12 }}>
               <a href="/gioi-thieu.html" style={{ color: '#a93229', padding: '10px 0' }}>Giới thiệu Minh Spark Office</a>
               <a href="/minh-docs.html" style={{ color: '#a93229', padding: '10px 0' }}>Soạn thảo văn bản miễn phí</a>

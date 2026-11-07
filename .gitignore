@@ -29,6 +29,10 @@ dist-ssr
 /public/downloads/*.exe
 /public/downloads/*.msi
 /public/downloads/*.sig
+/public/downloads/*.dmg
+/public/downloads/*.tar.gz
+/.macos-tools
+/src-tauri/icons/icon.icns
 /src-tauri/target
 /src-tauri/gen
 /release
