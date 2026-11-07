@@ -92,7 +92,7 @@ const applyFormat = (editor: Editor, format: CopiedFormat) => {
   chain.run();
 };
 
-export default function DocEditor({ meta, content, onSave, onRename, onBack, onNewDocument, onOpenFile }: DocEditorProps) {
+export default function DocEditor({ meta, content, onSave, onBack, onNewDocument, onOpenFile }: DocEditorProps) {
   const ui = useUi();
   const { user } = useAccount();
   const storage = useWorkspace();
@@ -109,6 +109,8 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack, onN
   const [mergePreview, setMergePreview] = useState<number | null>(null);
   const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
   const [savedStatus, setSavedStatus] = useState<'saved' | 'saving'>('saved');
+  const [revision, setRevision] = useState(0);
+  const changeRevision = useRef(0);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [pages, setPages] = useState({ count: 1, current: 1 });
   const latestZoom = useRef(view.zoom);
@@ -120,6 +122,8 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack, onN
   painterRef.current = painter;
 
   const markDirty = useCallback(() => {
+    changeRevision.current++;
+    setRevision(changeRevision.current);
     setSavedStatus('saving');
     dirtySinceVersion.current = true;
   }, []);
@@ -234,9 +238,10 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack, onN
   latest.current = { meta, title, page, comments, onSave };
 
   const persist = useCallback(async (explicit = false) => {
+    const savedRevision = changeRevision.current;
     const { meta: m, title: t, page: p, comments: c, onSave: save } = latest.current;
     const saved = await save({ ...m, name: t, updatedAt: Date.now(), size: JSON.stringify(editor.getJSON()).length, preview: editor.getText().slice(0, 160) }, { kind: 'doc', json: editor.getJSON(), page: p, comments: c }, explicit);
-    if (saved) setSavedStatus('saved');
+    if (saved && changeRevision.current === savedRevision) setSavedStatus('saved');
     return saved;
   }, [editor]);
 
@@ -248,7 +253,26 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack, onN
     if (savedStatus !== 'saving') return;
     const timer = setTimeout(() => void persist(false), AUTOSAVE_MS);
     return () => clearTimeout(timer);
-  }, [savedStatus, persist, page, comments]);
+  }, [savedStatus, persist, page, comments, title, revision]);
+
+  useEffect(() => {
+    if (savedStatus === 'saved') return;
+    const flush = () => { void persist(false); };
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      flush();
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    const visibility = () => { if (document.visibilityState === 'hidden') flush(); };
+    window.addEventListener('beforeunload', beforeUnload);
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', visibility);
+    return () => {
+      window.removeEventListener('beforeunload', beforeUnload);
+      window.removeEventListener('pagehide', flush);
+      document.removeEventListener('visibilitychange', visibility);
+    };
+  }, [savedStatus, persist]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -328,7 +352,7 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack, onN
     readAloud, dictation, formatPainter, markDirty, saveNow,
     onNewDocument: onNewDocument ?? (() => ui.toast('Mở danh sách tệp để tạo tài liệu mới')),
     onOpenFile: onOpenFile ?? (() => undefined),
-    onBack: () => { void persist(false).then(onBack); },
+    onBack: () => { void persist(false).then((saved) => { if (saved) onBack(); }); },
   };
   ctxRef.current = ctx;
 
@@ -373,7 +397,7 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack, onN
 
   const handleTitleBlur = () => {
     const next = title.trim();
-    if (next && next !== meta.name) onRename(next);
+    if (next) setTitle(next);
     else setTitle(meta.name);
   };
 
@@ -419,16 +443,16 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack, onN
           <>
             <header className="editor-top">
               <div className="editor-title-group">
-                <button className="icon-btn" onClick={() => { void persist(false).then(onBack); }} title="Về danh sách tệp" aria-label="Quay lại"><ArrowLeft size={18} /></button>
+                <button className="icon-btn" onClick={() => { void persist(false).then((saved) => { if (saved) onBack(); }); }} title="Về danh sách tệp" aria-label="Quay lại"><ArrowLeft size={18} /></button>
                 <div className="file-icon-box doc" title="Minh Docs"><FileText size={16} /></div>
-                <input className="editor-title-input" value={title} aria-label="Tên tài liệu" onChange={(e) => setTitle(e.target.value)} onBlur={handleTitleBlur} onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()} />
+                <input className="editor-title-input" value={title} aria-label="Tên tài liệu" onChange={(e) => { setTitle(e.target.value); markDirty(); }} onBlur={handleTitleBlur} onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()} />
                 <div className="quick-access">
-                  <button className="icon-btn" title="Lưu (Ctrl+S)" aria-label="Lưu" onClick={saveNow}><Save size={16} /></button>
+                  <button className="icon-btn" title="Lưu chính thức (Ctrl+S)" aria-label="Lưu" onClick={saveNow}><Save size={16} /></button>
                   <button className="icon-btn" title="Hoàn tác (Ctrl+Z)" aria-label="Hoàn tác" disabled={!fmt.canUndo} onClick={() => editor.chain().focus().undo().run()}><Undo2 size={16} /></button>
                   <button className="icon-btn" title="Làm lại (Ctrl+Y)" aria-label="Làm lại" disabled={!fmt.canRedo} onClick={() => editor.chain().focus().redo().run()}><Redo2 size={16} /></button>
                 </div>
                 <button className={`save-pill ${savedStatus}`} onClick={() => user ? setDialog('history') : void saveNow()} title={user ? 'Xem lịch sử phiên bản' : 'Đăng nhập để lưu tài liệu'}>
-                  {savedStatus === 'saved' ? <><CheckCircle2 size={13} /><span>{user ? 'Đã lưu trên máy' : 'Bản nháp · Đăng nhập để lưu'}</span></> : <><Clock size={13} /><span>{user ? 'Đang lưu…' : 'Đang giữ bản nháp…'}</span></>}
+                  {savedStatus === 'saved' ? <><CheckCircle2 size={13} /><span>{user ? 'Đã lưu trên máy' : 'Đã lưu nháp trên máy'}</span></> : <><Clock size={13} /><span>{user ? 'Đang lưu…' : 'Đang lưu nháp…'}</span></>}
                 </button>
               </div>
               <div className="topbar-right">

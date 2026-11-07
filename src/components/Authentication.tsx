@@ -4,6 +4,7 @@ import { authenticationError, authConfigured, initializeAuthentication } from '.
 
 type Account = {
   user: User | null;
+  ready: boolean;
   pending: boolean;
   error: string;
   login: () => Promise<User | null>;
@@ -131,7 +132,7 @@ export function Authentication({ children }: { children: (user: User | null, ses
   };
 
   return (
-    <AccountContext value={{ user, pending, error, login, logout }}>
+    <AccountContext value={{ user, ready, pending, error, login, logout }}>
       <div inert={showLogin}>{children(user, session)}</div>
       {showLogin && (
         <div className="dialog-backdrop">

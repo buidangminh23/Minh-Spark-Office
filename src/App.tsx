@@ -24,7 +24,8 @@ import { downloadBlob } from './lib/download';
 
 function MainApp() {
   const ui = useUi();
-  const { user, login } = useAccount();
+  const toast = ui.toast;
+  const { user, ready, login } = useAccount();
   const storage = useWorkspace();
   const { listFiles, loadContent, saveFile, updateMeta, removeFile, exportBackup, importBackup } = useWorkspace();
   const [files, setFiles] = useState<FileMeta[]>([]);
@@ -36,12 +37,36 @@ function MainApp() {
   const currentStorage = useRef(storage);
   currentStorage.current = storage;
 
+  const activeDocument = useRef(activeMeta);
+  activeDocument.current = activeMeta;
+  const openDocumentKey = `minh-office-open:${user?.uid ?? 'drafts'}`;
+
   useEffect(() => {
-    if (user || !activeMeta) return;
-    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
-    window.addEventListener('beforeunload', warn);
-    return () => window.removeEventListener('beforeunload', warn);
-  }, [user, activeMeta]);
+    if (!ready) return;
+    let active = true;
+    const restore = async () => {
+      try {
+        const id = sessionStorage.getItem(openDocumentKey);
+        if (!id || activeDocument.current) return;
+        const meta = (await storage.listFiles()).find((file) => file.id === id && !file.deletedAt);
+        const content = meta ? await storage.loadContent(meta.id) : undefined;
+        if (active && meta && content?.kind === meta.kind && !activeDocument.current) {
+          activeDocument.current = meta;
+          setActiveMeta(meta);
+          setActiveContent(content);
+        }
+      } catch {
+        if (active) toast('Chưa mở lại được bản nháp. Hãy thử mở từ danh sách tài liệu.', true);
+      }
+    };
+    void restore();
+    return () => { active = false; };
+  }, [ready, storage, openDocumentKey, toast]);
+
+  useEffect(() => {
+    if (!ready || !activeMeta) return;
+    try { sessionStorage.setItem(openDocumentKey, activeMeta.id); } catch { return; }
+  }, [ready, activeMeta, openDocumentKey]);
 
   // Refresh files list and storage
   const refreshFiles = useCallback(async () => {
@@ -50,6 +75,14 @@ function MainApp() {
     const est = await estimateStorage();
     if (est) setStorageInfo(est);
   }, [listFiles]);
+
+  const handleCloseEditor = () => {
+    try { sessionStorage.removeItem(openDocumentKey); } catch {}
+    activeDocument.current = null;
+    setActiveMeta(null);
+    setActiveContent(null);
+    void refreshFiles();
+  };
 
   // Initial load & seed default files if empty
   useEffect(() => {
@@ -426,6 +459,7 @@ function MainApp() {
   // Save current active document or sheet
   const handleSaveActive = async (meta: FileMeta, content: FileContent, explicit = false) => {
     try {
+      if (explicit && !user) await storage.saveFile(meta, content);
       const account = explicit ? await login() : user;
       if (explicit && !account) return false;
       const target = account ? createWorkspaceStorage(account.uid) : storage;
@@ -561,11 +595,7 @@ function MainApp() {
           onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
           onNewDocument={(html) => void handleCreateDoc(html)}
           onOpenFile={(file) => void handleImportFile(file)}
-          onBack={() => {
-            setActiveMeta(null);
-            setActiveContent(null);
-            void refreshFiles();
-          }}
+          onBack={handleCloseEditor}
         />
       );
     }
@@ -573,15 +603,12 @@ function MainApp() {
     if (activeMeta.kind === 'sheet' && activeContent.kind === 'sheet') {
       return (
         <SheetEditor
+          key={activeMeta.id}
           meta={activeMeta}
           content={activeContent}
           onSave={handleSaveActive}
           onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
-          onBack={() => {
-            setActiveMeta(null);
-            setActiveContent(null);
-            void refreshFiles();
-          }}
+          onBack={handleCloseEditor}
         />
       );
     }
@@ -589,15 +616,12 @@ function MainApp() {
     if (activeMeta.kind === 'pdf' && activeContent.kind === 'pdf') {
       return (
         <PdfEditor
+          key={activeMeta.id}
           meta={activeMeta}
           content={activeContent}
           onSave={handleSaveActive}
           onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
-          onBack={() => {
-            setActiveMeta(null);
-            setActiveContent(null);
-            void refreshFiles();
-          }}
+          onBack={handleCloseEditor}
         />
       );
     }
