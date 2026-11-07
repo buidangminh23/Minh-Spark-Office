@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import katex from 'katex';
 import { cleanMathInput } from '../src/editors/doc/extensionsExtra';
-import { BUILTIN_EQUATIONS } from '../src/editors/doc/insertGalleries';
+import { TEMPLATE_SUBJECTS, katexStrict } from '../src/editors/doc/mathCatalog';
+import 'katex/contrib/mhchem';
 import { latexToMath } from '../src/lib/docxMath';
 import { FORMULA_CATALOG } from '../src/editors/sheet/sheetUtils';
 
@@ -15,12 +16,13 @@ test('cleanMathInput automatically converts linear math syntax to clean LaTeX', 
   assert.equal(cleanMathInput('\\sqrt[3](x)'), '\\sqrt[3]{x}');
 });
 
-test('BUILTIN_EQUATIONS are all valid LaTeX rendered cleanly by KaTeX', () => {
-  assert.ok(BUILTIN_EQUATIONS.length >= 25, `Expected at least 25 built-in equations, got ${BUILTIN_EQUATIONS.length}`);
-  for (const item of BUILTIN_EQUATIONS) {
-    assert.ok(item.label.length > 0, `Missing label for equation: ${item.id}`);
-    const html = katex.renderToString(item.latex, { throwOnError: true });
-    assert.ok(html.includes('katex'), `Render output must contain katex class for ${item.id}`);
+test('equation templates on the Insert ribbon all render cleanly in KaTeX', () => {
+  const items = TEMPLATE_SUBJECTS.flatMap((group) => group.items);
+  assert.ok(items.length >= 25, `Expected at least 25 equation templates, got ${items.length}`);
+  for (const item of items) {
+    assert.ok(item.label.length > 0, `Missing label for equation: ${item.latex}`);
+    const html = katex.renderToString(item.latex, { throwOnError: true, strict: katexStrict });
+    assert.ok(html.includes('katex'), `Render output must contain katex class for ${item.label}`);
   }
 });
 

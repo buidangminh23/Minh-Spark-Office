@@ -214,7 +214,7 @@ export function latexToMath(source: string): MathPart[] {
         const n = reader.group();
         const k = reader.group();
         parts.push(new MathRun('('));
-        parts.push(new MathFraction({ numerator: latexToMath(n), denominator: latexToMath(k) }));
+        parts.push(new MathFraction({ numerator: latexToMath(n), denominator: latexToMath(k), type: 'noBar' }));
         parts.push(new MathRun(')'));
       } else if (name === 'vec' || name === 'overrightarrow') {
         flush();

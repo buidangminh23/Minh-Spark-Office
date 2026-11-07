@@ -3,6 +3,9 @@ import type { Editor } from '@tiptap/core';
 import type { JSONContent } from '@tiptap/react';
 import JSZip from 'jszip';
 import katex from 'katex';
+import 'katex/contrib/mhchem';
+import { EQUATION_CSS, equationClassName, equationInlineStyle, normalizePresentation } from './equationStyle';
+import { katexStrict } from './mathCatalog';
 import { buildMht, type MhtImage } from '../../lib/docWordFormats';
 import { PAGE_SIZES, type PageSettings } from '../../lib/storage';
 import { styleSheetCss } from './docStyles';
@@ -12,7 +15,7 @@ const WORD_IMAGE_ROOT = 'file:///C:/MinhDocs/';
 
 const escapeHtml = (text: string) => text.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] ?? c);
 
-const BASE_CSS = `table{border-collapse:collapse;width:100%}th,td{border:1px solid #c8ced8;padding:6px 10px;vertical-align:top}th{background:#f3f5f9}img{max-width:100%;height:auto}blockquote{border-left:3px solid #2b579a;margin:0 0 12px;padding-left:14px;color:#555}pre{background:#f5f6f8;padding:12px;white-space:pre-wrap}.doc-textbox{border:1px solid #94a3b8;padding:12px;margin:12px 0;box-sizing:border-box}.doc-textbox.align-left{float:left;margin-right:16px}.doc-textbox.align-right{float:right;margin-left:16px}.doc-textbox.align-center{margin-inline:auto}[data-column-section]{column-gap:32px;margin:12px 0}.doc-equation.display{display:block;text-align:center;margin:12px 0}.doc-bookmark{display:none}.page-break{break-after:page;height:0;border:0}p[data-dropcap]::first-letter{float:left;font-size:3.2em;line-height:.9;padding-right:6px;font-weight:700}.note-ref a{text-decoration:none}.doc-notes{margin-top:32px;font-size:.9em}.doc-notes hr{border:0;border-top:1px solid #c8ced8;margin:0 0 8px}.doc-notes ol{margin:0;padding-left:20px}`;
+const BASE_CSS = `table{border-collapse:collapse;width:100%}th,td{border:1px solid #c8ced8;padding:6px 10px;vertical-align:top}th{background:#f3f5f9}img{max-width:100%;height:auto}blockquote{border-left:3px solid #2b579a;margin:0 0 12px;padding-left:14px;color:#555}pre{background:#f5f6f8;padding:12px;white-space:pre-wrap}.doc-textbox{border:1px solid #94a3b8;padding:12px;margin:12px 0;box-sizing:border-box}.doc-textbox.align-left{float:left;margin-right:16px}.doc-textbox.align-right{float:right;margin-left:16px}.doc-textbox.align-center{margin-inline:auto}[data-column-section]{column-gap:32px;margin:12px 0}.doc-equation.display{display:block;text-align:center;margin:12px 0}body{counter-reset:doc-equation}${EQUATION_CSS}.doc-bookmark{display:none}.page-break{break-after:page;height:0;border:0}p[data-dropcap]::first-letter{float:left;font-size:3.2em;line-height:.9;padding-right:6px;font-weight:700}.note-ref a{text-decoration:none}.doc-notes{margin-top:32px;font-size:.9em}.doc-notes hr{border:0;border-top:1px solid #c8ced8;margin:0 0 8px}.doc-notes ol{margin:0;padding-left:20px}`;
 
 const relevantStyles = (page: PageSettings) => styleSheetCss(page).replaceAll('.doc-editor .doc-paper .tiptap ', '');
 
@@ -21,13 +24,22 @@ function bodyDocument(editor: Editor, json: JSONContent, math: 'mathml' | 'text'
   const doc = new DOMParser().parseFromString(`<!DOCTYPE html><html><body>${html}</body></html>`, 'text/html');
   doc.querySelectorAll('span[data-latex]').forEach((node) => {
     const latex = node.getAttribute('data-latex') ?? '';
-    const display = node.getAttribute('data-display') === 'true';
+    const presentation = normalizePresentation({
+      display: node.getAttribute('data-display') === 'true',
+      numbered: node.getAttribute('data-numbered') === 'true',
+      align: node.getAttribute('data-align'),
+      size: node.getAttribute('data-size') ?? 100,
+      color: node.getAttribute('data-color'),
+      boxed: node.getAttribute('data-boxed') === 'true',
+    });
     if (math === 'text') {
       node.textContent = latex;
       return;
     }
-    node.innerHTML = katex.renderToString(latex, { throwOnError: false, displayMode: display, output: 'mathml' });
-    node.classList.toggle('display', display);
+    node.innerHTML = katex.renderToString(latex, { throwOnError: false, displayMode: presentation.display, output: 'mathml', strict: katexStrict });
+    node.setAttribute('class', equationClassName(presentation));
+    const style = equationInlineStyle(presentation);
+    if (style) node.setAttribute('style', style);
   });
   const notes: string[] = [];
   doc.querySelectorAll('sup[data-footnote]').forEach((node) => {

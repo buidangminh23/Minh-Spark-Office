@@ -40,7 +40,10 @@ import {
 import type { JSONContent } from '@tiptap/react';
 import { PAGE_SIZES, type DocStyleDef, type PageSettings } from './storage';
 import { resolveStyles } from '../editors/doc/docStyles';
-import { latexToMath } from './docxMath';
+import { latexToMath as docxLatexToMath } from 'docx/math';
+import { latexToMath as fallbackLatexToMath } from './docxMath';
+import { expandChemistry } from './chemLatex';
+import { normalizePresentation } from '../editors/doc/equationStyle';
 
 const TWIP = 15;
 const ALIGN: Record<string, (typeof AlignmentType)[keyof typeof AlignmentType]> = {
@@ -58,6 +61,17 @@ let footnoteStore: Record<string, { children: Paragraph[] }> = {};
 
 let orderedInstanceCounter = 0;
 let endnoteCounter = 0;
+let equationCounter = 0;
+const TAB = String.fromCharCode(9);
+
+export function equationToMath(latex: string) {
+  const expanded = expandChemistry(latex);
+  try {
+    return docxLatexToMath(expanded);
+  } catch {
+    return fallbackLatexToMath(expanded);
+  }
+}
 let revisionCounter = 0;
 let listFormats = new Map<string, string>();
 
@@ -211,7 +225,7 @@ async function inlineChildren(nodes: JSONContent[] = [], context: Context, base:
     } else if (node.type === 'footnote' && node.attrs?.kind === 'end') {
       children.push(new TextRun({ ...base, text: toLowerRoman(++endnoteCounter), superScript: true }));
     } else if (node.type === 'equation') {
-      children.push(new DocxMath({ children: latexToMath(String(node.attrs?.latex ?? '')) }));
+      children.push(new DocxMath({ children: equationToMath(String(node.attrs?.latex ?? '')) }));
     } else if (node.type === 'footnote') {
       const id = String(Object.keys(footnoteStore).length + 1);
       footnoteStore[id] = { children: [new Paragraph({ children: [new TextRun({ text: String(node.attrs?.text ?? '') })] })] };
@@ -264,6 +278,24 @@ function paragraphBase(node: JSONContent, context: Context): IParagraphOptions {
   return options as IParagraphOptions;
 }
 
+function equationParagraph(node: JSONContent, context: Context) {
+  const presentation = normalizePresentation({ display: node.attrs?.display !== false, ...node.attrs });
+  const math = new DocxMath({ children: equationToMath(String(node.attrs?.latex ?? '')) });
+  const border = presentation.boxed ? { style: BorderStyle.SINGLE, size: 6, color: hex(presentation.color) ?? '334155', space: 4 } : null;
+  const boxed = border ? { border: { top: border, bottom: border, left: border, right: border } } : {};
+  if (!presentation.numbered) {
+    return new Paragraph({ alignment: ALIGN[presentation.align], ...boxed, children: [math] });
+  }
+  const twips = Math.round(context.contentWidth * TWIP);
+  const lead = presentation.align === 'center' ? [new TextRun({ text: TAB })] : [];
+  const anchor = presentation.align === 'center' ? Math.round(twips / 2) : presentation.align === 'right' ? twips - 1200 : 0;
+  return new Paragraph({
+    ...boxed,
+    tabStops: [...(anchor ? [{ type: presentation.align === 'center' ? TabStopType.CENTER : TabStopType.RIGHT, position: anchor }] : []), { type: TabStopType.RIGHT, position: twips }],
+    children: [...lead, ...(presentation.align === 'right' ? [new TextRun({ text: TAB })] : []), math, new TextRun({ text: TAB }), new TextRun({ text: `(${++equationCounter})` })],
+  });
+}
+
 async function blockNodes(nodes: JSONContent[] = [], context: Context): Promise<(Paragraph | Table)[]> {
   const output: (Paragraph | Table)[] = [];
   for (const node of nodes) output.push(...(await blockNode(node, context)));
@@ -278,7 +310,7 @@ async function blockNode(node: JSONContent, context: Context): Promise<(Paragrap
       return [new Paragraph({ ...paragraphBase(node, context), ...centered, children: await inlineChildren(node.content, context) })];
     }
     case 'equation':
-      return [new Paragraph({ alignment: node.attrs?.display === false ? undefined : AlignmentType.CENTER, children: await inlineChildren([node], context) })];
+      return [equationParagraph(node, context)];
     case 'textBox':
       return [await textBoxNode(node, context)];
     case 'columnSection':
@@ -530,6 +562,7 @@ const listLevels = () => {
 export async function exportDocx(json: JSONContent, page: PageSettings, title: string): Promise<Blob> {
   orderedInstanceCounter = 0;
   endnoteCounter = 0;
+  equationCounter = 0;
   revisionCounter = 0;
   listFormats = new Map();
   footnoteStore = {};

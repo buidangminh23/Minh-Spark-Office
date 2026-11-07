@@ -18,6 +18,8 @@
 .insert-equation { display: flex; flex-direction: column; gap: var(--doc-gap-1); align-items: flex-start; padding: var(--doc-gap-2); border: 1px solid transparent; border-radius: 4px; background: none; text-align: left; font-size: 12px; overflow: hidden; }
 .insert-equation:hover { background: #edf2fc; border-color: var(--accent-doc); }
 .insert-equation .katex { font-size: 1em; white-space: nowrap; }
+.insert-equation-group { display: flex; flex-direction: column; gap: 2px; }
+.insert-equation-heading { position: sticky; top: 0; z-index: 1; padding: var(--doc-gap-1) var(--doc-gap-2); background: #f3f5f9; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
 
 .insert-symbol-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; padding: var(--doc-gap-1); }
 

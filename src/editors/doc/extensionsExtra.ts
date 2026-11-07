@@ -1,15 +1,19 @@
 import { Extension, InputRule, Node, mergeAttributes, type Editor } from '@tiptap/core';
-import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { Plugin, PluginKey, type EditorState } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import katex from 'katex';
+import 'katex/contrib/mhchem';
+import { equationClassName, equationInlineStyle, normalizePresentation, type EquationPresentation } from './equationStyle';
+import { katexStrict } from './mathCatalog';
 import type { CitationSource, CitationStyle } from '../../lib/storage';
 import { getPagination, pageAtPos } from './pagination';
+import { SUPERSCRIPT_TRIGGER, SYMBOL_TRIGGER, isInsideOpenMath, looksLikeDisplayMath, looksLikeInlineMath, superscriptFor, symbolForCommand } from './mathInput';
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     textBox: { insertTextBox: (attrs?: Record<string, unknown>) => ReturnType };
     columnSection: { wrapInColumns: (count: number) => ReturnType; unwrapColumns: () => ReturnType };
-    equation: { insertEquation: (latex: string, display: boolean) => ReturnType };
+    equation: { insertEquation: (latex: string, display: boolean, presentation?: Partial<EquationPresentation>) => ReturnType };
     smartChip: { insertSmartChip: (attrs: { kind: string; value: string; options?: string }) => ReturnType };
     citation: { insertCitation: (sourceId: string) => ReturnType };
     bookmark: { insertBookmark: (name: string) => ReturnType };
@@ -521,6 +525,11 @@ export const Equation = Node.create({
     return {
       latex: { default: '', parseHTML: (element: HTMLElement) => element.getAttribute('data-latex') ?? '', renderHTML: (attributes: Record<string, unknown>) => ({ 'data-latex': attributes.latex }) },
       display: { default: false, parseHTML: (element: HTMLElement) => element.getAttribute('data-display') === 'true', renderHTML: (attributes: Record<string, unknown>) => ({ 'data-display': String(Boolean(attributes.display)) }) },
+      numbered: { default: false, parseHTML: (element: HTMLElement) => element.getAttribute('data-numbered') === 'true', renderHTML: (attributes: Record<string, unknown>) => (attributes.numbered ? { 'data-numbered': 'true' } : {}) },
+      align: { default: 'center', parseHTML: (element: HTMLElement) => element.getAttribute('data-align') ?? 'center', renderHTML: (attributes: Record<string, unknown>) => (attributes.align && attributes.align !== 'center' ? { 'data-align': attributes.align } : {}) },
+      size: { default: 100, parseHTML: (element: HTMLElement) => Number(element.getAttribute('data-size') ?? 100), renderHTML: (attributes: Record<string, unknown>) => (Number(attributes.size) && Number(attributes.size) !== 100 ? { 'data-size': String(attributes.size) } : {}) },
+      color: { default: '', parseHTML: (element: HTMLElement) => element.getAttribute('data-color') ?? '', renderHTML: (attributes: Record<string, unknown>) => (attributes.color ? { 'data-color': attributes.color } : {}) },
+      boxed: { default: false, parseHTML: (element: HTMLElement) => element.getAttribute('data-boxed') === 'true', renderHTML: (attributes: Record<string, unknown>) => (attributes.boxed ? { 'data-boxed': 'true' } : {}) },
     };
   },
   parseHTML() {
@@ -535,18 +544,19 @@ export const Equation = Node.create({
   addNodeView() {
     return ({ node }) => {
       const dom = document.createElement('span');
-      dom.className = 'doc-equation';
-      const paint = (latex: string, display: boolean) => {
-        dom.classList.toggle('display', display);
-        katex.render(latex || '\\square', dom, { throwOnError: false, displayMode: display, output: 'htmlAndMathml' });
+      const paint = (attrs: Record<string, unknown>) => {
+        const presentation = normalizePresentation(attrs);
+        dom.className = equationClassName(presentation);
+        dom.setAttribute('style', equationInlineStyle(presentation));
+        katex.render(String(attrs.latex ?? '') || '\\square', dom, { throwOnError: false, displayMode: presentation.display, output: 'htmlAndMathml', strict: katexStrict });
       };
-      paint(String(node.attrs.latex), Boolean(node.attrs.display));
+      paint(node.attrs);
       return {
         dom,
         ignoreMutation: () => true,
         update: (updated) => {
           if (updated.type.name !== 'equation') return false;
-          paint(String(updated.attrs.latex), Boolean(updated.attrs.display));
+          paint(updated.attrs);
           return true;
         },
       };
@@ -554,7 +564,7 @@ export const Equation = Node.create({
   },
   addCommands() {
     return {
-      insertEquation: (latex, display) => ({ commands }) => commands.insertContent({ type: this.name, attrs: { latex, display } }),
+      insertEquation: (latex, display, presentation = {}) => ({ commands }) => commands.insertContent({ type: this.name, attrs: { ...presentation, latex, display } }),
     };
   },
   addInputRules() {
@@ -562,6 +572,7 @@ export const Equation = Node.create({
       new InputRule({
         find: /\$\$([^\$]+)\$\$$/,
         handler: ({ state, range, match }) => {
+          if (!looksLikeDisplayMath(match[1])) return null;
           const latex = cleanMathInput(match[1]);
           if (!latex) return null;
           const start = range.to - match[0].length;
@@ -572,6 +583,7 @@ export const Equation = Node.create({
       new InputRule({
         find: /(?:^|[^\$])\$([^\$]+)\$$/,
         handler: ({ state, range, match }) => {
+          if (!looksLikeInlineMath(match[1])) return null;
           const latex = cleanMathInput(match[1]);
           if (!latex) return null;
           const hasLeading = match[0].length > 0 && match[0][0] !== '$';
@@ -588,12 +600,6 @@ export const Equation = Node.create({
         },
       }),
     ];
-  },
-  addKeyboardShortcuts() {
-    return {
-      'Alt-=': () => this.editor.commands.insertEquation('\\square', false),
-      'Alt-Shift-=': () => this.editor.commands.insertEquation('\\square', true),
-    };
   },
 });
 
@@ -768,23 +774,6 @@ export const IndexEntry = Node.create({
 
 const REPLACEMENTS: [RegExp, string][] = [
   [/--$/, '—'], [/\.\.\.$/, '…'], [/\(c\)$/i, '©'], [/\(r\)$/i, '®'], [/\(tm\)$/i, '™'], [/->$/, '→'], [/<-$/, '←'], [/=>$/, '⇒'], [/1\/2$/, '½'], [/1\/4$/, '¼'], [/3\/4$/, '¾'], [/!=$/, '≠'], [/<=$/, '≤'], [/>=$/, '≥'],
-  [/\\alpha$/, 'α'], [/\\beta$/, 'β'], [/\\gamma$/, 'γ'], [/\\delta$/, 'δ'], [/\\Delta$/, 'Δ'],
-  [/\\epsilon$/, 'ε'], [/\\zeta$/, 'ζ'], [/\\eta$/, 'η'], [/\\theta$/, 'θ'], [/\\Theta$/, 'Θ'],
-  [/\\iota$/, 'ι'], [/\\kappa$/, 'κ'], [/\\lambda$/, 'λ'], [/\\Lambda$/, 'Λ'], [/\\mu$/, 'μ'],
-  [/\\nu$/, 'ν'], [/\\xi$/, 'ξ'], [/\\pi$/, 'π'], [/\\Pi$/, 'Π'], [/\\rho$/, 'ρ'],
-  [/\\sigma$/, 'σ'], [/\\Sigma$/, 'Σ'], [/\\tau$/, 'τ'], [/\\upsilon$/, 'υ'], [/\\phi$/, 'φ'],
-  [/\\Phi$/, 'Φ'], [/\\chi$/, 'χ'], [/\\psi$/, 'ψ'], [/\\Psi$/, 'Ψ'], [/\\omega$/, 'ω'], [/\\Omega$/, 'Ω'],
-  [/\\pm$/, '±'], [/\\mp$/, '∓'], [/\\times$/, '×'], [/\\div$/, '÷'], [/\\cdot$/, '·'],
-  [/\\approx$/, '≈'], [/\\equiv$/, '≡'], [/\\sim$/, '∼'], [/\\cong$/, '≅'],
-  [/\\sqrt$/, '√'], [/\\sum$/, '∑'], [/\\prod$/, '∏'], [/\\int$/, '∫'], [/\\oint$/, '∮'],
-  [/\\infty$/, '∞'], [/\\partial$/, '∂'], [/\\nabla$/, '∇'],
-  [/\\in$/, '∈'], [/\\notin$/, '∉'], [/\\subset$/, '⊂'], [/\\subseteq$/, '⊆'], [/\\supset$/, '⊃'],
-  [/\\cup$/, '∪'], [/\\cap$/, '∩'], [/\\emptyset$/, '∅'],
-  [/\\forall$/, '∀'], [/\\exists$/, '∃'], [/\\neg$/, '¬'],
-  [/\\to$/, '→'], [/\\leftarrow$/, '←'], [/\\leftrightarrow$/, '↔'], [/\\Rightarrow$/, '⇒'], [/\\Leftrightarrow$/, '⇔'],
-  [/\\perp$/, '⊥'], [/\\parallel$/, '∥'], [/\\angle$/, '∠'], [/\\degree$/, '°'],
-  [/\^0$/, '⁰'], [/\^1$/, '¹'], [/\^2$/, '²'], [/\^3$/, '³'], [/\^4$/, '⁴'], [/\^5$/, '⁵'], [/\^6$/, '⁶'], [/\^7$/, '⁷'], [/\^8$/, '⁸'], [/\^9$/, '⁹'], [/\^n$/, 'ⁿ'], [/\^x$/, 'ˣ'],
-  [/_0$/, '₀'], [/_1$/, '₁'], [/_2$/, '₂'], [/_3$/, '₃'], [/_4$/, '₄'], [/_5$/, '₅'], [/_6$/, '₆'], [/_7$/, '₇'], [/_8$/, '₈'], [/_9$/, '₉'], [/_i$/, 'ᵢ'], [/_j$/, 'ⱼ'], [/_k$/, 'ₖ'], [/_n$/, 'ₙ'],
 ];
 
 export const AutoCorrect = Extension.create<Record<string, never>, { enabled: boolean }>({
@@ -794,18 +783,37 @@ export const AutoCorrect = Extension.create<Record<string, never>, { enabled: bo
   },
   addInputRules() {
     const storage = this.storage;
+    const outsideMath = (state: EditorState, from: number) => !isInsideOpenMath(state.doc.textBetween(state.doc.resolve(from).start(), from, undefined, '\ufffc'));
     const rules = REPLACEMENTS.map(([find, text]) => new InputRule({
       find,
       handler: ({ state, range }) => {
-        if (!storage.enabled) return null;
+        if (!storage.enabled || !outsideMath(state, range.from)) return null;
         state.tr.insertText(text, range.from, range.to);
+        return undefined;
+      },
+    }));
+    rules.push(new InputRule({
+      find: SYMBOL_TRIGGER,
+      handler: ({ state, range, match }) => {
+        const symbol = symbolForCommand(match[1]);
+        if (!storage.enabled || !symbol || !outsideMath(state, range.from)) return null;
+        state.tr.insertText(`${symbol} `, range.from, range.to);
+        return undefined;
+      },
+    }));
+    rules.push(new InputRule({
+      find: SUPERSCRIPT_TRIGGER,
+      handler: ({ state, range, match }) => {
+        const superscript = superscriptFor(match[2]);
+        if (!storage.enabled || !superscript || !outsideMath(state, range.from)) return null;
+        state.tr.insertText(`${match[1]}${superscript} `, range.from, range.to);
         return undefined;
       },
     }));
     rules.push(new InputRule({
       find: /(?:^|[.!?]\s)(\p{Ll})$/u,
       handler: ({ state, range, match }) => {
-        if (!storage.enabled) return null;
+        if (!storage.enabled || !outsideMath(state, range.from)) return null;
         state.tr.insertText(match[0].slice(0, -1) + match[1].toLocaleUpperCase('vi'), range.from, range.to);
         return undefined;
       },

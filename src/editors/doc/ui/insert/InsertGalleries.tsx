@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import katex from 'katex';
 import { SHAPES, SHAPE_GROUPS, shapeDataUrl } from '../../insertShapes';
-import { BUILTIN_EQUATIONS, COVER_STYLES } from '../../insertGalleries';
+import { COVER_STYLES } from '../../insertGalleries';
+import { TEMPLATE_SUBJECTS, katexStrict } from '../../mathCatalog';
 import { loadRecentSymbols, pushRecentSymbol } from '../../insertActions';
 
 export function TableGrid({ onPick }: { onPick: (rows: number, cols: number) => void }) {
@@ -63,14 +64,22 @@ export function CoverGallery({ onPick }: { onPick: (id: string) => void }) {
 }
 
 export function EquationGallery({ onPick }: { onPick: (latex: string) => void }) {
-  const rendered = useMemo(() => BUILTIN_EQUATIONS.map((item) => ({ ...item, html: katex.renderToString(item.latex, { throwOnError: false, output: 'html' }) })), []);
+  const rendered = useMemo(
+    () => TEMPLATE_SUBJECTS.map((group) => ({ ...group, items: group.items.map((item) => ({ ...item, html: katex.renderToString(item.latex, { throwOnError: false, output: 'html', strict: katexStrict }) })) })),
+    []
+  );
   return (
     <div className="insert-equations">
-      {rendered.map((item) => (
-        <button key={item.id} type="button" className="insert-equation" title={item.label} onClick={() => onPick(item.latex)}>
-          <strong>{item.label}</strong>
-          <span dangerouslySetInnerHTML={{ __html: item.html }} />
-        </button>
+      {rendered.map((group) => (
+        <div key={group.id} className="insert-equation-group">
+          <div className="insert-equation-heading">{group.name}</div>
+          {group.items.map((item) => (
+            <button key={item.label} type="button" className="insert-equation" title={item.label} onClick={() => onPick(item.latex)}>
+              <strong>{item.label}</strong>
+              <span dangerouslySetInnerHTML={{ __html: item.html }} />
+            </button>
+          ))}
+        </div>
       ))}
     </div>
   );
