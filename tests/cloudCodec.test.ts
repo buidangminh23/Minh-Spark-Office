@@ -2,11 +2,36 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomBytes, createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
+import { Document, Packer, Paragraph } from 'docx';
+import mammoth from 'mammoth';
 import { CHUNK_CHARACTERS, MAX_COMPRESSED_BYTES, MAX_UNCOMPRESSED_BYTES, encodeCloudPayload, decodeCloudPayload } from '../src/lib/cloudCodec.ts';
 import type { FileContent, FileMeta, FileVersion } from '../src/lib/storage.ts';
 
 const metadata = (kind: FileMeta['kind'] = 'doc'): FileMeta => ({ id: 'roundtrip', kind, name: 'Tiếng Việt', createdAt: 1, updatedAt: 2, openedAt: 3, starred: false, deletedAt: null, size: 1, preview: '' });
 const document = (text: string): FileContent => ({ kind: 'doc', json: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] }, page: { size: 'A4', orientation: 'portrait', margins: { top: 1, bottom: 1, left: 1, right: 1 }, header: '', footer: '', pageNumbers: true } });
+
+test('syncs imported DOCX HTML before editor save and preserves imported version history', async () => {
+  const message = 'Minh Spark Office desktop verification. Local document save and export.';
+  const buffer = await Packer.toBuffer(new Document({ sections: [{ children: [new Paragraph(message)] }] }));
+  const { value: html } = await mammoth.convertToHtml({ buffer });
+  assert.equal(html, `<p>${message}</p>`);
+  const imported = { ...document(''), json: html } as unknown as FileContent;
+  const versions: FileVersion[] = [{ id: 'imported-version', fileId: 'roundtrip', label: 'Imported document', timestamp: 1, content: imported }];
+  const encoded = await encodeCloudPayload(imported, [], metadata());
+  assert.deepEqual(await decodeCloudPayload(encoded, metadata()), { content: imported, versions: [] });
+  const edited = document(`${message} Edited.`);
+  const saved = await encodeCloudPayload(edited, versions, metadata());
+  assert.deepEqual(await decodeCloudPayload(saved, metadata()), { content: edited, versions });
+});
+
+test('document string compatibility retains representation, page and size validation', async () => {
+  for (const json of [null, true, 42, [], {}, { type: 'paragraph' }, { type: 'doc', content: 'invalid' }]) {
+    await assert.rejects(encodeCloudPayload({ ...document(''), json } as unknown as FileContent, [], metadata()), /Invalid document/);
+  }
+  const invalidPage = { ...document(''), json: '<p>Imported</p>', page: { size: 'A4', orientation: 'portrait', margins: { top: -1, right: 1, bottom: 1, left: 1 } } };
+  await assert.rejects(encodeCloudPayload(invalidPage as unknown as FileContent, [], metadata()), /Invalid page margins/);
+  await assert.rejects(encodeCloudPayload({ ...document(''), json: 'x'.repeat(MAX_UNCOMPRESSED_BYTES) } as unknown as FileContent, [], metadata()), /payload-too-large/);
+});
 
 test('round trips document, workbook and PDF payloads with version history and Vietnamese text', async () => {
   const contents: FileContent[] = [document('Tài liệu có dấu và ký hiệu 📄'), { kind: 'sheet', workbook: { id: 'wb', name: 'Bảng tính', appVersion: '1', locale: 'vi', styles: {}, sheets: {}, sheetOrder: [] } }, { kind: 'pdf', pdfDataUrl: 'data:application/pdf;base64,JVBERi0xLjQ=', pageCount: 1 }];

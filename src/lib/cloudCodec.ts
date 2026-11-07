@@ -37,8 +37,11 @@ export function validateCloudMeta(value: unknown, id: string): asserts value is 
 function validateContent(value: unknown, kind: FileMeta['kind']): asserts value is FileContent {
   if (!object(value) || value.kind !== kind) fail('Content kind does not match metadata');
   if (kind === 'doc') {
-    if (!object(value.json) || value.json.type !== 'doc' || !object(value.page)) fail('Invalid document content');
-    if (value.json.content !== undefined && !Array.isArray(value.json.content)) fail('Invalid document nodes');
+    if (typeof value.json !== 'string') {
+      if (!object(value.json) || value.json.type !== 'doc') fail('Invalid document content');
+      if (value.json.content !== undefined && !Array.isArray(value.json.content)) fail('Invalid document nodes');
+    }
+    if (!object(value.page)) fail('Invalid document content');
     const page = value.page;
     if (!['portrait', 'landscape'].includes(String(page.orientation)) || typeof page.size !== 'string' || !object(page.margins)) fail('Invalid page settings');
     if (!['top', 'right', 'bottom', 'left'].every((key) => finite((page.margins as Record<string, unknown>)[key]))) fail('Invalid page margins');
