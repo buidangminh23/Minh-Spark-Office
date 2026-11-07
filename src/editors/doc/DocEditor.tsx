@@ -69,6 +69,7 @@ import { CitationDialog, CrossRefDialog, DrawingDialog, EquationDialog, ImageEdi
 import { AccessibilityDialog, CompareDialog, GoToDialog } from './ui/CheckDialogs';
 import SafeBoundary from './ui/SafeBoundary';
 import { AUTO_TITLE_SCAN_BLOCKS, deriveDocTitle, isDefaultDocName, type TitleBlock } from './autoTitle';
+import { useDocumentCloser } from '../../lib/documentCloser';
 
 const AUTO_TITLE_DEBOUNCE_MS = 800;
 
@@ -307,6 +308,8 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
     if (saved && changeRevision.current === savedRevision) setSavedStatus('saved');
     return saved;
   }, [editor]);
+
+  useDocumentCloser(() => persist(false).then((saved) => { if (saved) onBack(); return saved; }));
 
   const saveNow = useCallback(async () => {
     if (await persist(true)) ui.toast('Đã lưu tài liệu');

@@ -3,6 +3,7 @@ import { check, type Update } from '@tauri-apps/plugin-updater';
 import { getVersion } from '@tauri-apps/api/app';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { isDesktop } from '../lib/desktop';
+import { saveAndCloseActiveDocument } from '../lib/documentCloser';
 import { clearDockProgress, requestDockAttention, showDockProgress } from '../lib/desktopProgress';
 import { UpdateProgressRing, type RingMode } from './UpdateProgressRing';
 import './workspaceStatus.css';
@@ -22,11 +23,12 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
   const [error, setError] = useState('');
   const [automatic, setAutomatic] = useState(() => localStorage.getItem('office-auto-check') !== 'false');
   const update = useRef<Update | null>(null);
+  const ready = useRef(false);
   const busy = useRef(false);
   const mounted = useRef(true);
   const dialog = useRef<HTMLElement | null>(null);
   const checkUpdate = async (silent = false) => {
-    if (busy.current || (silent && update.current)) return;
+    if (busy.current || (silent && ready.current)) return;
     busy.current = true;
     setPhase('checking');
     setError('');
@@ -73,7 +75,7 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
         if (event.event === 'Started') setTotal(event.data.contentLength ?? 0);
         if (event.event === 'Progress') setDownloaded((value) => value + event.data.chunkLength);
       }, { timeout: 120000 });
-      if (mounted.current) setPhase('downloaded');
+      if (mounted.current) { ready.current = true; setPhase('downloaded'); }
     } catch {
       if (mounted.current) {
         setPhase('available');
@@ -82,8 +84,14 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
     } finally { busy.current = false; if (!mounted.current) await selectedUpdate.close(); }
   };
   const install = async () => {
-    if (!update.current || busy.current || editing) return;
-    busy.current = true; setPhase('installing'); setError('');
+    if (!update.current || busy.current) return;
+    busy.current = true; setError('');
+    if (editing && !(await saveAndCloseActiveDocument())) {
+      busy.current = false;
+      setError('Chưa lưu được tài liệu đang mở nên chưa cài. Hãy lưu tài liệu rồi thử lại.');
+      return;
+    }
+    setPhase('installing');
     try {
       await update.current.install({ restartAfterInstall: true });
       if (/Mac/.test(navigator.platform)) await relaunch();
@@ -101,7 +109,7 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
   const working = ['checking', 'downloading', 'installing'].includes(phase);
   const ringMode: RingMode = phase === 'downloading' && percent === null ? 'spinning' : ringModes[phase];
   const launcherLabel = phase === 'downloading' ? (percent === null ? 'Đang tải bản mới…' : `Đang tải ${percent}%`) : phase === 'downloaded' ? `Cài bản mới ${nextVersion}` : phase === 'available' ? `Có bản mới ${nextVersion}` : 'Cập nhật ứng dụng';
-  const title = ({ idle: 'Cập nhật Minh Spark Office', checking: 'Đang kiểm tra phiên bản', current: 'Đang dùng phiên bản mới nhất', available: `Đã có phiên bản ${nextVersion}`, downloading: 'Đang tải bản cập nhật', downloaded: 'Bản cập nhật đã sẵn sàng', installing: 'Đang cài đặt bản cập nhật', error: 'Chưa kiểm tra được cập nhật' })[phase];
+  const title = ({ idle: 'Cập nhật Minh Spark Office', checking: 'Đang kiểm tra phiên bản', current: 'Đang dùng phiên bản mới nhất', available: `Đã có phiên bản ${nextVersion}`, downloading: 'Đang tải bản cập nhật', downloaded: `Bản ${nextVersion} đã sẵn sàng`, installing: 'Đang cài đặt bản cập nhật', error: 'Chưa kiểm tra được cập nhật' })[phase];
   return <>
     <button className={`update-launcher update-launcher-${phase}`} onClick={() => { setOpen(true); if (phase === 'idle' || phase === 'error' || phase === 'current') void checkUpdate(); }}>
       {phase === 'downloading' && <UpdateProgressRing mode={percent === null ? 'spinning' : 'progress'} percent={percent ?? 0} size={16} stroke={2} />}
@@ -125,17 +133,17 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
       </div>
       <div className="update-phase" key={phase}>
         <h2 id="update-title">{title}</h2>
-        <p>Minh Spark Office · Phiên bản {version || '…'}</p>
+        <p>{nextVersion && ['available', 'downloading', 'downloaded', 'installing'].includes(phase) ? `Đang dùng ${version || '…'} · Bản mới ${nextVersion}` : `Minh Spark Office · Phiên bản ${version || '…'}`}</p>
       </div>
       {phase === 'downloading' && <div className="update-metrics"><span>{bytes(downloaded)}{total ? ` / ${bytes(total)}` : ''}</span><strong>{percent === null ? 'Đang tải…' : `${percent}%`}</strong></div>}
-      {phase === 'downloaded' && editing && <p>Lưu và trở về danh sách tài liệu trước khi cài đặt.</p>}
+      {phase === 'downloaded' && editing && <p>Tài liệu đang mở sẽ được lưu và đóng trước khi cài.</p>}
       {phase === 'installing' && <p>Đang mở bộ cài. Tài liệu đã lưu trên máy vẫn được giữ.</p>}
       {error && <p className="update-error" role="alert">{error}</p>}
       <label className="update-setting"><input type="checkbox" checked={automatic} disabled={working} onChange={(event) => { const value = event.target.checked; setAutomatic(value); localStorage.setItem('office-auto-check', String(value)); }} />Tự động kiểm tra phiên bản mới</label>
       <div className="sync-dialog-actions">
         {phase !== 'installing' && <button className="btn" onClick={() => setOpen(false)}>{phase === 'downloading' ? 'Tải trong nền' : 'Để sau'}</button>}
         {phase === 'available' && <button className="btn btn-primary" onClick={() => void download()}>Tải bản cập nhật</button>}
-        {phase === 'downloaded' && <button className="btn btn-primary" disabled={editing} onClick={() => void install()}>Cài đặt và mở lại</button>}
+        {phase === 'downloaded' && <button className="btn btn-primary" onClick={() => void install()}>{editing ? 'Lưu, cài đặt và mở lại' : 'Cài đặt và mở lại'}</button>}
         {['idle', 'current', 'error'].includes(phase) && <button className="btn btn-primary" onClick={() => void checkUpdate()}>Kiểm tra lại</button>}
       </div>
     </section></div>}

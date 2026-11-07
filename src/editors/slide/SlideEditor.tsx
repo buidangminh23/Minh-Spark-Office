@@ -30,6 +30,7 @@ import { SlideRibbon, type RibbonTab } from './SlideRibbon';
 import { SlideShow } from './SlideShow';
 import { SlideBackstage } from './SlideBackstage';
 import './slideEditor.css';
+import { useDocumentCloser } from '../../lib/documentCloser';
 
 interface SlideEditorProps {
   meta: FileMeta;
@@ -129,6 +130,13 @@ export default function SlideEditor({
     setSaveStatus(ok ? 'saved' : 'unsaved');
     if (ok) ui.toast('Đã lưu bài thuyết trình');
   }, [content.comments, meta, onSave, presentation, ui]);
+
+  useDocumentCloser(async () => {
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    const saved = await onSave(meta, { kind: 'slide', presentation, comments: content.comments }, false);
+    if (saved) onBack();
+    return saved;
+  });
 
   // Global Keyboard Shortcuts
   useEffect(() => {

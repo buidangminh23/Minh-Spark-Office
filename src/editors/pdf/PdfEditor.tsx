@@ -52,6 +52,7 @@ import {
 } from '../../lib/storage';
 import { downloadBlob } from '../../lib/download';
 import { useUi } from '../../components/ui';
+import { useDocumentCloser } from '../../lib/documentCloser';
 
 interface PdfEditorProps {
   meta: FileMeta;
@@ -148,6 +149,8 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
     if (saved && changeRevision.current === savedRevision) setSavedStatus('saved');
     return saved;
   }, [meta, title, onSave, content, totalPages, comments]);
+
+  useDocumentCloser(() => persistPdf(false).then((saved) => { if (saved) onBack(); return saved; }));
 
   const handleSaveNow = async () => {
     if (await persistPdf(true)) ui.toast('Đã lưu tài liệu PDF');

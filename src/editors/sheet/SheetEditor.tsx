@@ -275,6 +275,7 @@ import {
   type SpecialCellKind,
   type SubtotalFn,
 } from './sheetPro';
+import { useDocumentCloser } from '../../lib/documentCloser';
 
 interface SheetEditorProps {
   meta: FileMeta;
@@ -972,6 +973,8 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
       return false;
     }
   }, [setSavedStatus, captureHydratedWorkbook, meta, title, onSave, comments, printSettings, ui]);
+
+  useDocumentCloser(() => persistWorkbook(false).then((saved) => { if (saved) onBack(); return saved; }));
 
   const handleSaveNow = useCallback(() => void persistWorkbook(true), [persistWorkbook]);
 
