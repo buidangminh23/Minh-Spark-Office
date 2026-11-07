@@ -1,0 +1,2 @@
+64f159142f1b9d40ed1fd7b1f5b7931e3f1545529fbf5683a850a7191c67f1d5  MinhSparkOffice-0.1.0-windows-x64-vi-Setup.exe
+d877903df62595afb20f2dd13f0ab5d240ebfc41bb2362b230a76293def0aee7  MinhSparkOffice-0.1.0-windows-x64-en-US.msi

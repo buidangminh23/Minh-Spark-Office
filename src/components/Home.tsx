@@ -462,6 +462,7 @@ export default function Home({
           </div>
 
           <div className="topbar-right">
+            <a className="btn" href="/tai-ung-dung.html" style={{ textDecoration: 'none' }}>Tải ứng dụng Windows</a>
             <AccountButton />
             <label className="btn btn-primary" style={{ cursor: 'pointer' }}>
               <Upload size={15} />

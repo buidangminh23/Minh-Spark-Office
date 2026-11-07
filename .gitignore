@@ -26,3 +26,5 @@ dist-ssr
 .env*
 
 !.env.example
+/public/downloads/*.exe
+/public/downloads/*.msi
