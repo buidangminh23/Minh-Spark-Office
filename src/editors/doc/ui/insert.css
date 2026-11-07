@@ -14,7 +14,7 @@
 .insert-shape-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
 .insert-shape-grid .shape-cell { padding: 2px; }
 
-.insert-equations { display: flex; flex-direction: column; gap: var(--doc-gap-1); padding: var(--doc-gap-1); }
+.insert-equations { display: flex; flex-direction: column; gap: var(--doc-gap-1); padding: var(--doc-gap-1); max-height: 420px; overflow-y: auto; }
 .insert-equation { display: flex; flex-direction: column; gap: var(--doc-gap-1); align-items: flex-start; padding: var(--doc-gap-2); border: 1px solid transparent; border-radius: 4px; background: none; text-align: left; font-size: 12px; overflow: hidden; }
 .insert-equation:hover { background: #edf2fc; border-color: var(--accent-doc); }
 .insert-equation .katex { font-size: 1em; white-space: nowrap; }

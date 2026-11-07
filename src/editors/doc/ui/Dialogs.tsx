@@ -12,7 +12,7 @@ export const SHORTCUTS: [string, string][] = [
   ['Ctrl+L / E / R / J', 'Căn trái / giữa / phải / đều'], ['Ctrl+Alt+0…3', 'Normal / Heading 1–3'], ['Ctrl+Shift+7 / 8 / 9', 'Đánh số / dấu đầu dòng / việc cần làm'],
   ['Tab / Shift+Tab', 'Thụt lề / bỏ thụt lề'], ['Ctrl+Enter', 'Ngắt trang'], ['Ctrl+K', 'Chèn liên kết'], ['Ctrl+Alt+M', 'Bình luận mới'], ['Ctrl+Alt+F', 'Chú thích cuối trang'],
   ['Ctrl+Shift+C', 'Chổi định dạng'], ['Ctrl+Shift+V', 'Dán chỉ lấy chữ'], ['Ctrl+Shift+E', 'Bật/tắt theo dõi thay đổi'], ['Ctrl+Shift+G', 'Đếm từ'], ['F7', 'Soát chính tả'],
-  ['Ctrl+1 / 2 / 5', 'Giãn dòng đơn / đôi / rưỡi'], ['Ctrl+0', 'Thêm hoặc bỏ khoảng trước đoạn'], ['Ctrl+M / Ctrl+Shift+M', 'Thụt lề / bỏ thụt lề'], ['Ctrl+Q', 'Xoá định dạng đoạn'], ['Ctrl+Space', 'Xoá định dạng ký tự'], ['Ctrl+Shift+D', 'Gạch chân đôi'], ['Ctrl+Shift+K', 'Chữ hoa nhỏ'], ['Ctrl+Shift+F', 'Hộp thoại phông chữ'], ['Ctrl+Shift+S', 'Áp dụng kiểu'], ['Shift+F3', 'Đổi hoa thường'], ['F4', 'Lặp lại thao tác vừa làm'], ['F9', 'Cập nhật trường và mục lục'], ['Shift+F5', 'Về vị trí sửa trước đó'], ['Shift+F7', 'Từ đồng nghĩa'], ['Alt+Q', 'Tìm lệnh'], ['Alt+Shift+← / →', 'Nâng / hạ cấp tiêu đề'], ['Alt+Shift+↑ / ↓', 'Chuyển đoạn lên / xuống'], ['Alt+Shift+D / T', 'Chèn ngày / giờ'], ['Alt+Shift+X', 'Đánh dấu mục chỉ mục'], ['Alt+Shift+I', 'Đánh dấu trích dẫn pháp lý'], ['Ctrl+Alt+D', 'Chú thích cuối bài'], ['Ctrl+Alt+O / N / P', 'Dàn ý / Bản nháp / Bố cục in'], ['Ctrl+Alt+S', 'Chia đôi màn hình'], ['Ctrl+Alt+H', 'Tô sáng chữ'], ['Ctrl+\\', 'Xoá định dạng'], ['Ctrl+= / Ctrl+-', 'Phóng to / thu nhỏ'], ['Ctrl+/', 'Danh sách phím tắt'], ['/', 'Menu chèn nhanh ở đầu dòng'], ['Chuột phải', 'Menu ngữ cảnh'], ['Esc', 'Thoát chế độ đọc / đóng hộp thoại'],
+  ['Ctrl+1 / 2 / 5', 'Giãn dòng đơn / đôi / rưỡi'], ['Ctrl+0', 'Thêm hoặc bỏ khoảng trước đoạn'], ['Ctrl+M / Ctrl+Shift+M', 'Thụt lề / bỏ thụt lề'], ['Ctrl+Q', 'Xoá định dạng đoạn'], ['Ctrl+Space', 'Xoá định dạng ký tự'], ['Ctrl+Shift+D', 'Gạch chân đôi'], ['Ctrl+Shift+K', 'Chữ hoa nhỏ'], ['Ctrl+Shift+F', 'Hộp thoại phông chữ'], ['Ctrl+Shift+S', 'Áp dụng kiểu'], ['Shift+F3', 'Đổi hoa thường'], ['F4', 'Lặp lại thao tác vừa làm'], ['F9', 'Cập nhật trường và mục lục'], ['Shift+F5', 'Về vị trí sửa trước đó'], ['Shift+F7', 'Từ đồng nghĩa'], ['Alt+Q', 'Tìm lệnh'], ['Alt+Shift+← / →', 'Nâng / hạ cấp tiêu đề'], ['Alt+Shift+↑ / ↓', 'Chuyển đoạn lên / xuống'], ['Alt+Shift+D / T', 'Chèn ngày / giờ'], ['Alt+Shift+X', 'Đánh dấu mục chỉ mục'], ['Alt+Shift+I', 'Đánh dấu trích dẫn pháp lý'], ['Ctrl+Alt+D', 'Chú thích cuối bài'], ['Ctrl+Alt+O / N / P', 'Dàn ý / Bản nháp / Bố cục in'], ['Ctrl+Alt+S', 'Chia đôi màn hình'], ['Ctrl+Alt+H', 'Tô sáng chữ'], ['Alt+=', 'Chèn công thức toán (Word)'], ['Ctrl+\\', 'Xoá định dạng'], ['Ctrl+= / Ctrl+-', 'Phóng to / thu nhỏ'], ['Ctrl+/', 'Danh sách phím tắt'], ['/', 'Menu chèn nhanh ở đầu dòng'], ['Chuột phải', 'Menu ngữ cảnh'], ['Esc', 'Thoát chế độ đọc / đóng hộp thoại'],
 ];
 
 export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
@@ -31,7 +31,13 @@ export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
 const SYMBOL_SETS: Record<string, string[]> = {
   'Thông dụng': ['©', '®', '™', '§', '¶', '†', '‡', '•', '…', '–', '—', '«', '»', '“', '”', '‘', '’', '°', '№', '℃'],
   'Tiền tệ': ['₫', '$', '€', '£', '¥', '₩', '₹', '₽', '¢', '₿'],
-  'Toán học': ['±', '×', '÷', '≠', '≈', '≤', '≥', '∞', '√', '∑', '∏', '∫', '∆', '∂', 'π', 'µ', 'Ω', 'α', 'β', 'γ', 'θ', 'λ', '½', '¼', '¾', '²', '³', '‰'],
+  'Toán học': [
+    '±', '∓', '×', '÷', '·', '≠', '≈', '≡', '≤', '≥', '∞', '√', '∛', '∜',
+    '∑', '∏', '∫', '∬', '∭', '∮', '∆', '∂', '∇', 'π', 'µ', 'Ω', 'α', 'β',
+    'γ', 'δ', 'θ', 'λ', 'σ', 'ω', '½', '¼', '¾', '²', '³', '‰', '°', '∠',
+    '⊥', '∥', '∈', '∉', '⊂', '⊆', '⊃', '⊇', '∪', '∩', '∅', '∀', '∃', '¬',
+    '∧', '∨', '⇒', '⇔', '→', '←', '↔', 'ℝ', 'ℕ', 'ℤ', 'ℚ', 'ℂ', '⋮', '⋯', '⋱'
+  ],
   'Mũi tên': ['→', '←', '↑', '↓', '↔', '↕', '⇒', '⇐', '⇔', '➜', '↗', '↘'],
   'Hình': ['★', '☆', '●', '○', '■', '□', '▲', '△', '◆', '◇', '✔', '✘', '☑', '☐', '♥', '♦', '♣', '♠'],
   'Biểu tượng': ['😀', '😊', '😂', '😍', '🤔', '👍', '👏', '🙏', '🎉', '🔥', '✅', '❌', '⚠️', '📌', '📎', '📅', '📞', '📧', '💡', '🚀', '⭐', '❤️', '🇻🇳'],

@@ -5,8 +5,8 @@ type MathPart = MathRun | MathFraction | MathRadical | MathSum | MathIntegral | 
 const SYMBOLS: Record<string, string> = {
   alpha: 'α', beta: 'β', gamma: 'γ', delta: 'δ', epsilon: 'ε', zeta: 'ζ', eta: 'η', theta: 'θ', iota: 'ι', kappa: 'κ', lambda: 'λ', mu: 'μ', nu: 'ν', xi: 'ξ', pi: 'π', rho: 'ρ', sigma: 'σ', tau: 'τ', upsilon: 'υ', phi: 'φ', chi: 'χ', psi: 'ψ', omega: 'ω',
   Gamma: 'Γ', Delta: 'Δ', Theta: 'Θ', Lambda: 'Λ', Xi: 'Ξ', Pi: 'Π', Sigma: 'Σ', Upsilon: 'Υ', Phi: 'Φ', Psi: 'Ψ', Omega: 'Ω',
-  leq: '≤', le: '≤', geq: '≥', ge: '≥', neq: '≠', ne: '≠', approx: '≈', equiv: '≡', pm: '±', mp: '∓', times: '×', cdot: '·', div: '÷', infty: '∞', partial: '∂', nabla: '∇', to: '→', rightarrow: '→', leftarrow: '←', Rightarrow: '⇒', Leftrightarrow: '⇔', in: '∈', notin: '∉', subset: '⊂', cup: '∪', cap: '∩', forall: '∀', exists: '∃', degree: '°', ldots: '…', cdots: '⋯',
-  lim: 'lim', sin: 'sin', cos: 'cos', tan: 'tan', log: 'log', ln: 'ln', exp: 'exp', min: 'min', max: 'max',
+  leq: '≤', le: '≤', geq: '≥', ge: '≥', neq: '≠', ne: '≠', approx: '≈', equiv: '≡', pm: '±', mp: '∓', times: '×', cdot: '·', div: '÷', infty: '∞', partial: '∂', nabla: '∇', to: '→', rightarrow: '→', leftarrow: '←', Rightarrow: '⇒', Leftrightarrow: '⇔', in: '∈', notin: '∉', subset: '⊂', subseteq: '⊆', supset: '⊃', supseteq: '⊇', cup: '∪', cap: '∩', emptyset: '∅', forall: '∀', exists: '∃', neg: '¬', land: '∧', lor: '∨', implies: '⇒', iff: '⇔', sim: '∼', cong: '≅', propto: '∝', perp: '⊥', parallel: '∥', angle: '∠', degree: '°', circ: '∘', bullet: '•', ldots: '…', cdots: '⋯', vdots: '⋮', ddots: '⋱',
+  lim: 'lim', sin: 'sin', cos: 'cos', tan: 'tan', cot: 'cot', log: 'log', ln: 'ln', exp: 'exp', min: 'min', max: 'max',
 };
 const SPACES = new Set([',', ';', ':', '!', ' ', 'quad', 'qquad']);
 
@@ -89,12 +89,14 @@ function environment(reader: Reader): MathPart[] {
   const body = stop < 0 ? reader.source.slice(reader.index) : reader.source.slice(reader.index, stop);
   reader.index = stop < 0 ? reader.source.length : stop + end.length;
   const rows = body.split('\\\\').map((row) => row.split('&').map((cell) => cell.trim()).join('  ').trim()).filter(Boolean);
-  const parts: MathPart[] = [new MathRun(name === 'cases' ? '{ ' : '[ ')];
+  const openBracket = name === 'cases' ? '{ ' : name === 'pmatrix' ? '( ' : name === 'vmatrix' ? '| ' : '[ ';
+  const closeBracket = name === 'cases' ? '' : name === 'pmatrix' ? ' )' : name === 'vmatrix' ? ' |' : ' ]';
+  const parts: MathPart[] = [new MathRun(openBracket)];
   rows.forEach((row, index) => {
     if (index) parts.push(new MathRun(' ; '));
     parts.push(...latexToMath(row));
   });
-  if (name !== 'cases') parts.push(new MathRun(' ]'));
+  if (closeBracket) parts.push(new MathRun(closeBracket));
   return parts;
 }
 
@@ -177,15 +179,55 @@ export function latexToMath(source: string): MathPart[] {
         parts.push(new MathFraction({ numerator: latexToMath(reader.group()), denominator: latexToMath(reader.group()) }));
       } else if (name === 'sqrt') {
         flush();
-        parts.push(new MathRadical({ children: latexToMath(reader.group()) }));
+        reader.skipSpace();
+        let degree: string | null = null;
+        if (reader.peek() === '[') {
+          reader.index++;
+          const degStart = reader.index;
+          const degEnd = reader.source.indexOf(']', degStart);
+          if (degEnd >= 0) {
+            degree = reader.source.slice(degStart, degEnd);
+            reader.index = degEnd + 1;
+          }
+        }
+        const body = reader.group();
+        parts.push(new MathRadical({ children: latexToMath(body), ...(degree ? { degree: latexToMath(degree) } : {}) }));
       } else if (name === 'sum') {
         flush();
         const { sub, sup } = reader.optionalLimits();
         parts.push(new MathSum({ children: [new MathRun('')], ...(sub !== null ? { subScript: latexToMath(sub) } : {}), ...(sup !== null ? { superScript: latexToMath(sup) } : {}) }));
+      } else if (name === 'prod') {
+        flush();
+        const { sub, sup } = reader.optionalLimits();
+        parts.push(new MathSum({ children: [new MathRun('∏')], ...(sub !== null ? { subScript: latexToMath(sub) } : {}), ...(sup !== null ? { superScript: latexToMath(sup) } : {}) }));
       } else if (name === 'int') {
         flush();
         const { sub, sup } = reader.optionalLimits();
         parts.push(new MathIntegral({ children: [new MathRun('')], ...(sub !== null ? { subScript: latexToMath(sub) } : {}), ...(sup !== null ? { superScript: latexToMath(sup) } : {}) }));
+      } else if (name === 'iint' || name === 'iiint' || name === 'oint') {
+        flush();
+        const symbol = name === 'iint' ? '∬' : name === 'iiint' ? '∭' : '∮';
+        const { sub, sup } = reader.optionalLimits();
+        parts.push(new MathIntegral({ children: [new MathRun(symbol)], ...(sub !== null ? { subScript: latexToMath(sub) } : {}), ...(sup !== null ? { superScript: latexToMath(sup) } : {}) }));
+      } else if (name === 'binom') {
+        flush();
+        const n = reader.group();
+        const k = reader.group();
+        parts.push(new MathRun('('));
+        parts.push(new MathFraction({ numerator: latexToMath(n), denominator: latexToMath(k) }));
+        parts.push(new MathRun(')'));
+      } else if (name === 'vec' || name === 'overrightarrow') {
+        flush();
+        parts.push(...latexToMath(reader.group()));
+        parts.push(new MathRun('⃗'));
+      } else if (name === 'bar' || name === 'overline') {
+        flush();
+        parts.push(...latexToMath(reader.group()));
+        parts.push(new MathRun('̄'));
+      } else if (name === 'hat') {
+        flush();
+        parts.push(...latexToMath(reader.group()));
+        parts.push(new MathRun('̂'));
       } else if (name === 'begin') {
         flush();
         parts.push(...environment(reader));

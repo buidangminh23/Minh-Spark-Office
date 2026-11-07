@@ -394,6 +394,12 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
       if (e.key === 'Escape' && c.view.focusMode) { setView({ focusMode: false }); return; }
       if (e.key === 'Escape' && c.view.inkTool) { setView({ inkTool: null }); return; }
       if (e.key === 'Escape' && c.view.viewMode === 'read') { setView({ viewMode: 'print' }); return; }
+      if (e.altKey && !mod && (e.key === '=' || e.key === '+')) {
+        e.preventDefault();
+        setEditing(null);
+        setDialog('equation');
+        return;
+      }
       if (!mod) return;
       const handled = (() => {
         if (key === 's') return c.saveNow(), true;

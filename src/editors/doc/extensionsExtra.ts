@@ -494,6 +494,23 @@ export const ColumnSection = Node.create({
   },
 });
 
+export function cleanMathInput(raw: string): string {
+  let s = raw.trim();
+  s = s.replace(/\\frac\(([^()]+)\)\(([^()]+)\)/g, '\\frac{$1}{$2}');
+  s = s.replace(/\(([^()]+)\)\/\(([^()]+)\)/g, '\\frac{$1}{$2}');
+  s = s.replace(/\\sqrt\(([^()]+)\)/g, '\\sqrt{$1}');
+  s = s.replace(/\\sqrt\[([^\[\]]+)\]\(([^()]+)\)/g, '\\sqrt[$1]{$2}');
+  s = s.replace(/\^\(([^()]+)\)/g, '^{$1}');
+  s = s.replace(/_\(([^()]+)\)/g, '_{$1}');
+  s = s.replace(/\\vec\(([^()]+)\)/g, '\\vec{$1}');
+  s = s.replace(/\\bar\(([^()]+)\)/g, '\\bar{$1}');
+  s = s.replace(/\\hat\(([^()]+)\)/g, '\\hat{$1}');
+  s = s.replace(/\\sum_\(([^()]+)\)\^\(([^()]+)\)/g, '\\sum_{$1}^{$2}');
+  s = s.replace(/\\int_\(([^()]+)\)\^\(([^()]+)\)/g, '\\int_{$1}^{$2}');
+  s = s.replace(/\\lim_\(([^()]+)\)/g, '\\lim_{$1}');
+  return s;
+}
+
 export const Equation = Node.create({
   name: 'equation',
   group: 'inline',
@@ -538,6 +555,44 @@ export const Equation = Node.create({
   addCommands() {
     return {
       insertEquation: (latex, display) => ({ commands }) => commands.insertContent({ type: this.name, attrs: { latex, display } }),
+    };
+  },
+  addInputRules() {
+    return [
+      new InputRule({
+        find: /\$\$([^\$]+)\$\$$/,
+        handler: ({ state, range, match }) => {
+          const latex = cleanMathInput(match[1]);
+          if (!latex) return null;
+          const start = range.to - match[0].length;
+          state.tr.replaceWith(start, range.to, this.type.create({ latex, display: true }));
+          return undefined;
+        },
+      }),
+      new InputRule({
+        find: /(?:^|[^\$])\$([^\$]+)\$$/,
+        handler: ({ state, range, match }) => {
+          const latex = cleanMathInput(match[1]);
+          if (!latex) return null;
+          const hasLeading = match[0].length > 0 && match[0][0] !== '$';
+          const start = hasLeading ? range.to - match[0].length + 1 : range.to - match[0].length;
+          state.tr.replaceWith(start, range.to, this.type.create({ latex, display: false }));
+          return undefined;
+        },
+      }),
+      new InputRule({
+        find: /^\$\$\s$/,
+        handler: ({ state, range }) => {
+          state.tr.replaceWith(range.from, range.to, this.type.create({ latex: '\\square', display: true }));
+          return undefined;
+        },
+      }),
+    ];
+  },
+  addKeyboardShortcuts() {
+    return {
+      'Alt-=': () => this.editor.commands.insertEquation('\\square', false),
+      'Alt-Shift-=': () => this.editor.commands.insertEquation('\\square', true),
     };
   },
 });
@@ -713,6 +768,23 @@ export const IndexEntry = Node.create({
 
 const REPLACEMENTS: [RegExp, string][] = [
   [/--$/, '—'], [/\.\.\.$/, '…'], [/\(c\)$/i, '©'], [/\(r\)$/i, '®'], [/\(tm\)$/i, '™'], [/->$/, '→'], [/<-$/, '←'], [/=>$/, '⇒'], [/1\/2$/, '½'], [/1\/4$/, '¼'], [/3\/4$/, '¾'], [/!=$/, '≠'], [/<=$/, '≤'], [/>=$/, '≥'],
+  [/\\alpha$/, 'α'], [/\\beta$/, 'β'], [/\\gamma$/, 'γ'], [/\\delta$/, 'δ'], [/\\Delta$/, 'Δ'],
+  [/\\epsilon$/, 'ε'], [/\\zeta$/, 'ζ'], [/\\eta$/, 'η'], [/\\theta$/, 'θ'], [/\\Theta$/, 'Θ'],
+  [/\\iota$/, 'ι'], [/\\kappa$/, 'κ'], [/\\lambda$/, 'λ'], [/\\Lambda$/, 'Λ'], [/\\mu$/, 'μ'],
+  [/\\nu$/, 'ν'], [/\\xi$/, 'ξ'], [/\\pi$/, 'π'], [/\\Pi$/, 'Π'], [/\\rho$/, 'ρ'],
+  [/\\sigma$/, 'σ'], [/\\Sigma$/, 'Σ'], [/\\tau$/, 'τ'], [/\\upsilon$/, 'υ'], [/\\phi$/, 'φ'],
+  [/\\Phi$/, 'Φ'], [/\\chi$/, 'χ'], [/\\psi$/, 'ψ'], [/\\Psi$/, 'Ψ'], [/\\omega$/, 'ω'], [/\\Omega$/, 'Ω'],
+  [/\\pm$/, '±'], [/\\mp$/, '∓'], [/\\times$/, '×'], [/\\div$/, '÷'], [/\\cdot$/, '·'],
+  [/\\approx$/, '≈'], [/\\equiv$/, '≡'], [/\\sim$/, '∼'], [/\\cong$/, '≅'],
+  [/\\sqrt$/, '√'], [/\\sum$/, '∑'], [/\\prod$/, '∏'], [/\\int$/, '∫'], [/\\oint$/, '∮'],
+  [/\\infty$/, '∞'], [/\\partial$/, '∂'], [/\\nabla$/, '∇'],
+  [/\\in$/, '∈'], [/\\notin$/, '∉'], [/\\subset$/, '⊂'], [/\\subseteq$/, '⊆'], [/\\supset$/, '⊃'],
+  [/\\cup$/, '∪'], [/\\cap$/, '∩'], [/\\emptyset$/, '∅'],
+  [/\\forall$/, '∀'], [/\\exists$/, '∃'], [/\\neg$/, '¬'],
+  [/\\to$/, '→'], [/\\leftarrow$/, '←'], [/\\leftrightarrow$/, '↔'], [/\\Rightarrow$/, '⇒'], [/\\Leftrightarrow$/, '⇔'],
+  [/\\perp$/, '⊥'], [/\\parallel$/, '∥'], [/\\angle$/, '∠'], [/\\degree$/, '°'],
+  [/\^0$/, '⁰'], [/\^1$/, '¹'], [/\^2$/, '²'], [/\^3$/, '³'], [/\^4$/, '⁴'], [/\^5$/, '⁵'], [/\^6$/, '⁶'], [/\^7$/, '⁷'], [/\^8$/, '⁸'], [/\^9$/, '⁹'], [/\^n$/, 'ⁿ'], [/\^x$/, 'ˣ'],
+  [/_0$/, '₀'], [/_1$/, '₁'], [/_2$/, '₂'], [/_3$/, '₃'], [/_4$/, '₄'], [/_5$/, '₅'], [/_6$/, '₆'], [/_7$/, '₇'], [/_8$/, '₈'], [/_9$/, '₉'], [/_i$/, 'ᵢ'], [/_j$/, 'ⱼ'], [/_k$/, 'ₖ'], [/_n$/, 'ₙ'],
 ];
 
 export const AutoCorrect = Extension.create<Record<string, never>, { enabled: boolean }>({

@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Bookmark, BookText, Download, Globe, ListX, RotateCw, Search, Bold, ChevronDown, ChevronUp, ClipboardPaste, Code, Copy, Heading1, Heading2, Heading3, Highlighter, Image as ImageIcon, Italic, Link2, List, ListOrdered, ListTodo, ListTree, MessageSquarePlus, Minus, Quote, Scissors, Sparkles, Strikethrough, Table, Type, Underline, X, Calendar, ScissorsLineDashed, BarChart3, Languages, Settings2, Trash2, FileText } from 'lucide-react';
+import { Bookmark, BookText, Download, Globe, ListX, RotateCw, Search, Bold, ChevronDown, ChevronUp, ClipboardPaste, Code, Copy, Heading1, Heading2, Heading3, Highlighter, Image as ImageIcon, Italic, Link2, List, ListOrdered, ListTodo, ListTree, MessageSquarePlus, Minus, Quote, Scissors, Sigma, Sparkles, Strikethrough, Table, Type, Underline, X, Calendar, ScissorsLineDashed, BarChart3, Languages, Settings2, Trash2, FileText } from 'lucide-react';
 import { useEditorState } from '@tiptap/react';
 import { searchKey } from '../search';
 import { useDoc } from '../DocContext';
@@ -219,6 +219,7 @@ export function SlashMenu() {
     { id: 'divider', label: 'Đường kẻ ngang', keywords: 'divider hr duong ke line', icon: <Minus size={15} />, run: () => editor.chain().focus().setHorizontalRule().run() },
     { id: 'toc', label: 'Mục lục', keywords: 'toc muc luc', icon: <ListTree size={15} />, run: () => editor.chain().focus().insertDocList('tableOfContents').run() },
     { id: 'break', label: 'Ngắt trang', keywords: 'page break ngat trang', icon: <ScissorsLineDashed size={15} />, run: () => editor.chain().focus().insertPageBreak().run() },
+    { id: 'math', label: 'Công thức toán', keywords: 'math equation cong thuc toan latex sigma', icon: <Sigma size={15} />, run: () => { ctx.setEditing(null); ctx.openDialog('equation'); } },
     { id: 'date', label: 'Ngày hôm nay', keywords: 'date ngay hom nay', icon: <Calendar size={15} />, run: () => insertDateTime(ctx, 'date') },
     { id: 'ai', label: 'Minh AI', keywords: 'ai tri tue viet', icon: <Sparkles size={15} />, run: () => ctx.openDialog('ai') },
   ], [editor, ctx]);

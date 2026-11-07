@@ -7,16 +7,157 @@ import { newId, useDoc } from '../DocContext';
 import { setRefs } from '../extensionsExtra';
 import Modal from './Modal';
 
-const EQUATION_SNIPPETS: { label: string; latex: string }[] = [
-  { label: 'Phân số', latex: '\\frac{a}{b}' }, { label: 'Căn', latex: '\\sqrt{x}' }, { label: 'Mũ', latex: 'x^{2}' }, { label: 'Chỉ số', latex: 'x_{i}' },
-  { label: 'Tổng', latex: '\\sum_{i=1}^{n} x_i' }, { label: 'Tích phân', latex: '\\int_{a}^{b} f(x)\\,dx' }, { label: 'Giới hạn', latex: '\\lim_{x \\to \\infty} f(x)' }, { label: 'Ma trận', latex: '\\begin{bmatrix} a & b \\\\ c & d \\end{bmatrix}' },
-  { label: 'Hệ PT', latex: '\\begin{cases} x + y = 1 \\\\ x - y = 0 \\end{cases}' }, { label: 'Nghiệm bậc 2', latex: 'x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}' }, { label: 'π', latex: '\\pi' }, { label: '≤', latex: '\\leq' }, { label: '≠', latex: '\\neq' }, { label: '∞', latex: '\\infty' }, { label: 'α', latex: '\\alpha' }, { label: 'β', latex: '\\beta' },
+type SnippetCategory = {
+  id: string;
+  name: string;
+  snippets: { label: string; latex: string }[];
+};
+
+const EQUATION_CATEGORIES: SnippetCategory[] = [
+  {
+    id: 'structure',
+    name: 'Cấu trúc',
+    snippets: [
+      { label: 'Phân số', latex: '\\frac{a}{b}' },
+      { label: 'Phân số nhỏ', latex: '\\tfrac{a}{b}' },
+      { label: 'Đạo hàm', latex: '\\frac{df}{dx}' },
+      { label: 'Đạo hàm riêng', latex: '\\frac{\\partial f}{\\partial x}' },
+      { label: 'Căn bậc 2', latex: '\\sqrt{x}' },
+      { label: 'Căn bậc n', latex: '\\sqrt[n]{x}' },
+      { label: 'Mũ', latex: 'x^{2}' },
+      { label: 'Chỉ số', latex: 'x_{i}' },
+      { label: 'Mũ & Chỉ số', latex: 'x_{i}^{2}' },
+      { label: 'Tích phân', latex: '\\int f(x)\\,dx' },
+      { label: 'Tích phân xác định', latex: '\\int_{a}^{b} f(x)\\,dx' },
+      { label: 'Tích phân 2 lớp', latex: '\\iint_{D} f(x,y)\\,dx\\,dy' },
+      { label: 'Tích phân mặt kín', latex: '\\oint_{C} \\vec{F}\\cdot d\\vec{r}' },
+      { label: 'Tổng ∑', latex: '\\sum_{i=1}^{n} x_i' },
+      { label: 'Tích ∏', latex: '\\prod_{i=1}^{n} x_i' },
+      { label: 'Giới hạn', latex: '\\lim_{x \\to \\infty} f(x)' },
+      { label: 'Ngoặc tròn ( )', latex: '\\left( \\frac{a}{b} \\right)' },
+      { label: 'Ngoặc vuông [ ]', latex: '\\left[ \\frac{a}{b} \\right]' },
+      { label: 'Ngoặc nhọn { }', latex: '\\left\\{ \\frac{a}{b} \\right\\}' },
+      { label: 'Trị tuyệt đối | |', latex: '\\left| x \\right|' },
+      { label: 'Chuẩn ‖ ‖', latex: '\\left\\| \\vec{v} \\right\\|' },
+      { label: 'Ma trận tròn ( )', latex: '\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}' },
+      { label: 'Ma trận vuông [ ]', latex: '\\begin{bmatrix} a & b \\\\ c & d \\end{bmatrix}' },
+      { label: 'Định thức | |', latex: '\\begin{vmatrix} a & b \\\\ c & d \\end{vmatrix}' },
+      { label: 'Hệ 2 PT', latex: '\\begin{cases} x + y = 1 \\\\ x - y = 0 \\end{cases}' },
+      { label: 'Hệ 3 PT', latex: '\\begin{cases} x + y + z = 1 \\\\ 2x - y + z = 3 \\\\ x + 2y - z = 0 \\end{cases}' },
+      { label: 'Vector →', latex: '\\vec{a}' },
+      { label: 'Vector AB', latex: '\\overrightarrow{AB}' },
+      { label: 'Gạch đầu x̄', latex: '\\bar{x}' },
+      { label: 'Mũ ước lượng ŷ', latex: '\\hat{y}' },
+      { label: 'Tổ hợp C', latex: '\\binom{n}{k}' },
+      { label: 'Ngoặc trên', latex: '\\overbrace{a + b}^{n}' },
+      { label: 'Ngoặc dưới', latex: '\\underbrace{a + b}_{n}' },
+    ],
+  },
+  {
+    id: 'symbols',
+    name: 'Ký hiệu & Phép toán',
+    snippets: [
+      { label: '±', latex: '\\pm' },
+      { label: '∓', latex: '\\mp' },
+      { label: '×', latex: '\\times' },
+      { label: '÷', latex: '\\div' },
+      { label: '·', latex: '\\cdot' },
+      { label: '≤', latex: '\\leq' },
+      { label: '≥', latex: '\\geq' },
+      { label: '≠', latex: '\\neq' },
+      { label: '≈', latex: '\\approx' },
+      { label: '≡', latex: '\\equiv' },
+      { label: '∝', latex: '\\propto' },
+      { label: '∞', latex: '\\infty' },
+      { label: '∂', latex: '\\partial' },
+      { label: '∇', latex: '\\nabla' },
+      { label: '∈', latex: '\\in' },
+      { label: '∉', latex: '\\notin' },
+      { label: '⊂', latex: '\\subset' },
+      { label: '⊆', latex: '\\subseteq' },
+      { label: '⊃', latex: '\\supset' },
+      { label: '∪', latex: '\\cup' },
+      { label: '∩', latex: '\\cap' },
+      { label: '∅', latex: '\\emptyset' },
+      { label: '∀', latex: '\\forall' },
+      { label: '∃', latex: '\\exists' },
+      { label: '¬', latex: '\\neg' },
+      { label: '→', latex: '\\to' },
+      { label: '←', latex: '\\leftarrow' },
+      { label: '⇒', latex: '\\Rightarrow' },
+      { label: '⇔', latex: '\\Leftrightarrow' },
+      { label: '⊥', latex: '\\perp' },
+      { label: '∥', latex: '\\parallel' },
+      { label: '∠', latex: '\\angle' },
+      { label: '°', latex: '^{\\circ}' },
+      { label: 'ℝ', latex: '\\mathbb{R}' },
+      { label: 'ℕ', latex: '\\mathbb{N}' },
+      { label: 'ℤ', latex: '\\mathbb{Z}' },
+      { label: 'ℚ', latex: '\\mathbb{Q}' },
+      { label: 'ℂ', latex: '\\mathbb{C}' },
+      { label: '⋯', latex: '\\cdots' },
+      { label: '⋮', latex: '\\vdots' },
+      { label: '⋱', latex: '\\ddots' },
+    ],
+  },
+  {
+    id: 'greek',
+    name: 'Chữ Hy Lạp',
+    snippets: [
+      { label: 'α', latex: '\\alpha' },
+      { label: 'β', latex: '\\beta' },
+      { label: 'γ', latex: '\\gamma' },
+      { label: 'δ', latex: '\\delta' },
+      { label: 'Δ', latex: '\\Delta' },
+      { label: 'ε', latex: '\\epsilon' },
+      { label: 'ζ', latex: '\\zeta' },
+      { label: 'η', latex: '\\eta' },
+      { label: 'θ', latex: '\\theta' },
+      { label: 'Θ', latex: '\\Theta' },
+      { label: 'ι', latex: '\\iota' },
+      { label: 'κ', latex: '\\kappa' },
+      { label: 'λ', latex: '\\lambda' },
+      { label: 'Λ', latex: '\\Lambda' },
+      { label: 'μ', latex: '\\mu' },
+      { label: 'ν', latex: '\\nu' },
+      { label: 'ξ', latex: '\\xi' },
+      { label: 'π', latex: '\\pi' },
+      { label: 'Π', latex: '\\Pi' },
+      { label: 'ρ', latex: '\\rho' },
+      { label: 'σ', latex: '\\sigma' },
+      { label: 'Σ', latex: '\\Sigma' },
+      { label: 'τ', latex: '\\tau' },
+      { label: 'υ', latex: '\\upsilon' },
+      { label: 'φ', latex: '\\phi' },
+      { label: 'Φ', latex: '\\Phi' },
+      { label: 'χ', latex: '\\chi' },
+      { label: 'ψ', latex: '\\psi' },
+      { label: 'Ψ', latex: '\\Psi' },
+      { label: 'ω', latex: '\\omega' },
+      { label: 'Ω', latex: '\\Omega' },
+    ],
+  },
+  {
+    id: 'common',
+    name: 'Mẫu nhanh',
+    snippets: [
+      { label: 'Nghiệm bậc 2', latex: 'x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}' },
+      { label: 'Pythagoras', latex: 'a^2 + b^2 = c^2' },
+      { label: 'Diện tích tròn', latex: 'A = \\pi r^2' },
+      { label: 'Nhị thức', latex: '(x + a)^n = \\sum_{k=0}^n \\binom{n}{k} x^k a^{n-k}' },
+      { label: 'Euler', latex: 'e^{i\\pi} + 1 = 0' },
+      { label: 'Tích phân từng phần', latex: '\\int u\\,dv = uv - \\int v\\,du' },
+      { label: 'AM-GM', latex: '\\frac{a + b}{2} \\ge \\sqrt{ab}' },
+      { label: 'Phân phối chuẩn', latex: 'f(x) = \\frac{1}{\\sigma \\sqrt{2\\pi}} e^{-\\frac{(x-\\mu)^2}{2\\sigma^2}}' },
+    ],
+  },
 ];
 
 export function EquationDialog({ onClose }: { onClose: () => void }) {
   const { editor, editing, setEditing } = useDoc();
   const [latex, setLatex] = useState(String(editing?.attrs.latex ?? 'x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}'));
   const [display, setDisplay] = useState(Boolean(editing?.attrs.display ?? true));
+  const [tab, setTab] = useState('structure');
   const preview = useRef<HTMLDivElement | null>(null);
   const area = useRef<HTMLTextAreaElement | null>(null);
   useEffect(() => {
@@ -39,12 +180,29 @@ export function EquationDialog({ onClose }: { onClose: () => void }) {
     }
     close();
   };
+  const activeCategory = EQUATION_CATEGORIES.find((c) => c.id === tab) ?? EQUATION_CATEGORIES[0];
   return (
-    <Modal title={editing ? 'Sửa công thức' : 'Chèn công thức'} subtitle="Viết bằng LaTeX, xem trước ngay bên dưới." icon={<Sigma size={20} />} onClose={close} width={660} actions={<><button className="btn" onClick={close}>Huỷ</button><button className="btn btn-primary" disabled={!latex.trim()} onClick={apply}>{editing ? 'Lưu' : 'Chèn'}</button></>}>
-      <div className="snippet-row">{EQUATION_SNIPPETS.map((s) => <button key={s.label} type="button" className="btn snippet" onClick={() => insertSnippet(s.latex)}>{s.label}</button>)}</div>
+    <Modal title={editing ? 'Sửa công thức' : 'Chèn công thức'} subtitle="Viết bằng LaTeX, chọn mẫu hoặc gõ tự động trực tiếp trên trang." icon={<Sigma size={20} />} onClose={close} width={740} actions={<><button className="btn" onClick={close}>Huỷ</button><button className="btn btn-primary" disabled={!latex.trim()} onClick={apply}>{editing ? 'Lưu' : 'Chèn'}</button></>}>
+      <div className="comments-tabs" style={{ marginBottom: 8 }}>
+        {EQUATION_CATEGORIES.map((cat) => (
+          <button key={cat.id} type="button" className={`comments-tab ${tab === cat.id ? 'active' : ''}`} onClick={() => setTab(cat.id)}>
+            {cat.name}
+          </button>
+        ))}
+      </div>
+      <div className="snippet-row" style={{ maxHeight: 130, overflowY: 'auto', marginBottom: 10 }}>
+        {activeCategory.snippets.map((s) => (
+          <button key={s.label} type="button" className="btn snippet" title={s.latex} onClick={() => insertSnippet(s.latex)}>
+            {s.label}
+          </button>
+        ))}
+      </div>
       <textarea ref={area} className="text-field mono" rows={3} aria-label="Công thức LaTeX" value={latex} onChange={(e) => setLatex(e.target.value)} />
       <div className="equation-preview" ref={preview} />
-      <div className="check-row"><label><input type="checkbox" checked={display} onChange={(e) => setDisplay(e.target.checked)} /> Hiển thị riêng một dòng, căn giữa</label></div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, fontSize: 12, color: 'var(--muted)' }}>
+        <label><input type="checkbox" checked={display} onChange={(e) => setDisplay(e.target.checked)} /> Hiển thị riêng một dòng, căn giữa</label>
+        <span>💡 Gõ <code>$công_thức$</code> hoặc <code>Alt+=</code> trên trang để chèn tự động</span>
+      </div>
     </Modal>
   );
 }
