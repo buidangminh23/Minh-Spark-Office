@@ -17,7 +17,6 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
   const [phase, setPhase] = useState<Phase>('idle');
   const [version, setVersion] = useState('');
   const [nextVersion, setNextVersion] = useState('');
-  const [notes, setNotes] = useState('');
   const [downloaded, setDownloaded] = useState(0);
   const [total, setTotal] = useState(0);
   const [error, setError] = useState('');
@@ -40,7 +39,6 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
       update.current = result;
       setPhase(result ? 'available' : 'current');
       setNextVersion(result?.version ?? '');
-      setNotes(result?.body ?? '');
       if (result && !silent) setOpen(true);
     } catch {
       if (mounted.current) { setPhase('error'); setError('Không kiểm tra được bản cập nhật. Kiểm tra kết nối mạng rồi thử lại.'); }
@@ -129,9 +127,8 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
         <h2 id="update-title">{title}</h2>
         <p>Minh Spark Office · Phiên bản {version || '…'}</p>
       </div>
-      {notes && ['available', 'downloaded'].includes(phase) && <div className="update-notes">{notes}</div>}
       {phase === 'downloading' && <div className="update-metrics"><span>{bytes(downloaded)}{total ? ` / ${bytes(total)}` : ''}</span><strong>{percent === null ? 'Đang tải…' : `${percent}%`}</strong></div>}
-      {phase === 'downloaded' && <p>{editing ? 'Lưu và trở về danh sách tài liệu trước khi cài đặt.' : 'Chữ ký gói cập nhật đã được xác minh. Ứng dụng sẽ đóng để cài đặt rồi mở lại.'}</p>}
+      {phase === 'downloaded' && editing && <p>Lưu và trở về danh sách tài liệu trước khi cài đặt.</p>}
       {phase === 'installing' && <p>Đang mở bộ cài. Tài liệu đã lưu trên máy vẫn được giữ.</p>}
       {error && <p className="update-error" role="alert">{error}</p>}
       <label className="update-setting"><input type="checkbox" checked={automatic} disabled={working} onChange={(event) => { const value = event.target.checked; setAutomatic(value); localStorage.setItem('office-auto-check', String(value)); }} />Tự động kiểm tra phiên bản mới</label>
