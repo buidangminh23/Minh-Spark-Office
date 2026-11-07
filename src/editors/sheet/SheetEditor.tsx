@@ -176,6 +176,14 @@ import {
   requiredColumnWidthPx,
   shouldWidenColumn,
 } from './autoFitColumn';
+import {
+  AUTOCOMPLETE_SCAN_ROWS,
+  findAutoComplete,
+  isRowEmptyExcept,
+  looksLikeHeaderRow,
+  parseEnUsMoney,
+  thousandsFormatFor,
+} from './sheetAutomation';
 import { useUi } from '../../components/ui';
 import {
   sampleWorkbook,
@@ -422,6 +430,85 @@ const widenColumnToFitCell = (worksheet: ActiveWorksheet, row: number, column: n
   return true;
 };
 
+const readColumnValues = (worksheet: ActiveWorksheet, column: number, skipRow: number): unknown[] => {
+  const lastRow = Math.min(worksheet.getLastRow(), AUTOCOMPLETE_SCAN_ROWS - 1);
+  if (lastRow < 0) return [];
+  return worksheet
+    .getRange(0, column, lastRow + 1, 1)
+    .getValues()
+    .map((cells) => cells[0])
+    .filter((_, index) => index !== skipRow);
+};
+
+const readRowValues = (worksheet: ActiveWorksheet, row: number): unknown[] => {
+  const lastColumn = worksheet.getLastColumn();
+  if (lastColumn < 0) return [];
+  return worksheet.getRange(row, 0, 1, lastColumn + 1).getValues()[0] ?? [];
+};
+
+interface EditSnapshot {
+  key: string;
+  firstDataRowWasEmpty: boolean;
+}
+
+type AutomationNotice = 'autocomplete' | 'header';
+
+const editKey = (worksheet: ActiveWorksheet, row: number, column: number) => `${worksheet.getSheetId()}:${row}:${column}`;
+
+const captureEditSnapshot = (worksheet: ActiveWorksheet, row: number, column: number): EditSnapshot => ({
+  key: editKey(worksheet, row, column),
+  firstDataRowWasEmpty: row === 1 && isRowEmptyExcept(readRowValues(worksheet, 1), -1),
+});
+
+const suggestCompletion = (worksheet: ActiveWorksheet, row: number, column: number, typed: string): string | null => {
+  const completion = findAutoComplete(typed, readColumnValues(worksheet, column, row));
+  return completion && completion !== typed.trim() ? completion : null;
+};
+
+const formatHeaderRow = (worksheet: ActiveWorksheet): boolean => {
+  const header = readRowValues(worksheet, 0);
+  if (!looksLikeHeaderRow(header) || worksheet.getFreeze().ySplit > 0) return false;
+  if (header.some((_, column) => worksheet.getRange(0, column, 1, 1).getCellStyleData()?.bl === 1)) return false;
+  worksheet.getRange(0, 0, 1, header.length).setFontWeight('bold');
+  worksheet.setFrozenRows(1);
+  header.forEach((_, column) => widenColumnToFitCell(worksheet, 0, column));
+  return true;
+};
+
+const applyEditAutomation = (
+  worksheet: ActiveWorksheet,
+  row: number,
+  column: number,
+  raw: string | null,
+  snapshot: EditSnapshot | null
+): AutomationNotice[] => {
+  const notices: AutomationNotice[] = [];
+  const cell = worksheet.getRange(row, column, 1, 1);
+  const money = raw === null ? null : parseEnUsMoney(raw);
+  if (money !== null) {
+    cell.setValue(money);
+    cell.setNumberFormat('$#,##0.00');
+  } else if (raw !== null && typeof cell.getValue() === 'string') {
+    const completion = suggestCompletion(worksheet, row, column, raw);
+    if (completion) {
+      cell.setValue(completion);
+      notices.push('autocomplete');
+    }
+  }
+  const pattern = thousandsFormatFor(cell.getValue(), cell.getNumberFormat());
+  if (pattern) cell.setNumberFormat(pattern);
+  if (snapshot?.key === editKey(worksheet, row, column) && snapshot.firstDataRowWasEmpty && formatHeaderRow(worksheet)) {
+    notices.push('header');
+  }
+  widenColumnToFitCell(worksheet, row, column);
+  return notices;
+};
+
+const AUTOMATION_NOTICE_TEXT: Record<AutomationNotice, string> = {
+  autocomplete: 'Đã tự điền theo giá trị có sẵn trong cột. Bấm Ctrl+Z nếu muốn giữ đúng chữ đã gõ.',
+  header: 'Đã in đậm và cố định dòng tiêu đề.',
+};
+
 const DEFAULT_PRINT_SETTINGS: SheetPrintSettings = {
   orientation: 'landscape',
   paperSize: 'A4',
@@ -463,6 +550,22 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
   const univerRef = useRef<ReturnType<typeof createUniver>['univer'] | null>(null);
   const univerAPIRef = useRef<ReturnType<typeof createUniver>['univerAPI'] | null>(null);
   const workbookSubsRef = useRef<Array<{ dispose: () => void }>>([]);
+  const editSnapshotRef = useRef<EditSnapshot | null>(null);
+  const editRawRef = useRef<string | null>(null);
+  const shownNoticesRef = useRef<Set<AutomationNotice>>(new Set());
+  const [autoCompleteHint, setAutoCompleteHint] = useState<string | null>(null);
+  const announceAutomation = useCallback(
+    (notices: AutomationNotice[]) => {
+      notices.forEach((notice) => {
+        if (shownNoticesRef.current.has(notice)) return;
+        shownNoticesRef.current.add(notice);
+        ui.toast(AUTOMATION_NOTICE_TEXT[notice]);
+      });
+    },
+    [ui]
+  );
+  const announceRef = useRef(announceAutomation);
+  announceRef.current = announceAutomation;
   const painterStyleRef = useRef<CellStyle | null>(null);
 
   const [activeTab, setActiveTab] = useState<SheetRibbonTab>('home');
@@ -911,19 +1014,41 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
             setTimeout(() => syncUiFromSelection(), 20);
           }
         });
+        const editStartSub = api.addEvent(api.Event.SheetEditStarted, ({ worksheet, row, column }) => {
+          try {
+            editSnapshotRef.current = captureEditSnapshot(worksheet, row, column);
+          } catch {
+            editSnapshotRef.current = null;
+          }
+        });
+        const editChangingSub = api.addEvent(api.Event.SheetEditChanging, ({ worksheet, row, column, value }) => {
+          try {
+            setAutoCompleteHint(suggestCompletion(worksheet, row, column, value.toPlainText()));
+          } catch {
+            setAutoCompleteHint(null);
+          }
+        });
+        const beforeEditEndSub = api.addEvent(api.Event.BeforeSheetEditEnd, ({ value, isConfirm }) => {
+          editRawRef.current = isConfirm ? value.toPlainText().replace(/\r?\n$/, '') : null;
+        });
         const editEndSub = api.addEvent(api.Event.SheetEditEnded, (params) => {
+          setAutoCompleteHint(null);
+          const raw = editRawRef.current;
+          const snapshot = editSnapshotRef.current;
+          editRawRef.current = null;
+          editSnapshotRef.current = null;
           if (!params.isConfirm) return;
           const { worksheet, row, column } = params;
           setTimeout(() => {
             if (univerAPIRef.current !== api) return;
             try {
-              widenColumnToFitCell(worksheet, row, column);
+              announceRef.current(applyEditAutomation(worksheet, row, column, raw, snapshot));
             } catch (err) {
               console.warn('Auto-fit column after edit failed:', err);
             }
           }, 0);
         });
-        workbookSubsRef.current.push(selectionSub, commandSub, editEndSub);
+        workbookSubsRef.current.push(selectionSub, commandSub, editStartSub, editChangingSub, beforeEditEndSub, editEndSub);
       }
 
       try {
@@ -2702,13 +2827,13 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
       void 0;
     }
     try {
-      widenColumnToFitCell(ctx.fWorksheet, raw.startRow, raw.startColumn);
+      announceAutomation(applyEditAutomation(ctx.fWorksheet, raw.startRow, raw.startColumn, formulaBarText, null));
     } catch (err) {
       console.warn('Auto-fit column after formula bar commit failed:', err);
     }
     setSavedStatus('saving');
     setTimeout(() => syncUiFromSelection(), 35);
-  }, [setSavedStatus, getEditableContext, formulaBarText, syncUiFromSelection]);
+  }, [setSavedStatus, getEditableContext, formulaBarText, syncUiFromSelection, announceAutomation]);
 
   const handleGoalSeek = async (formulaCellRef: string, targetValue: number, variableCellRef: string): Promise<string> => {
     const ctx = getActiveContext();
@@ -6009,6 +6134,11 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
               <span className="sheet-stat-pill" style={{ color: '#991b1b', background: '#fef2f2', borderColor: '#fecaca' }}>
                 <Lock size={11} />
                 <span>Chỉ đọc</span>
+              </span>
+            )}
+            {autoCompleteHint && (
+              <span className="sheet-stat-pill" style={{ color: '#1e3a8a', background: '#eff6ff', borderColor: '#bfdbfe' }} role="status">
+                Enter để điền: {autoCompleteHint}
               </span>
             )}
             {hasFilter && <span className="sheet-stat-pill">Đang bật Lọc</span>}
