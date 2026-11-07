@@ -1,6 +1,7 @@
-import { realpath, rm } from 'node:fs/promises';
+import { readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { join, relative, isAbsolute } from 'node:path';
+import { stripSeoFallback } from './strip-seo-fallback.mjs';
 
 const root = await realpath(fileURLToPath(new URL('../', import.meta.url)));
 const distribution = await realpath(join(root, 'dist'));
@@ -19,4 +20,7 @@ for (const directory of ['downloads', 'updates']) {
   await rm(resolved, { recursive: true, force: true });
 }
 
-console.log('Desktop assets prepared without downloadable installers');
+const indexFile = join(distribution, 'index.html');
+await writeFile(indexFile, stripSeoFallback(await readFile(indexFile, 'utf8')));
+
+console.log('Desktop assets prepared without downloadable installers or the web SEO fallback');
