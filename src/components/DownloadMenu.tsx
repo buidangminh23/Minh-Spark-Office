@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { Download } from 'lucide-react';
 import './downloadMenu.css';
 
 const platforms = [{ label: 'Windows', anchor: 'windows' }, { label: 'macOS', anchor: 'macos' }];
@@ -52,7 +52,7 @@ export function DownloadMenu() {
         initialFocus.current = event.key === 'ArrowUp' ? platforms.length - 1 : 0;
         setOpen(true);
       }}>
-      Tải ứng dụng <ChevronDown size={14} aria-hidden="true" />
+      <Download size={20} aria-hidden="true" />Tải ứng dụng
     </button>
     {open && <div className="download-menu-options" role="menu" id={id} aria-labelledby={`${id}-trigger`}>
       {platforms.map((platform, index) => <a key={platform.anchor} role="menuitem" tabIndex={-1} ref={(element) => { links.current[index] = element; }}

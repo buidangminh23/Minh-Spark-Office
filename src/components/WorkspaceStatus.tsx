@@ -1,4 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
+import { CircleHelp } from 'lucide-react';
 import { createDraftWorkspaceStorage, useWorkspace, type FileMeta } from '../lib/storage';
 import { syncedWorkspace } from '../lib/workspaces';
 import { useAccount } from './Authentication';
@@ -9,23 +10,49 @@ import './workspaceStatus.css';
 const draftStatus: SyncStatus = { state: 'offline', pending: 0 };
 const noSubscribe = () => () => {};
 const getDraftStatus = () => draftStatus;
+const openDraftsEvent = 'minh-office:open-drafts';
 
-export function WorkspaceStatus() {
+export function openDraftImport() {
+  window.dispatchEvent(new Event(openDraftsEvent));
+}
+
+export function useWorkspaceSync() {
   const storage = useWorkspace();
   const sync = syncedWorkspace(storage);
   const { user, login } = useAccount();
-  const ui = useUi();
   const status = useSyncExternalStore(sync?.subscribe ?? noSubscribe, sync?.getStatus ?? getDraftStatus);
+  return { user, login, status, syncNow: () => void sync?.syncNow() };
+}
+
+function footerLabel(signedIn: boolean, status: SyncStatus) {
+  if (!signedIn) return 'Bản nháp tự lưu trên thiết bị này';
+  return {
+    connecting: 'Đang kết nối kho tài liệu',
+    syncing: `Đang đồng bộ${status.pending ? ` · ${status.pending} tệp` : ''}`,
+    synced: 'Tất cả thay đổi đã được lưu',
+    offline: 'Ngoại tuyến · thay đổi được lưu trên máy, sẽ đồng bộ khi có mạng',
+    error: 'Chưa đồng bộ được',
+  }[status.state];
+}
+
+export function WorkspaceStatus() {
+  const storage = useWorkspace();
+  const { user, status } = useWorkspaceSync();
+  const ui = useUi();
   const [drafts, setDrafts] = useState<FileMeta[] | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   useEffect(() => { setDrafts(null); setSelected(new Set()); }, [user?.uid]);
-  const label = !user ? 'Bản nháp trên thiết bị' : ({ connecting: 'Đang kết nối kho tài liệu', syncing: `Đang đồng bộ${status.pending ? ` · ${status.pending} tệp` : ''}`, synced: 'Đã đồng bộ với tài khoản', offline: 'Ngoại tuyến · sẽ đồng bộ khi có mạng', error: 'Chưa đồng bộ được' }[status.state]);
-  const openDrafts = async () => {
-    const files = (await createDraftWorkspaceStorage().listFiles()).filter((file) => !file.deletedAt);
-    setDrafts(files);
-    setSelected(new Set());
-  };
+  useEffect(() => {
+    const open = async () => {
+      const files = (await createDraftWorkspaceStorage().listFiles()).filter((file) => !file.deletedAt);
+      setDrafts(files);
+      setSelected(new Set());
+    };
+    const handler = () => void open();
+    window.addEventListener(openDraftsEvent, handler);
+    return () => window.removeEventListener(openDraftsEvent, handler);
+  }, []);
   const importDrafts = async () => {
     setBusy(true);
     try {
@@ -46,9 +73,9 @@ export function WorkspaceStatus() {
   return <>
     <div className="workspace-status" role="status">
       <span className={`sync-dot sync-${user ? status.state : 'draft'}`} />
-      <span>{label}</span>
+      <span className="workspace-status-label">{footerLabel(Boolean(user), status)}</span>
       {status.message && user && <span className="sync-message">{status.message}</span>}
-      {user ? <><button onClick={() => void sync?.syncNow()}>Đồng bộ ngay</button><button onClick={() => void openDrafts()}>Thêm tài liệu trên máy</button></> : <button onClick={() => void login()}>Đăng nhập để đồng bộ</button>}
+      <a className="workspace-help" href="/gioi-thieu.html" target="_blank" rel="noopener noreferrer"><CircleHelp size={16} aria-hidden="true" />Trợ giúp</a>
     </div>
     {drafts && <div className="sync-dialog-backdrop"><section className="sync-dialog" role="dialog" aria-modal="true" aria-labelledby="draft-title">
       <img className="sync-brand" src="/logo-icon.png" alt="Minh Spark Office" />

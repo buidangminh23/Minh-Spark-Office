@@ -1,25 +1,33 @@
-import { AccountButton, useAccount } from './Authentication';
-import { SuiteLogo } from './SuiteLogo';
-import { DownloadMenu } from './DownloadMenu';
-import { DesktopFileSettings } from './DesktopFileSettings';
-import { useState, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
-  FileText,
-  Plus,
-  Search,
-  Upload,
-  HardDrive,
-  Download,
-  Trash2,
-  Star,
+  ArrowRight,
+  Check,
   Copy,
   Edit2,
-  RotateCcw,
+  Ellipsis,
+  File,
+  Folder,
+  Funnel,
+  HardDrive,
+  House,
   LayoutGrid,
   List as ListIcon,
+  Plus,
+  RotateCcw,
+  Search,
+  Settings,
+  Star,
+  Trash2,
+  Upload,
+  CloudUpload,
 } from 'lucide-react';
+import { useAccount } from './Authentication';
+import { SuiteLogo } from './SuiteLogo';
+import { DownloadMenu } from './DownloadMenu';
+import { AccountMenu, Popover, SettingsDialog, SyncButton, TemplateThumb, type ThumbVariant } from './HomeParts';
+import './home.css';
 
-import type { FileMeta } from '../lib/storage';
+import type { FileKind, FileMeta } from '../lib/storage';
 import type { WorkbookData } from '../lib/sheetTypes';
 import { formatBytes, relativeTime } from '../lib/download';
 import {
@@ -52,700 +60,504 @@ interface HomeProps {
   onImportBackup: (file: File) => void;
 }
 
-type NavCategory = 'all' | 'docs' | 'sheets' | 'pdfs' | 'starred' | 'trash';
+type View = 'home' | 'all' | 'starred' | FileKind | 'trash';
+type KindTab = 'all' | FileKind;
+type SortOrder = 'recent' | 'oldest' | 'name';
 
-export default function Home({
-  files,
-  storageInfo,
-  onOpenDoc,
-  onOpenSheet,
-  onOpenPdf,
-  onCreateDoc,
-  onCreateSheet,
-  onCreatePdf,
-  onImportFile,
-  onRename,
-  onDuplicate,
-  onToggleStar,
-  onTrash,
-  onRestore,
-  onDeletePermanent,
-  onExportBackup,
-  onImportBackup,
-}: HomeProps) {
+const RECENT_LIMIT = 5;
+const FEATURED_TEMPLATES = 4;
+const IMPORT_ACCEPT = '.docx,.txt,.md,.html,.htm,.xlsx,.xlsm,.xls,.csv,.tsv,.pdf';
+
+const KIND_LABEL: Record<FileKind, string> = { doc: 'Docs', sheet: 'Sheets', pdf: 'PDF' };
+const PRODUCT_NAME: Record<FileKind, string> = { doc: 'Minh Docs', sheet: 'Minh Sheets', pdf: 'Minh PDF' };
+const VIEW_TITLE: Record<Exclude<View, 'home'>, string> = {
+  all: 'Tất cả tệp',
+  starred: 'Được gắn sao',
+  doc: 'Minh Docs',
+  sheet: 'Minh Sheets',
+  pdf: 'Minh PDF',
+  trash: 'Thùng rác',
+};
+const SORT_LABEL: Record<SortOrder, string> = { recent: 'Mới cập nhật', oldest: 'Cũ nhất', name: 'Tên A → Z' };
+
+type Template = { id: string; title: string; kind: FileKind; thumb: ThumbVariant; create: (props: HomeProps) => void };
+
+const TEMPLATES: Template[] = [
+  { id: 'report', title: 'Báo cáo hoạt động quý', kind: 'doc', thumb: 'report', create: (p) => p.onCreateDoc(sampleDocHtml()) },
+  { id: 'minutes', title: 'Biên bản cuộc họp', kind: 'doc', thumb: 'minutes', create: (p) => p.onCreateDoc(meetingMinutesDocHtml()) },
+  { id: 'budget', title: 'Ngân sách quý IV', kind: 'sheet', thumb: 'budget', create: (p) => p.onCreateSheet(sampleWorkbook('Báo cáo ngân sách')) },
+  { id: 'project', title: 'Kế hoạch dự án', kind: 'sheet', thumb: 'gantt', create: (p) => p.onCreateSheet(projectEstimateWorkbook()) },
+  { id: 'blank-doc', title: 'Văn bản trống', kind: 'doc', thumb: 'blank-doc', create: (p) => p.onCreateDoc() },
+  { id: 'contract', title: 'Hợp đồng kinh tế', kind: 'doc', thumb: 'contract', create: (p) => p.onCreateDoc(contractDocHtml()) },
+  { id: 'blank-sheet', title: 'Bảng tính trống', kind: 'sheet', thumb: 'blank-sheet', create: (p) => p.onCreateSheet() },
+  { id: 'payroll', title: 'Bảng lương & chấm công', kind: 'sheet', thumb: 'payroll', create: (p) => p.onCreateSheet(payrollWorkbook()) },
+  { id: 'cashbook', title: 'Sổ quỹ thu chi', kind: 'sheet', thumb: 'cashbook', create: (p) => p.onCreateSheet(cashbookWorkbook()) },
+];
+
+function sortFiles(files: FileMeta[], order: SortOrder) {
+  const sorted = [...files];
+  if (order === 'name') sorted.sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+  else if (order === 'oldest') sorted.sort((a, b) => a.updatedAt - b.updatedAt);
+  else sorted.sort((a, b) => b.updatedAt - a.updatedAt);
+  return sorted;
+}
+
+function matchesView(file: FileMeta, view: View) {
+  if (view === 'trash') return Boolean(file.deletedAt);
+  if (file.deletedAt) return false;
+  if (view === 'starred') return file.starred;
+  if (view === 'doc' || view === 'sheet' || view === 'pdf') return file.kind === view;
+  return true;
+}
+
+function matchesQuery(file: FileMeta, query: string) {
+  if (!query) return true;
+  const q = query.toLowerCase();
+  return file.name.toLowerCase().includes(q) || Boolean(file.preview?.toLowerCase().includes(q));
+}
+
+export default function Home(props: HomeProps) {
+  const { files, storageInfo, onCreateDoc, onCreateSheet, onCreatePdf, onImportFile, onExportBackup, onImportBackup } = props;
   const { user } = useAccount();
-  const [category, setCategory] = useState<NavCategory>('all');
+  const [view, setView] = useState<View>('home');
+  const [kindTab, setKindTab] = useState<KindTab>('all');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('recent');
+  const [starredOnly, setStarredOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
-  const [showCreateMenu, setShowCreateMenu] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [showAllTemplates, setShowAllTemplates] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const searchInput = useRef<HTMLInputElement>(null);
+  const isMac = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform);
 
-  // Filter files based on category and search query
-  const filteredFiles = useMemo(() => {
-    return files.filter((file) => {
-      // Trash filter
-      if (category === 'trash') {
-        if (!file.deletedAt) return false;
-      } else {
-        if (file.deletedAt) return false;
-        if (category === 'docs' && file.kind !== 'doc') return false;
-        if (category === 'sheets' && file.kind !== 'sheet') return false;
-        if (category === 'pdfs' && file.kind !== 'pdf') return false;
-        if (category === 'starred' && !file.starred) return false;
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        searchInput.current?.focus();
+        searchInput.current?.select();
       }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
-      // Search query
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        return file.name.toLowerCase().includes(q) || (file.preview && file.preview.toLowerCase().includes(q));
-      }
+  const query = searchQuery.trim();
+  const isSearching = query.length > 0;
+  const kindFixed = view === 'doc' || view === 'sheet' || view === 'pdf';
 
-      return true;
-    });
-  }, [files, category, searchQuery]);
+  const listedFiles = useMemo(() => {
+    const base = files.filter((file) => (isSearching ? !file.deletedAt : matchesView(file, view)) && matchesQuery(file, query));
+    const byKind = kindFixed || kindTab === 'all' ? base : base.filter((file) => file.kind === kindTab);
+    const starred = starredOnly ? byKind.filter((file) => file.starred) : byKind;
+    return sortFiles(starred, sortOrder);
+  }, [files, view, kindTab, starredOnly, sortOrder, query, isSearching, kindFixed]);
 
-  const docCount = useMemo(() => files.filter((f) => !f.deletedAt && f.kind === 'doc').length, [files]);
-  const sheetCount = useMemo(() => files.filter((f) => !f.deletedAt && f.kind === 'sheet').length, [files]);
-  const pdfCount = useMemo(() => files.filter((f) => !f.deletedAt && f.kind === 'pdf').length, [files]);
-  const starCount = useMemo(() => files.filter((f) => !f.deletedAt && f.starred).length, [files]);
-  const trashCount = useMemo(() => files.filter((f) => f.deletedAt).length, [files]);
+  const liveCount = useMemo(() => files.filter((file) => !file.deletedAt).length, [files]);
+  const trashCount = useMemo(() => files.filter((file) => file.deletedAt).length, [files]);
 
-  const handleOpenFile = (file: FileMeta) => {
-    if (file.kind === 'doc') onOpenDoc(file);
-    else if (file.kind === 'sheet') onOpenSheet(file);
-    else onOpenPdf(file);
+  const goTo = (next: View) => {
+    setView(next);
+    setKindTab('all');
+    setSearchQuery('');
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      onImportFile(file);
-      e.target.value = '';
-    }
+  const openFile = (file: FileMeta) => {
+    if (file.kind === 'doc') props.onOpenDoc(file);
+    else if (file.kind === 'sheet') props.onOpenSheet(file);
+    else props.onOpenPdf(file);
   };
 
-  const handleBackupUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      onImportBackup(file);
-      e.target.value = '';
-    }
+  const create = (kind: FileKind) => {
+    setCreateOpen(false);
+    if (kind === 'doc') onCreateDoc();
+    else if (kind === 'sheet') onCreateSheet();
+    else onCreatePdf();
   };
+
+  const closeCreate = useCallback(() => setCreateOpen(false), []);
+  const closeSettings = useCallback(() => setSettingsOpen(false), []);
+
+  const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) onImportFile(file);
+    event.target.value = '';
+  };
+
+  const showDashboard = view === 'home' && !isSearching;
+  const location = (file: FileMeta) => (file.deletedAt ? 'Thùng rác' : user ? 'Kho tài liệu' : 'Trên máy này');
+  const fileList = (items: FileMeta[]) => viewMode === 'list'
+    ? <FileTable files={items} location={location} props={props} onOpen={openFile} />
+    : <FileGrid files={items} location={location} props={props} onOpen={openFile} />;
+
+  const tabs = !kindFixed && (
+    <div className="ws-tabs" role="tablist" aria-label="Lọc theo loại tài liệu">
+      {(['all', 'doc', 'sheet', 'pdf'] as KindTab[]).map((tab) => (
+        <button key={tab} role="tab" aria-selected={kindTab === tab} className={kindTab === tab ? 'is-active' : ''} onClick={() => setKindTab(tab)}>
+          {tab === 'all' ? 'Tất cả' : KIND_LABEL[tab]}
+        </button>
+      ))}
+    </div>
+  );
+
+  const toolbar = (
+    <div className="ws-toolbar">
+      <FilterMenu sortOrder={sortOrder} onSort={setSortOrder} starredOnly={starredOnly} onStarredOnly={setStarredOnly} />
+      <div className="ws-view-toggle" role="group" aria-label="Kiểu hiển thị">
+        <button className={viewMode === 'list' ? 'is-active' : ''} aria-pressed={viewMode === 'list'} onClick={() => setViewMode('list')} title="Dạng danh sách"><ListIcon size={18} /></button>
+        <button className={viewMode === 'grid' ? 'is-active' : ''} aria-pressed={viewMode === 'grid'} onClick={() => setViewMode('grid')} title="Dạng lưới"><LayoutGrid size={18} /></button>
+      </div>
+    </div>
+  );
+
+  const emptyState = (
+    <div className="ws-empty">
+      <HardDrive size={32} aria-hidden="true" />
+      <h3>Không có tài liệu nào</h3>
+      <p>
+        {isSearching ? `Không có kết quả khớp với “${query}”.` : view === 'trash' ? 'Thùng rác đang trống.' : 'Bấm Tạo mới hoặc mở tệp từ máy để bắt đầu.'}
+      </p>
+    </div>
+  );
 
   return (
     <div
-      className={`app-shell ${isDragging ? 'is-dragging' : ''}`}
-      onDragOver={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDragging(true);
-      }}
-      onDragEnter={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDragging(true);
-      }}
+      className="ws-shell"
+      onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+      onDragEnter={(e) => { e.preventDefault(); setIsDragging(true); }}
       onDragLeave={(e) => {
         e.preventDefault();
-        e.stopPropagation();
-        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-          setIsDragging(false);
-        }
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragging(false);
       }}
       onDrop={(e) => {
         e.preventDefault();
-        e.stopPropagation();
         setIsDragging(false);
         const file = e.dataTransfer.files?.[0];
-        if (file) {
-          onImportFile(file);
-        }
+        if (file) onImportFile(file);
       }}
     >
       {isDragging && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(15, 23, 42, 0.75)',
-            backdropFilter: 'blur(4px)',
-            zIndex: 9999,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            pointerEvents: 'none',
-          }}
-        >
-          <div
-            style={{
-              background: '#ffffff',
-              borderRadius: 16,
-              padding: '36px 48px',
-              textAlign: 'center',
-              boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
-              border: '2px dashed #2563eb',
-              maxWidth: 440,
-            }}
-          >
-            <Upload size={54} color="#2563eb" style={{ margin: '0 auto 16px', display: 'block' }} />
-            <h2 style={{ fontSize: 20, fontWeight: 700, color: '#0f172a', marginBottom: 8 }}>
-              Thả tệp vào đây để mở ngay
-            </h2>
-            <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.5 }}>
-              Hỗ trợ tệp Minh Docs (<strong>.docx</strong>), Minh Sheets (<strong>.xlsx</strong>, <strong>.xls</strong>), Minh PDF (<strong>.pdf</strong>) và bảng tính <strong>.csv</strong>
-            </p>
+        <div className="ws-drop">
+          <div className="ws-drop-card">
+            <Upload size={48} aria-hidden="true" />
+            <h2>Thả tệp vào đây để mở ngay</h2>
+            <p>Hỗ trợ <strong>.docx</strong>, <strong>.xlsx</strong>, <strong>.xls</strong>, <strong>.csv</strong> và <strong>.pdf</strong></p>
           </div>
         </div>
       )}
-      {/* Sidebar Navigation */}
-      <aside className="sidebar">
-        <div
-          className="brand"
-          style={{
-            cursor: 'pointer',
-            padding: '4px 8px',
-            marginBottom: 24,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            userSelect: 'none',
-          }}
-          onClick={() => setCategory('all')}
-          title="Minh Spark Office — Về trang chủ"
+
+      <aside className="ws-sidebar">
+        <button className="ws-brand" onClick={() => goTo('home')} title="Minh Spark Office — Về trang chủ">
+          <img src="/logo-icon.png" alt="" />
+          <span>Minh Spark<br />Office</span>
+        </button>
+
+        <Popover
+          open={createOpen}
+          onClose={closeCreate}
+          align="start"
+          className="ws-create"
+          trigger={
+            <button className="ws-create-btn" aria-expanded={createOpen} aria-haspopup="menu" onClick={() => setCreateOpen((value) => !value)}>
+              <Plus size={20} aria-hidden="true" />Tạo mới
+            </button>
+          }
         >
-          {/* Official 3D Isometric Brand Mark */}
-          <div
-            style={{
-              width: 48,
-              height: 48,
-              flexShrink: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              filter: 'drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35))',
-            }}
-          >
-            <img
-              src="/logo-icon.png"
-              alt="Minh Spark Office"
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'contain',
-                display: 'block',
-              }}
-            />
-          </div>
+          {(['doc', 'sheet', 'pdf'] as FileKind[]).map((kind) => (
+            <button key={kind} role="menuitem" className="ws-menu-item" onClick={() => create(kind)}>
+              <SuiteLogo kind={kind} size={24} />{PRODUCT_NAME[kind]}
+            </button>
+          ))}
+        </Popover>
 
-          {/* Vertical Hairline Divider */}
-          <div
-            style={{
-              width: 1.5,
-              height: 34,
-              background: 'rgba(255, 255, 255, 0.16)',
-              borderRadius: 1,
-              flexShrink: 0,
-            }}
-          />
+        <nav className="ws-nav" aria-label="Điều hướng">
+          <NavItem active={view === 'home' && !isSearching} onClick={() => goTo('home')} icon={<House size={20} />}>Trang chủ</NavItem>
+          <NavItem active={view === 'all' && !isSearching} onClick={() => goTo('all')} icon={<File size={20} />}>Tất cả tệp</NavItem>
+          <NavItem active={view === 'starred' && !isSearching} onClick={() => goTo('starred')} icon={<Star size={20} />}>Được gắn sao</NavItem>
+          <hr />
+          {(['doc', 'sheet', 'pdf'] as FileKind[]).map((kind) => (
+            <NavItem key={kind} active={view === kind && !isSearching} onClick={() => goTo(kind)} icon={<SuiteLogo kind={kind} size={26} />}>{PRODUCT_NAME[kind]}</NavItem>
+          ))}
+          <hr />
+          <NavItem active={view === 'trash' && !isSearching} onClick={() => goTo('trash')} icon={<Trash2 size={20} />} badge={trashCount || undefined}>Thùng rác</NavItem>
+          <NavItem active={settingsOpen} onClick={() => setSettingsOpen(true)} icon={<Settings size={20} />}>Cài đặt</NavItem>
+        </nav>
 
-          {/* Typography */}
-          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-            <div
-              style={{
-                fontSize: 17,
-                fontWeight: 800,
-                color: '#ffffff',
-                letterSpacing: '-0.3px',
-                lineHeight: 1.2,
-                whiteSpace: 'nowrap',
-              }}
-            >
-              Minh Spark
-            </div>
-            <div
-              style={{
-                fontSize: 14,
-                fontWeight: 600,
-                color: '#94a3b8',
-                letterSpacing: '0.2px',
-                lineHeight: 1.2,
-                marginTop: 1,
-              }}
-            >
-              Office
-            </div>
-            <div
-              style={{
-                fontSize: 9,
-                fontWeight: 600,
-                color: '#64748b',
-                letterSpacing: '1px',
-                textTransform: 'uppercase',
-                marginTop: 3,
-                whiteSpace: 'nowrap',
-              }}
-            >
-              Minh Docs · Sheets · PDF
-            </div>
-          </div>
-        </div>
-
-        {/* Create Button */}
-        <div className="create-split">
-          <button
-            className="create-main"
-            onClick={() => setShowCreateMenu(!showCreateMenu)}
-            aria-expanded={showCreateMenu}
-          >
-            <span>+ Tạo tài liệu mới</span>
-            <Plus size={16} />
+        <div className="ws-storage">
+          <strong><CloudUpload size={20} aria-hidden="true" />{user ? 'Kho tài liệu' : 'Bản nháp trên máy'}</strong>
+          <span>{storageInfo ? `Đã dùng ${formatBytes(storageInfo.usage)}` : `${liveCount} tài liệu`}</span>
+          {storageInfo && (
+            <div className="ws-storage-bar"><i style={{ width: `${Math.max(2, Math.min(100, (storageInfo.usage / (storageInfo.quota || 1)) * 100))}%` }} /></div>
+          )}
+          <button className="ws-storage-btn" onClick={onExportBackup} title="Tải về bản sao lưu toàn bộ tài liệu">
+            <CloudUpload size={18} aria-hidden="true" />Sao lưu
           </button>
-        </div>
-
-        {showCreateMenu && (
-          <div style={{ background: '#252a35', borderRadius: 8, padding: 6, margin: '-14px 4px 16px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <button
-              className="nav-item"
-              style={{ color: '#ffffff' }}
-              onClick={() => {
-                setShowCreateMenu(false);
-                onCreateDoc();
-              }}
-            >
-              <SuiteLogo kind="doc" size={22} />
-              <span>Minh Docs (.docx)</span>
-            </button>
-            <button
-              className="nav-item"
-              style={{ color: '#ffffff' }}
-              onClick={() => {
-                setShowCreateMenu(false);
-                onCreateSheet();
-              }}
-            >
-              <SuiteLogo kind="sheet" size={22} />
-              <span>Minh Sheets (.xlsx)</span>
-            </button>
-            <button
-              className="nav-item"
-              style={{ color: '#ffffff' }}
-              onClick={() => {
-                setShowCreateMenu(false);
-                onCreatePdf();
-              }}
-            >
-              <SuiteLogo kind="pdf" size={22} />
-              <span>Minh PDF (.pdf)</span>
-            </button>
-          </div>
-        )}
-
-        <div className="sidebar-label">Danh mục</div>
-
-        <button
-          className={`nav-item ${category === 'all' ? 'active' : ''}`}
-          onClick={() => setCategory('all')}
-        >
-          <FileText size={16} />
-          <span>Tất cả tệp</span>
-          <span className="nav-count">{docCount + sheetCount + pdfCount}</span>
-        </button>
-
-        <button
-          className={`nav-item ${category === 'docs' ? 'active' : ''}`}
-          onClick={() => setCategory('docs')}
-        >
-          <SuiteLogo kind="doc" size={22} />
-          <span>Minh Docs</span>
-          <span className="nav-count">{docCount}</span>
-        </button>
-
-        <button
-          className={`nav-item ${category === 'sheets' ? 'active' : ''}`}
-          onClick={() => setCategory('sheets')}
-        >
-          <SuiteLogo kind="sheet" size={22} />
-          <span>Minh Sheets</span>
-          <span className="nav-count">{sheetCount}</span>
-        </button>
-
-        <button
-          className={`nav-item ${category === 'pdfs' ? 'active' : ''}`}
-          onClick={() => setCategory('pdfs')}
-        >
-          <SuiteLogo kind="pdf" size={22} />
-          <span>Minh PDF</span>
-          <span className="nav-count">{pdfCount}</span>
-        </button>
-
-        <button
-          className={`nav-item ${category === 'starred' ? 'active' : ''}`}
-          onClick={() => setCategory('starred')}
-        >
-          <Star size={16} />
-          <span>Được gắn sao</span>
-          <span className="nav-count">{starCount}</span>
-        </button>
-
-        <button
-          className={`nav-item ${category === 'trash' ? 'active' : ''}`}
-          onClick={() => setCategory('trash')}
-        >
-          <Trash2 size={16} />
-          <span>Thùng rác</span>
-          {trashCount > 0 && <span className="nav-count">{trashCount}</span>}
-        </button>
-
-        {/* Bottom Storage & Backup */}
-        <div className="sidebar-bottom">
-          <div className="storage-box">
-            <strong>
-              <span className="storage-dot" />
-              {user ? 'Kho tài liệu tài khoản' : 'Bản nháp trên máy này'}
-            </strong>
-            <div>
-              {storageInfo ? (
-                <>
-                  Đã dùng {formatBytes(storageInfo.usage)}
-                  <div className="storage-bar">
-                    <div
-                      className="storage-fill"
-                      style={{ width: `${Math.min(100, (storageInfo.usage / (storageInfo.quota || 1)) * 100)}%` }}
-                    />
-                  </div>
-                </>
-              ) : (
-                'IndexedDB khả dụng'
-              )}
-            </div>
-            <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
-              <button
-                className="btn"
-                style={{ fontSize: 11, padding: '4px 8px', flex: 1, minHeight: 28 }}
-                onClick={onExportBackup}
-                title="Tải về bản sao lưu toàn bộ tệp"
-              >
-                <Download size={12} />
-                <span>Sao lưu</span>
-              </button>
-              <label
-                className="btn"
-                style={{ fontSize: 11, padding: '4px 8px', flex: 1, minHeight: 28, cursor: 'pointer' }}
-                title="Khôi phục tệp từ bản sao lưu"
-              >
-                <Upload size={12} />
-                <span>Khôi phục</span>
-                <input type="file" accept=".json" hidden onChange={handleBackupUpload} />
-              </label>
-            </div>
-          </div>
         </div>
       </aside>
 
-      {/* Main Panel */}
-      <main className="main">
-        {/* Topbar */}
-        <header className="topbar">
-          <div className="search-box">
-            <Search size={16} />
+      <main className="ws-main">
+        <header className="ws-topbar">
+          <label className="ws-search">
+            <Search size={20} aria-hidden="true" />
             <input
-              type="text"
-              placeholder="Tìm kiếm tài liệu, bảng tính… (Ctrl+K)"
+              ref={searchInput}
+              type="search"
+              placeholder="Tìm kiếm tài liệu..."
+              aria-label="Tìm kiếm tài liệu"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Escape') setSearchQuery(''); }}
             />
-            {searchQuery && (
-              <button className="icon-btn" style={{ width: 20, height: 20 }} onClick={() => setSearchQuery('')}>
-                ×
-              </button>
-            )}
-          </div>
-
-          <div className="topbar-right">
+            <kbd>{isMac ? '⌘ K' : 'Ctrl K'}</kbd>
+          </label>
+          <div className="ws-top-actions">
+            <SyncButton />
+            <span className="ws-divider" aria-hidden="true" />
             <DownloadMenu />
-            <DesktopFileSettings />
-            <AccountButton />
-            <label className="btn btn-primary" style={{ cursor: 'pointer' }}>
-              <Upload size={15} />
-              <span>Mở tệp từ máy (.docx, .xlsx, .pdf, .csv)…</span>
-              <input type="file" accept=".docx,.txt,.md,.html,.htm,.xlsx,.xlsm,.xls,.csv,.tsv,.pdf" hidden onChange={handleFileUpload} />
-            </label>
+            <span className="ws-divider" aria-hidden="true" />
+            <AccountMenu />
           </div>
         </header>
 
-        {/* Dashboard Content */}
-        <div className="home-content">
-          {category !== 'trash' && !searchQuery && (
+        <div className="ws-content">
+          {showDashboard ? (
             <>
-              <div className="welcome-section">
+              <div className="ws-heading">
                 <div>
-                  <h1>Văn phòng online miễn phí</h1>
-                  <p>Soạn thảo văn bản với Minh Docs, làm bảng tính với Minh Sheets ngay trên trình duyệt.</p>
-                  <p>{user ? 'Tài liệu được đồng bộ giữa web và ứng dụng máy tính khi đăng nhập cùng tài khoản. Xem trạng thái đồng bộ ở cuối cửa sổ.' : 'Bản nháp tự động lưu trên thiết bị này. Đăng nhập Google để đồng bộ tài liệu với bản web và ứng dụng máy tính.'}</p>
+                  <h1>Không gian làm việc</h1>
+                  <p>Mọi tài liệu, trong một nơi.</p>
                 </div>
+                <label className="ws-open-btn">
+                  <Upload size={20} aria-hidden="true" />Mở tệp từ máy
+                  <input type="file" accept={IMPORT_ACCEPT} hidden onChange={handleImport} />
+                </label>
               </div>
 
-              {/* Templates Gallery */}
-              <div className="templates-grid">
-                <button className="template-card" onClick={() => onCreateDoc()}>
-                  <SuiteLogo kind="doc" size={36} />
-                  <div className="template-title">Văn bản trống</div>
-                  <div className="template-desc">Tạo tài liệu Minh Docs mới với định dạng chuẩn</div>
-                </button>
-
-                <button className="template-card" onClick={() => onCreateDoc(sampleDocHtml())}>
-                  <SuiteLogo kind="doc" size={36} />
-                  <div className="template-title">Báo cáo hoạt động quý</div>
-                  <div className="template-desc">Mẫu báo cáo kinh doanh kèm bảng biểu & chỉ số</div>
-                </button>
-
-                <button className="template-card" onClick={() => onCreateDoc(contractDocHtml())}>
-                  <SuiteLogo kind="doc" size={36} />
-                  <div className="template-title">Hợp đồng kinh tế</div>
-                  <div className="template-desc">Hợp đồng dịch vụ công nghệ chuẩn pháp lý Việt Nam</div>
-                </button>
-
-                <button className="template-card" onClick={() => onCreateDoc(meetingMinutesDocHtml())}>
-                  <SuiteLogo kind="doc" size={36} />
-                  <div className="template-title">Biên bản cuộc họp</div>
-                  <div className="template-desc">Ghi chép giao ban tuần, kết luận và phân công task</div>
-                </button>
-
-                <button className="template-card" onClick={() => onCreateSheet()}>
-                  <SuiteLogo kind="sheet" size={36} />
-                  <div className="template-title">Bảng tính trống</div>
-                  <div className="template-desc">Tạo bảng tính Minh Sheets mới với lưới dữ liệu mở rộng</div>
-                </button>
-
-                <button className="template-card" onClick={() => onCreateSheet(sampleWorkbook('Báo cáo ngân sách'))}>
-                  <SuiteLogo kind="sheet" size={36} />
-                  <div className="template-title">Ngân sách quý IV</div>
-                  <div className="template-desc">Bảng tính có sẵn công thức SUM, AVERAGE và phân bổ chi phí</div>
-                </button>
-
-                <button className="template-card" onClick={() => onCreateSheet(payrollWorkbook())}>
-                  <SuiteLogo kind="sheet" size={36} />
-                  <div className="template-title">Bảng lương & Chấm công</div>
-                  <div className="template-desc">Tính toán ngày công, lương thực lĩnh & tự động làm tròn</div>
-                </button>
-
-                <button className="template-card" onClick={() => onCreateSheet(cashbookWorkbook())}>
-                  <SuiteLogo kind="sheet" size={36} />
-                  <div className="template-title">Sổ quỹ Thu Chi</div>
-                  <div className="template-desc">Theo dõi phiếu thu, phiếu chi và tồn quỹ luỹ kế theo ngày</div>
-                </button>
-
-                <button className="template-card" onClick={() => onCreateSheet(projectEstimateWorkbook())}>
-                  <SuiteLogo kind="sheet" size={36} />
-                  <div className="template-title">Dự toán & Tiến độ dự án</div>
-                  <div className="template-desc">Quản lý hạng mục, chi phí giải ngân thực tế & tiến độ %</div>
-                </button>
-
-                <button className="template-card" onClick={() => onCreatePdf()}>
-                  <SuiteLogo kind="pdf" size={36} />
-                  <div className="template-title">Minh PDF Tools</div>
-                  <div className="template-desc">Bộ công cụ ký số, tách, ghép, nén & chuyển đổi PDF chuyên nghiệp</div>
-                </button>
+              <div className="ws-apps">
+                <AppCard kind="doc" title="Minh Docs" desc="Soạn thảo văn bản" action="plus" onClick={() => onCreateDoc()} />
+                <AppCard kind="sheet" title="Minh Sheets" desc="Tạo bảng tính" action="plus" onClick={() => onCreateSheet()} />
+                <AppCard kind="pdf" title="Minh PDF" desc="Chỉnh sửa & chuyển đổi" action="arrow" onClick={onCreatePdf} />
               </div>
-            </>
-          )}
 
-          {/* Filter Bar */}
-          <div className="filter-bar">
-            <div className="tabs-group">
-              <button className={`filter-tab ${category === 'all' ? 'active' : ''}`} onClick={() => setCategory('all')}>
-                Gần đây
-              </button>
-              <button className={`filter-tab ${category === 'docs' ? 'active' : ''}`} onClick={() => setCategory('docs')}>
-                Minh Docs ({docCount})
-              </button>
-              <button className={`filter-tab ${category === 'sheets' ? 'active' : ''}`} onClick={() => setCategory('sheets')}>
-                Minh Sheets ({sheetCount})
-              </button>
-              <button className={`filter-tab ${category === 'pdfs' ? 'active' : ''}`} onClick={() => setCategory('pdfs')}>
-                Minh PDF ({pdfCount})
-              </button>
-              <button className={`filter-tab ${category === 'starred' ? 'active' : ''}`} onClick={() => setCategory('starred')}>
-                Gắn sao ({starCount})
-              </button>
-              {trashCount > 0 && (
-                <button className={`filter-tab ${category === 'trash' ? 'active' : ''}`} onClick={() => setCategory('trash')}>
-                  Thùng rác ({trashCount})
-                </button>
-              )}
-            </div>
+              <section className="ws-section" aria-labelledby="ws-recent-title">
+                <div className="ws-section-head">
+                  <h2 id="ws-recent-title">Tài liệu gần đây</h2>
+                  {tabs}
+                  {toolbar}
+                </div>
+                {listedFiles.length ? fileList(listedFiles.slice(0, RECENT_LIMIT)) : emptyState}
+                {listedFiles.length > RECENT_LIMIT && (
+                  <button className="ws-more" onClick={() => goTo('all')}>Xem tất cả {listedFiles.length} tài liệu <ArrowRight size={16} aria-hidden="true" /></button>
+                )}
+              </section>
 
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <button
-                className={`icon-btn ${viewMode === 'list' ? 'active' : ''}`}
-                onClick={() => setViewMode('list')}
-                title="Dạng danh sách"
-              >
-                <ListIcon size={16} />
-              </button>
-              <button
-                className={`icon-btn ${viewMode === 'grid' ? 'active' : ''}`}
-                onClick={() => setViewMode('grid')}
-                title="Dạng lưới thẻ"
-              >
-                <LayoutGrid size={16} />
-              </button>
-            </div>
-          </div>
-
-          {/* Files List / Grid */}
-          {filteredFiles.length === 0 ? (
-            <div className="empty-state">
-              <HardDrive size={36} />
-              <h3>Không tìm thấy tệp nào</h3>
-              <p>
-                {searchQuery
-                  ? `Không có kết quả nào khớp với "${searchQuery}"`
-                  : category === 'trash'
-                  ? 'Thùng rác hiện đang trống.'
-                  : 'Chưa có tài liệu nào. Bấm nút Tạo mới hoặc Tải lên từ máy để bắt đầu.'}
-              </p>
-            </div>
-          ) : viewMode === 'list' ? (
-            <div className="file-table-wrap">
-              <table className="file-table">
-                <thead>
-                  <tr>
-                    <th>Tên tệp</th>
-                    <th>Loại</th>
-                    <th>Cập nhật</th>
-                    <th style={{ textAlign: 'right' }}>Thao tác</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredFiles.map((file) => (
-                    <tr key={file.id} className="file-row">
-                      <td>
-                        <div className="file-info">
-                          <button
-                            className="icon-btn"
-                            style={{ width: 28, height: 28, color: file.starred ? '#f59e0b' : 'var(--muted)' }}
-                            onClick={() => onToggleStar(file)}
-                            title={file.starred ? 'Bỏ gắn sao' : 'Gắn sao'}
-                          >
-                            <Star size={15} fill={file.starred ? '#f59e0b' : 'none'} />
-                          </button>
-                          <button className="file-icon-box" onClick={() => handleOpenFile(file)} aria-label={`Mở ${file.name}`}>
-                            <SuiteLogo kind={file.kind} size={34} />
-                          </button>
-                          <div>
-                            <div className="file-name-cell" onClick={() => handleOpenFile(file)}>
-                              {file.name}
-                            </div>
-                            {file.preview && (
-                              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, maxWidth: 450, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {file.preview}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                      <td>
-                        <span className={`file-tag ${file.kind}`}>
-                          {file.kind === 'doc' ? 'Minh Docs' : file.kind === 'sheet' ? 'Minh Sheets' : 'Minh PDF'}
-                        </span>
-                      </td>
-                      <td style={{ color: 'var(--muted)', fontSize: 12 }}>
-                        {relativeTime(file.updatedAt)}
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
-                          {file.deletedAt ? (
-                            <>
-                              <button className="icon-btn" onClick={() => onRestore(file)} title="Khôi phục tệp">
-                                <RotateCcw size={15} />
-                              </button>
-                              <button
-                                className="icon-btn"
-                                style={{ color: 'var(--accent)' }}
-                                onClick={() => onDeletePermanent(file)}
-                                title="Xoá vĩnh viễn"
-                              >
-                                <Trash2 size={15} />
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <button className="icon-btn" onClick={() => onRename(file)} title="Đổi tên">
-                                <Edit2 size={15} />
-                              </button>
-                              <button className="icon-btn" onClick={() => onDuplicate(file)} title="Nhân bản">
-                                <Copy size={15} />
-                              </button>
-                              <button className="icon-btn" onClick={() => onTrash(file)} title="Xoá vào thùng rác">
-                                <Trash2 size={15} />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
+              <section className="ws-section" aria-labelledby="ws-templates-title">
+                <div className="ws-section-head">
+                  <h2 id="ws-templates-title">Bắt đầu từ mẫu</h2>
+                  <button className="ws-link" aria-expanded={showAllTemplates} onClick={() => setShowAllTemplates((value) => !value)}>
+                    {showAllTemplates ? 'Thu gọn' : 'Xem tất cả'} <ArrowRight size={18} aria-hidden="true" className={showAllTemplates ? 'ws-rotate' : ''} />
+                  </button>
+                </div>
+                <div className="ws-templates">
+                  {(showAllTemplates ? TEMPLATES : TEMPLATES.slice(0, FEATURED_TEMPLATES)).map((template) => (
+                    <button key={template.id} className="ws-template" onClick={() => template.create(props)}>
+                      <TemplateThumb variant={template.thumb} title={template.title} />
+                      <span className="ws-template-meta">
+                        <SuiteLogo kind={template.kind} size={32} />
+                        <span><strong>{template.title}</strong><small>{KIND_LABEL[template.kind]}</small></span>
+                      </span>
+                    </button>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16 }}>
-              {filteredFiles.map((file) => (
-                <div
-                  key={file.id}
-                  className="template-card"
-                  style={{ cursor: 'pointer', minHeight: 140 }}
-                  onClick={() => handleOpenFile(file)}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <SuiteLogo kind={file.kind} size={36} />
-                    <button
-                      className="icon-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onToggleStar(file);
-                      }}
-                    >
-                      <Star size={15} fill={file.starred ? '#f59e0b' : 'none'} color={file.starred ? '#f59e0b' : 'var(--muted)'} />
-                    </button>
-                  </div>
-
-                  <div className="template-title" style={{ marginTop: 8 }}>{file.name}</div>
-                  <div className="template-desc" style={{ minHeight: 32 }}>
-                    {file.preview || (file.kind === 'doc' ? 'Tài liệu Minh Docs' : file.kind === 'sheet' ? 'Bảng tính Minh Sheets' : 'Tài liệu Minh PDF')}
-                  </div>
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--line)', paddingTop: 10, marginTop: 'auto', fontSize: 11, color: 'var(--muted)' }}>
-                    <span>{relativeTime(file.updatedAt)}</span>
-                    <button
-                      className="icon-btn"
-                      style={{ width: 24, height: 24 }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onTrash(file);
-                      }}
-                      title="Xoá"
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
                 </div>
-              ))}
-            </div>
+              </section>
+
+              <section className="ws-about" aria-labelledby="office-overview-title">
+                <h2 id="office-overview-title">Minh Spark Office — văn phòng online miễn phí</h2>
+                <p>Soạn thảo văn bản, làm bảng tính và xử lý PDF ngay trên trình duyệt. Đăng nhập cùng tài khoản Google trên web và ứng dụng máy tính để dùng chung kho tài liệu; khi mất mạng, thay đổi được lưu trên thiết bị và đồng bộ khi kết nối lại.</p>
+                <nav aria-label="Tìm hiểu sản phẩm">
+                  <a href="/gioi-thieu.html">Giới thiệu Minh Spark Office</a>
+                  <a href="/minh-docs.html">Soạn thảo văn bản miễn phí</a>
+                  <a href="/minh-sheets.html">Bảng tính online miễn phí</a>
+                </nav>
+              </section>
+            </>
+          ) : (
+            <section className="ws-section ws-section-first" aria-labelledby="ws-list-title">
+              <div className="ws-heading ws-heading-list">
+                <div>
+                  <h1 id="ws-list-title">{isSearching ? 'Kết quả tìm kiếm' : VIEW_TITLE[view as Exclude<View, 'home'>]}</h1>
+                  <p>{isSearching ? `${listedFiles.length} tài liệu khớp với “${query}”` : view === 'trash' ? 'Tài liệu trong thùng rác có thể khôi phục hoặc xoá vĩnh viễn.' : `${listedFiles.length} tài liệu`}</p>
+                </div>
+                <label className="ws-open-btn">
+                  <Upload size={20} aria-hidden="true" />Mở tệp từ máy
+                  <input type="file" accept={IMPORT_ACCEPT} hidden onChange={handleImport} />
+                </label>
+              </div>
+              <div className="ws-section-head">
+                {tabs}
+                {toolbar}
+              </div>
+              {listedFiles.length ? fileList(listedFiles) : emptyState}
+            </section>
           )}
-          <section aria-labelledby="office-overview-title" style={{ marginTop: 28, paddingTop: 20, borderTop: '1px solid var(--line)', lineHeight: 1.7 }}>
-            <h2 id="office-overview-title" style={{ fontSize: 18, marginBottom: 8 }}>Minh Spark Office — Free online office</h2>
-            <p style={{ color: 'var(--ink-secondary)', maxWidth: 760 }}>Soạn thảo văn bản và làm bảng tính miễn phí trên trình duyệt. Đăng nhập cùng tài khoản Google trên web và ứng dụng máy tính để dùng chung kho tài liệu. Khi mất mạng, thay đổi được lưu trên thiết bị và đồng bộ khi kết nối lại.</p>
-            <nav aria-label="Tìm hiểu sản phẩm" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 24px', marginTop: 12 }}>
-              <a href="/gioi-thieu.html" style={{ color: '#a93229', padding: '10px 0' }}>Giới thiệu Minh Spark Office</a>
-              <a href="/minh-docs.html" style={{ color: '#a93229', padding: '10px 0' }}>Soạn thảo văn bản miễn phí</a>
-              <a href="/minh-sheets.html" style={{ color: '#a93229', padding: '10px 0' }}>Bảng tính online miễn phí</a>
-            </nav>
-          </section>
         </div>
       </main>
+
+      {settingsOpen && <SettingsDialog onClose={closeSettings} onExportBackup={onExportBackup} onImportBackup={onImportBackup} />}
+    </div>
+  );
+}
+
+function NavItem({ active, onClick, icon, badge, children }: { active: boolean; onClick: () => void; icon: ReactNode; badge?: number; children: ReactNode }) {
+  return (
+    <button className={`ws-nav-item ${active ? 'is-active' : ''}`} aria-current={active ? 'page' : undefined} onClick={onClick}>
+      <span className="ws-nav-icon" aria-hidden="true">{icon}</span>
+      <span className="ws-nav-label">{children}</span>
+      {badge ? <span className="ws-nav-badge">{badge}</span> : null}
+    </button>
+  );
+}
+
+function AppCard({ kind, title, desc, action, onClick }: { kind: FileKind; title: string; desc: string; action: 'plus' | 'arrow'; onClick: () => void }) {
+  return (
+    <button className={`ws-app ws-app-${kind}`} onClick={onClick}>
+      <SuiteLogo kind={kind} size={56} />
+      <span className="ws-app-text"><strong>{title}</strong><span>{desc}</span></span>
+      <span className="ws-app-action" aria-hidden="true">{action === 'plus' ? <Plus size={22} /> : <ArrowRight size={22} />}</span>
+    </button>
+  );
+}
+
+function FilterMenu({ sortOrder, onSort, starredOnly, onStarredOnly }: { sortOrder: SortOrder; onSort: (order: SortOrder) => void; starredOnly: boolean; onStarredOnly: (value: boolean) => void }) {
+  const [open, setOpen] = useState(false);
+  const close = useCallback(() => setOpen(false), []);
+  const active = starredOnly || sortOrder !== 'recent';
+  return (
+    <Popover
+      open={open}
+      onClose={close}
+      trigger={
+        <button className={`ws-filter ${active ? 'is-active' : ''}`} aria-expanded={open} aria-haspopup="menu" onClick={() => setOpen((value) => !value)}>
+          <Funnel size={18} aria-hidden="true" />Lọc
+          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        </button>
+      }
+    >
+      <span className="ws-menu-label">Sắp xếp</span>
+      {(Object.keys(SORT_LABEL) as SortOrder[]).map((order) => (
+        <button key={order} role="menuitemradio" aria-checked={sortOrder === order} className="ws-menu-item" onClick={() => onSort(order)}>
+          <span className="ws-menu-check">{sortOrder === order && <Check size={16} />}</span>{SORT_LABEL[order]}
+        </button>
+      ))}
+      <hr />
+      <button role="menuitemcheckbox" aria-checked={starredOnly} className="ws-menu-item" onClick={() => onStarredOnly(!starredOnly)}>
+        <span className="ws-menu-check">{starredOnly && <Check size={16} />}</span>Chỉ tài liệu gắn sao
+      </button>
+    </Popover>
+  );
+}
+
+function RowMenu({ file, props }: { file: FileMeta; props: HomeProps }) {
+  const [open, setOpen] = useState(false);
+  const close = useCallback(() => setOpen(false), []);
+  const run = (action: (file: FileMeta) => void) => () => { setOpen(false); action(file); };
+  return (
+    <Popover
+      open={open}
+      onClose={close}
+      trigger={
+        <button className="ws-icon-btn" aria-label={`Thao tác với ${file.name}`} aria-expanded={open} aria-haspopup="menu" onClick={(e) => { e.stopPropagation(); setOpen((value) => !value); }}>
+          <Ellipsis size={20} />
+        </button>
+      }
+    >
+      {file.deletedAt ? (
+        <>
+          <button role="menuitem" className="ws-menu-item" onClick={run(props.onRestore)}><RotateCcw size={16} aria-hidden="true" />Khôi phục</button>
+          <button role="menuitem" className="ws-menu-item ws-danger" onClick={run(props.onDeletePermanent)}><Trash2 size={16} aria-hidden="true" />Xoá vĩnh viễn</button>
+        </>
+      ) : (
+        <>
+          <button role="menuitem" className="ws-menu-item" onClick={run(props.onRename)}><Edit2 size={16} aria-hidden="true" />Đổi tên</button>
+          <button role="menuitem" className="ws-menu-item" onClick={run(props.onDuplicate)}><Copy size={16} aria-hidden="true" />Nhân bản</button>
+          <button role="menuitem" className="ws-menu-item" onClick={run(props.onToggleStar)}><Star size={16} aria-hidden="true" />{file.starred ? 'Bỏ gắn sao' : 'Gắn sao'}</button>
+          <hr />
+          <button role="menuitem" className="ws-menu-item ws-danger" onClick={run(props.onTrash)}><Trash2 size={16} aria-hidden="true" />Chuyển vào thùng rác</button>
+        </>
+      )}
+    </Popover>
+  );
+}
+
+function StarButton({ file, onToggle }: { file: FileMeta; onToggle: (file: FileMeta) => void }) {
+  return (
+    <button
+      className={`ws-star ${file.starred ? 'is-on' : ''}`}
+      onClick={(e) => { e.stopPropagation(); onToggle(file); }}
+      aria-pressed={file.starred}
+      aria-label={file.starred ? `Bỏ gắn sao ${file.name}` : `Gắn sao ${file.name}`}
+      disabled={Boolean(file.deletedAt)}
+    >
+      <Star size={20} fill={file.starred ? 'currentColor' : 'none'} />
+    </button>
+  );
+}
+
+type ListProps = { files: FileMeta[]; location: (file: FileMeta) => string; props: HomeProps; onOpen: (file: FileMeta) => void };
+
+function FileTable({ files, location, props, onOpen }: ListProps) {
+  return (
+    <div className="ws-table-wrap">
+      <table className="ws-table">
+        <thead>
+          <tr>
+            <th className="ws-col-star"><span className="ws-sr">Gắn sao</span></th>
+            <th>Tên tài liệu</th>
+            <th className="ws-col-location">Vị trí</th>
+            <th className="ws-col-updated">Cập nhật</th>
+            <th className="ws-col-menu"><span className="ws-sr">Thao tác</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {files.map((file) => (
+            <tr key={file.id} onDoubleClick={() => onOpen(file)}>
+              <td className="ws-col-star"><StarButton file={file} onToggle={props.onToggleStar} /></td>
+              <td>
+                <button className="ws-file-name" onClick={() => onOpen(file)} disabled={Boolean(file.deletedAt)}>
+                  <SuiteLogo kind={file.kind} size={32} />
+                  <span>{file.name}</span>
+                </button>
+              </td>
+              <td className="ws-col-location"><span className="ws-location"><Folder size={20} aria-hidden="true" />{location(file)}</span></td>
+              <td className="ws-col-updated">{relativeTime(file.updatedAt)}</td>
+              <td className="ws-col-menu"><RowMenu file={file} props={props} /></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function FileGrid({ files, location, props, onOpen }: ListProps) {
+  return (
+    <div className="ws-file-grid">
+      {files.map((file) => (
+        <div key={file.id} className="ws-file-card">
+          <div className="ws-file-card-top">
+            <SuiteLogo kind={file.kind} size={40} />
+            <StarButton file={file} onToggle={props.onToggleStar} />
+          </div>
+          <button className="ws-file-card-name" onClick={() => onOpen(file)} disabled={Boolean(file.deletedAt)}>{file.name}</button>
+          <p>{file.preview || PRODUCT_NAME[file.kind]}</p>
+          <div className="ws-file-card-foot">
+            <span>{location(file)} · {relativeTime(file.updatedAt)}</span>
+            <RowMenu file={file} props={props} />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
