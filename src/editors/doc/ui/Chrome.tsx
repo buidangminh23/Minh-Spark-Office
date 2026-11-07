@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ArrowLeft, Bookmark, BookText, Clipboard, Copy, Download, FileCode2, FileImage, FileText, FileType2, FolderOpen, History, Info, Mail, MonitorPlay, Package, Printer, Save, Share2, Table2, FilePlus2, X, BookOpen, ScrollText, Columns3, Minus, Plus, PencilLine } from 'lucide-react';
+import { Keyboard, Square, Wand2, ArrowLeft, Bookmark, BookText, Clipboard, Copy, Download, FileCode2, FileImage, FileText, FileType2, FolderOpen, History, Info, Mail, MonitorPlay, Package, Printer, Save, Share2, Table2, FilePlus2, X, BookOpen, ScrollText, Columns3, Minus, Plus, PencilLine } from 'lucide-react';
 import { useEditorState } from '@tiptap/react';
 import { pickFile, formatBytes } from '../../../lib/download';
 import { useAccount } from '../../../components/Authentication';
@@ -61,6 +61,8 @@ export function Backstage({ onClose }: { onClose: () => void }) {
         <button className="backstage-item" onClick={() => act(() => ctx.openDialog('history'))}><History size={16} /> Lịch sử phiên bản</button>
         <button className="backstage-item" onClick={() => void makeCopy(ctx)}><Copy size={16} /> Tạo bản sao</button>
         <button className="backstage-item" onClick={() => act(ctx.print)}><Printer size={16} /> In</button>
+        <button className="backstage-item" onClick={() => act(() => ctx.openDialog('autocorrect'))}><Wand2 size={16} /> Tuỳ chọn tự sửa</button>
+        <button className="backstage-item" onClick={() => act(() => ctx.openDialog('shortcuts'))}><Keyboard size={16} /> Phím tắt</button>
         <div className="backstage-sep" />
         <button className="backstage-item" onClick={() => act(ctx.onBack)}><X size={16} /> Đóng tài liệu</button>
       </nav>
@@ -160,7 +162,7 @@ export function Backstage({ onClose }: { onClose: () => void }) {
   );
 }
 
-export type TabId = 'file' | 'home' | 'insert' | 'draw' | 'design' | 'layout' | 'references' | 'mailings' | 'review' | 'view' | 'pdf' | 'help' | 'table' | 'image';
+export type TabId = 'file' | 'home' | 'insert' | 'draw' | 'design' | 'layout' | 'references' | 'mailings' | 'review' | 'view' | 'pdf' | 'help' | 'table' | 'image' | 'outline';
 
 export function TabBar({ tab, setTab, contextual }: { tab: TabId; setTab: (t: TabId) => void; contextual: TabId[] }) {
   const ctx = useDoc();
@@ -169,7 +171,7 @@ export function TabBar({ tab, setTab, contextual }: { tab: TabId; setTab: (t: Ta
     { id: 'references', label: 'Tham chiếu' }, { id: 'mailings', label: 'Gửi thư' }, { id: 'review', label: 'Xem lại' }, { id: 'view', label: 'Xem' },
     { id: 'pdf', label: 'Minh PDF' }, { id: 'help', label: 'Trợ giúp' },
   ];
-  const labels: Partial<Record<TabId, string>> = { table: 'Bảng', image: 'Ảnh' };
+  const labels: Partial<Record<TabId, string>> = { table: 'Bảng', image: 'Ảnh', outline: 'Dàn ý' };
   return (
     <div className="ribbon-tabs-bar" role="tablist">
       <div className="ribbon-tabs-list">
@@ -205,7 +207,8 @@ export function StatusBar({ page, pages }: { page: number; pages: number }) {
         <button className="status-btn" onClick={() => ctx.openDialog('wordcount')} title="Đếm từ">{counts.selected ? `${counts.selected.toLocaleString('vi-VN')} / ` : ''}{counts.words.toLocaleString('vi-VN')} từ</button>
         <span>{counts.chars.toLocaleString('vi-VN')} ký tự</span>
         <span>{({ vi: 'Tiếng Việt', en: 'Tiếng Anh', fr: 'Tiếng Pháp', zh: 'Tiếng Trung', ja: 'Tiếng Nhật', ko: 'Tiếng Hàn' } as Record<string, string>)[ctx.page.language ?? 'vi'] ?? 'Tiếng Việt'}</span>
-        {view.editMode === 'suggesting' && <span className="status-badge suggest"><PencilLine size={11} /> Đang theo dõi thay đổi</span>}
+        <button className={`status-btn ${view.editMode === 'suggesting' ? 'on' : ''}`} disabled={Boolean(ctx.page.protectHash)} title="Bật hoặc tắt theo dõi thay đổi (Ctrl+Shift+E)" onClick={() => setView({ editMode: view.editMode === 'suggesting' ? 'editing' : 'suggesting' })}><PencilLine size={11} /> {view.editMode === 'suggesting' ? 'Đang theo dõi thay đổi' : 'Theo dõi: tắt'}</button>
+        {view.recording && <button className="status-record" title="Dừng ghi macro" onClick={() => setView({ recording: false })}><Square size={10} /> Dừng ghi macro</button>}
         {view.editMode === 'viewing' && <span className="status-badge view">Chỉ xem</span>}
         {ctx.dictation.listening && <span className="status-badge rec">Đang nghe…</span>}
         {ctx.readAloud.speaking && <span className="status-badge">Đang đọc</span>}

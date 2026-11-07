@@ -101,6 +101,24 @@ export const ParagraphFormat = Extension.create({
           parseHTML: (element) => element.hasAttribute('data-dropcap'),
           renderHTML: (attributes) => (attributes.dropCap ? { 'data-dropcap': 'true' } : {}),
         },
+        dropCapMode: {
+          default: null,
+          parseHTML: (element) => element.getAttribute('data-dropcap-mode'),
+          renderHTML: (attributes) => (attributes.dropCap && attributes.dropCapMode ? { 'data-dropcap-mode': attributes.dropCapMode } : {}),
+        },
+        dropCapLines: {
+          default: null,
+          parseHTML: (element) => Number(element.getAttribute('data-dropcap-lines')) || null,
+          renderHTML: (attributes) => (attributes.dropCap && attributes.dropCapLines ? { 'data-dropcap-lines': attributes.dropCapLines, style: `--dropcap-lines:${attributes.dropCapLines}` } : {}),
+        },
+        dropCapGap: {
+          default: null,
+          parseHTML: (element) => {
+            const raw = element.getAttribute('data-dropcap-gap');
+            return raw === null ? null : Number(raw) || 0;
+          },
+          renderHTML: (attributes) => (attributes.dropCap && attributes.dropCapGap !== null && attributes.dropCapGap !== undefined ? { 'data-dropcap-gap': attributes.dropCapGap, style: `--dropcap-gap:${attributes.dropCapGap}px` } : {}),
+        },
         captionKind: {
           default: null,
           parseHTML: (element) => element.getAttribute('data-caption'),
@@ -345,6 +363,11 @@ export const LayoutImage = Image.extend({
         parseHTML: (element) => element.getAttribute('data-frame'),
         renderHTML: (attributes) => (attributes.frame ? { 'data-frame': attributes.frame } : {}),
       },
+      meta: {
+        default: null,
+        parseHTML: (element) => element.getAttribute('data-meta'),
+        renderHTML: (attributes) => (attributes.meta ? { 'data-meta': attributes.meta } : {}),
+      },
       align: {
         default: 'inline',
         parseHTML: (element) => element.getAttribute('data-align') ?? 'inline',
@@ -353,7 +376,7 @@ export const LayoutImage = Image.extend({
       width: {
         default: null,
         parseHTML: (element) => element.getAttribute('width') ?? element.style.width ?? null,
-        renderHTML: (attributes) => (attributes.width ? { style: `width: ${attributes.width}` } : {}),
+        renderHTML: (attributes) => (attributes.width ? { style: `width: ${/^\d+(\.\d+)?$/.test(String(attributes.width)) ? `${attributes.width}px` : attributes.width}` } : {}),
       },
     };
   },

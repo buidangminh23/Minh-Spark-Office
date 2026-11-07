@@ -12,7 +12,7 @@ import Subscript from '@tiptap/extension-subscript';
 import Superscript from '@tiptap/extension-superscript';
 import Placeholder from '@tiptap/extension-placeholder';
 import CharacterCount from '@tiptap/extension-character-count';
-import { ArrowLeft, BookOpen, CheckCircle2, Clock, FileText, History, MessageSquare, Redo2, Save, Share2, Undo2, X } from 'lucide-react';
+import { ArrowLeft, BookOpen, CheckCircle2, Clock, FileText, History, MessageSquare, Redo2, Save, Search, Share2, Undo2, X } from 'lucide-react';
 
 import { CommentMark, Footnote, FontSizeStep, LayoutImage, MergeField, PageBreak, ParagraphFormat, ShadedTableCell, ShadedTableHeader } from './extensions';
 import { AutoCorrect, Bibliography, Bookmark, Citation, ColumnSection, CrossRef, DocIndex, DocRefs, EndnoteList, Equation, FigureList, IndexEntry, ListStyles, SmartChip, TableExtras, TableOfContents, TextBox, TextStyleExtras, setRefs } from './extensionsExtra';
@@ -25,17 +25,32 @@ import { useFormatState } from './useFormatState';
 import { ensureFont, ensureFontsInJson } from './fonts';
 import { useDictation, useReadAloud } from './useSpeech';
 import { addComment, editLink, insertFootnote } from './actions';
-import { defaultPage, useWorkspace, type CommentItem, type DocContent, type FileMeta, type PageSettings } from '../../lib/storage';
+import { basePage, useWorkspace, type CommentItem, type DocContent, type FileMeta, type PageSettings } from '../../lib/storage';
 import { useUi } from '../../components/ui';
 import 'katex/dist/katex.min.css';
 import './docEditor.css';
+import './ui/insert.css';
+import './ui/draw.css';
+import './ui/layout.css';
+import './ui/review.css';
+import './ui/view.css';
+import { INSERT_EXTENSIONS } from './extInsert';
+import { LAYOUT_EXTENSIONS } from './extLayout';
+import { REVIEW_EXTENSIONS } from './extReview';
+import { VIEW_EXTENSIONS } from './extView';
+import { NODE_EDITORS } from './nodeEditors';
+import InsertExtras from './ui/InsertExtras';
+import DrawExtras from './ui/DrawExtras';
+import LayoutExtras, { LayoutPanels } from './ui/LayoutExtras';
+import ReviewExtras, { ReviewPanels } from './ui/ReviewExtras';
+import ViewExtras, { SplitPane, ViewPanels } from './ui/ViewExtras';
 
 import HomeTab from './ui/tabs/HomeTab';
 import InsertTab from './ui/tabs/InsertTab';
 import { DesignTab, LayoutTab } from './ui/tabs/LayoutTabs';
 import { MailingsTab, ReferencesTab, ReviewTab } from './ui/tabs/ReviewTabs';
 import DrawTab from './ui/tabs/DrawTab';
-import { HelpTab, PdfTab, ViewTab, ZOOM_STEPS } from './ui/tabs/ViewTabs';
+import { HelpTab, OutlineTab, PdfTab, ViewTab, ZOOM_STEPS } from './ui/tabs/ViewTabs';
 import { ImageTab, TableTab } from './ui/tabs/ContextTabs';
 import { Backstage, StatusBar, TabBar, type TabId } from './ui/Chrome';
 import { ChangesPanel, CommentsPanel, OutlinePanel } from './ui/Panels';
@@ -65,7 +80,7 @@ const AUTO_VERSION_MS = 10 * 60 * 1000;
 const VIEW_KEY = 'minh-docs-view';
 
 const loadView = (): ViewState => {
-  const base: ViewState = { inkTool: null, inkColor: '#1d4ed8', inkWidth: 3, focusMode: false, dark: false, ribbonCollapsed: false, zoom: 100, viewMode: 'print', editMode: 'editing', showRuler: true, showGrid: false, showMarks: false, showNav: true, spellcheck: true, sidePanel: null, showFind: false, findReplace: false };
+  const base: ViewState = { inkTool: null, inkColor: '#1d4ed8', inkWidth: 3, focusMode: false, dark: false, ribbonCollapsed: false, zoom: 100, viewMode: 'print', editMode: 'editing', showRuler: true, showGrid: false, showMarks: false, showNav: true, spellcheck: true, sidePanel: null, showFind: false, findReplace: false, hideInk: false, inkInput: 'any', inkEraser: 'stroke', inkToShape: false, inkRuler: null, inkReplay: null, penId: null, pageMove: 'vertical', splitView: false, sideBySide: null, syncScroll: true, outlineLevel: 9, markup: 'all', markupComments: true, markupInsDel: true, markupFormatting: true, markupAuthor: null, reviewPane: 'none', commentsMode: 'list', recording: false };
   try {
     const saved = JSON.parse(localStorage.getItem(VIEW_KEY) ?? '{}') as Partial<ViewState>;
     return { ...base, zoom: saved.zoom ?? base.zoom, viewMode: saved.viewMode === 'read' ? 'print' : saved.viewMode ?? base.viewMode, showRuler: saved.showRuler ?? base.showRuler, showNav: saved.showNav ?? base.showNav, spellcheck: saved.spellcheck ?? base.spellcheck, dark: saved.dark ?? base.dark, ribbonCollapsed: saved.ribbonCollapsed ?? base.ribbonCollapsed };
@@ -98,7 +113,7 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack, onN
   const storage = useWorkspace();
   const { saveVersion } = storage;
   const [title, setTitle] = useState(meta.name);
-  const [page, setPageState] = useState<PageSettings>({ ...defaultPage(), ...content.page });
+  const [page, setPageState] = useState<PageSettings>({ ...basePage(), ...content.page });
   const [comments, setCommentsState] = useState<CommentItem[]>(content.comments ?? []);
   const [view, setViewState] = useState<ViewState>(loadView);
   const [tab, setTab] = useState<TabId>('home');
@@ -174,6 +189,10 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack, onN
       InsertionMark,
       DeletionMark,
       TrackChanges.configure({ author: AUTHOR }),
+      ...INSERT_EXTENSIONS,
+      ...LAYOUT_EXTENSIONS,
+      ...REVIEW_EXTENSIONS,
+      ...VIEW_EXTENSIONS,
     ],
     content: content.json || { type: 'doc', content: [{ type: 'paragraph' }] },
     editorProps: {
@@ -188,6 +207,8 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack, onN
       },
       handleDoubleClickOn: (_view, _pos, node, nodePos) => {
         const c = ctxRef.current;
+        const custom = NODE_EDITORS[node.type.name];
+        if (c && custom && custom(c, node, nodePos)) return true;
         if (!c || !['equation', 'footnote', 'smartChip', 'bookmark', 'indexEntry'].includes(node.type.name)) return false;
         void editNodeAt(c, node, nodePos);
         return true;
@@ -270,10 +291,10 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack, onN
 
   useEffect(() => {
     const locked = Boolean(page.protectHash);
-    const mode = locked ? 'viewing' : view.editMode;
+    const mode = locked ? (page.protectMode === 'tracked' ? 'suggesting' : 'viewing') : view.editMode;
     editor.setEditable(mode !== 'viewing');
     editor.commands.setTrackChanges(mode === 'suggesting');
-  }, [editor, view.editMode, page.protectHash]);
+  }, [editor, view.editMode, page.protectHash, page.protectMode]);
 
   useEffect(() => {
     editor.view.dom.setAttribute('spellcheck', String(view.spellcheck));
@@ -291,10 +312,13 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack, onN
     return () => dom.removeEventListener('mouseup', onMouseUp);
   }, [editor]);
 
-  const contextual = useMemo<TabId[]>(() => [...(fmt.inTable ? ['table' as const] : []), ...(fmt.imageSelected ? ['image' as const] : [])], [fmt.inTable, fmt.imageSelected]);
+  const contextual = useMemo<TabId[]>(() => [...(view.viewMode === 'outline' ? ['outline' as const] : []), ...(fmt.inTable ? ['table' as const] : []), ...(fmt.imageSelected ? ['image' as const] : [])], [view.viewMode, fmt.inTable, fmt.imageSelected]);
   useEffect(() => {
-    if ((tab === 'table' && !fmt.inTable) || (tab === 'image' && !fmt.imageSelected)) setTab('home');
-  }, [tab, fmt.inTable, fmt.imageSelected]);
+    if ((tab === 'table' && !fmt.inTable) || (tab === 'image' && !fmt.imageSelected) || (tab === 'outline' && view.viewMode !== 'outline')) setTab('home');
+  }, [tab, fmt.inTable, fmt.imageSelected, view.viewMode]);
+  useEffect(() => {
+    if (view.viewMode === 'outline') setTab('outline');
+  }, [view.viewMode]);
 
   const notify = useCallback((text: string, error?: boolean) => ui.toast(text, error), [ui]);
   const dictation = useDictation(editor, notify);
@@ -324,7 +348,7 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack, onN
     storage,
     editor, ui, meta, title, page, setPage, view, setView, comments,
     setComments: (updater) => { setComments(updater); markDirty(); },
-    activeCommentId, setActiveCommentId, openDialog: setDialog, editing, setEditing, editingStyle, setEditingStyle, print, merge, setMerge, mergePreview, setMergePreview,
+    activeCommentId, setActiveCommentId, openDialog: setDialog, setTab: (id) => setTab(id as TabId), editing, setEditing, editingStyle, setEditingStyle, print, merge, setMerge, mergePreview, setMergePreview,
     readAloud, dictation, formatPainter, markDirty, saveNow,
     onNewDocument: onNewDocument ?? (() => ui.toast('Mở danh sách tệp để tạo tài liệu mới')),
     onOpenFile: onOpenFile ?? (() => undefined),
@@ -397,6 +421,7 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack, onN
       case 'help': return <HelpTab />;
       case 'table': return <TableTab fmt={fmt} />;
       case 'image': return <ImageTab />;
+      case 'outline': return <OutlineTab />;
       default: return null;
     }
   };
@@ -432,6 +457,7 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack, onN
                 </button>
               </div>
               <div className="topbar-right">
+                <button className="command-search" onClick={() => setDialog('commandpalette')} title="Tìm lệnh (Alt+Q)"><Search size={14} /><span>Tìm lệnh</span></button>
                 <button className="btn" onClick={() => setDialog('history')} title="Lịch sử phiên bản"><History size={15} /><span>Lịch sử</span></button>
                 <button className={`btn ${view.sidePanel === 'comments' ? 'btn-primary' : ''}`} onClick={() => setView({ sidePanel: view.sidePanel === 'comments' ? null : 'comments' })} title="Bình luận"><MessageSquare size={15} /><span>Bình luận{openComments ? ` (${openComments})` : ''}</span></button>
                 <button className="btn" onClick={() => setView({ viewMode: 'read' })} title="Chế độ đọc"><BookOpen size={15} /><span>Đọc</span></button>
@@ -448,6 +474,7 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack, onN
         <div className="doc-workspace">
           {view.showFind && <FindBar />}
           {view.showNav && !reading && !view.focusMode && <OutlinePanel />}
+          <div className="doc-center">
           <div className="doc-canvas" onContextMenu={(e) => {
             if (!(e.target as HTMLElement).closest('.ProseMirror')) return;
             e.preventDefault();
@@ -457,8 +484,13 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack, onN
           }}>
             <Paper onPages={onPages} />
           </div>
+          {!reading && <SplitPane />}
+          </div>
           {!reading && view.sidePanel === 'comments' && <CommentsPanel />}
           {!reading && view.sidePanel === 'changes' && <ChangesPanel />}
+          {!reading && <LayoutPanels />}
+          {!reading && <ReviewPanels />}
+          <ViewPanels />
         </div>
 
         {!reading && <StatusBar page={pages.current} pages={pages.count} />}
@@ -493,6 +525,11 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack, onN
         {dialog === 'accessibility' && <AccessibilityDialog onClose={closeDialog} />}
         {dialog === 'goto' && <GoToDialog onClose={closeDialog} />}
         {dialog === 'compare' && <CompareDialog onClose={closeDialog} />}
+        <InsertExtras dialog={dialog} onClose={closeDialog} />
+        <DrawExtras dialog={dialog} onClose={closeDialog} />
+        <LayoutExtras dialog={dialog} onClose={closeDialog} />
+        <ReviewExtras dialog={dialog} onClose={closeDialog} />
+        <ViewExtras dialog={dialog} onClose={closeDialog} />
         </SafeBoundary>
       </div>
     </DocContext.Provider>

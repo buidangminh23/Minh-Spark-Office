@@ -1,5 +1,6 @@
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { getPagination } from './pagination';
+import { strokesSize, strokesToPng } from './inkRender';
 import { AUTHOR, newId, type DocCtx } from './DocContext';
 import { type FileMeta } from '../../lib/storage';
 
@@ -238,37 +239,18 @@ export async function bakeInkToImage(ctx: DocCtx) {
     ctx.ui.toast('Chưa có nét vẽ nào trên trang', true);
     return;
   }
-  const all = strokes.flatMap((s) => s.points);
-  const xs = all.filter((_, i) => i % 2 === 0);
-  const ys = all.filter((_, i) => i % 2 === 1);
-  const pad = 8;
-  const minX = Math.min(...xs) - pad;
-  const minY = Math.min(...ys) - pad;
-  const width = Math.max(...xs) + pad - minX;
-  const height = Math.max(...ys) + pad - minY;
-  const canvas = document.createElement('canvas');
-  canvas.width = width * 2;
-  canvas.height = height * 2;
-  const c = canvas.getContext('2d');
-  if (!c) return;
-  c.scale(2, 2);
-  c.lineCap = 'round';
-  c.lineJoin = 'round';
-  for (const stroke of strokes) {
-    c.beginPath();
-    c.strokeStyle = stroke.color;
-    c.lineWidth = stroke.width;
-    c.globalAlpha = stroke.opacity;
-    for (let i = 0; i < stroke.points.length; i += 2) {
-      const x = stroke.points[i] - minX;
-      const y = stroke.points[i + 1] - minY;
-      if (i) c.lineTo(x, y);
-      else c.moveTo(x, y);
-    }
-    c.stroke();
+  try {
+    const src = await strokesToPng(strokes);
+    const { width } = strokesSize(strokes);
+    const { state } = ctx.editor;
+    const { $from } = state.selection;
+    const at = $from.depth > 0 ? $from.after(1) : state.selection.to;
+    const image = { type: 'image', attrs: { src, alt: 'Nét vẽ tay', width: `${Math.round(Math.min(width, 640))}px` } };
+    ctx.editor.chain().focus().insertContentAt(at, { type: 'paragraph', content: [image] }).run();
+    ctx.setPage({ ink: [] });
+    ctx.setView({ inkTool: null });
+    ctx.ui.toast('Đã chuyển nét vẽ thành ảnh, đặt sau đoạn đang chọn');
+  } catch (error) {
+    ctx.ui.toast((error as Error).message || 'Không chuyển được nét vẽ thành ảnh', true);
   }
-  ctx.editor.chain().focus().setImage({ src: canvas.toDataURL('image/png'), alt: 'Nét vẽ tay' }).run();
-  ctx.setPage({ ink: [] });
-  ctx.setView({ inkTool: null });
-  ctx.ui.toast('Đã chuyển nét vẽ thành ảnh tại vị trí con trỏ');
 }

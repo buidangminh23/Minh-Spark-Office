@@ -1,6 +1,7 @@
 import {
   AlignmentType,
   BorderStyle,
+  DeletedTextRun,
   Document,
   ExternalHyperlink,
   FootnoteReferenceRun,
@@ -10,6 +11,7 @@ import {
   HorizontalPositionAlign,
   HorizontalPositionRelativeFrom,
   ImageRun,
+  InsertedTextRun,
   LevelFormat,
   Math as DocxMath,
   NumberFormat,
@@ -56,6 +58,7 @@ let footnoteStore: Record<string, { children: Paragraph[] }> = {};
 
 let orderedInstanceCounter = 0;
 let endnoteCounter = 0;
+let revisionCounter = 0;
 let listFormats = new Map<string, string>();
 
 const LOWER_ROMAN: [number, string][] = [[10, 'x'], [9, 'ix'], [5, 'v'], [4, 'iv'], [1, 'i']];
@@ -108,8 +111,6 @@ function runOptions(marks: Mark[] = [], base: Record<string, unknown> = {}) {
       case 'italic': options.italics = true; break;
       case 'underline': options.underline = options.underline ?? {}; break;
       case 'strike': options.strike = true; break;
-      case 'insertion': options.underline = {}; options.color = '1E7B34'; break;
-      case 'deletion': options.strike = true; options.color = 'B3261E'; break;
       case 'subscript': options.subScript = true; break;
       case 'superscript': options.superScript = true; break;
       case 'code': options.font = 'Consolas'; options.shading = { type: ShadingType.CLEAR, fill: 'F1F3F5', color: 'auto' }; break;
@@ -159,7 +160,7 @@ async function imageRun(node: JSONContent, maxWidth: number): Promise<ImageRun |
       return imageRun({ ...node, attrs: { ...node.attrs, src: URL.createObjectURL(png) } }, maxWidth);
     }
     const percent = typeof node.attrs?.width === 'string' && node.attrs.width.endsWith('%') ? parseFloat(node.attrs.width) / 100 : 0;
-    let width = percent ? 0 : Number(node.attrs?.width) || 0;
+    let width = percent ? 0 : parseFloat(String(node.attrs?.width ?? '')) || 0;
     let height = Number(node.attrs?.height) || 0;
     if (!width || !height) {
       const bitmap = await createImageBitmap(blob);
@@ -183,7 +184,7 @@ async function imageRun(node: JSONContent, maxWidth: number): Promise<ImageRun |
       margins: { top: 0, bottom: 91440, left: 91440, right: 91440 },
     } : undefined;
     const alt = String(node.attrs?.alt ?? '');
-    return new ImageRun({ type, data: bytes, transformation: { width, height }, ...(floating ? { floating } : {}), ...(alt ? { altText: { title: alt, description: alt, name: alt } } : {}) });
+    return new ImageRun({ type, data: bytes, transformation: { width, height, ...(node.attrs?.rotate ? { rotation: Number(node.attrs.rotate) } : {}), ...(node.attrs?.flipH || node.attrs?.flipV ? { flip: { horizontal: Boolean(node.attrs.flipH), vertical: Boolean(node.attrs.flipV) } } : {}) }, ...(floating ? { floating } : {}), ...(alt ? { altText: { title: alt, description: alt, name: alt } } : {}) });
   } catch {
     return null;
   }
@@ -196,7 +197,13 @@ async function inlineChildren(nodes: JSONContent[] = [], context: Context, base:
       const marks = (node.marks ?? []) as Mark[];
       const link = marks.find((mark) => mark.type === 'link');
       const options = runOptions(marks, base);
-      if (link) {
+      const revision = marks.find((mark) => mark.type === 'insertion' || mark.type === 'deletion');
+      if (revision) {
+        const stamp = Number(revision.attrs?.date);
+        const change = { id: ++revisionCounter, author: String(revision.attrs?.author || 'Minh Office'), date: new Date(Number.isFinite(stamp) && stamp > 0 ? stamp : Date.now()).toISOString() };
+        const text = node.text ?? '';
+        children.push(revision.type === 'insertion' ? new InsertedTextRun({ ...options, text, ...change }) : new DeletedTextRun({ ...options, text, ...change }));
+      } else if (link) {
         children.push(new ExternalHyperlink({ link: String(link.attrs?.href ?? ''), children: [new TextRun({ ...options, text: node.text ?? '', style: 'Hyperlink' })] }));
       } else {
         children.push(new TextRun({ ...options, text: node.text ?? '' }));
@@ -523,6 +530,7 @@ const listLevels = () => {
 export async function exportDocx(json: JSONContent, page: PageSettings, title: string): Promise<Blob> {
   orderedInstanceCounter = 0;
   endnoteCounter = 0;
+  revisionCounter = 0;
   listFormats = new Map();
   footnoteStore = {};
   const size = PAGE_SIZES[page.size];
@@ -573,7 +581,7 @@ export async function exportDocx(json: JSONContent, page: PageSettings, title: s
       properties: {
         ...(index ? { type: SectionType.CONTINUOUS } : {}),
         ...(index === 0 && page.differentFirstPage ? { titlePage: true } : {}),
-        column: { count: body.columns, space: 480, equalWidth: true },
+        column: { count: body.columns, space: page.columnGap ? Math.round(page.columnGap * 15) : 480, equalWidth: true, ...(page.columnLine ? { separate: true } : {}) },
         page: {
           size: { width: size.width * TWIP, height: size.height * TWIP, orientation: landscape ? PageOrientation.LANDSCAPE : PageOrientation.PORTRAIT },
           margin: { top: page.margins.top * TWIP, right: page.margins.right * TWIP, bottom: page.margins.bottom * TWIP, left: page.margins.left * TWIP, header: 480, footer: 480 },

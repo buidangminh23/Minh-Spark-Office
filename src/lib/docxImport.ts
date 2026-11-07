@@ -1,6 +1,6 @@
 import JSZip from 'jszip';
 import { ommlToLatex } from './docxMath';
-import { defaultPage, PAGE_SIZES, type PageSettings } from './storage';
+import { basePage, PAGE_SIZES, type PageSettings } from './storage';
 
 const TWIP_PER_PX = 15;
 const EMU_PER_PX = 9525;
@@ -421,7 +421,7 @@ export async function importDocxFull(buffer: ArrayBuffer): Promise<{ html: strin
   if (!documentXml) throw new Error('Tệp không phải tài liệu Word hợp lệ.');
   const doc = parseXml(documentXml);
   const ctx: Context = { styles: new Map(), numbering: new Map(), rels: new Map(), media: new Map(), footnotes: new Map() };
-  const page = defaultPage();
+  const page = basePage();
 
   const stylesXml = await readText(zip, 'word/styles.xml');
   if (stylesXml) {

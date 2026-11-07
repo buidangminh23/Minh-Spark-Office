@@ -19,15 +19,18 @@ declare module '@tiptap/core' {
   }
 }
 
-export type DocListKind = 'tableOfContents' | 'figureList' | 'bibliography' | 'docIndex' | 'endnoteList';
-type DocRefsStorage = { sources: CitationSource[]; style: CitationStyle; listeners: Set<() => void> };
+export type DocListKind = 'tableOfContents' | 'figureList' | 'bibliography' | 'docIndex' | 'endnoteList' | 'authorityList';
+export type NoteFormat = 'decimal' | 'lower-alpha' | 'lower-roman' | 'symbol';
+export type NoteSettings = { foot: NoteFormat; start: number; restart: 'continuous' | 'page'; end: NoteFormat };
+type DocRefsStorage = { sources: CitationSource[]; style: CitationStyle; listeners: Set<() => void>; notes: NoteSettings };
+export type DocListLine = { text: string; level: number; page: number | null; pos: number | null; pageText?: string };
 
 export const getRefs = (editor: Editor) => (editor.storage as unknown as { docRefs: DocRefsStorage }).docRefs;
 
 export const DocRefs = Extension.create<Record<string, never>, DocRefsStorage>({
   name: 'docRefs',
   addStorage() {
-    return { sources: [], style: 'apa', listeners: new Set() };
+    return { sources: [], style: 'apa', listeners: new Set(), notes: { foot: 'decimal', start: 1, restart: 'continuous', end: 'lower-roman' } };
   },
   onUpdate() {
     this.storage.listeners.forEach((listener) => listener());
@@ -92,17 +95,17 @@ export function bibliographyEntry(source: CitationSource, style: CitationStyle, 
 }
 
 export function docListLines(editor: Editor, kind: DocListKind, attrs: Record<string, unknown>) {
-  const lines: { text: string; level: number; page: number | null; pos: number | null }[] = [];
+  const lines: DocListLine[] = [];
   const doc = editor.state.doc;
   const paged = Boolean(getPagination(editor).config);
   if (kind === 'tableOfContents') {
     const levels = Number(attrs.levels) || 3;
     doc.descendants((node, pos) => {
-      if (node.type.name === 'heading' && node.attrs.level <= levels && node.textContent.trim()) lines.push({ text: node.textContent, level: node.attrs.level, page: paged && attrs.showPages !== false ? pageAtPos(editor, pos) : null, pos });
+      if (node.type.name === 'heading' && node.attrs.level <= levels && !node.attrs.tocHide && node.textContent.trim()) lines.push({ text: node.textContent, level: node.attrs.level, page: paged && attrs.showPages !== false ? pageAtPos(editor, pos) : null, pos });
     });
   } else if (kind === 'figureList') {
     doc.descendants((node, pos) => {
-      if (node.attrs?.captionKind && (!attrs.captionKind || node.attrs.captionKind === attrs.captionKind)) lines.push({ text: node.textContent, level: 1, page: paged ? pageAtPos(editor, pos) : null, pos });
+      if (node.attrs?.captionKind && (!attrs.captionKind || node.attrs.captionKind === attrs.captionKind)) lines.push({ text: node.textContent, level: 1, page: paged && attrs.showPages !== false ? pageAtPos(editor, pos) : null, pos });
     });
   } else if (kind === 'bibliography') {
     const { sources, style } = getRefs(editor);
@@ -118,25 +121,78 @@ export function docListLines(editor: Editor, kind: DocListKind, attrs: Record<st
         map.get(term)!.add(pageAtPos(editor, pos));
       }
     });
-    [...map.entries()].sort((a, b) => a[0].localeCompare(b[0], 'vi')).forEach(([term, pages]) => lines.push({ text: `${term}  ${[...pages].sort((x, y) => x - y).join(', ')}`, level: 1, page: null, pos: null }));
+    let lastMain = '';
+    [...map.entries()].sort((a, b) => a[0].localeCompare(b[0], 'vi')).forEach(([term, pages]) => {
+      const list = [...pages].sort((x, y) => x - y).join(', ');
+      const split = term.indexOf(': ');
+      const main = split > 0 ? term.slice(0, split) : term;
+      const sub = split > 0 ? term.slice(split + 2) : '';
+      if (sub && main !== lastMain) lines.push({ text: main, level: 1, page: null, pos: null });
+      lastMain = main;
+      const label = sub || term;
+      if (attrs.rightPages) lines.push({ text: label, level: sub ? 2 : 1, page: null, pos: null, pageText: list });
+      else lines.push({ text: `${label}  ${list}`, level: sub ? 2 : 1, page: null, pos: null });
+    });
+  } else if (kind === 'authorityList') {
+    const groups = new Map<string, Map<string, Set<number>>>();
+    doc.descendants((node, pos) => {
+      if (node.type.name !== 'authorityEntry') return true;
+      const category = String(node.attrs.category || 'Khác');
+      if (attrs.category && attrs.category !== 'all' && attrs.category !== category) return false;
+      if (!groups.has(category)) groups.set(category, new Map());
+      const entries = groups.get(category)!;
+      const text = String(node.attrs.text);
+      if (!entries.has(text)) entries.set(text, new Set());
+      entries.get(text)!.add(pageAtPos(editor, pos));
+      return false;
+    });
+    [...groups.keys()].sort((a, b) => a.localeCompare(b, 'vi')).forEach((category) => {
+      if (attrs.category === 'all' || !attrs.category) lines.push({ text: category, level: 1, page: null, pos: null });
+      [...groups.get(category)!.entries()].sort((a, b) => a[0].localeCompare(b[0], 'vi')).forEach(([text, pages]) => {
+        const sorted = [...pages].sort((x, y) => x - y);
+        lines.push({ text, level: 2, page: null, pos: null, pageText: attrs.passim && sorted.length >= 5 ? 'passim' : sorted.join(', ') });
+      });
+    });
   } else {
     let n = 0;
     doc.descendants((node, pos) => {
       if (node.type.name === 'footnote' && node.attrs.kind === 'end') {
         n += 1;
-        lines.push({ text: `${toLowerRoman(n)}. ${node.attrs.text}`, level: 1, page: null, pos });
+        lines.push({ text: `${formatNote(n, getRefs(editor).notes.end)}. ${node.attrs.text}`, level: 1, page: null, pos });
       }
     });
   }
   return lines;
 }
 
+const NOTE_SYMBOLS = ['*', '†', '‡', '§', '¶'];
+
 const toLowerRoman = (value: number) => {
-  const table: [number, string][] = [[10, 'x'], [9, 'ix'], [5, 'v'], [4, 'iv'], [1, 'i']];
-  let rest = value;
+  const table: [number, string][] = [[1000, 'm'], [900, 'cm'], [500, 'd'], [400, 'cd'], [100, 'c'], [90, 'xc'], [50, 'l'], [40, 'xl'], [10, 'x'], [9, 'ix'], [5, 'v'], [4, 'iv'], [1, 'i']];
+  let rest = Math.max(1, value);
   let out = '';
   for (const [n, s] of table) while (rest >= n) { out += s; rest -= n; }
   return out;
+};
+
+const toLowerAlpha = (value: number) => {
+  let rest = Math.max(1, value);
+  let out = '';
+  while (rest > 0) {
+    rest -= 1;
+    out = String.fromCharCode(97 + (rest % 26)) + out;
+    rest = Math.floor(rest / 26);
+  }
+  return out;
+};
+
+export const formatNote = (value: number, format: NoteFormat) => {
+  switch (format) {
+    case 'lower-alpha': return toLowerAlpha(value);
+    case 'lower-roman': return toLowerRoman(value);
+    case 'symbol': return NOTE_SYMBOLS[(value - 1) % NOTE_SYMBOLS.length].repeat(Math.floor((value - 1) / NOTE_SYMBOLS.length) + 1);
+    default: return String(value);
+  }
 };
 
 const DOC_LIST_TITLES: Record<DocListKind, string> = {
@@ -145,6 +201,7 @@ const DOC_LIST_TITLES: Record<DocListKind, string> = {
   bibliography: 'TÀI LIỆU THAM KHẢO',
   docIndex: 'CHỈ MỤC',
   endnoteList: 'CHÚ THÍCH CUỐI',
+  authorityList: 'DANH MỤC VĂN BẢN VIỆN DẪN',
 };
 
 const DOC_LIST_EMPTY: Record<DocListKind, string> = {
@@ -153,11 +210,14 @@ const DOC_LIST_EMPTY: Record<DocListKind, string> = {
   bibliography: 'Chưa có trích dẫn nào. Dùng Tham chiếu → Chèn trích dẫn.',
   docIndex: 'Chưa có mục nào. Bôi chọn từ rồi dùng Tham chiếu → Đánh dấu mục.',
   endnoteList: 'Chưa có chú thích cuối.',
+  authorityList: 'Chưa có văn bản nào. Bôi chọn tên văn bản rồi dùng Tham chiếu → Đánh dấu viện dẫn.',
 };
 
 export const docListTitle = (kind: DocListKind) => DOC_LIST_TITLES[kind];
 
-const docListNode = (name: DocListKind, tag: string, extraAttrs: Record<string, unknown>) => Node.create({
+const COMMON_LIST_ATTRS = { showTitle: true, titleText: null, leader: 'dots', rightAlign: true, columns: 1 };
+
+const docListNode = (name: DocListKind, tag: string, ownAttrs: Record<string, unknown>) => { const extraAttrs: Record<string, unknown> = { ...COMMON_LIST_ATTRS, ...ownAttrs }; return Node.create({
   name,
   group: 'block',
   atom: true,
@@ -195,14 +255,20 @@ const docListNode = (name: DocListKind, tag: string, extraAttrs: Record<string, 
       };
       const render = () => {
         const lines = docListLines(editor, name, attrs);
-        const signature = JSON.stringify([lines.map((l) => [l.text, l.level, l.page]), attrs.dots]);
+        const signature = JSON.stringify([lines.map((l) => [l.text, l.level, l.page, l.pageText]), attrs]);
         if (dom.dataset.signature === signature) return;
         dom.dataset.signature = signature;
         dom.replaceChildren();
-        const title = document.createElement('div');
-        title.className = 'toc-title';
-        title.textContent = DOC_LIST_TITLES[name];
-        dom.appendChild(title);
+        dom.dataset.leader = String(attrs.leader ?? 'dots');
+        dom.dataset.right = String(attrs.rightAlign !== false);
+        dom.dataset.columns = String(attrs.columns ?? 1);
+        dom.style.columnCount = Number(attrs.columns) > 1 ? String(attrs.columns) : '';
+        if (attrs.showTitle !== false) {
+          const title = document.createElement('div');
+          title.className = 'toc-title';
+          title.textContent = String(attrs.titleText ?? DOC_LIST_TITLES[name]);
+          dom.appendChild(title);
+        }
         if (!lines.length) {
           const empty = document.createElement('div');
           empty.className = 'toc-empty';
@@ -218,12 +284,12 @@ const docListNode = (name: DocListKind, tag: string, extraAttrs: Record<string, 
           label.className = 'toc-text';
           label.textContent = line.text;
           row.appendChild(label);
-          if (line.page !== null) {
+          if (line.page !== null || line.pageText) {
             const dots = document.createElement('span');
             dots.className = 'toc-dots';
             const number = document.createElement('span');
             number.className = 'toc-page';
-            number.textContent = String(line.page);
+            number.textContent = line.pageText ?? String(line.page);
             row.append(dots, number);
           }
           const pos = line.pos;
@@ -252,7 +318,7 @@ const docListNode = (name: DocListKind, tag: string, extraAttrs: Record<string, 
       };
     };
   },
-});
+}); };
 
 export const TableOfContents = docListNode('tableOfContents', 'data-toc', { levels: 3, showPages: true }).extend({
   addCommands() {
@@ -261,10 +327,11 @@ export const TableOfContents = docListNode('tableOfContents', 'data-toc', { leve
     };
   },
 });
-export const FigureList = docListNode('figureList', 'data-figure-list', { captionKind: null });
+export const FigureList = docListNode('figureList', 'data-figure-list', { captionKind: null, showPages: true });
 export const Bibliography = docListNode('bibliography', 'data-bibliography', { all: false });
-export const DocIndex = docListNode('docIndex', 'data-doc-index', {});
+export const DocIndex = docListNode('docIndex', 'data-doc-index', { rightPages: false });
 export const EndnoteList = docListNode('endnoteList', 'data-endnote-list', {});
+export const AuthorityList = docListNode('authorityList', 'data-authority-list', { category: 'all', passim: true });
 
 export const TextStyleExtras = Extension.create({
   name: 'textStyleExtras',

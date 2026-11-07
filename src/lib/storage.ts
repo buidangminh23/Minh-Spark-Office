@@ -46,11 +46,12 @@ export type CitationSource = {
   pages?: string;
 };
 
-export type InkStroke = { id: string; color: string; width: number; opacity: number; points: number[] };
+export type InkKind = 'pen' | 'pencil' | 'highlighter' | 'fountain' | 'galaxy' | 'action';
+export type InkStroke = { id: string; color: string; width: number; opacity: number; points: number[]; kind?: InkKind; shape?: boolean };
 export type DocProperties = { author?: string; subject?: string; keywords?: string; company?: string };
 
 export type PageSettings = {
-  size: 'A4' | 'A5' | 'Letter' | 'Legal';
+  size: 'A4' | 'A5' | 'Letter' | 'Legal' | 'A3' | 'A6' | 'B5' | 'Executive' | 'Tabloid';
   orientation: 'portrait' | 'landscape';
   margins: { top: number; right: number; bottom: number; left: number };
   header: string;
@@ -59,7 +60,31 @@ export type PageSettings = {
   watermark?: string;
   pageColor?: string;
   columns?: number;
-  pageBorder?: 'none' | 'single' | 'double' | 'shadow';
+  pageBorder?: 'none' | 'single' | 'double' | 'shadow' | 'dashed' | 'dotted' | 'thick';
+  pageBorderColor?: string;
+  pageBorderWidth?: number;
+  mirrorMargins?: boolean;
+  columnGap?: number;
+  columnLine?: boolean;
+  background?: 'none' | 'ruled-narrow' | 'ruled-wide' | 'grid-small' | 'grid-large' | 'dots';
+  watermarkOptions?: { kind?: 'text' | 'image'; image?: string; color?: string; size?: number; layout?: 'diagonal' | 'horizontal'; opacity?: number; font?: string };
+  lineNumberMode?: 'continuous' | 'page' | 'section';
+  lineNumberStep?: number;
+  hyphenMode?: 'none' | 'auto' | 'manual';
+  gutter?: number;
+  verticalAlign?: 'top' | 'center' | 'justify' | 'bottom';
+  effect?: string;
+  themeId?: string;
+  colorsId?: string;
+  fontsId?: string;
+  spacingId?: string;
+  footnoteFormat?: 'decimal' | 'lower-alpha' | 'lower-roman' | 'symbol';
+  footnoteStart?: number;
+  footnoteRestart?: 'continuous' | 'page';
+  endnoteFormat?: 'decimal' | 'lower-alpha' | 'lower-roman' | 'symbol';
+  protectMode?: 'readonly' | 'tracked' | 'comments';
+  trackColors?: { insertion?: string; deletion?: string };
+  trackLock?: string;
   lineNumbers?: boolean;
   hyphenate?: boolean;
   fontFamily?: string;
@@ -146,9 +171,16 @@ export const PAGE_SIZES: Record<PageSettings['size'], { width: number; height: n
   A5: { width: 559, height: 794, label: 'A5 (14,8 × 21 cm)' },
   Letter: { width: 816, height: 1056, label: 'Letter (8,5 × 11 in)' },
   Legal: { width: 816, height: 1344, label: 'Legal (8,5 × 14 in)' },
+  A3: { width: 1123, height: 1587, label: 'A3 (29,7 × 42 cm)' },
+  A6: { width: 397, height: 559, label: 'A6 (10,5 × 14,8 cm)' },
+  B5: { width: 665, height: 945, label: 'B5 (17,6 × 25 cm)' },
+  Executive: { width: 696, height: 1008, label: 'Executive (7,25 × 10,5 in)' },
+  Tabloid: { width: 1056, height: 1632, label: 'Tabloid (11 × 17 in)' },
 };
 
-export const defaultPage = (): PageSettings => ({
+export const DEFAULT_PAGE_KEY = 'minh-docs-default-page';
+
+export const basePage = (): PageSettings => ({
   size: 'A4',
   orientation: 'portrait',
   margins: { top: 96, right: 96, bottom: 96, left: 96 },
@@ -156,6 +188,17 @@ export const defaultPage = (): PageSettings => ({
   footer: '',
   pageNumbers: true,
 });
+
+const storedDefaultPage = (): Partial<PageSettings> => {
+  if (typeof localStorage === 'undefined') return {};
+  try {
+    return JSON.parse(localStorage.getItem(DEFAULT_PAGE_KEY) ?? '{}') as Partial<PageSettings>;
+  } catch {
+    return {};
+  }
+};
+
+export const defaultPage = (): PageSettings => ({ ...basePage(), ...storedDefaultPage() });
 
 export function createWorkspaceStorage(userId: string | null) {
   const store = createStore(userId ? `minh-office-user:${userId}` : 'minh-office', 'workspace');

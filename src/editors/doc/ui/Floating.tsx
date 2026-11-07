@@ -1,9 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Bold, ChevronDown, ChevronUp, ClipboardPaste, Code, Copy, Heading1, Heading2, Heading3, Highlighter, Image as ImageIcon, Italic, Link2, List, ListOrdered, ListTodo, ListTree, MessageSquarePlus, Minus, Quote, Scissors, Sparkles, Strikethrough, Table, Type, Underline, X, Calendar, ScissorsLineDashed, BarChart3, Languages, Settings2, Trash2, FileText } from 'lucide-react';
+import { Bookmark, BookText, Download, Globe, ListX, RotateCw, Search, Bold, ChevronDown, ChevronUp, ClipboardPaste, Code, Copy, Heading1, Heading2, Heading3, Highlighter, Image as ImageIcon, Italic, Link2, List, ListOrdered, ListTodo, ListTree, MessageSquarePlus, Minus, Quote, Scissors, Sparkles, Strikethrough, Table, Type, Underline, X, Calendar, ScissorsLineDashed, BarChart3, Languages, Settings2, Trash2, FileText } from 'lucide-react';
 import { useEditorState } from '@tiptap/react';
 import { searchKey } from '../search';
 import { useDoc } from '../DocContext';
-import { addComment, copySelection, editLink, imageSettings, insertDateTime, insertFootnote, insertImageFromDevice, paragraphSettings, pastePlainText, pasteRich } from '../actions';
+import { addComment, copySelection, editLink, imageSettings, insertDateTime, insertFootnote, insertImageFromDevice, pastePlainText, pasteRich } from '../actions';
 
 export function FindBar() {
   const { editor, view, setView } = useDoc();
@@ -102,6 +102,15 @@ export function SelectionBubble() {
   );
 }
 
+const saveImageAs = (ctx: ReturnType<typeof useDoc>) => {
+  const { src, alt } = ctx.editor.getAttributes('image');
+  if (!src) return;
+  const link = document.createElement('a');
+  link.href = String(src);
+  link.download = `${String(alt || 'anh').replace(/[\\/:*?"<>|]/g, '-').slice(0, 60)}.${String(src).startsWith('data:image/svg') ? 'svg' : 'png'}`;
+  link.click();
+};
+
 type MenuEntry = { label: string; icon: React.ReactNode; hint?: string; run: () => void; danger?: boolean } | 'sep';
 
 export function ContextMenu({ at, onClose }: { at: { x: number; y: number }; onClose: () => void }) {
@@ -121,13 +130,21 @@ export function ContextMenu({ at, onClose }: { at: { x: number; y: number }; onC
   const onImage = editor.isActive('image');
   const onLink = editor.isActive('link');
   const chain = () => editor.chain().focus();
+  const { from: selFrom, to: selTo, empty: selEmpty } = editor.state.selection;
+  const selected = selEmpty ? '' : editor.state.doc.textBetween(selFrom, selTo, ' ').trim().slice(0, 200);
   const entries: MenuEntry[] = [
     { label: 'Cắt', icon: <Scissors size={14} />, hint: 'Ctrl+X', run: () => copySelection(ctx, true) },
     { label: 'Sao chép', icon: <Copy size={14} />, hint: 'Ctrl+C', run: () => copySelection(ctx, false) },
     { label: 'Dán', icon: <ClipboardPaste size={14} />, hint: 'Ctrl+V', run: () => void pasteRich(ctx) },
     { label: 'Dán chỉ lấy chữ', icon: <Type size={14} />, hint: 'Ctrl+Shift+V', run: () => void pastePlainText(ctx) },
     'sep',
-    ...(onImage ? [{ label: 'Định dạng ảnh…', icon: <Settings2 size={14} />, run: () => void imageSettings(ctx) }, { label: 'Xoá ảnh', icon: <Trash2 size={14} />, run: () => chain().deleteSelection().run(), danger: true }, 'sep' as const] : []),
+    ...(onImage ? [
+      { label: 'Định dạng ảnh…', icon: <Settings2 size={14} />, run: () => void imageSettings(ctx) },
+      { label: 'Sửa ảnh: cắt, xoay, chỉnh màu…', icon: <RotateCw size={14} />, run: () => ctx.openDialog('imageedit') },
+      { label: 'Lưu thành ảnh', icon: <Download size={14} />, run: () => saveImageAs(ctx) },
+      { label: 'Xoá ảnh', icon: <Trash2 size={14} />, run: () => chain().deleteSelection().run(), danger: true },
+      'sep' as const,
+    ] : []),
     ...(inTable ? [
       { label: 'Chèn hàng phía trên', icon: <Table size={14} />, run: () => chain().addRowBefore().run() },
       { label: 'Chèn hàng phía dưới', icon: <Table size={14} />, run: () => chain().addRowAfter().run() },
@@ -141,10 +158,22 @@ export function ContextMenu({ at, onClose }: { at: { x: number; y: number }; onC
     ] : []),
     { label: onLink ? 'Sửa liên kết…' : 'Liên kết…', icon: <Link2 size={14} />, hint: 'Ctrl+K', run: () => void editLink(ctx) },
     ...(onLink ? [{ label: 'Mở liên kết', icon: <Link2 size={14} />, run: () => window.open(editor.getAttributes('link').href, '_blank', 'noopener') }, { label: 'Bỏ liên kết', icon: <X size={14} />, run: () => chain().extendMarkRange('link').unsetLink().run() }] : []),
+    ...(onLink ? [{ label: 'Sao chép liên kết', icon: <Copy size={14} />, run: () => void navigator.clipboard?.writeText(String(editor.getAttributes('link').href ?? '')) }] : []),
+    { label: 'Dấu trang…', icon: <Bookmark size={14} />, run: () => ctx.openDialog('bookmarks') },
     { label: 'Bình luận mới', icon: <MessageSquarePlus size={14} />, hint: 'Ctrl+Alt+M', run: () => void addComment(ctx) },
     { label: 'Chú thích cuối trang', icon: <FileText size={14} />, run: () => void insertFootnote(ctx) },
     'sep',
-    { label: 'Đoạn văn…', icon: <Settings2 size={14} />, run: () => void paragraphSettings(ctx) },
+    { label: 'Phông chữ…', icon: <Type size={14} />, hint: 'Ctrl+D', run: () => ctx.openDialog('font') },
+    { label: 'Đoạn văn…', icon: <Settings2 size={14} />, run: () => ctx.openDialog('paragraph') },
+    { label: 'Dấu đầu dòng', icon: <List size={14} />, run: () => chain().toggleBulletList().run() },
+    { label: 'Đánh số', icon: <ListOrdered size={14} />, run: () => chain().toggleOrderedList().run() },
+    { label: 'Kiểu…', icon: <ListX size={14} />, run: () => ctx.openDialog('style') },
+    'sep',
+    ...(selected ? [
+      { label: 'Tìm trên web', icon: <Globe size={14} />, run: () => window.open(`https://www.google.com/search?q=${encodeURIComponent(selected)}`, '_blank', 'noopener') },
+      { label: 'Tìm trong tài liệu', icon: <Search size={14} />, run: () => ctx.setView({ showFind: true, findReplace: false }) },
+      { label: 'Từ đồng nghĩa', icon: <BookText size={14} />, hint: 'Shift+F7', run: () => ctx.setView({ sidePanel: 'thesaurus' }) },
+    ] : []),
     { label: 'Minh AI…', icon: <Sparkles size={14} />, run: () => ctx.openDialog('ai') },
     { label: 'Dịch…', icon: <Languages size={14} />, run: () => ctx.openDialog('translate') },
   ];

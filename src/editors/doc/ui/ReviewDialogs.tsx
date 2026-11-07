@@ -10,7 +10,9 @@ export function ProofreadDialog({ onClose }: { onClose: () => void }) {
   const { editor, ui } = useDoc();
   const [issues, setIssues] = useState<ProofIssue[]>(() => proofread(editor.state.doc));
   const [ignored, setIgnored] = useState<Set<string>>(new Set());
-  const visible = issues.filter((i) => !ignored.has(i.id));
+  const [kind, setKind] = useState<ProofIssue['kind'] | 'all'>('all');
+  const open = issues.filter((i) => !ignored.has(i.id));
+  const visible = open.filter((i) => kind === 'all' || i.kind === kind);
   const stats = useMemo(() => textStats(editor.getText({ blockSeparator: '\n' })), [editor, issues]);
   const recheck = () => setIssues(proofread(editor.state.doc));
   const select = (issue: ProofIssue) => editor.chain().focus().setTextSelection({ from: issue.from, to: issue.to }).scrollIntoView().run();
@@ -21,6 +23,9 @@ export function ProofreadDialog({ onClose }: { onClose: () => void }) {
     editor.chain().focus().insertContentAt({ from: issue.from, to: issue.to }, issue.suggestion).run();
     recheck();
   };
+  const perKind = { spelling: open.filter((i) => i.kind === 'spelling').length, grammar: open.filter((i) => i.kind === 'grammar').length, style: open.filter((i) => i.kind === 'style').length };
+  const score = Math.max(0, Math.round(100 - ((perKind.spelling * 5 + perKind.grammar * 4 + perKind.style * 2) / Math.max(1, stats.words)) * 100));
+  const scoreColor = score >= 85 ? '#107c41' : score >= 60 ? '#d98e04' : '#d7473c';
   const fixAll = () => {
     const fixable = visible.filter((i) => i.suggestion !== null).sort((a, b) => b.from - a.from);
     let last = Infinity;
@@ -38,7 +43,14 @@ export function ProofreadDialog({ onClose }: { onClose: () => void }) {
   return (
     <Modal title="Chính tả & ngữ pháp" subtitle={`${visible.length} vấn đề · độ dễ đọc ${stats.readability}/100 · ${stats.words.toLocaleString('vi-VN')} từ · câu trung bình ${stats.avgSentence.toFixed(1)} từ`} icon={<SpellCheck size={20} />} onClose={onClose} width={680}
       actions={<><button className="btn" onClick={recheck}>Kiểm tra lại</button><button className="btn btn-primary" disabled={!visible.some((i) => i.suggestion !== null)} onClick={fixAll}>Sửa tất cả lỗi có gợi ý</button></>}>
-      {visible.length === 0 ? <div className="empty-note">Không phát hiện lỗi nào. Văn bản sạch.</div> : (
+      <div className="editor-score">
+        <div className="editor-score-value" style={{ '--score-color': scoreColor } as React.CSSProperties} aria-label={`Điểm ${score} trên 100`}>{score}</div>
+        <div className="editor-score-filters">
+          <button type="button" className={`editor-score-filter ${kind === 'all' ? 'on' : ''}`} onClick={() => setKind('all')}>Tất cả ({open.length})</button>
+          {(Object.keys(KIND) as ProofIssue['kind'][]).map((item) => <button key={item} type="button" className={`editor-score-filter ${kind === item ? 'on' : ''}`} onClick={() => setKind(item)}>{KIND[item]} ({perKind[item]})</button>)}
+        </div>
+      </div>
+      {visible.length === 0 ? <div className="empty-note">{open.length ? 'Không có lỗi nào trong nhóm này.' : 'Không phát hiện lỗi nào. Văn bản sạch.'}</div> : (
         <div className="issue-list">
           {visible.map((issue) => (
             <div key={issue.id} className={`issue-card ${issue.kind}`} onClick={() => select(issue)}>

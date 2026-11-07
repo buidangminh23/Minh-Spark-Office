@@ -1,0 +1,51 @@
+.ink-layer.pen-only { pointer-events: none; touch-action: pan-y pinch-zoom; }
+.ink-layer.active.tool-select, .ink-layer.active.tool-lasso { cursor: default; }
+.ink-layer.active.tool-lasso { cursor: crosshair; }
+.ink-layer.active.tool-eraser { cursor: cell; }
+.ink-layer .ink-selection { fill: rgba(91, 141, 239, 0.08); stroke: #2b579a; stroke-width: 1; stroke-dasharray: 5 3; cursor: move; pointer-events: none; }
+.ink-layer .ink-lasso { fill: rgba(91, 141, 239, 0.1); stroke: #2b579a; stroke-width: 1; stroke-dasharray: 4 3; pointer-events: none; }
+
+.ink-ruler { pointer-events: auto; }
+.ink-ruler-body { fill: rgba(241, 245, 249, 0.82); stroke: #64748b; stroke-width: 1; cursor: grab; }
+.ink-ruler-body:active { cursor: grabbing; }
+.ink-ruler-tick { stroke: #475569; stroke-width: 1; pointer-events: none; }
+.ink-ruler-text { font: 10px Arial, sans-serif; fill: #334155; pointer-events: none; user-select: none; }
+.ink-ruler-angle { font: 600 12px Arial, sans-serif; fill: #1e293b; pointer-events: none; user-select: none; }
+.ink-ruler-handle { fill: #ffffff; stroke: #2b579a; stroke-width: 2; cursor: grab; }
+
+.ink-tool-host { display: flex; }
+.ribbon-btn-large.ink-pen-btn { min-width: 30px; padding-inline: 3px; justify-content: center; }
+.ink-pen-gallery { display: flex; align-items: stretch; gap: 1px; max-width: 420px; overflow-x: auto; }
+.ink-pen-menu { padding-block: 4px; }
+.ink-width-row { display: flex; gap: 4px; padding: 4px 8px; }
+.ink-width-choice { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 4px; }
+.ink-width-choice span { display: block; border-radius: 50%; box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.18); }
+.ink-width-choice:hover, .ink-width-choice.on { background: #e1e8f5; }
+.ink-color-grid { grid-template-columns: repeat(6, 1fr); padding: 4px 8px; }
+.color-swatch.selected { outline: 2px solid #2b579a; outline-offset: 1px; }
+
+.doc-paper.bg-ruled-narrow .page-sheet, .doc-paper.flowing.bg-ruled-narrow { background-image: repeating-linear-gradient(to bottom, transparent 0 23px, #bfd0e6 23px 24px); }
+.doc-paper.bg-ruled-wide .page-sheet, .doc-paper.flowing.bg-ruled-wide { background-image: repeating-linear-gradient(to bottom, transparent 0 31px, #bfd0e6 31px 32px); }
+.doc-paper.bg-grid-small .page-sheet, .doc-paper.flowing.bg-grid-small { background-image: linear-gradient(to right, #d7e0ec 1px, transparent 1px), linear-gradient(to bottom, #d7e0ec 1px, transparent 1px); background-size: 16px 16px; }
+.doc-paper.bg-grid-large .page-sheet, .doc-paper.flowing.bg-grid-large { background-image: linear-gradient(to right, #d7e0ec 1px, transparent 1px), linear-gradient(to bottom, #d7e0ec 1px, transparent 1px); background-size: 32px 32px; }
+.doc-paper.bg-dots .page-sheet, .doc-paper.flowing.bg-dots { background-image: radial-gradient(circle, #9fb0c6 1px, transparent 1.4px); background-size: 16px 16px; }
+
+.ink-math-canvas { display: block; width: 100%; height: auto; border: 1px solid #cbd5e1; border-radius: 6px; background: #ffffff; cursor: crosshair; touch-action: none; }
+.ink-math-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-block: 8px; }
+.ink-math-actions .spacer { flex: 1; }
+.ink-math-note { margin: 0 0 8px; font-size: 12.5px; color: #475569; }
+.ink-math-note.error { color: #b3261e; }
+
+.ink-help-list { display: grid; gap: 8px; margin: 0; }
+.ink-help-list dt { font-weight: 600; font-size: 13px; }
+.ink-help-list dd { margin: 2px 0 0; font-size: 13px; color: #475569; }
+
+.ink-replay-bar { position: fixed; left: 50%; bottom: 40px; transform: translateX(-50%); z-index: 60; display: flex; align-items: center; gap: 8px; width: min(440px, calc(100vw - 32px)); padding: 8px 12px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18); }
+.ink-replay-bar input[type='range'] { flex: 1; min-width: 0; }
+.ink-replay-value { min-width: 38px; font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; color: #475569; }
+
+@media print {
+  .ink-layer .ink-ui, .ink-replay-bar { display: none !important; }
+  .page-sheet { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .doc-paper.flowing[class*='bg-'] { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

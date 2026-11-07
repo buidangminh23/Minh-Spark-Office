@@ -93,13 +93,13 @@ export function GoToDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
-const htmlToText = (html: string, editor: Editor) => {
+export const htmlToText = (html: string, editor: Editor) => {
   const body = new DOMParser().parseFromString(html, 'text/html').body;
   const node = ProseMirrorParser.fromSchema(editor.schema).parse(body);
   return getText(node, { blockSeparator: '\n', textSerializers: getTextSerializersFromSchema(editor.schema) });
 };
 
-const docxToHtml = async (buffer: ArrayBuffer) => (await importDocxFull(buffer).catch(async () => ({ html: await importDocx(buffer) }))).html;
+export const docxToHtml = async (buffer: ArrayBuffer) => (await importDocxFull(buffer).catch(async () => ({ html: await importDocx(buffer) }))).html;
 
 export function CompareDialog({ onClose }: { onClose: () => void }) {
   const { editor, ui } = useDoc();

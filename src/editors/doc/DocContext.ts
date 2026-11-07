@@ -3,12 +3,18 @@ import type { Editor } from '@tiptap/react';
 import type { CommentItem, FileMeta, PageSettings, WorkspaceStorage } from '../../lib/storage';
 import type { useUi } from '../../components/ui';
 
-export type ViewMode = 'print' | 'web' | 'read';
+export type ViewMode = 'print' | 'web' | 'read' | 'outline' | 'draft';
 export type EditMode = 'editing' | 'suggesting' | 'viewing';
-export type SidePanel = 'comments' | 'changes' | null;
-export type DialogId = 'history' | 'mailmerge' | 'shortcuts' | 'signature' | 'ai' | 'translate' | 'proofread' | 'chart' | 'templates' | 'symbols' | 'wordcount' | 'backstage' | 'tablegrid' | 'headerfooter' | 'font' | 'paragraph' | 'style' | 'equation' | 'qr' | 'drawing' | 'imageedit' | 'citations' | 'crossref' | 'accessibility' | 'goto' | 'compare';
+export type SidePanel = 'comments' | 'changes' | 'selection' | 'thesaurus' | 'restrict' | null;
+export type DialogId = 'history' | 'mailmerge' | 'shortcuts' | 'signature' | 'ai' | 'translate' | 'proofread' | 'chart' | 'templates' | 'symbols' | 'wordcount' | 'backstage' | 'tablegrid' | 'headerfooter' | 'font' | 'paragraph' | 'style' | 'equation' | 'qr' | 'drawing' | 'imageedit' | 'citations' | 'crossref' | 'accessibility' | 'goto' | 'compare'
+  | 'smartart' | 'wordart' | 'icons' | 'model3d' | 'video' | 'object' | 'bookmarks' | 'quickparts' | 'fields' | 'drawtable' | 'dropcap' | 'datetime' | 'esign' | 'pagenumber'
+  | 'inkmath' | 'inkhelp'
+  | 'pagesetup' | 'columns' | 'watermark' | 'pageborders' | 'themecolors' | 'themefonts' | 'linenumbers' | 'wrapoptions'
+  | 'footnotes' | 'toc' | 'tableoffigures' | 'insertindex' | 'toa' | 'markcitation' | 'sources' | 'trackoptions' | 'markupfilter' | 'readability' | 'combine'
+  | 'zoom' | 'macros' | 'sidebyside' | 'autocorrect' | 'immersive' | 'commandpalette';
 
-export type InkTool = 'pen' | 'highlighter' | 'eraser';
+export type InkTool = 'pen' | 'highlighter' | 'eraser' | 'select' | 'lasso';
+export type MarkupMode = 'all' | 'simple' | 'none' | 'original';
 export type EditingNode = { pos: number; attrs: Record<string, unknown> };
 
 export type ViewState = {
@@ -29,6 +35,26 @@ export type ViewState = {
   sidePanel: SidePanel;
   showFind: boolean;
   findReplace: boolean;
+  hideInk: boolean;
+  inkInput: 'any' | 'pen';
+  inkEraser: 'stroke' | 'point';
+  inkToShape: boolean;
+  inkRuler: { x: number; y: number; angle: number } | null;
+  inkReplay: number | null;
+  penId: string | null;
+  pageMove: 'vertical' | 'side';
+  splitView: boolean;
+  sideBySide: string | null;
+  syncScroll: boolean;
+  outlineLevel: number;
+  markup: MarkupMode;
+  markupComments: boolean;
+  markupInsDel: boolean;
+  markupFormatting: boolean;
+  markupAuthor: string | null;
+  reviewPane: 'none' | 'vertical' | 'horizontal';
+  commentsMode: 'contextual' | 'list';
+  recording: boolean;
 };
 
 export type MergeData = { headers: string[]; rows: Record<string, string>[]; source: string };
@@ -48,6 +74,7 @@ export type DocCtx = {
   activeCommentId: string | null;
   setActiveCommentId: (id: string | null) => void;
   openDialog: (id: DialogId) => void;
+  setTab: (id: string) => void;
   editing: EditingNode | null;
   setEditing: (node: EditingNode | null) => void;
   editingStyle: string | null;
