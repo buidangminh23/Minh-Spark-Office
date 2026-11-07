@@ -119,6 +119,11 @@ import {
   Snowflake,
   FileJson,
   FileText,
+  CornerDownRight,
+  CornerUpRight,
+  FileCode,
+  Tv,
+  Zap,
 } from 'lucide-react';
 
 import {
@@ -264,6 +269,34 @@ interface MacroExecutionRecord {
   time: number;
 }
 
+export interface AuditTraceItem {
+  ref: string;
+  row: number;
+  col: number;
+  endRow?: number;
+  endCol?: number;
+  formula?: string;
+  displayValue: string;
+}
+
+export interface AuditTraceInfo {
+  mode: 'precedents' | 'dependents';
+  cellA1: string;
+  formula: string;
+  items: AuditTraceItem[];
+}
+
+export interface WatchedCellItem {
+  id: string;
+  sheetName: string;
+  a1: string;
+  row: number;
+  col: number;
+  label: string;
+  value: string;
+  formula: string;
+}
+
 const DEFAULT_PRINT_SETTINGS: SheetPrintSettings = {
   orientation: 'landscape',
   paperSize: 'A4',
@@ -367,6 +400,21 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
   const [isProtected, setIsProtected] = useState(false);
   const [cfRuleCount, setCfRuleCount] = useState(0);
   const [definedNames, setDefinedNames] = useState<DefinedNameEntry[]>([]);
+  const [auditTrace, setAuditTrace] = useState<AuditTraceInfo | null>(null);
+  const [showFormulasMode, setShowFormulasMode] = useState(false);
+  const [showWatchWindow, setShowWatchWindow] = useState(false);
+  const [watchList, setWatchList] = useState<WatchedCellItem[]>(() => {
+    try {
+      const stored = localStorage.getItem(`sheet-watch-${meta.id}`);
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+  const watchListRef = useRef(watchList);
+  useEffect(() => {
+    watchListRef.current = watchList;
+  }, [watchList]);
 
   const [selStats, setSelStats] = useState<SelectionStats>({
     count: 0,
@@ -478,7 +526,7 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
   const syncUiFromSelection = useCallback(() => {
     const ctx = getActiveContext();
     if (!ctx) return;
-    const { fWorksheet, fRange } = ctx;
+    const { fWorkbook, fWorksheet, fRange } = ctx;
     try {
       const rawRange = fRange.getRange();
       const cellA1 = formatA1Cell(rawRange.startRow, rawRange.startColumn);
@@ -555,6 +603,26 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
         min: numericCount > 0 ? min : 0,
         max: numericCount > 0 ? max : 0,
       });
+
+      if (watchListRef.current.length > 0) {
+        setWatchList((prev) =>
+          prev.map((w) => {
+            try {
+              const targetSheet = fWorkbook.getSheetByName(w.sheetName) || fWorksheet;
+              const cellRange = targetSheet.getRange(w.row, w.col, 1, 1);
+              const v = cellRange.getValue();
+              const f = cellRange.getFormula();
+              return {
+                ...w,
+                value: v === null || v === undefined ? '(Trống)' : String(v),
+                formula: f || '',
+              };
+            } catch {
+              return w;
+            }
+          })
+        );
+      }
     } catch {
       return;
     }
@@ -1621,6 +1689,339 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
     [getActiveContext, ui]
   );
 
+  const handleFlashFill = useCallback(() => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const { fWorksheet, fRange } = ctx;
+    const r = fRange.getRange();
+    const targetCol = r.startColumn;
+    const startRow = r.startRow;
+
+    if (targetCol <= 0) {
+      ui.toast('Flash Fill cần ít nhất một cột dữ liệu nguồn nằm ở bên trái cột đích.', true);
+      return;
+    }
+
+    const sourceCol = targetCol - 1;
+    let sampleVal = String(fWorksheet.getRange(startRow, targetCol, 1, 1).getValue() ?? '').trim();
+    let sampleRow = startRow;
+    if (!sampleVal && startRow > 0) {
+      sampleVal = String(fWorksheet.getRange(startRow - 1, targetCol, 1, 1).getValue() ?? '').trim();
+      sampleRow = startRow - 1;
+    }
+
+    if (!sampleVal) {
+      ui.toast('Hãy nhập một giá trị mẫu vào ô đầu tiên (ví dụ: tách Họ Tên, mã số, viết hoa, định dạng) trước khi nhấn Flash Fill (Ctrl + E).', true);
+      return;
+    }
+
+    const sourceSample = String(fWorksheet.getRange(sampleRow, sourceCol, 1, 1).getValue() ?? '').trim();
+    if (!sourceSample) {
+      ui.toast('Không tìm thấy dữ liệu nguồn tương ứng ở cột bên trái.', true);
+      return;
+    }
+
+    type RuleFn = (src: string) => string;
+    let rule: RuleFn | null = null;
+    let ruleDesc = 'theo mẫu';
+
+    const sourceWords = sourceSample.split(/\s+/);
+
+    if (sourceSample.toUpperCase() === sampleVal && sourceSample !== sampleVal) {
+      rule = (s) => s.toUpperCase();
+      ruleDesc = 'VIẾT HOA TOÀN BỘ';
+    } else if (sourceSample.toLowerCase() === sampleVal && sourceSample !== sampleVal) {
+      rule = (s) => s.toLowerCase();
+      ruleDesc = 'viết thường toàn bộ';
+    } else if (sourceWords[0] === sampleVal) {
+      rule = (s) => s.split(/\s+/)[0] || '';
+      ruleDesc = 'Lấy từ đầu tiên (Họ/Mã đầu)';
+    } else if (sourceWords[sourceWords.length - 1] === sampleVal) {
+      rule = (s) => {
+        const parts = s.split(/\s+/);
+        return parts[parts.length - 1] || '';
+      };
+      ruleDesc = 'Lấy từ cuối cùng (Tên/Mã cuối)';
+    } else if (sourceWords.slice(1, -1).join(' ') === sampleVal && sourceWords.length > 2) {
+      rule = (s) => s.split(/\s+/).slice(1, -1).join(' ');
+      ruleDesc = 'Lấy phần đệm giữa';
+    } else if (sourceSample.replace(/\D/g, '') === sampleVal.replace(/\D/g, '') && sampleVal.includes('-')) {
+      rule = (s) => {
+        const digits = s.replace(/\D/g, '');
+        if (digits.length === 10) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+        if (digits.length === 11) return `${digits.slice(0, 4)}-${digits.slice(4, 7)}-${digits.slice(7)}`;
+        return digits;
+      };
+      ruleDesc = 'Định dạng số điện thoại / Mã số';
+    } else if (sampleVal.includes('@') && !sourceSample.includes('@')) {
+      const domain = sampleVal.slice(sampleVal.indexOf('@'));
+      rule = (s) => s.toLowerCase().replace(/\s+/g, '.') + domain;
+      ruleDesc = 'Tạo email từ tên';
+    } else if (sourceSample.includes(sampleVal)) {
+      const startIdx = sourceSample.indexOf(sampleVal);
+      const len = sampleVal.length;
+      rule = (s) => s.slice(startIdx, startIdx + len);
+      ruleDesc = 'Trích xuất chuỗi con tương ứng';
+    } else {
+      const pIdx = sampleVal.indexOf(sourceSample);
+      if (pIdx >= 0) {
+        const prefix = sampleVal.slice(0, pIdx);
+        const suffix = sampleVal.slice(pIdx + sourceSample.length);
+        rule = (s) => `${prefix}${s}${suffix}`;
+        ruleDesc = 'Ghép tiền tố / hậu tố mẫu';
+      }
+    }
+
+    if (!rule) {
+      rule = (s) => s.split(/\s+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+      ruleDesc = 'Viết hoa chữ cái đầu';
+    }
+
+    const maxScanRows = 500;
+    let endRow = sampleRow + 1;
+    while (endRow < sampleRow + maxScanRows) {
+      const nextSrc = fWorksheet.getRange(endRow, sourceCol, 1, 1).getValue();
+      if (nextSrc === null || nextSrc === undefined || String(nextSrc).trim() === '') break;
+      endRow++;
+    }
+
+    const rowCount = endRow - (sampleRow + 1);
+    if (rowCount <= 0) {
+      ui.toast('Không có dòng tiếp theo ở cột bên trái để điền dữ liệu.', true);
+      return;
+    }
+
+    const filledValues: string[][] = [];
+    for (let rIdx = sampleRow + 1; rIdx < endRow; rIdx++) {
+      const srcVal = String(fWorksheet.getRange(rIdx, sourceCol, 1, 1).getValue() ?? '').trim();
+      filledValues.push([rule(srcVal)]);
+    }
+
+    fWorksheet.getRange(sampleRow + 1, targetCol, rowCount, 1).setValues(filledValues);
+    setSavedStatus('saving');
+    ui.toast(`Đã điền thông minh (Flash Fill) cho ${rowCount} dòng ${ruleDesc}`);
+  }, [getActiveContext, ui]);
+
+  const handleTracePrecedents = useCallback(() => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const formula = ctx.fRange.getFormula();
+    if (!formula) {
+      ui.toast(`Ô ${activeCellA1} không chứa công thức. Hãy chọn ô có công thức (ví dụ: =SUM(B3:D7)) để truy vết tiền đề.`, true);
+      return;
+    }
+
+    const refRegex = /(?:([A-Za-z0-9_]+)!)?\$?([A-Za-z]+)\$?(\d+)(?::\$?([A-Za-z]+)\$?(\d+))?/g;
+    const matches = [...formula.matchAll(refRegex)];
+    const items: AuditTraceItem[] = [];
+    const seenRefs = new Set<string>();
+
+    for (const m of matches) {
+      const fullRef = m[0].replace(/\$/g, '');
+      if (seenRefs.has(fullRef)) continue;
+      seenRefs.add(fullRef);
+
+      const parsed = parseA1Range(fullRef);
+      if (parsed) {
+        const rows = parsed.endRow - parsed.startRow + 1;
+        const cols = parsed.endColumn - parsed.startColumn + 1;
+        const targetRange = ctx.fWorksheet.getRange(parsed.startRow, parsed.startColumn, rows, cols);
+        const vals = targetRange.getRawValues();
+        let displayVal = '';
+        if (rows === 1 && cols === 1) {
+          displayVal = String(vals[0]?.[0] ?? '(Trống)');
+        } else {
+          let sum = 0;
+          let count = 0;
+          vals.forEach((r) =>
+            r.forEach((v) => {
+              const n = coerceNumeric(v);
+              if (n !== null) {
+                sum += n;
+                count++;
+              }
+            })
+          );
+          displayVal = count > 0 ? `Tổng: ${sum.toLocaleString('vi-VN')} (${count} số)` : `Vùng ${rows}x${cols}`;
+        }
+        items.push({
+          ref: fullRef,
+          row: parsed.startRow,
+          col: parsed.startColumn,
+          endRow: parsed.endRow,
+          endCol: parsed.endColumn,
+          displayValue: displayVal,
+        });
+      }
+    }
+
+    if (items.length === 0) {
+      ui.toast(`Không phát hiện ô tiền đề trực tiếp nào trong công thức: ${formula}`);
+      return;
+    }
+
+    const first = items[0];
+    ctx.fWorksheet.getRange(first.row, first.col, (first.endRow ?? first.row) - first.row + 1, (first.endCol ?? first.col) - first.col + 1).activate();
+
+    setAuditTrace({
+      mode: 'precedents',
+      cellA1: activeCellA1,
+      formula,
+      items,
+    });
+    ui.toast(`Đã phát hiện ${items.length} tham chiếu ô tiền đề của ${activeCellA1}`);
+  }, [getActiveContext, activeCellA1, ui]);
+
+  const handleTraceDependents = useCallback(() => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const targetA1 = activeCellA1;
+    const parsedTarget = parseA1Range(targetA1);
+    if (!parsedTarget) return;
+
+    const smartA1 = getSmartDataRangeA1();
+    const smartParsed = parseA1Range(smartA1) ?? { startRow: 0, startColumn: 0, endRow: 100, endColumn: 26 };
+    const scanRows = Math.max(smartParsed.endRow + 10, 60);
+    const scanCols = Math.max(smartParsed.endColumn + 5, 20);
+
+    const sheetRange = ctx.fWorksheet.getRange(0, 0, scanRows, scanCols);
+    const formulas = sheetRange.getFormulas();
+    const values = sheetRange.getRawValues();
+
+    const dependents: AuditTraceItem[] = [];
+    const tRow = parsedTarget.startRow;
+    const tCol = parsedTarget.startColumn;
+
+    for (let r = 0; r < formulas.length; r++) {
+      for (let c = 0; c < formulas[r].length; c++) {
+        const f = formulas[r][c];
+        if (!f) continue;
+        if (r === tRow && c === tCol) continue;
+
+        const refRegex = /(?:([A-Za-z0-9_]+)!)?\$?([A-Za-z]+)\$?(\d+)(?::\$?([A-Za-z]+)\$?(\d+))?/g;
+        const matches = [...f.matchAll(refRegex)];
+        let isDependent = false;
+        for (const m of matches) {
+          const cleanRef = m[0].replace(/\$/g, '');
+          const p = parseA1Range(cleanRef);
+          if (p) {
+            if (tRow >= p.startRow && tRow <= p.endRow && tCol >= p.startColumn && tCol <= p.endColumn) {
+              isDependent = true;
+              break;
+            }
+          }
+        }
+
+        if (isDependent) {
+          const depA1 = formatA1Cell(r, c);
+          dependents.push({
+            ref: depA1,
+            row: r,
+            col: c,
+            formula: f,
+            displayValue: String(values[r]?.[c] ?? ''),
+          });
+        }
+      }
+    }
+
+    if (dependents.length === 0) {
+      ui.toast(`Không có ô nào trong bảng phụ thuộc vào ô ${targetA1}`);
+      setAuditTrace(null);
+      return;
+    }
+
+    const first = dependents[0];
+    ctx.fWorksheet.getRange(first.row, first.col, 1, 1).activate();
+
+    setAuditTrace({
+      mode: 'dependents',
+      cellA1: targetA1,
+      formula: ctx.fRange.getFormula() || String(ctx.fRange.getValue() ?? ''),
+      items: dependents,
+    });
+    ui.toast(`Tìm thấy ${dependents.length} ô công thức phụ thuộc vào ${targetA1}`);
+  }, [getActiveContext, activeCellA1, getSmartDataRangeA1, ui]);
+
+  const handleToggleShowFormulas = useCallback(() => {
+    setShowFormulasMode((prev) => {
+      const next = !prev;
+      ui.toast(
+        next
+          ? 'Đã bật chế độ Hiện công thức (Show Formulas). Nhấn Ctrl + ` hoặc nhấn nút để tắt.'
+          : 'Đã tắt chế độ Hiện công thức, trở lại chế độ xem kết quả số liệu.'
+      );
+      return next;
+    });
+  }, [ui]);
+
+  const handleAddWatch = useCallback(() => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const a1 = activeCellA1;
+    const parsed = parseA1Range(a1);
+    if (!parsed) return;
+    const rawVal = ctx.fRange.getValue();
+    const formula = ctx.fRange.getFormula();
+    const sheetName = activeSheetName;
+
+    let label = '';
+    try {
+      const headerVal = ctx.fWorksheet.getRange(0, parsed.startColumn, 1, 1).getValue();
+      if (headerVal && parsed.startRow > 0) label = String(headerVal);
+    } catch {
+      void 0;
+    }
+
+    setWatchList((prev) => {
+      const exists = prev.find((w) => w.sheetName === sheetName && w.a1 === a1);
+      if (exists) return prev;
+      const next = [
+        ...prev,
+        {
+          id: `${sheetName}-${a1}-${Date.now()}`,
+          sheetName,
+          a1,
+          row: parsed.startRow,
+          col: parsed.startColumn,
+          label: label || `Ô ${a1}`,
+          value: rawVal === null || rawVal === undefined ? '(Trống)' : String(rawVal),
+          formula: formula || '',
+        },
+      ];
+      try {
+        localStorage.setItem(`sheet-watch-${meta.id}`, JSON.stringify(next));
+      } catch {
+        void 0;
+      }
+      return next;
+    });
+    setShowWatchWindow(true);
+    ui.toast(`Đã thêm ô ${a1} vào Cửa sổ giám sát (Watch Window)`);
+  }, [getActiveContext, activeCellA1, activeSheetName, meta.id, ui]);
+
+  const handleRemoveWatch = useCallback((id: string) => {
+    setWatchList((prev) => {
+      const next = prev.filter((w) => w.id !== id);
+      try {
+        localStorage.setItem(`sheet-watch-${meta.id}`, JSON.stringify(next));
+      } catch {
+        void 0;
+      }
+      return next;
+    });
+  }, [meta.id]);
+
+  const handleClearWatch = useCallback(() => {
+    setWatchList([]);
+    try {
+      localStorage.removeItem(`sheet-watch-${meta.id}`);
+    } catch {
+      void 0;
+    }
+    ui.toast('Đã xoá toàn bộ danh sách giám sát');
+  }, [meta.id, ui]);
+
   const handleSortSheet = (ascending: boolean) => {
     const ctx = getActiveContext();
     if (!ctx) return;
@@ -2459,6 +2860,15 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
       } else if (mod && e.key.toLowerCase() === 'r') {
         e.preventDefault();
         void handleFillRange('right');
+      } else if (mod && e.key.toLowerCase() === 'e') {
+        e.preventDefault();
+        handleFlashFill();
+      } else if (mod && (e.key === '`' || e.key === '~')) {
+        e.preventDefault();
+        handleToggleShowFormulas();
+      } else if (mod && e.shiftKey && e.key.toLowerCase() === 'w') {
+        e.preventDefault();
+        setShowWatchWindow((v) => !v);
       } else if (mod && e.key === ';') {
         e.preventDefault();
         const ctx = getActiveContext();
@@ -2472,7 +2882,18 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [handleSaveNow, handleAutoSum, handleFillRange, getActiveContext, syncDefinedNames, setModal, focusMode, ui]);
+  }, [
+    handleSaveNow,
+    handleAutoSum,
+    handleFillRange,
+    handleFlashFill,
+    handleToggleShowFormulas,
+    getActiveContext,
+    syncDefinedNames,
+    setModal,
+    focusMode,
+    ui,
+  ]);
 
   const handleInsertHyperlink = async () => {
     const ctx = getActiveContext();
@@ -3602,6 +4023,30 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
 
                 <div className="ribbon-section">
                   <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={handleTracePrecedents} title="Truy vết ô tiền đề mà công thức này tham chiếu">
+                      <CornerDownRight size={20} color="#2563eb" />
+                      <span>Vết tiền đề</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={handleTraceDependents} title="Truy vết các ô phụ thuộc vào giá trị ô này">
+                      <CornerUpRight size={20} color="#16a34a" />
+                      <span>Vết phụ thuộc</span>
+                    </button>
+                    <button
+                      className={`ribbon-btn-large ${showFormulasMode ? 'active' : ''}`}
+                      onClick={handleToggleShowFormulas}
+                      title="Bật/Tắt hiển thị công thức thay vì kết quả (Ctrl + `)"
+                    >
+                      <FileCode size={20} color="#d97706" />
+                      <span>Hiện công thức</span>
+                    </button>
+                    <button
+                      className={`ribbon-btn-large ${showWatchWindow ? 'active' : ''}`}
+                      onClick={() => setShowWatchWindow((v) => !v)}
+                      title="Mở Cửa sổ giám sát ô trọng yếu (Ctrl + Shift + W)"
+                    >
+                      <Tv size={20} color="#0f766e" />
+                      <span>Giám sát ô ({watchList.length})</span>
+                    </button>
                     <button className="ribbon-btn-large" onClick={() => setModal('aiAudit')}>
                       <AlertTriangle size={20} color="#dc2626" />
                       <span>Kiểm lỗi #</span>
@@ -3662,6 +4107,10 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
 
                 <div className="ribbon-section">
                   <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={handleFlashFill} title="Tự động điền dữ liệu thông minh theo mẫu (Ctrl + E)">
+                      <Zap size={20} color="#eab308" />
+                      <span>Flash Fill</span>
+                    </button>
                     <button className="ribbon-btn-large" onClick={() => void handleTextToColumns()}>
                       <Split size={20} color="#0284c7" />
                       <span>Tách cột</span>
@@ -3767,6 +4216,10 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
                     <button className={`ribbon-btn-large ${showStatusBar ? 'active' : ''}`} onClick={() => setShowStatusBar((v) => !v)}>
                       <Table size={20} color="#475569" />
                       <span>Thanh đáy</span>
+                    </button>
+                    <button className={`ribbon-btn-large ${showWatchWindow ? 'active' : ''}`} onClick={() => setShowWatchWindow((v) => !v)} title="Bật/Tắt Cửa sổ giám sát ô trọng yếu (Ctrl + Shift + W)">
+                      <Tv size={20} color="#0f766e" />
+                      <span>Giám sát ô</span>
                     </button>
                     <button className="ribbon-btn-large" onClick={() => setFocusMode(true)}>
                       <Maximize2 size={20} color="#7c3aed" />
@@ -4426,6 +4879,30 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
         </div>
       )}
 
+      {showFormulasMode && (
+        <div
+          style={{
+            background: '#fef3c7',
+            color: '#92400e',
+            padding: '6px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: 12.5,
+            fontWeight: 600,
+            borderBottom: '1px solid #fde68a',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <FileCode size={16} color="#d97706" />
+            <span>Đang ở chế độ Hiện công thức (Show Formulas) — Xem chuỗi công thức gốc trong ô. Nhấn Ctrl + ` hoặc nhấn nút để tắt.</span>
+          </div>
+          <button className="btn" style={{ minHeight: 24, padding: '2px 10px', fontSize: 12 }} onClick={() => setShowFormulasMode(false)}>
+            Tắt hiện công thức
+          </button>
+        </div>
+      )}
+
       <div className="sheet-workspace">
         <div
           ref={containerRef}
@@ -4562,6 +5039,216 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
           </aside>
         )}
       </div>
+
+      {auditTrace && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: showStatusBar ? 42 : 12,
+            left: 20,
+            right: showComments ? 340 : 20,
+            background: '#ffffff',
+            borderRadius: 12,
+            boxShadow: '0 10px 28px rgba(0,0,0,0.18)',
+            border: '1px solid #cbd5e1',
+            zIndex: 80,
+            padding: '10px 16px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
+              {auditTrace.mode === 'precedents' ? (
+                <>
+                  <CornerDownRight size={18} color="#2563eb" />
+                  <span>Truy vết tiền đề (Precedents): Ô <strong>{auditTrace.cellA1}</strong> ({auditTrace.formula})</span>
+                </>
+              ) : (
+                <>
+                  <CornerUpRight size={18} color="#16a34a" />
+                  <span>Truy vết phụ thuộc (Dependents): Ô <strong>{auditTrace.cellA1}</strong></span>
+                </>
+              )}
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>— {auditTrace.items.length} ô tham chiếu</span>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                className="btn"
+                style={{ minHeight: 24, padding: '2px 8px', fontSize: 12 }}
+                onClick={() => {
+                  const ctx = getActiveContext();
+                  if (!ctx) return;
+                  if (auditTrace.items.length > 0) {
+                    const first = auditTrace.items[0];
+                    ctx.fWorksheet.getRange(first.row, first.col, (first.endRow ?? first.row) - first.row + 1, (first.endCol ?? first.col) - first.col + 1).activate();
+                  }
+                }}
+              >
+                Chọn ô đầu tiên
+              </button>
+              <button className="icon-btn" onClick={() => setAuditTrace(null)} aria-label="Đóng">
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', maxHeight: 80, overflowY: 'auto' }}>
+            {auditTrace.items.map((it, idx) => (
+              <button
+                key={`${it.ref}-${idx}`}
+                className="btn"
+                style={{
+                  background: '#f8fafc',
+                  border: '1px solid #cbd5e1',
+                  padding: '4px 10px',
+                  fontSize: 12,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+                onClick={() => {
+                  const ctx = getActiveContext();
+                  if (!ctx) return;
+                  ctx.fWorksheet.getRange(it.row, it.col, (it.endRow ?? it.row) - it.row + 1, (it.endCol ?? it.col) - it.col + 1).activate();
+                  ui.toast(`Đã chọn vùng ${it.ref}`);
+                }}
+                title={it.formula || it.displayValue}
+              >
+                <strong style={{ color: '#0f172a' }}>{it.ref}</strong>
+                <span style={{ color: '#64748b' }}>({it.displayValue})</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {showWatchWindow && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: showStatusBar ? 40 : 12,
+            right: 20,
+            width: 460,
+            maxHeight: 360,
+            background: '#ffffff',
+            borderRadius: 12,
+            boxShadow: '0 12px 32px rgba(0,0,0,0.2)',
+            border: '1px solid #cbd5e1',
+            zIndex: 85,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              padding: '10px 14px',
+              background: '#065f46',
+              color: '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              fontSize: 13,
+              fontWeight: 700,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Tv size={16} />
+              <span>Cửa sổ giám sát ô (Watch Window)</span>
+              <span
+                style={{
+                  background: 'rgba(255,255,255,0.25)',
+                  padding: '1px 6px',
+                  borderRadius: 10,
+                  fontSize: 11,
+                }}
+              >
+                {watchList.length}
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                className="icon-btn"
+                style={{ color: '#ffffff', width: 24, height: 24 }}
+                onClick={() => setShowWatchWindow(false)}
+                aria-label="Đóng"
+              >
+                <X size={15} />
+              </button>
+            </div>
+          </div>
+
+          <div style={{ padding: '8px 12px', background: '#f1f5f9', display: 'flex', gap: 8, borderBottom: '1px solid #e2e8f0' }}>
+            <button
+              className="btn btn-sheet"
+              style={{ fontSize: 12, padding: '4px 10px', minHeight: 26 }}
+              onClick={handleAddWatch}
+            >
+              <Plus size={13} />
+              <span>+ Thêm ô ({activeCellA1})</span>
+            </button>
+            {watchList.length > 0 && (
+              <button
+                className="btn"
+                style={{ fontSize: 12, padding: '4px 8px', minHeight: 26, color: '#dc2626' }}
+                onClick={handleClearWatch}
+              >
+                <Trash2 size={13} />
+                <span>Xoá hết</span>
+              </button>
+            )}
+          </div>
+
+          <div style={{ flex: 1, overflowY: 'auto', maxHeight: 240 }}>
+            {watchList.length === 0 ? (
+              <div style={{ padding: '24px 16px', textAlign: 'center', color: '#64748b', fontSize: 12 }}>
+                Chưa có ô nào trong danh sách giám sát. Hãy chọn ô cần theo dõi trên trang tính và nhấn <strong>+ Thêm ô</strong>.
+              </div>
+            ) : (
+              <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: '#f8fafc', color: '#475569', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>
+                    <th style={{ padding: '6px 8px' }}>Sheet</th>
+                    <th style={{ padding: '6px 8px' }}>Ô</th>
+                    <th style={{ padding: '6px 8px' }}>Nhãn</th>
+                    <th style={{ padding: '6px 8px' }}>Giá trị</th>
+                    <th style={{ padding: '6px 8px' }}>Công thức</th>
+                    <th style={{ padding: '6px 4px', width: 28 }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {watchList.map((item) => (
+                    <tr
+                      key={item.id}
+                      style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }}
+                      onClick={() => handleGoToRef(item.a1)}
+                      title={`Bấm để chuyển tới ô ${item.a1}`}
+                    >
+                      <td style={{ padding: '6px 8px', color: '#64748b' }}>{item.sheetName}</td>
+                      <td style={{ padding: '6px 8px', fontWeight: 700, color: '#0f766e' }}>{item.a1}</td>
+                      <td style={{ padding: '6px 8px', color: '#334155' }}>{item.label}</td>
+                      <td style={{ padding: '6px 8px', fontWeight: 700, color: '#0f172a' }}>{item.value}</td>
+                      <td style={{ padding: '6px 8px', color: '#64748b', fontFamily: 'monospace', fontSize: 11 }}>{item.formula}</td>
+                      <td
+                        style={{ padding: '6px 4px' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveWatch(item.id);
+                        }}
+                      >
+                        <button className="icon-btn" style={{ width: 20, height: 20, color: '#94a3b8' }} title="Bỏ theo dõi ô này">
+                          <X size={12} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      )}
 
       {showStatusBar && !focusMode && (
         <footer className="sheet-status-bar">
