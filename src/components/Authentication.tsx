@@ -163,12 +163,12 @@ export function Authentication({ children }: { children: (user: User | null, ses
             <p className="dialog-subtitle" id="login-description">Nội dung đang soạn được giữ nguyên. Đăng nhập cùng tài khoản Google để đồng bộ tài liệu giữa web và ứng dụng máy tính.{isDesktop() && ' Hoàn tất đăng nhập trong trình duyệt mặc định, rồi quay lại ứng dụng.'}</p>
             {error && <p className="auth-error" role="alert">{error}</p>}
             <p className="auth-disclosure">Chỉ xác thực tên, email và ảnh đại diện. Không yêu cầu quyền đọc Gmail hoặc Google Drive.</p>
-            <div className="dialog-actions">
+            <div className="dialog-actions auth-actions">
+              <button className="btn btn-primary google-signin" disabled={pending || !ready || !authConfigured} onClick={() => void signIn()}><img src="/google.svg" width="20" height="20" alt="" />{pending ? 'Đang chờ Google…' : !ready ? 'Đang kiểm tra tài khoản…' : 'Đăng nhập bằng Google'}</button>
               <button className="btn" disabled={pending && !isDesktop()} onClick={() => {
                 if (pending && isDesktop()) void cancelDesktopSignIn().then(() => finish(null)).catch(() => setError('Chưa hủy được đăng nhập. Vui lòng thử lại.'));
                 else finish(null);
               }}>{pending && isDesktop() ? 'Hủy đăng nhập' : 'Tiếp tục chỉnh sửa'}</button>
-              <button className="btn btn-primary google-signin" disabled={pending || !ready || !authConfigured} onClick={() => void signIn()}><img src="/google.svg" width="20" height="20" alt="" />{pending ? 'Đang chờ Google…' : !ready ? 'Đang kiểm tra tài khoản…' : 'Đăng nhập bằng Google'}</button>
             </div>
           </section>
         </div>

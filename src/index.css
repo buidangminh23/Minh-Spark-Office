@@ -1702,6 +1702,17 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   flex-shrink: 0;
 }
 
+.auth-actions {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.auth-actions > .btn {
+  justify-content: center;
+  min-height: 44px;
+}
+
 /* Toast Notifications */
 .toasts {
   position: fixed;
