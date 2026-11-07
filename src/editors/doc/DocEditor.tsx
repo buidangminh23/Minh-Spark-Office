@@ -1,5 +1,6 @@
-import { useEffect, useState, useMemo, useRef } from 'react';
-import { useEditor, EditorContent } from '@tiptap/react';
+import { useWorkspace } from '../../lib/storage';
+import { useCallback, useEffect, useState, useMemo, useRef } from 'react';
+import { useEditor, EditorContent, type JSONContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table';
 import TaskList from '@tiptap/extension-task-list';
@@ -86,23 +87,37 @@ import {
   Upload,
   Layers,
   Crop,
+  Keyboard,
+  Mail,
+  Plus,
 } from 'lucide-react';
 
 import { ParagraphFormat, PageBreak } from './extensions';
-import { exportDocx, jsonToMarkdown } from '../../lib/docxConvert';
+import { exportDocx, importDocx, jsonToMarkdown } from '../../lib/docxConvert';
+import { exportWorkbookToXlsx, importSpreadsheet } from '../../lib/xlsxConvert';
+import {
+  tiptapJsonToPdfBlocks,
+  createPdfFromBlocks,
+  loadPdfDocumentProxy,
+  disposePdfDocumentProxy,
+  renderPdfPageToPngBlob,
+  buildWorkbookFromTables,
+  extractPdfTextAndTables,
+  convertPdfToSlideDeckHtml,
+} from '../../lib/pdfEngine';
 import { downloadBlob, pickFile, readAsDataUrl } from '../../lib/download';
 import {
   defaultPage,
   PAGE_SIZES,
   type DocContent,
+  type DocFootnoteItem,
+  type FileContent,
   type FileMeta,
   type PageSettings,
   type CommentItem,
   type FileVersion,
-  listVersions,
-  saveVersion,
-  restoreVersion,
-  deleteVersion,
+  type PdfContent,
+  type SheetContent,
 } from '../../lib/storage';
 import { useUi } from '../../components/ui';
 
@@ -114,6 +129,7 @@ interface DocEditorProps {
   onSave: (meta: FileMeta, content: DocContent) => void;
   onRename: (name: string) => void;
   onBack: () => void;
+  onOpenWorkspaceFile?: (meta: FileMeta, content: FileContent) => void;
 }
 
 type RibbonTab =
@@ -138,8 +154,16 @@ const COMMON_SYMBOLS = [
   '★', '✔', '✕', '●', '■', '▲', '◆', '♥',
 ];
 
-export default function DocEditor({ meta, content, onSave, onRename, onBack }: DocEditorProps) {
+export default function DocEditor({
+  meta,
+  content,
+  onSave,
+  onRename,
+  onBack,
+  onOpenWorkspaceFile,
+}: DocEditorProps) {
   const ui = useUi();
+  const { listFiles, loadContent, saveFile, listVersions, saveVersion, restoreVersion, deleteVersion } = useWorkspace();
   const [activeTab, setActiveTab] = useState<RibbonTab>('home');
   const [title, setTitle] = useState(meta.name);
   const [page, setPage] = useState<PageSettings>(content.page || defaultPage());
@@ -147,12 +171,13 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
   const [showOutline, setShowOutline] = useState(true);
   const [showRuler, setShowRuler] = useState(true);
   const [savedStatus, setSavedStatus] = useState<'saved' | 'saving'>('saved');
-  const [headings, setHeadings] = useState<{ id: string; text: string; level: number }[]>([]);
+  const [headings, setHeadings] = useState<{ id: string; text: string; level: number; pos: number }[]>([]);
 
-  // Advanced features state
-  const [watermark, setWatermark] = useState<string>('');
-  const [paperBg, setPaperBg] = useState<string>('#ffffff');
-  const [columnCount, setColumnCount] = useState<number>(1);
+  const [watermark, setWatermark] = useState<string>(content.watermark ?? '');
+  const [paperBg, setPaperBg] = useState<string>(content.paperBg ?? '#ffffff');
+  const [columnCount, setColumnCount] = useState<number>(content.columnCount ?? 1);
+  const [footnotes, setFootnotes] = useState<DocFootnoteItem[]>(content.footnotes ?? []);
+  const [sortAscending, setSortAscending] = useState(true);
   const [showFindReplace, setShowFindReplace] = useState(false);
   const [findText, setFindText] = useState('');
   const [replaceText, setReplaceText] = useState('');
@@ -160,24 +185,19 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
   const [formatPainterActive, setFormatPainterActive] = useState(false);
   const [copiedFormat, setCopiedFormat] = useState<Record<string, unknown> | null>(null);
 
-  // Voice typing state
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
 
-  // Drawing signature state
   const [showDrawModal, setShowDrawModal] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const isDrawingRef = useRef(false);
 
-  // Symbols palette state
   const [showSymbols, setShowSymbols] = useState(false);
 
-  // Version history state
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [versions, setVersions] = useState<FileVersion[]>([]);
   const [customVersionName, setCustomVersionName] = useState('');
 
-  // Comments state
   const [comments, setComments] = useState<CommentItem[]>(content.comments || []);
   const [showComments, setShowComments] = useState(false);
   const [activeCommentTab, setActiveCommentTab] = useState<'open' | 'resolved'>('open');
@@ -185,10 +205,8 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
   const [commentQuote, setCommentQuote] = useState('');
   const [replyTexts, setReplyTexts] = useState<Record<string, string>>({});
 
-  // Focus mode
   const [isFocusMode, setIsFocusMode] = useState(false);
 
-  // New tool modals matching the exact ribbon
   const [showTranslateModal, setShowTranslateModal] = useState(false);
   const [translateTargetLang, setTranslateTargetLang] = useState('en');
   const [translatedText, setTranslatedText] = useState('');
@@ -204,10 +222,43 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
   const [showTemplatesModal, setShowTemplatesModal] = useState(false);
   const [showSplitModal, setShowSplitModal] = useState(false);
   const [showMergeModal, setShowMergeModal] = useState(false);
+  const [workspaceDocs, setWorkspaceDocs] = useState<FileMeta[]>([]);
   const [showEditorCheckModal, setShowEditorCheckModal] = useState(false);
   const [showParagraphMarks, setShowParagraphMarks] = useState(false);
+  const [pdfExportMode, setPdfExportMode] = useState<null | 'standard' | 'compressed' | 'imageOnly'>(null);
+  const [keepPdfAttributes, setKeepPdfAttributes] = useState(true);
+  const [showOcrImportModal, setShowOcrImportModal] = useState(false);
+  const [ocrExtractedText, setOcrExtractedText] = useState('');
+  const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+  const [showMailMergeModal, setShowMailMergeModal] = useState(false);
+  const [mailPreviewIdx, setMailPreviewIdx] = useState(0);
+  const [mailRecipients, setMailRecipients] = useState<Array<Record<string, string>>>(() => {
+    const today = new Date().toLocaleDateString('vi-VN');
+    return [
+      {
+        Ho_ten: 'Nguyễn Minh Quân',
+        Chuc_vu: 'Giám đốc Vận hành',
+        Phong_ban: 'Khối Vận hành',
+        Email: 'quan.nm@minhspark.vn',
+        Ngay: today,
+      },
+      {
+        Ho_ten: 'Trần Thu Hà',
+        Chuc_vu: 'Trưởng phòng Tài chính',
+        Phong_ban: 'Khối Tài chính - Kế toán',
+        Email: 'ha.tt@minhspark.vn',
+        Ngay: today,
+      },
+      {
+        Ho_ten: 'Lê Hoàng Nam',
+        Chuc_vu: 'Trưởng nhóm Kỹ thuật',
+        Phong_ban: 'Khối Công nghệ',
+        Email: 'nam.lh@minhspark.vn',
+        Ngay: today,
+      },
+    ];
+  });
 
-  // Editing mode: 'editing' | 'viewing'
   const [editMode, setEditMode] = useState<'editing' | 'viewing'>('editing');
 
   const editor = useEditor({
@@ -268,7 +319,7 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
 
   const updateHeadings = (e: typeof editor) => {
     if (!e) return;
-    const items: { id: string; text: string; level: number }[] = [];
+    const items: { id: string; text: string; level: number; pos: number }[] = [];
     e.state.doc.descendants((node, pos) => {
       if (node.type.name === 'heading') {
         const text = node.textContent;
@@ -277,6 +328,7 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
             id: `heading-${pos}`,
             text,
             level: node.attrs.level,
+            pos,
           });
         }
       }
@@ -290,7 +342,6 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
     }
   }, [editor]);
 
-  // Voice dictation initialization
   const toggleVoiceDictation = () => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
       ui.toast('Trình duyệt hiện tại chưa hỗ trợ Web Speech API', true);
@@ -333,7 +384,39 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
     }
   };
 
-  // Keyboard shortcuts
+  const buildDocContentPayload = useCallback(
+    (jsonOverride?: JSONContent): DocContent => ({
+      kind: 'doc',
+      json: jsonOverride ?? editor?.getJSON() ?? content.json,
+      page,
+      comments,
+      watermark: watermark || undefined,
+      paperBg: paperBg !== '#ffffff' ? paperBg : undefined,
+      columnCount: columnCount !== 1 ? columnCount : undefined,
+      footnotes: footnotes.length > 0 ? footnotes : undefined,
+    }),
+    [editor, content.json, page, comments, watermark, paperBg, columnCount, footnotes]
+  );
+
+  const handleSaveImmediate = useCallback(() => {
+    if (!editor) return;
+    onSave(
+      { ...meta, name: title, updatedAt: Date.now(), preview: editor.getText().slice(0, 160) },
+      buildDocContentPayload()
+    );
+    setSavedStatus('saved');
+    ui.toast('Đã lưu tài liệu thành công!');
+  }, [editor, meta, title, onSave, buildDocContentPayload, ui]);
+
+  const handleOpenAddComment = useCallback(() => {
+    if (!editor) return;
+    const { from, to } = editor.state.selection;
+    const selectedText = editor.state.doc.textBetween(from, to, ' ');
+    setCommentQuote(selectedText || '');
+    setNewCommentText('');
+    setShowComments(true);
+  }, [editor]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
@@ -362,51 +445,23 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [editor, title, page, meta, comments, isFocusMode, onSave]);
+  }, [handleSaveImmediate, handleOpenAddComment, isFocusMode]);
 
-  // Auto-save with debounce
   useEffect(() => {
     if (savedStatus !== 'saving' || !editor) return;
     const timer = setTimeout(() => {
-      const json = editor.getJSON();
       const updatedMeta: FileMeta = {
         ...meta,
         name: title,
         updatedAt: Date.now(),
         preview: editor.getText().slice(0, 160),
       };
-      const updatedContent: DocContent = {
-        kind: 'doc',
-        json,
-        page,
-        comments,
-      };
-      onSave(updatedMeta, updatedContent);
+      onSave(updatedMeta, buildDocContentPayload());
       setSavedStatus('saved');
     }, 800);
 
     return () => clearTimeout(timer);
-  }, [savedStatus, editor, meta, title, page, comments, onSave]);
-
-  const handleSaveImmediate = () => {
-    if (!editor) return;
-    const json = editor.getJSON();
-    onSave(
-      { ...meta, name: title, updatedAt: Date.now(), preview: editor.getText().slice(0, 160) },
-      { kind: 'doc', json, page, comments }
-    );
-    setSavedStatus('saved');
-    ui.toast('Đã lưu tài liệu thành công!');
-  };
-
-  const handleOpenAddComment = () => {
-    if (!editor) return;
-    const { from, to } = editor.state.selection;
-    const selectedText = editor.state.doc.textBetween(from, to, ' ');
-    setCommentQuote(selectedText || '');
-    setNewCommentText('');
-    setShowComments(true);
-  };
+  }, [savedStatus, editor, meta, title, buildDocContentPayload, onSave]);
 
   const handleAddComment = () => {
     if (!newCommentText.trim()) return;
@@ -472,8 +527,7 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
 
   const handleCreateSnapshot = async (label?: string) => {
     if (!editor) return;
-    const json = editor.getJSON();
-    const docCont: DocContent = { kind: 'doc', json, page, comments };
+    const docCont = buildDocContentPayload();
     const saved = await saveVersion(meta.id, docCont, label || customVersionName.trim() || undefined);
     setVersions((prev) => [saved, ...prev]);
     setCustomVersionName('');
@@ -488,6 +542,10 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
       editor.commands.setContent(cont.json);
       if (cont.page) setPage(cont.page);
       if (cont.comments) setComments(cont.comments);
+      setWatermark(cont.watermark ?? '');
+      setPaperBg(cont.paperBg ?? '#ffffff');
+      setColumnCount(cont.columnCount ?? 1);
+      setFootnotes(cont.footnotes ?? []);
       setShowHistoryModal(false);
       ui.toast(`Đã khôi phục về "${v.label}"`);
       setSavedStatus('saving');
@@ -500,53 +558,465 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
     ui.toast('Đã xoá phiên bản lưu');
   };
 
-  const handleExportImage = () => {
-    ui.showBusy('Đang xuất ảnh tài liệu…');
-    setTimeout(() => {
-      try {
-        const paper = document.querySelector('.doc-paper') as HTMLElement;
-        if (!paper) {
-          ui.showBusy(null);
-          ui.toast('Không tìm thấy trang giấy để xuất ảnh');
-          return;
-        }
-        const canvas = document.createElement('canvas');
-        const scale = 2;
-        const rect = paper.getBoundingClientRect();
-        canvas.width = rect.width * scale;
-        canvas.height = rect.height * scale;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.scale(scale, scale);
-          ctx.fillStyle = paperBg || '#ffffff';
-          ctx.fillRect(0, 0, rect.width, rect.height);
-
-          // Draw document text onto canvas
-          ctx.fillStyle = '#0f172a';
-          ctx.font = '15px sans-serif';
-          const text = editor?.getText() || '';
-          const lines = text.split('\n').filter((l) => l.trim()).slice(0, 45);
-          let y = 60;
-          for (const line of lines) {
-            ctx.fillText(line.slice(0, 75), 50, y);
-            y += 24;
-          }
-          canvas.toBlob((blob) => {
-            if (blob) {
-              downloadBlob(blob, `${title.replace(/\.[^/.]+$/, '')}.png`);
-              ui.toast('Đã xuất ảnh PNG tài liệu thành công!');
-            }
-            ui.showBusy(null);
-          }, 'image/png');
-        } else {
-          ui.showBusy(null);
-        }
-      } catch (err) {
-        console.error(err);
-        ui.showBusy(null);
-        ui.toast('Có lỗi xảy ra khi xuất ảnh');
+  const buildPdfBlocksWithFootnotes = () => {
+    const blocks = tiptapJsonToPdfBlocks(editor?.getJSON());
+    if (footnotes.length > 0) {
+      blocks.push({ type: 'hr' });
+      blocks.push({ type: 'h3', text: 'Chú thích cuối trang (Footnotes)' });
+      for (const fn of footnotes) {
+        blocks.push({ type: 'p', text: `[${fn.index}] ${fn.text}` });
       }
-    }, 300);
+    }
+    return blocks;
+  };
+
+  const handleExportImage = async () => {
+    if (!editor) return;
+    ui.showBusy('Đang kết xuất trang tài liệu ra ảnh PNG độ phân giải cao…');
+    try {
+      const blocks = buildPdfBlocksWithFootnotes();
+      const generated = await createPdfFromBlocks(title, blocks, {
+        orientation: page.orientation,
+        watermark: watermark || undefined,
+        header: keepPdfAttributes ? page.header : undefined,
+        footer: keepPdfAttributes ? page.footer : undefined,
+        pageNumbers: keepPdfAttributes ? page.pageNumbers : false,
+        scale: 2,
+      });
+      const proxy = await loadPdfDocumentProxy(generated.bytes);
+      const pngBlob = await renderPdfPageToPngBlob(proxy, 1, 2);
+      await disposePdfDocumentProxy(proxy);
+      const base = title.replace(/\.[^/.]+$/, '') || 'Tai-lieu';
+      downloadBlob(pngBlob, `${base}.png`);
+      ui.toast('Đã xuất ảnh PNG trang tài liệu sắc nét!');
+    } catch (err) {
+      ui.toast((err as Error).message || 'Có lỗi xảy ra khi xuất ảnh', true);
+    } finally {
+      ui.showBusy(null);
+    }
+  };
+
+  const handleCreatePdfDocument = async (
+    mode: 'standard' | 'compressed' | 'imageOnly',
+    openInWorkspace: boolean
+  ) => {
+    if (!editor) return;
+    ui.showBusy(
+      mode === 'compressed'
+        ? 'Đang nén tối ưu dung lượng tệp PDF…'
+        : mode === 'imageOnly'
+        ? 'Đang kết xuất PDF dạng ảnh phẳng chống sao chép…'
+        : 'Đang khởi tạo tệp nhị phân PDF chuẩn A4…'
+    );
+    try {
+      const blocks = buildPdfBlocksWithFootnotes();
+      const base = title.replace(/\.[^/.]+$/, '') || 'Tai-lieu';
+      const suffix =
+        mode === 'compressed'
+          ? ' (Nén gọn)'
+          : mode === 'imageOnly'
+          ? ' (Chỉ đọc)'
+          : '';
+      const pdfName = `${base}${suffix}.pdf`;
+      const generated = await createPdfFromBlocks(pdfName, blocks, {
+        orientation: page.orientation,
+        watermark: watermark || undefined,
+        header: keepPdfAttributes ? page.header : undefined,
+        footer: keepPdfAttributes ? page.footer : undefined,
+        pageNumbers: keepPdfAttributes ? page.pageNumbers : false,
+        useJpeg: mode !== 'standard',
+        quality: mode === 'compressed' ? 0.52 : mode === 'imageOnly' ? 0.86 : 0.94,
+        scale: mode === 'compressed' ? 1.35 : 2,
+      });
+      setPdfExportMode(null);
+      if (openInWorkspace) {
+        const newMeta: FileMeta = {
+          id: `pdf-${Date.now()}`,
+          name: pdfName,
+          kind: 'pdf',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          openedAt: Date.now(),
+          starred: false,
+          deletedAt: null,
+          size: generated.bytes.byteLength,
+          preview: generated.extractedPages[0]?.slice(0, 160) || `Xuất từ Minh Docs "${title}"`,
+        };
+        const newContent: PdfContent = {
+          kind: 'pdf',
+          pdfDataUrl: generated.dataUrl,
+          pageCount: generated.pageCount,
+          extractedPages: mode === 'imageOnly' ? generated.extractedPages.map(() => '') : generated.extractedPages,
+          watermark: watermark || undefined,
+        };
+        await saveFile(newMeta, newContent);
+        ui.toast(`Đã lưu "${pdfName}" (${generated.pageCount} trang) vào Minh PDF`);
+        onOpenWorkspaceFile?.(newMeta, newContent);
+      } else {
+        downloadBlob(new Blob([generated.bytes.slice(0)], { type: 'application/pdf' }), pdfName);
+        ui.toast(`Đã tải xuống "${pdfName}" (${generated.pageCount} trang)`);
+      }
+    } catch (err) {
+      ui.toast((err as Error).message || 'Lỗi tạo tệp PDF', true);
+    } finally {
+      ui.showBusy(null);
+    }
+  };
+
+  const handleExtractTablesToExcel = async (openInWorkspace: boolean) => {
+    if (!editor) return;
+    ui.showBusy('Đang trích xuất bảng biểu sang Minh Sheets (.xlsx)…');
+    try {
+      const blocks = tiptapJsonToPdfBlocks(editor.getJSON());
+      const tables = blocks
+        .filter((b) => b.type === 'table' && b.rows && b.rows.length > 0)
+        .map((b) => b.rows!);
+      const fallbackLines = editor
+        .getText()
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean);
+      const base = title.replace(/\.[^/.]+$/, '') || 'Trich-xuat-bang';
+      const xlsxName = `${base}.xlsx`;
+      const wb = buildWorkbookFromTables(base, tables, fallbackLines);
+      const blob = await exportWorkbookToXlsx(wb);
+      if (openInWorkspace) {
+        const newMeta: FileMeta = {
+          id: `sheet-${Date.now()}`,
+          name: xlsxName,
+          kind: 'sheet',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          openedAt: Date.now(),
+          starred: false,
+          deletedAt: null,
+          size: blob.size,
+          preview: `Trích xuất ${Math.max(1, tables.length)} bảng từ "${title}"`,
+        };
+        const newContent: SheetContent = {
+          kind: 'sheet',
+          workbook: wb,
+        };
+        await saveFile(newMeta, newContent);
+        ui.toast(`Đã mở bảng trích xuất trong Minh Sheets`);
+        onOpenWorkspaceFile?.(newMeta, newContent);
+      } else {
+        downloadBlob(blob, xlsxName);
+        ui.toast(`Đã tải xuống bảng tính "${xlsxName}"`);
+      }
+    } catch (err) {
+      ui.toast((err as Error).message || 'Lỗi trích xuất bảng sang Excel', true);
+    } finally {
+      ui.showBusy(null);
+    }
+  };
+
+  const handleSortParagraphs = () => {
+    if (!editor) return;
+    const json = editor.getJSON();
+    const nodes = [...(json.content ?? [])];
+    if (nodes.length < 2) {
+      ui.toast('Cần ít nhất 2 đoạn văn để sắp xếp');
+      return;
+    }
+    const textOf = (n: JSONContent): string => {
+      if (n.type === 'text') return n.text ?? '';
+      return (n.content ?? []).map(textOf).join('');
+    };
+    const nextAsc = !sortAscending;
+    const sorted = [...nodes].sort((a, b) => {
+      const ta = textOf(a).trim();
+      const tb = textOf(b).trim();
+      const cmp = ta.localeCompare(tb, 'vi', { numeric: true, sensitivity: 'base' });
+      return sortAscending ? cmp : -cmp;
+    });
+    editor.commands.setContent({ type: 'doc', content: sorted });
+    setSortAscending(nextAsc);
+    setSavedStatus('saving');
+    ui.toast(`Đã sắp xếp ${sorted.length} khối văn bản theo thứ tự ${sortAscending ? 'A → Z' : 'Z → A'}`);
+  };
+
+  const handleInsertFootnote = async () => {
+    if (!editor) return;
+    const nextIdx = footnotes.length + 1;
+    const res = await ui.ask({
+      title: `Chèn chú thích cuối trang [${nextIdx}]`,
+      fields: [
+        {
+          name: 'note',
+          label: 'Nội dung giải thích / nguồn trích dẫn',
+          type: 'textarea',
+          placeholder: 'Ví dụ: Theo Thông tư 30/2020/TT-BTTTT về công tác văn thư điện tử…',
+        },
+      ],
+      confirmText: 'Chèn Footnote',
+    });
+    if (!res || !String(res.note ?? '').trim()) return;
+    const noteText = String(res.note).trim();
+    editor.chain().focus().insertContent(`<sup>[${nextIdx}]</sup>`).run();
+    setFootnotes((prev) => [
+      ...prev,
+      { id: `fn-${Date.now()}`, index: nextIdx, text: noteText },
+    ]);
+    setSavedStatus('saving');
+    ui.toast(`Đã chèn chú thích cuối trang [${nextIdx}]`);
+  };
+
+  const handleRemoveFootnote = (id: string) => {
+    setFootnotes((prev) =>
+      prev
+        .filter((f) => f.id !== id)
+        .map((f, idx) => ({ ...f, index: idx + 1 }))
+    );
+    setSavedStatus('saving');
+  };
+
+  const splitSections = (() => {
+    const docJson = editor?.getJSON();
+    const nodes = docJson?.content ?? [];
+    const sections: Array<{ title: string; nodes: JSONContent[] }> = [];
+    let currentTitle = 'Phần mở đầu';
+    let currentNodes: JSONContent[] = [];
+
+    const readNodeText = (n: JSONContent): string =>
+      n.type === 'text' ? n.text ?? '' : (n.content ?? []).map(readNodeText).join('');
+
+    for (const node of nodes) {
+      if (node.type === 'heading' && Number(node.attrs?.level ?? 1) <= 2) {
+        if (currentNodes.length > 0) {
+          sections.push({ title: currentTitle, nodes: currentNodes });
+        }
+        currentTitle = readNodeText(node).trim() || `Phần ${sections.length + 1}`;
+        currentNodes = [node];
+      } else {
+        currentNodes.push(node);
+      }
+    }
+    if (currentNodes.length > 0) {
+      sections.push({ title: currentTitle, nodes: currentNodes });
+    }
+    return sections;
+  })();
+
+  const handleRunSplitDocument = async (saveToWorkspace: boolean) => {
+    if (!editor || splitSections.length === 0) return;
+    ui.showBusy('Đang tách tài liệu theo từng chương mục…');
+    try {
+      const base = title.replace(/\.[^/.]+$/, '') || 'Tai-lieu';
+      for (let i = 0; i < splitSections.length; i++) {
+        const sec = splitSections[i];
+        const safeSecTitle = sec.title.replace(/[\\/:*?"<>|]/g, '-').slice(0, 48);
+        const secFileName = `${base} - Phần ${i + 1} (${safeSecTitle}).docx`;
+        const secDocJson: JSONContent = { type: 'doc', content: sec.nodes };
+        if (saveToWorkspace) {
+          const blob = await exportDocx(secDocJson, page, secFileName);
+          const newMeta: FileMeta = {
+            id: `doc-${Date.now()}-${i}`,
+            name: secFileName,
+            kind: 'doc',
+            createdAt: Date.now() + i,
+            updatedAt: Date.now() + i,
+            openedAt: Date.now() + i,
+            starred: false,
+            deletedAt: null,
+            size: blob.size,
+            preview: sec.title,
+          };
+          const newCont: DocContent = {
+            kind: 'doc',
+            json: secDocJson,
+            page,
+          };
+          await saveFile(newMeta, newCont);
+        } else {
+          const blob = await exportDocx(secDocJson, page, secFileName);
+          downloadBlob(blob, secFileName);
+        }
+      }
+      setShowSplitModal(false);
+      ui.toast(
+        saveToWorkspace
+          ? `Đã tách và lưu ${splitSections.length} tài liệu con vào Kho Minh Docs`
+          : `Đã tải xuống ${splitSections.length} tệp .docx độc lập`
+      );
+    } catch (err) {
+      ui.toast((err as Error).message || 'Lỗi khi tách tài liệu', true);
+    } finally {
+      ui.showBusy(null);
+    }
+  };
+
+  const handleOpenMergeModal = async () => {
+    const all = await listFiles();
+    setWorkspaceDocs(all.filter((f) => !f.deletedAt && f.kind === 'doc' && f.id !== meta.id));
+    setShowMergeModal(true);
+  };
+
+  const handleMergeUploadedDocx = async (file: File) => {
+    if (!editor) return;
+    ui.showBusy(`Đang đọc và ghép nối "${file.name}"…`);
+    try {
+      const buf = await file.arrayBuffer();
+      const html = await importDocx(buf);
+      editor.chain().focus('end').insertPageBreak().insertContent(html).run();
+      setShowMergeModal(false);
+      setSavedStatus('saving');
+      ui.toast(`Đã ghép toàn bộ nội dung "${file.name}" vào cuối văn bản!`);
+    } catch (err) {
+      ui.toast((err as Error).message || 'Không thể đọc tệp .docx đã chọn', true);
+    } finally {
+      ui.showBusy(null);
+    }
+  };
+
+  const handleMergeWorkspaceDoc = async (docMeta: FileMeta) => {
+    if (!editor) return;
+    ui.showBusy(`Đang ghép tài liệu "${docMeta.name}"…`);
+    try {
+      const target = await loadContent(docMeta.id);
+      if (target && target.kind === 'doc' && target.json) {
+        const currentNodes = editor.getJSON().content ?? [];
+        const extraNodes =
+          typeof target.json === 'string'
+            ? []
+            : target.json.content ?? [];
+        if (typeof target.json === 'string') {
+          editor.chain().focus('end').insertPageBreak().insertContent(target.json).run();
+        } else {
+          editor.commands.setContent({
+            type: 'doc',
+            content: [...currentNodes, { type: 'pageBreak' }, ...extraNodes],
+          });
+        }
+        setShowMergeModal(false);
+        setSavedStatus('saving');
+        ui.toast(`Đã ghép "${docMeta.name}" vào cuối văn bản hiện tại!`);
+      }
+    } catch (err) {
+      ui.toast((err as Error).message || 'Lỗi ghép tài liệu', true);
+    } finally {
+      ui.showBusy(null);
+    }
+  };
+
+  const currentPlainText = editor?.getText() || '';
+  const proofreadReport = useMemo(() => {
+    const raw = currentPlainText;
+    const doubleSpaces = (raw.match(/ {2,}/g) || []).length;
+    const spaceBeforePunct = (raw.match(/\s+[,.;:!?]/g) || []).length;
+    const lowerAfterDot = (raw.match(/[.!?]\s+[a-zàáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/g) || []).length;
+    const repeatedWords = (raw.match(/\b(\p{L}{2,})\s+\1\b/giu) || []).length;
+    const sentences = raw
+      .split(/[.!?]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const longSentences = sentences.filter((s) => s.split(/\s+/).length > 45).length;
+    const totalIssues = doubleSpaces + spaceBeforePunct + lowerAfterDot + repeatedWords + longSentences;
+    const score = Math.max(55, 100 - doubleSpaces * 2 - spaceBeforePunct * 3 - lowerAfterDot * 3 - repeatedWords * 4 - longSentences * 3);
+    return {
+      doubleSpaces,
+      spaceBeforePunct,
+      lowerAfterDot,
+      repeatedWords,
+      longSentences,
+      totalIssues,
+      score,
+      sentenceCount: sentences.length,
+    };
+  }, [currentPlainText]);
+
+  const handleAutoFixProofread = () => {
+    if (!editor) return;
+    const cleanNode = (node: JSONContent): JSONContent => {
+      if (node.type === 'text' && typeof node.text === 'string') {
+        const cleaned = node.text
+          .replace(/ {2,}/g, ' ')
+          .replace(/\s+([,.;:!?])/g, '$1')
+          .replace(/([.!?]\s+)([\p{Ll}])/gu, (_, p1: string, p2: string) => p1 + p2.toUpperCase());
+        return { ...node, text: cleaned };
+      }
+      if (node.content) {
+        return { ...node, content: node.content.map(cleanNode) };
+      }
+      return node;
+    };
+    const nextJson = cleanNode(editor.getJSON());
+    editor.commands.setContent(nextJson);
+    setSavedStatus('saving');
+    ui.toast('Đã tự động chuẩn hoá khoảng trắng, dấu câu và viết hoa đầu câu!');
+  };
+
+  const handleOcrFileUpload = async (file: File) => {
+    ui.showBusy(`Đang trích xuất văn bản từ "${file.name}"…`);
+    try {
+      if (file.name.toLowerCase().endsWith('.pdf')) {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const bundle = await extractPdfTextAndTables(bytes);
+        setOcrExtractedText(bundle.pagesText.join('\n\n--- Ngắt trang ---\n\n'));
+      } else if (/\.(docx|doc)$/i.test(file.name)) {
+        const html = await importDocx(await file.arrayBuffer());
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html;
+        setOcrExtractedText(tmp.innerText || tmp.textContent || '');
+      } else {
+        setOcrExtractedText(await file.text());
+      }
+      ui.toast(`Đã trích xuất nội dung từ "${file.name}"`);
+    } catch (err) {
+      ui.toast((err as Error).message || 'Không thể nhận dạng tệp', true);
+    } finally {
+      ui.showBusy(null);
+    }
+  };
+
+  const handleImportMailRecipients = async (file: File) => {
+    try {
+      const wb = await importSpreadsheet(await file.arrayBuffer(), file.name);
+      const firstSheet = wb.sheets[wb.sheetOrder[0]];
+      if (!firstSheet) return;
+      const cellStr = (r: number, c: number) => String(firstSheet.cellData[r]?.[c]?.v ?? '').trim();
+      const headers: string[] = [];
+      for (let c = 0; c < 12; c++) {
+        const h = cellStr(0, c);
+        if (h) headers.push(h.replace(/\s+/g, '_'));
+      }
+      if (headers.length === 0) return;
+      const rows: Array<Record<string, string>> = [];
+      for (let r = 1; r < 200; r++) {
+        const rec: Record<string, string> = {};
+        let nonEmpty = false;
+        headers.forEach((h, cIdx) => {
+          const val = cellStr(r, cIdx);
+          if (val) nonEmpty = true;
+          rec[h] = val;
+        });
+        if (nonEmpty) rows.push(rec);
+      }
+      if (rows.length > 0) {
+        setMailRecipients(rows);
+        setMailPreviewIdx(0);
+        ui.toast(`Đã nạp ${rows.length} người nhận từ "${file.name}"`);
+      }
+    } catch (err) {
+      ui.toast((err as Error).message || 'Không thể đọc danh sách người nhận', true);
+    }
+  };
+
+  const handleGenerateMailMerge = () => {
+    if (!editor || mailRecipients.length === 0) return;
+    const templateHtml = editor.getHTML();
+    const mergedHtmlParts = mailRecipients.map((rec) => {
+      let part = templateHtml;
+      for (const [k, v] of Object.entries(rec)) {
+        const pattern = new RegExp(`\\{\\{\\s*${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\}\\}`, 'gi');
+        part = part.replace(pattern, v);
+      }
+      return part;
+    });
+    editor.commands.setContent(mergedHtmlParts.join('<hr data-page-break="true" class="page-break" />'));
+    setShowMailMergeModal(false);
+    setSavedStatus('saving');
+    ui.toast(`Đã trộn thành công ${mailRecipients.length} văn bản cá nhân hoá (ngắt trang riêng từng người)!`);
   };
 
   const handleOpenTranslate = () => {
@@ -598,41 +1068,70 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
 
   const handleGenerateSlides = () => {
     if (!editor) return;
-    const headingsList = headings.length > 0 ? headings : [
-      { text: title.replace(/\.[^/.]+$/, ''), level: 1 },
-      { text: 'Mục tiêu chiến lược', level: 2 },
-      { text: 'Kế hoạch triển khai hành động', level: 2 },
-      { text: 'Kết quả dự kiến & Nghiệm thu', level: 2 },
-    ];
-    const deck = headingsList.map((h, idx) => ({
-      title: `${idx + 1}. ${h.text}`,
-      bullets: [
-        'Xác định rõ ràng trọng tâm định hướng và nguồn lực phân bổ',
-        'Kế hoạch triển khai theo từng giai đoạn và phòng ban chịu trách nhiệm',
-        'Kiểm soát tiến độ định kỳ và đảm bảo tiêu chuẩn chất lượng đầu ra',
-      ],
-    }));
+    const deck = splitSections.map((sec, idx) => {
+      const bullets: string[] = [];
+      for (const node of sec.nodes) {
+        if (node.type === 'heading') continue;
+        const txt = (node.content ?? [])
+          .map((c) => (c.type === 'text' ? c.text ?? '' : ''))
+          .join('')
+          .trim();
+        if (txt) bullets.push(txt.slice(0, 120));
+        if (bullets.length >= 4) break;
+      }
+      return {
+        title: `${idx + 1}. ${sec.title}`,
+        bullets: bullets.length > 0 ? bullets : ['Nội dung trọng tâm trích xuất từ tài liệu.'],
+      };
+    });
     setSlideDeck(deck);
     setShowSlidesModal(true);
   };
 
+  const handleExportSlideDeckHtml = () => {
+    const pagesText = slideDeck.map((s) => `${s.title}\n${s.bullets.join('\n')}`);
+    const { html } = convertPdfToSlideDeckHtml(title, pagesText);
+    const base = title.replace(/\.[^/.]+$/, '') || 'Slide-Deck';
+    downloadBlob(new Blob([html], { type: 'text/html;charset=utf-8' }), `${base}-Slides.html`);
+    ui.toast('Đã tải xuống bộ Slide trình chiếu HTML 16:9!');
+  };
+
   const handleRunAiSmart = (action: string) => {
+    if (!editor) return;
     setIsAiLoading(true);
     setTimeout(() => {
-      const selected = editor?.state.doc.textBetween(editor.state.selection.from, editor.state.selection.to, ' ') || editor?.getText() || '';
+      const { from, to } = editor.state.selection;
+      const selected = editor.state.doc.textBetween(from, to, ' ').trim();
+      const rawText = selected || editor.getText().trim();
+      const paragraphs = rawText
+        .split(/\n+/)
+        .map((p) => p.trim())
+        .filter(Boolean);
       let res = '';
       if (action === 'formal') {
-        res = `Kính gửi Ban Giám đốc và các đơn vị liên quan,\n\nCăn cứ theo định hướng chiến lược đã đề ra, văn bản đã được hoàn thiện với các điều khoản rõ ràng, đảm bảo tính chặt chẽ về mặt pháp lý và tối ưu hóa hiệu quả thực thi.\n\nTrân trọng.`;
+        const core = paragraphs.slice(0, 4).join('\n\n');
+        res = `Kính gửi Ban Giám đốc và các bộ phận liên quan,\n\nCăn cứ nội dung "${title.replace(/\.[^/.]+$/, '')}":\n\n${core}\n\nĐề nghị các đơn vị phối hợp triển khai đúng tiến độ và tiêu chuẩn chất lượng đã ban hành.\n\nTrân trọng.`;
       } else if (action === 'summary') {
-        res = `📌 TÓM TẮT Ý CHÍNH TÀI LIỆU:\n1. Mục tiêu cốt lõi: Hoàn thiện quy trình vận hành và ứng dụng công nghệ.\n2. Phân công trách nhiệm: Phân bổ rõ người, rõ việc, rõ tiến độ.\n3. Tiêu chí nghiệm thu: Đạt 100% chuẩn chất lượng và an toàn bảo mật.`;
+        const keyPoints =
+          headings.length > 0
+            ? headings.map((h, i) => `${i + 1}. ${h.text}`)
+            : paragraphs.slice(0, 5).map((p, i) => `${i + 1}. ${p.slice(0, 140)}`);
+        res = `TÓM TẮT TÀI LIỆU (${paragraphs.length} đoạn · ${editor.storage.characterCount?.words() ?? 0} từ):\n` + keyPoints.join('\n');
       } else if (action === 'expand') {
-        res = `${selected}\n\nĐồng thời, cần chú trọng mở rộng thêm các kịch bản dự phòng rủi ro, phân tích chi phí cơ hội và xây dựng lộ trình đo lường định kỳ hàng tuần để bảo đảm không phát sinh độ trễ tiến độ.`;
+        const seed = selected || paragraphs[0] || title;
+        res = `${seed}\n\nTriển khai chi tiết:\n- Xác định đầu mối phụ trách, mốc thời gian hoàn thành (SLA) và chỉ số nghiệm thu định lượng.\n- Thiết lập cơ chế rà soát định kỳ hàng tuần nhằm kiểm soát rủi ro tiến độ và ngân sách.\n- Lưu trữ hồ sơ điện tử và đối chiếu kết quả thực tế so với kế hoạch ban đầu.`;
       } else {
-        res = `Văn bản đạt điểm đánh giá phong cách 98/100: Từ ngữ mạch lạc, văn phong trang trọng, chuẩn chính tả tiếng Việt.`;
+        res =
+          `Điểm chuẩn văn phong hiện tại: ${proofreadReport.score}/100 (${proofreadReport.sentenceCount} câu).\n` +
+          `- Khoảng trắng kép thừa: ${proofreadReport.doubleSpaces} vị trí\n` +
+          `- Khoảng trắng trước dấu câu: ${proofreadReport.spaceBeforePunct} vị trí\n` +
+          `- Chữ thường sau dấu chấm câu: ${proofreadReport.lowerAfterDot} vị trí\n` +
+          `- Từ lặp liên tiếp: ${proofreadReport.repeatedWords} vị trí\n` +
+          `- Câu dài trên 45 từ: ${proofreadReport.longSentences} câu`;
       }
       setAiResult(res);
       setIsAiLoading(false);
-    }, 400);
+    }, 180);
   };
 
   const handleApplyAiResult = () => {
@@ -1094,10 +1593,8 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
         </header>
       )}
 
-      {/* Ribbon Toolbar (Authentic Microsoft Office / WPS Style) */}
       {!isFocusMode && (
-        <div className="ribbon">
-          {/* Top Tabs Bar */}
+        <div className="ribbon doc">
           <div className="ribbon-tabs-bar">
             <div className="ribbon-tabs-list">
               <button className={`ribbon-tab ${activeTab === 'file' ? 'active' : ''}`} onClick={() => setActiveTab('file')}>
@@ -1142,7 +1639,6 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
               </button>
             </div>
 
-            {/* Right Top Actions */}
             <div className="ribbon-top-actions">
               <button className="ribbon-pill-btn" onClick={() => setShowComments(!showComments)} title="Bình luận & Ghi chú">
                 <MessageSquare size={13} />
@@ -1160,8 +1656,8 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                 }}
                 style={{ cursor: 'pointer', outline: 'none' }}
               >
-                <option value="editing">✏️ Editing ▾</option>
-                <option value="viewing">👁️ Viewing</option>
+                <option value="editing">Editing ▾</option>
+                <option value="viewing">Viewing</option>
               </select>
 
               <button className="ribbon-share-btn" onClick={() => setShowShareModal(true)} title="Chia sẻ tài liệu">
@@ -1174,7 +1670,6 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
           <div className="ribbon-body">
             {activeTab === 'home' && (
               <>
-                {/* 1. Clipboard */}
                 <div className="ribbon-section">
                   <div className="ribbon-controls">
                     <button
@@ -1189,7 +1684,7 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                       }}
                       title="Dán từ bảng nhớ tạm (Ctrl+V)"
                     >
-                      <ClipboardPaste size={22} color="#2563eb" />
+                      <ClipboardPaste size={20} color="#2563eb" />
                       <span>Paste ▾</span>
                     </button>
                     <div className="ribbon-two-rows">
@@ -1225,13 +1720,12 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                   <div className="ribbon-group-label">Clipboard</div>
                 </div>
 
-                {/* 2. Font */}
                 <div className="ribbon-section">
                   <div className="ribbon-two-rows">
                     <div className="ribbon-row">
                       <select
                         className="ribbon-select"
-                        style={{ width: 130 }}
+                        style={{ width: 106 }}
                         onChange={(e) => {
                           if (e.target.value === 'default') editor?.chain().focus().unsetFontFamily().run();
                           else editor?.chain().focus().setFontFamily(e.target.value).run();
@@ -1250,7 +1744,7 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
 
                       <select
                         className="ribbon-select"
-                        style={{ width: 50 }}
+                        style={{ width: 44 }}
                         onChange={(e) => editor?.chain().focus().setFontSize(e.target.value).run()}
                         title="Cỡ chữ"
                         defaultValue="13pt"
@@ -1268,7 +1762,6 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                         <option value="32pt">32</option>
                       </select>
 
-                      {/* Grow & Shrink font */}
                       <button
                         className="ribbon-btn-small"
                         onClick={() => editor?.chain().focus().setFontSize('16pt').run()}
@@ -1284,10 +1777,9 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                         <span style={{ fontSize: 11, fontWeight: 700 }}>A<sub style={{ fontSize: 8 }}>▼</sub></span>
                       </button>
 
-                      {/* Change Case Aa */}
                       <select
                         className="ribbon-select"
-                        style={{ width: 54 }}
+                        style={{ width: 48 }}
                         onChange={(e) => {
                           if (e.target.value) {
                             handleTransformCase(e.target.value as any);
@@ -1302,7 +1794,6 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                         <option value="title">Viết Hoa Đầu Từ</option>
                       </select>
 
-                      {/* Clear Formatting */}
                       <button
                         className="ribbon-btn-small"
                         onClick={() => editor?.chain().focus().unsetAllMarks().clearNodes().run()}
@@ -1385,7 +1876,6 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                   <div className="ribbon-group-label">Font</div>
                 </div>
 
-                {/* 3. Paragraph */}
                 <div className="ribbon-section">
                   <div className="ribbon-two-rows">
                     <div className="ribbon-row">
@@ -1426,8 +1916,8 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                       </button>
                       <button
                         className="ribbon-btn-small"
-                        onClick={() => ui.toast('Đã sắp xếp thứ tự đoạn văn')}
-                        title="Sắp xếp (A-Z)"
+                        onClick={handleSortParagraphs}
+                        title={`Sắp xếp đoạn văn (${sortAscending ? 'A → Z' : 'Z → A'})`}
                       >
                         <ArrowUpDown size={14} />
                       </button>
@@ -1472,7 +1962,7 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
 
                       <select
                         className="ribbon-select"
-                        style={{ width: 68 }}
+                        style={{ width: 52 }}
                         onChange={(e) => {
                           const val = parseFloat(e.target.value);
                           if (Number.isFinite(val)) editor?.chain().focus().setLineHeight(val).run();
@@ -1505,18 +1995,15 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                   <div className="ribbon-group-label">Paragraph</div>
                 </div>
 
-                {/* 4. Styles Gallery */}
                 <div className="ribbon-section">
                   <div className="styles-gallery-container">
                     <button
-                      className={`styles-card ${editor?.isActive('italic') ? 'active' : ''}`}
-                      onClick={() => editor?.chain().focus().toggleItalic().run()}
-                      title="Áp dụng kiểu Emphasis"
+                      className={`styles-card ${editor?.isActive('paragraph') && !editor?.isActive('heading') ? 'active' : ''}`}
+                      onClick={() => editor?.chain().focus().setParagraph().run()}
+                      title="Áp dụng kiểu Normal"
                     >
-                      <span className="styles-card-sample" style={{ fontStyle: 'italic', fontFamily: 'Georgia, serif' }}>
-                        Emphasis
-                      </span>
-                      <span className="styles-card-title">Emphasis</span>
+                      <span className="styles-card-sample">Normal</span>
+                      <span className="styles-card-title">Normal</span>
                     </button>
 
                     <button
@@ -1525,20 +2012,9 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                       title="Áp dụng kiểu Heading 1"
                     >
                       <span className="styles-card-sample" style={{ fontWeight: 800, color: '#185abd' }}>
-                        Heading 1
+                        H1
                       </span>
                       <span className="styles-card-title">Heading 1</span>
-                    </button>
-
-                    <button
-                      className={`styles-card ${editor?.isActive('paragraph') && !editor?.isActive('heading') ? 'active' : ''}`}
-                      onClick={() => editor?.chain().focus().setParagraph().run()}
-                      title="Áp dụng kiểu Normal"
-                    >
-                      <span className="styles-card-sample">
-                        Normal
-                      </span>
-                      <span className="styles-card-title">Normal</span>
                     </button>
 
                     <button
@@ -1547,60 +2023,49 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                       title="Áp dụng kiểu Heading 2"
                     >
                       <span className="styles-card-sample" style={{ fontWeight: 700, color: '#2563eb' }}>
-                        Heading 2
+                        H2
                       </span>
                       <span className="styles-card-title">Heading 2</span>
                     </button>
 
                     <button
-                      className="styles-card"
-                      onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}
-                      title="Áp dụng kiểu Title"
+                      className={`styles-card ${editor?.isActive('heading', { level: 3 }) ? 'active' : ''}`}
+                      onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}
+                      title="Áp dụng kiểu Heading 3"
                     >
-                      <span className="styles-card-sample" style={{ fontWeight: 900, fontSize: 15 }}>
-                        Title
+                      <span className="styles-card-sample" style={{ fontWeight: 700, color: '#334155' }}>
+                        H3
                       </span>
-                      <span className="styles-card-title">Title</span>
+                      <span className="styles-card-title">Heading 3</span>
                     </button>
                   </div>
                   <div className="ribbon-group-label">Styles</div>
                 </div>
 
-                {/* 5. Editing */}
                 <div className="ribbon-section">
                   <div className="ribbon-two-rows">
                     <button
-                      className="ribbon-row"
-                      style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 11, padding: '2px 4px', gap: 4 }}
+                      className="ribbon-btn-compact"
+                      style={{ height: 25 }}
                       onClick={() => setShowFindReplace(true)}
-                      title="Tìm kiếm (Ctrl+F)"
+                      title="Tìm kiếm & Thay thế (Ctrl+F)"
                     >
                       <Search size={13} color="#2563eb" />
-                      <span>Find ▾</span>
+                      <span>Tìm & Thay</span>
                     </button>
                     <button
-                      className="ribbon-row"
-                      style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 11, padding: '2px 4px', gap: 4 }}
-                      onClick={() => setShowFindReplace(true)}
-                      title="Thay thế (Ctrl+H)"
-                    >
-                      <Replace size={13} color="#0891b2" />
-                      <span>Replace</span>
-                    </button>
-                    <button
-                      className="ribbon-row"
-                      style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 11, padding: '2px 4px', gap: 4 }}
+                      className="ribbon-btn-compact"
+                      style={{ height: 25 }}
                       onClick={() => editor?.chain().focus().selectAll().run()}
                       title="Chọn tất cả (Ctrl+A)"
                     >
                       <Pencil size={13} color="#4b5563" />
-                      <span>Select ▾</span>
+                      <span>Chọn tất cả</span>
                     </button>
                   </div>
                   <div className="ribbon-group-label">Editing</div>
                 </div>
 
-                {/* 6. Library */}
                 <div className="ribbon-section">
                   <div className="ribbon-controls">
                     <button
@@ -1619,61 +2084,62 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                   <div className="ribbon-group-label">Library</div>
                 </div>
 
-                {/* 7. Output Conversion */}
                 <div className="ribbon-section">
                   <div className="ribbon-controls">
                     <button
                       className="ribbon-btn-large"
-                      onClick={handleExportImage}
+                      onClick={() => void handleExportImage()}
                       title="Xuất văn bản thành ảnh PNG chất lượng cao"
                     >
-                      <FileImage size={19} color="#059669" />
-                      <span style={{ fontSize: 10.5 }}>Export<br/>to image</span>
+                      <FileImage size={18} color="#059669" />
+                      <span>Export<br/>Image</span>
                     </button>
-                    <button
-                      className="ribbon-btn-large"
-                      onClick={() => setShowSplitModal(true)}
-                      title="Chia nhỏ / tách tài liệu"
-                    >
-                      <Split size={19} color="#d97706" />
-                      <span style={{ fontSize: 10.5 }}>Split<br/>Document</span>
-                    </button>
-                    <button
-                      className="ribbon-btn-large"
-                      onClick={() => setShowMergeModal(true)}
-                      title="Ghép nối tài liệu"
-                    >
-                      <Combine size={19} color="#0284c7" />
-                      <span style={{ fontSize: 10.5 }}>Merge<br/>Document</span>
-                    </button>
+                    <div className="ribbon-two-rows">
+                      <button
+                        className="ribbon-btn-compact"
+                        style={{ height: 25 }}
+                        onClick={() => setShowSplitModal(true)}
+                        title="Chia nhỏ / tách tài liệu"
+                      >
+                        <Split size={13} color="#d97706" />
+                        <span>Tách bài</span>
+                      </button>
+                      <button
+                        className="ribbon-btn-compact"
+                        style={{ height: 25 }}
+                        onClick={() => void handleOpenMergeModal()}
+                        title="Ghép nối tài liệu"
+                      >
+                        <Combine size={13} color="#0284c7" />
+                        <span>Ghép bài</span>
+                      </button>
+                    </div>
                   </div>
-                  <div className="ribbon-group-label">Output Conversion</div>
+                  <div className="ribbon-group-label">Output</div>
                 </div>
 
-                {/* 8. Minh PDF */}
                 <div className="ribbon-section">
                   <div className="ribbon-controls">
                     <button
                       className="ribbon-btn-large"
-                      onClick={() => window.print()}
-                      title="Tạo tệp PDF in ấn chuẩn (Ctrl+P)"
+                      onClick={() => setPdfExportMode('standard')}
+                      title="Kết xuất tệp PDF nhị phân chuẩn A4"
                     >
-                      <FileDown size={20} color="#dc2626" />
-                      <span style={{ fontSize: 10.5 }}>Create<br/>PDF</span>
+                      <FileDown size={19} color="#dc2626" />
+                      <span>Create<br/>PDF</span>
                     </button>
                     <button
                       className="ribbon-btn-large"
                       onClick={() => setShowDrawModal(true)}
                       title="Ký tên số hoặc vẽ tay trên tài liệu"
                     >
-                      <PenTool size={20} color="#4338ca" />
+                      <PenTool size={19} color="#4338ca" />
                       <span>Sign</span>
                     </button>
                   </div>
                   <div className="ribbon-group-label">Minh PDF</div>
                 </div>
 
-                {/* 9. Voice */}
                 <div className="ribbon-section">
                   <div className="ribbon-controls">
                     <button
@@ -1681,14 +2147,13 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                       onClick={toggleVoiceDictation}
                       title="Gõ văn bản bằng giọng nói tiếng Việt"
                     >
-                      {isListening ? <MicOff size={20} color="#dc2626" /> : <Mic size={20} color="#2563eb" />}
+                      {isListening ? <MicOff size={19} color="#dc2626" /> : <Mic size={19} color="#2563eb" />}
                       <span>Dictate ▾</span>
                     </button>
                   </div>
                   <div className="ribbon-group-label">Voice</div>
                 </div>
 
-                {/* 10. Editor */}
                 <div className="ribbon-section">
                   <div className="ribbon-controls">
                     <button
@@ -1696,7 +2161,7 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                       onClick={() => setShowEditorCheckModal(true)}
                       title="Kiểm tra ngữ pháp, lỗi chính tả & văn phong"
                     >
-                      <CheckCheck size={20} color="#059669" />
+                      <CheckCheck size={19} color="#059669" />
                       <span>Editor</span>
                     </button>
                   </div>
@@ -1708,10 +2173,10 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                     <button
                       className="ribbon-btn-large"
                       onClick={() => setShowAiModal(true)}
-                      title="Minh AI: Trợ lý văn bản toàn năng (Dịch song ngữ, Tạo Slide, Soạn thảo & Hỏi đáp Claude/ChatGPT)"
+                      title="Minh AI: Trợ lý văn bản toàn năng"
                     >
                       <div style={{ position: 'relative' }}>
-                        <Sparkles size={20} color="#7c3aed" />
+                        <Sparkles size={19} color="#7c3aed" />
                       </div>
                       <span style={{ fontWeight: 600, color: '#6d28d9' }}>Minh AI</span>
                     </button>
@@ -1727,15 +2192,15 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                   <div className="ribbon-controls">
                     <button
                       className="ribbon-btn-large"
-                      onClick={() => window.print()}
-                      title="Tạo tệp PDF in ấn chuẩn từ tài liệu (Ctrl+P)"
+                      onClick={() => setPdfExportMode('standard')}
+                      title="Kết xuất tệp PDF nhị phân chuẩn từ tài liệu"
                     >
                       <FileDown size={20} color="#dc2626" />
                       <span>Create<br/>PDF</span>
                     </button>
                     <button
                       className="ribbon-btn-large"
-                      onClick={() => setShowSlidesModal(true)}
+                      onClick={handleGenerateSlides}
                       title="Trình chiếu tài liệu toàn màn hình"
                     >
                       <Presentation size={20} color="#dc2626" />
@@ -1766,14 +2231,14 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                     <button
                       className="ribbon-btn-large"
                       onClick={() => setShowSplitModal(true)}
-                      title="Tách đoạn / ngắt trang tài liệu PDF"
+                      title="Tách đoạn / chương mục tài liệu"
                     >
                       <Split size={20} color="#475569" />
                       <span>PDF<br/>Split</span>
                     </button>
                     <button
                       className="ribbon-btn-large"
-                      onClick={() => setShowMergeModal(true)}
+                      onClick={() => void handleOpenMergeModal()}
                       title="Ghép nối tài liệu"
                     >
                       <Layers size={20} color="#475569" />
@@ -1781,7 +2246,7 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                     </button>
                     <button
                       className="ribbon-btn-large"
-                      onClick={() => setActiveTab('layout')}
+                      onClick={handlePageSettings}
                       title="Thiết lập lề & kích thước trang in PDF"
                     >
                       <Crop size={20} color="#2563eb" />
@@ -1789,8 +2254,8 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                     </button>
                     <button
                       className="ribbon-btn-large"
-                      onClick={() => ui.toast('Đã nén tối ưu hóa hình ảnh & dung lượng tệp PDF (-38%)')}
-                      title="Nén dung lượng PDF để gửi email"
+                      onClick={() => setPdfExportMode('compressed')}
+                      title="Nén giảm dung lượng tệp PDF"
                     >
                       <Minimize2 size={20} color="#059669" />
                       <span>PDF<br/>Compressor</span>
@@ -1799,7 +2264,7 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                       className="ribbon-btn-large"
                       onClick={() => {
                         editor?.chain().focus().unsetAllMarks().clearNodes().run();
-                        ui.toast('Đã tẩy sạch định dạng rác trên vùng văn bản');
+                        ui.toast('Đã tẩy sạch định dạng trên vùng văn bản đã chọn');
                       }}
                       title="Tẩy sạch định dạng hoặc nội dung thừa"
                     >
@@ -1809,7 +2274,7 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                     <button
                       className="ribbon-btn-large"
                       onClick={() => setShowDrawModal(true)}
-                      title="Vẽ hình khối và đường kẻ trực tiếp lên PDF"
+                      title="Vẽ hình khối và đường kẻ trực tiếp"
                     >
                       <PenTool size={20} color="#6366f1" />
                       <span>Draw<br/>Shapes</span>
@@ -1822,8 +2287,8 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                   <div className="ribbon-controls">
                     <button
                       className="ribbon-btn-large"
-                      onClick={() => ui.toast('Tài liệu hiện tại đã là tệp chuẩn Minh Docs (.docx)')}
-                      title="Chuyển đổi sang Word"
+                      onClick={handleExportDocx}
+                      title="Tải xuống tệp Minh Docs (.docx)"
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <FileText size={16} color="#dc2626" />
@@ -1833,8 +2298,8 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                     </button>
                     <button
                       className="ribbon-btn-large"
-                      onClick={() => ui.toast('Đang trích xuất bảng biểu trong tài liệu sang Minh Sheets…')}
-                      title="Trích xuất dữ liệu sang Excel"
+                      onClick={() => void handleExtractTablesToExcel(true)}
+                      title="Trích xuất bảng dữ liệu trong tài liệu sang Minh Sheets (.xlsx)"
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <FileSpreadsheet size={16} color="#dc2626" />
@@ -1845,7 +2310,7 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                     <button
                       className="ribbon-btn-large"
                       onClick={handleGenerateSlides}
-                      title="Chuyển đổi tài liệu thành slide trình chiếu PPT"
+                      title="Chuyển đổi tài liệu thành slide trình chiếu"
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <Presentation size={16} color="#dc2626" />
@@ -1855,24 +2320,27 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                     </button>
                     <button
                       className="ribbon-btn-large"
-                      onClick={() => ui.toast('Đã bật chế độ PDF chỉ đọc chống sao chép!')}
-                      title="Chuyển thành tệp PDF dạng ảnh chỉ đọc"
+                      onClick={() => setPdfExportMode('imageOnly')}
+                      title="Kết xuất thành tệp PDF dạng ảnh phẳng chống sao chép"
                     >
                       <ImageIcon size={20} color="#475569" />
                       <span>To Image-<br/>only PDF</span>
                     </button>
                     <button
                       className="ribbon-btn-large"
-                      onClick={handleExportImage}
-                      title="Xuất từng trang văn bản thành hình ảnh PNG sắc nét"
+                      onClick={() => void handleExportImage()}
+                      title="Xuất trang văn bản thành hình ảnh PNG sắc nét"
                     >
                       <FileImage size={20} color="#059669" />
                       <span>PDF to<br/>Picture</span>
                     </button>
                     <button
                       className="ribbon-btn-large"
-                      onClick={() => ui.toast('Nhận dạng chữ OCR tiếng Việt độ chính xác 99.8%')}
-                      title="Nhận dạng chữ OCR từ tài liệu scan"
+                      onClick={() => {
+                        setOcrExtractedText(editor?.getText() || '');
+                        setShowOcrImportModal(true);
+                      }}
+                      title="Trích xuất văn bản OCR từ tệp PDF hoặc văn bản scan"
                     >
                       <Search size={20} color="#7c3aed" />
                       <span>OCR<br/>PDF</span>
@@ -1881,13 +2349,13 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                   <div className="ribbon-group-label">Minh PDF Convert</div>
                 </div>
 
-                {/* 4. Group: Settings */}
                 <div className="ribbon-section">
-                  <div className="ribbon-controls" style={{ padding: '0 8px' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, cursor: 'pointer', userSelect: 'none' }}>
+                  <div className="ribbon-controls" style={{ padding: '0 6px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, cursor: 'pointer', userSelect: 'none' }}>
                       <input
                         type="checkbox"
-                        defaultChecked
+                        checked={keepPdfAttributes}
+                        onChange={(e) => setKeepPdfAttributes(e.target.checked)}
                         style={{ cursor: 'pointer' }}
                       />
                       <span>Keep Document<br/>Attributes</span>
@@ -1896,13 +2364,12 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                   <div className="ribbon-group-label">Settings</div>
                 </div>
 
-                {/* 5. Group: Other */}
                 <div className="ribbon-section">
                   <div className="ribbon-controls">
                     <button
                       className="ribbon-btn-large"
-                      onClick={() => ui.toast('Mở rộng các thiết lập bảo mật và định dạng in ấn')}
-                      title="Thêm các thiết lập khác"
+                      onClick={handlePageSettings}
+                      title="Thiết lập khổ giấy, hướng trang, đầu trang & chân trang"
                     >
                       <Settings size={20} color="#64748b" />
                       <span>More<br/>▾</span>
@@ -1999,7 +2466,14 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <Shield size={14} color="#64748b" />
                         <span style={{ fontSize: 11, color: '#64748b' }}>Hình mờ:</span>
-                        <select className="ribbon-select" value={watermark} onChange={(e) => setWatermark(e.target.value)}>
+                        <select
+                          className="ribbon-select"
+                          value={watermark}
+                          onChange={(e) => {
+                            setWatermark(e.target.value);
+                            setSavedStatus('saving');
+                          }}
+                        >
                           <option value="">Không có</option>
                           <option value="BẢN THẢO">BẢN THẢO</option>
                           <option value="TUYỆT MẬT">TUYỆT MẬT</option>
@@ -2010,7 +2484,14 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <Palette size={14} color="#64748b" />
                         <span style={{ fontSize: 11, color: '#64748b' }}>Màu trang:</span>
-                        <select className="ribbon-select" value={paperBg} onChange={(e) => setPaperBg(e.target.value)}>
+                        <select
+                          className="ribbon-select"
+                          value={paperBg}
+                          onChange={(e) => {
+                            setPaperBg(e.target.value);
+                            setSavedStatus('saving');
+                          }}
+                        >
                           <option value="#ffffff">Trắng tinh</option>
                           <option value="#faf8f5">Vàng kem (Ivory)</option>
                           <option value="#f3f4f6">Ghi nhạt</option>
@@ -2035,7 +2516,14 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ fontSize: 11, color: '#64748b' }}>Khổ giấy:</span>
-                        <select className="ribbon-select" value={page.size} onChange={(e) => setPage((p) => ({ ...p, size: e.target.value as any }))}>
+                        <select
+                          className="ribbon-select"
+                          value={page.size}
+                          onChange={(e) => {
+                            setPage((p) => ({ ...p, size: e.target.value as any }));
+                            setSavedStatus('saving');
+                          }}
+                        >
                           <option value="A4">A4 (21 × 29.7 cm)</option>
                           <option value="A5">A5 (14.8 × 21 cm)</option>
                           <option value="Letter">Letter (8.5 × 11 in)</option>
@@ -2044,7 +2532,14 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ fontSize: 11, color: '#64748b' }}>Hướng giấy:</span>
-                        <select className="ribbon-select" value={page.orientation} onChange={(e) => setPage((p) => ({ ...p, orientation: e.target.value as any }))}>
+                        <select
+                          className="ribbon-select"
+                          value={page.orientation}
+                          onChange={(e) => {
+                            setPage((p) => ({ ...p, orientation: e.target.value as any }));
+                            setSavedStatus('saving');
+                          }}
+                        >
                           <option value="portrait">Dọc (Portrait)</option>
                           <option value="landscape">Ngang (Landscape)</option>
                         </select>
@@ -2053,7 +2548,14 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 6 }}>
                       <Columns size={16} color="#64748b" />
                       <span style={{ fontSize: 11, color: '#64748b' }}>Chia cột:</span>
-                      <select className="ribbon-select" value={columnCount} onChange={(e) => setColumnCount(Number(e.target.value))}>
+                      <select
+                        className="ribbon-select"
+                        value={columnCount}
+                        onChange={(e) => {
+                          setColumnCount(Number(e.target.value));
+                          setSavedStatus('saving');
+                        }}
+                      >
                         <option value={1}>1 cột</option>
                         <option value={2}>2 cột báo chí</option>
                         <option value={3}>3 cột</option>
@@ -2073,9 +2575,9 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                       <Bookmark size={22} color="#2563eb" />
                       <span>Mục lục tự động</span>
                     </button>
-                    <button className="ribbon-btn-large" onClick={() => ui.toast('Đã chèn ghi chú cuối trang (Footnote)')} title="Chèn chú thích cuối trang">
+                    <button className="ribbon-btn-large" onClick={() => void handleInsertFootnote()} title="Chèn chú thích cuối trang">
                       <FileText size={22} color="#059669" />
-                      <span>Footnote</span>
+                      <span>Footnote ({footnotes.length})</span>
                     </button>
                   </div>
                   <div className="ribbon-group-label">Mục lục & Tham chiếu</div>
@@ -2087,12 +2589,30 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
               <>
                 <div className="ribbon-section">
                   <div className="ribbon-controls">
-                    <button className="ribbon-btn-large" onClick={() => ui.toast('Tính năng trộn thư (Mail Merge) đã kích hoạt')}>
-                      <FileSpreadsheet size={22} color="#2563eb" />
-                      <span>Trộn thư</span>
+                    <button className="ribbon-btn-large" onClick={() => setShowMailMergeModal(true)} title="Mở bảng danh sách người nhận & xuất thư trộn">
+                      <Mail size={20} color="#2563eb" />
+                      <span>Trộn thư<br/>({mailRecipients.length})</span>
                     </button>
                   </div>
                   <div className="ribbon-group-label">Mail Merge</div>
+                </div>
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    {['Ho_ten', 'Chuc_vu', 'Phong_ban', 'Email', 'Ngay'].map((fieldKey) => (
+                      <button
+                        key={fieldKey}
+                        className="ribbon-btn-compact"
+                        onClick={() => {
+                          editor?.chain().focus().insertContent(`{{${fieldKey}}}`).run();
+                          ui.toast(`Đã chèn trường {{${fieldKey}}} vào vị trí con trỏ`);
+                        }}
+                      >
+                        <Plus size={12} color="#2563eb" />
+                        <span>{`{{${fieldKey}}}`}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="ribbon-group-label">Chèn trường dữ liệu động</div>
                 </div>
               </>
             )}
@@ -2135,6 +2655,10 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                       <Layout size={20} color="#059669" />
                       <span>Thước kẻ</span>
                     </button>
+                    <button className={`ribbon-btn-large ${showParagraphMarks ? 'active' : ''}`} onClick={() => setShowParagraphMarks(!showParagraphMarks)} title="Hiện/Ẩn ký hiệu đoạn văn (¶)">
+                      <Pilcrow size={20} color="#6366f1" />
+                      <span>Ký hiệu ¶</span>
+                    </button>
                   </div>
                   <div className="ribbon-group-label">Chế độ xem</div>
                 </div>
@@ -2162,8 +2686,8 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                       <BarChart2 size={20} color="#2563eb" />
                       <span>Thống kê</span>
                     </button>
-                    <button className="ribbon-btn-large" onClick={() => ui.toast('Phím tắt: Ctrl+S (Lưu), Ctrl+F (Tìm), Ctrl+P (In), Ctrl+Z (Undo)')}>
-                      <FileText size={20} color="#059669" />
+                    <button className="ribbon-btn-large" onClick={() => setShowShortcutsModal(true)}>
+                      <Keyboard size={20} color="#059669" />
                       <span>Phím tắt</span>
                     </button>
                   </div>
@@ -2198,6 +2722,14 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                       <Download size={20} color="#185abd" />
                       <span>Minh Docs (.docx)</span>
                     </button>
+                    <button className="ribbon-btn-large" onClick={() => setPdfExportMode('standard')} title="Kết xuất tệp Minh PDF (.pdf)">
+                      <FileDown size={20} color="#dc2626" />
+                      <span>Minh PDF (.pdf)</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => void handleExtractTablesToExcel(false)} title="Trích xuất bảng sang Minh Sheets (.xlsx)">
+                      <FileSpreadsheet size={20} color="#107c41" />
+                      <span>Bảng (.xlsx)</span>
+                    </button>
                     <button className="ribbon-btn-large" onClick={handleExportMarkdown} title="Tải xuống Markdown (.md)">
                       <Download size={20} color="#374151" />
                       <span>Markdown (.md)</span>
@@ -2210,9 +2742,9 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                       <Download size={20} color="#4b5563" />
                       <span>Text (.txt)</span>
                     </button>
-                    <button className="ribbon-btn-large" onClick={() => window.print()} title="In tài liệu hoặc xuất PDF">
-                      <Printer size={20} color="#dc2626" />
-                      <span>In / PDF</span>
+                    <button className="ribbon-btn-large" onClick={() => window.print()} title="In tài liệu (Ctrl+P)">
+                      <Printer size={20} color="#64748b" />
+                      <span>In trang</span>
                     </button>
                   </div>
                   <div className="ribbon-group-label">Xuất & In ấn</div>
@@ -2419,8 +2951,7 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
             </div>
           )}
 
-          <div className="doc-paper" style={pageSizeStyle}>
-            {/* Watermark Overlay */}
+          <div className={`doc-paper ${showParagraphMarks ? 'doc-show-pilcrow' : ''}`} style={pageSizeStyle}>
             {watermark && (
               <div
                 style={{
@@ -2448,6 +2979,29 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
               <EditorContent editor={editor} />
             </div>
 
+            {footnotes.length > 0 && (
+              <div className="doc-footnotes-region">
+                <div style={{ fontSize: 10.5, fontWeight: 700, color: '#475569', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                  Chú thích cuối trang ({footnotes.length})
+                </div>
+                {footnotes.map((fn) => (
+                  <div key={fn.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, fontSize: 11.5, color: '#334155', marginBottom: 4 }}>
+                    <div>
+                      <strong>[{fn.index}]</strong> {fn.text}
+                    </div>
+                    <button
+                      className="icon-btn"
+                      style={{ width: 18, height: 18, flexShrink: 0 }}
+                      onClick={() => handleRemoveFootnote(fn.id)}
+                      title="Xoá chú thích này"
+                    >
+                      <X size={11} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {(page.footer || page.pageNumbers) && (
               <div className="footer-region">
                 <span>{page.footer}</span>
@@ -2457,7 +3011,6 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
           </div>
         </div>
 
-        {/* Outline / Navigator */}
         {showOutline && (
           <aside className="doc-outline">
             <div className="outline-title">Mục lục văn bản</div>
@@ -2471,7 +3024,9 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                   key={i}
                   className={`outline-item h${h.level}`}
                   onClick={() => {
-                    editor?.commands.focus();
+                    const domHeadings = document.querySelectorAll('.doc-paper .ProseMirror h1, .doc-paper .ProseMirror h2, .doc-paper .ProseMirror h3');
+                    domHeadings[i]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    editor?.chain().focus(h.pos + 1).run();
                   }}
                 >
                   {h.text}
@@ -2845,16 +3400,20 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                 Đóng
               </button>
               <button
-                className="btn btn-doc"
+                className="btn"
                 onClick={() => {
                   const text = slideDeck
-                    .map((s, i) => `SLIDE ${i + 1}: ${s.title}\n` + s.bullets.map((b) => `• ${b}`).join('\n'))
+                    .map((s, i) => `SLIDE ${i + 1}: ${s.title}\n` + s.bullets.map((b) => `- ${b}`).join('\n'))
                     .join('\n\n');
                   navigator.clipboard.writeText(text);
                   ui.toast('Đã sao chép toàn bộ dàn ý slide!');
                 }}
               >
                 Sao chép dàn ý
+              </button>
+              <button className="btn btn-doc" onClick={handleExportSlideDeckHtml}>
+                <Download size={14} />
+                <span>Tải Slide HTML 16:9</span>
               </button>
             </div>
           </div>
@@ -2871,7 +3430,7 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                 </div>
                 <div>
                   <h2 style={{ fontSize: 16, margin: 0 }}>Minh AI — Trợ lý Văn bản Toàn năng</h2>
-                  <div className="dialog-subtitle" style={{ marginTop: 2 }}>Soạn thảo, dịch thuật, tạo slide và đối thoại thông minh</div>
+                  <div className="dialog-subtitle" style={{ marginTop: 2 }}>Soạn thảo, dịch thuật, tạo slide và kiểm chuẩn văn phong</div>
                 </div>
               </div>
               <button className="icon-btn" onClick={() => setShowAiModal(false)}>
@@ -2881,16 +3440,16 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
 
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
               <button className="btn" style={{ fontSize: 11.5 }} onClick={() => handleRunAiSmart('formal')}>
-                ✨ Viết trang trọng hơn
+                Viết trang trọng hơn
               </button>
               <button className="btn" style={{ fontSize: 11.5 }} onClick={() => handleRunAiSmart('summary')}>
-                📌 Tóm tắt ý chính
+                Tóm tắt ý chính
               </button>
               <button className="btn" style={{ fontSize: 11.5 }} onClick={() => handleRunAiSmart('expand')}>
-                💡 Mở rộng luận điểm
+                Mở rộng luận điểm
               </button>
               <button className="btn" style={{ fontSize: 11.5 }} onClick={() => handleRunAiSmart('proofread')}>
-                🔍 Sửa lỗi hành văn
+                Báo cáo hành văn
               </button>
               <button
                 className="btn"
@@ -2900,7 +3459,7 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                   handleOpenTranslate();
                 }}
               >
-                🌐 Dịch song ngữ
+                Dịch song ngữ
               </button>
               <button
                 className="btn"
@@ -2910,14 +3469,14 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                   handleGenerateSlides();
                 }}
               >
-                📑 Tạo slide từ văn bản
+                Tạo slide từ văn bản
               </button>
             </div>
 
             <textarea
               className="text-field"
               rows={6}
-              value={aiResult || (isAiLoading ? 'Đang phân tích văn bản và tạo nội dung thông minh với Minh AI…' : 'Bấm chọn một hành động AI phía trên hoặc nhập yêu cầu cụ thể của sếp tại đây…')}
+              value={aiResult || (isAiLoading ? 'Đang phân tích văn bản và tạo nội dung thông minh với Minh AI…' : 'Bấm chọn một hành động AI phía trên hoặc nhập nội dung cần chèn…')}
               onChange={(e) => setAiResult(e.target.value)}
               style={{ width: '100%', fontSize: 13, lineHeight: 1.5, marginBottom: 16 }}
             />
@@ -2944,7 +3503,6 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
         </div>
       )}
 
-      {/* Share Modal */}
       {showShareModal && (
         <div className="dialog-backdrop" onClick={() => setShowShareModal(false)}>
           <div className="dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 500 }}>
@@ -2959,7 +3517,7 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
             </div>
 
             <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.5, marginBottom: 16 }}>
-              Tài liệu của sếp được lưu trữ 100% bảo mật trên máy cục bộ (Offline-first IndexedDB). Sếp có thể xuất sang các định dạng chuẩn để gửi đi:
+              Tài liệu của sếp được lưu trữ cục bộ an toàn trên máy (IndexedDB) và sẵn sàng xuất ra các định dạng chuẩn văn phòng:
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 18 }}>
@@ -2967,9 +3525,16 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
                 <FileText size={16} color="#185abd" />
                 <span>Xuất tệp Minh Docs (.docx)</span>
               </button>
-              <button className="btn" style={{ justifyContent: 'flex-start' }} onClick={() => window.print()}>
+              <button
+                className="btn"
+                style={{ justifyContent: 'flex-start' }}
+                onClick={() => {
+                  setShowShareModal(false);
+                  setPdfExportMode('standard');
+                }}
+              >
                 <FileDown size={16} color="#dc2626" />
-                <span>Xuất tệp Adobe PDF (.pdf)</span>
+                <span>Xuất tệp Minh PDF (.pdf)</span>
               </button>
               <button className="btn" style={{ justifyContent: 'flex-start' }} onClick={handleExportImage}>
                 <FileImage size={16} color="#059669" />
@@ -3042,67 +3607,85 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
         </div>
       )}
 
-      {/* Split Document Modal */}
       {showSplitModal && (
         <div className="dialog-backdrop" onClick={() => setShowSplitModal(false)}>
-          <div className="dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
+          <div className="dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <h2 style={{ fontSize: 16 }}>Tách tài liệu (Split Document)</h2>
+              <h2 style={{ fontSize: 16 }}>Tách tài liệu theo chương mục (Split Document)</h2>
               <button className="icon-btn" onClick={() => setShowSplitModal(false)}>
                 <X size={16} />
               </button>
             </div>
-            <p style={{ fontSize: 13, color: '#475569', marginBottom: 16 }}>
-              Tài liệu hiện có <strong>{headings.length}</strong> đề mục chính. Sếp có thể tách tài liệu theo từng chương/mục độc lập:
+            <p style={{ fontSize: 13, color: '#475569', marginBottom: 14 }}>
+              Hệ thống tự động nhận diện <strong>{splitSections.length}</strong> phần dựa trên cấu trúc Tiêu đề 1 & 2:
             </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 18 }}>
-              {headings.map((h, i) => (
-                <div key={i} style={{ padding: '6px 10px', background: '#f8fafc', borderRadius: 6, fontSize: 12, border: '1px solid #e2e8f0' }}>
-                  Phần {i + 1}: {h.text}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 18, maxHeight: 220, overflowY: 'auto' }}>
+              {splitSections.map((sec, i) => (
+                <div key={i} style={{ padding: '7px 10px', background: '#f8fafc', borderRadius: 6, fontSize: 12, border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span><strong>Phần {i + 1}:</strong> {sec.title}</span>
+                  <span style={{ fontSize: 11, color: '#64748b' }}>{sec.nodes.length} khối</span>
                 </div>
               ))}
             </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
               <button className="btn" onClick={() => setShowSplitModal(false)}>
                 Đóng
               </button>
-              <button className="btn btn-doc" onClick={() => {
-                setShowSplitModal(false);
-                ui.toast('Đã tách thành công các phần của tài liệu');
-              }}>
-                Tách tài liệu ngay
+              <button className="btn" onClick={() => handleRunSplitDocument(false)}>
+                <Download size={14} />
+                <span>Tải các tệp .docx</span>
+              </button>
+              <button className="btn btn-doc" onClick={() => handleRunSplitDocument(true)}>
+                Lưu vào Kho Minh Docs
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Merge Document Modal */}
       {showMergeModal && (
         <div className="dialog-backdrop" onClick={() => setShowMergeModal(false)}>
-          <div className="dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
+          <div className="dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <h2 style={{ fontSize: 16 }}>Ghép nối tài liệu (Merge Document)</h2>
               <button className="icon-btn" onClick={() => setShowMergeModal(false)}>
                 <X size={16} />
               </button>
             </div>
-            <p style={{ fontSize: 13, color: '#475569', marginBottom: 16 }}>
-              Chọn một tệp từ máy hoặc mẫu để chèn tiếp nối vào cuối văn bản hiện tại:
+            <p style={{ fontSize: 13, color: '#475569', marginBottom: 14 }}>
+              Chọn tài liệu khác trong Kho Minh Docs hoặc tải tệp .docx từ máy để ghép tiếp vào cuối văn bản hiện tại (kèm ngắt trang):
             </p>
+            {workspaceDocs.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14, maxHeight: 180, overflowY: 'auto' }}>
+                {workspaceDocs.map((docItem) => (
+                  <button
+                    key={docItem.id}
+                    className="btn"
+                    style={{ justifyContent: 'space-between', fontSize: 12 }}
+                    onClick={() => handleMergeWorkspaceDoc(docItem)}
+                  >
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <FileText size={14} color="#185abd" />
+                      <span>{docItem.name}</span>
+                    </span>
+                    <span style={{ fontSize: 11, color: '#2563eb', fontWeight: 600 }}>Ghép vào cuối</span>
+                  </button>
+                ))}
+              </div>
+            )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 18 }}>
               <label className="btn" style={{ cursor: 'pointer', justifyContent: 'center' }}>
                 <Upload size={14} />
-                <span>Chọn tệp Minh Docs (.docx) từ máy…</span>
+                <span>Tải tệp Minh Docs (.docx) từ máy tính…</span>
                 <input
                   type="file"
                   accept=".docx"
                   hidden
                   onChange={async (e) => {
                     const f = e.target.files?.[0];
-                    if (f && editor) {
-                      setShowMergeModal(false);
-                      ui.toast(`Đã ghép nối tệp "${f.name}" vào văn bản!`);
+                    e.target.value = '';
+                    if (f) {
+                      await handleMergeUploadedDocx(f);
                     }
                   }}
                 />
@@ -3117,49 +3700,366 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack }: D
         </div>
       )}
 
-      {/* Editor Proofread Modal */}
       {showEditorCheckModal && (
         <div className="dialog-backdrop" onClick={() => setShowEditorCheckModal(false)}>
-          <div className="dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
+          <div className="dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 540 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <CheckCheck size={20} color="#059669" />
-                <h2 style={{ fontSize: 16 }}>Báo cáo kiểm tra văn phong (Editor)</h2>
+                <h2 style={{ fontSize: 16 }}>Báo cáo kiểm chuẩn văn phong tiếng Việt (Editor)</h2>
               </div>
               <button className="icon-btn" onClick={() => setShowEditorCheckModal(false)}>
                 <X size={16} />
               </button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
               <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', padding: 12, borderRadius: 8 }}>
-                <div style={{ fontSize: 11, color: '#166534', fontWeight: 600 }}>Điểm số trình bày</div>
-                <div style={{ fontSize: 24, fontWeight: 800, color: '#15803d', marginTop: 4 }}>98/100</div>
-                <div style={{ fontSize: 11, color: '#166534', marginTop: 2 }}>Văn bản chuẩn chỉnh</div>
+                <div style={{ fontSize: 11, color: '#166534', fontWeight: 600 }}>Điểm chuẩn trình bày</div>
+                <div style={{ fontSize: 24, fontWeight: 800, color: '#15803d', marginTop: 4 }}>{proofreadReport.score}/100</div>
+                <div style={{ fontSize: 11, color: '#166534', marginTop: 2 }}>
+                  {proofreadReport.totalIssues === 0 ? 'Không có lỗi định dạng câu' : `Phát hiện ${proofreadReport.totalIssues} điểm cần rà soát`}
+                </div>
               </div>
               <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', padding: 12, borderRadius: 8 }}>
-                <div style={{ fontSize: 11, color: '#1e40af', fontWeight: 600 }}>Độ dễ đọc</div>
-                <div style={{ fontSize: 24, fontWeight: 800, color: '#1d4ed8', marginTop: 4 }}>Tốt</div>
-                <div style={{ fontSize: 11, color: '#1e40af', marginTop: 2 }}>Phù hợp hội nghị / văn phòng</div>
+                <div style={{ fontSize: 11, color: '#1e40af', fontWeight: 600 }}>Cấu trúc câu văn</div>
+                <div style={{ fontSize: 24, fontWeight: 800, color: '#1d4ed8', marginTop: 4 }}>{proofreadReport.sentenceCount} câu</div>
+                <div style={{ fontSize: 11, color: '#1e40af', marginTop: 2 }}>{wordCount} từ · {headings.length} đề mục</div>
               </div>
             </div>
 
-            <div style={{ fontSize: 12, color: '#334155', lineHeight: 1.6, marginBottom: 16 }}>
-              ✓ Không phát hiện lỗi chính tả nghiêm trọng.<br/>
-              ✓ Câu từ rõ nghĩa, đúng thể thức văn bản hành chính Việt Nam.<br/>
-              ✓ Cấu trúc phân đoạn và tiêu đề đạt chuẩn thẩm mỹ Office.
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12.5, color: '#334155', marginBottom: 16, background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Khoảng trắng kép thừa:</span>
+                <strong>{proofreadReport.doubleSpaces} vị trí</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Khoảng trắng thừa trước dấu câu (, . ; : ! ?):</span>
+                <strong>{proofreadReport.spaceBeforePunct} vị trí</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Chữ thường ngay sau dấu kết câu (. ! ?):</span>
+                <strong>{proofreadReport.lowerAfterDot} vị trí</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Từ lặp liên tiếp nhau:</span>
+                <strong>{proofreadReport.repeatedWords} vị trí</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Câu quá dài (&gt; 45 từ):</span>
+                <strong>{proofreadReport.longSentences} câu</strong>
+              </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+              <button
+                className="btn"
+                onClick={handleAutoFixProofread}
+                disabled={proofreadReport.doubleSpaces + proofreadReport.spaceBeforePunct + proofreadReport.lowerAfterDot === 0}
+              >
+                Tự động chuẩn hoá khoảng trắng & dấu câu
+              </button>
               <button className="btn btn-doc" onClick={() => setShowEditorCheckModal(false)}>
-                Đã hiểu
+                Đóng
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Status Bar */}
+      {pdfExportMode && (
+        <div className="dialog-backdrop" onClick={() => setPdfExportMode(null)}>
+          <div className="dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <FileDown size={20} color="#dc2626" />
+                <h2 style={{ fontSize: 16 }}>
+                  {pdfExportMode === 'compressed'
+                    ? 'Nén & Xuất PDF dung lượng nhỏ (PDF Compressor)'
+                    : pdfExportMode === 'imageOnly'
+                    ? 'Xuất PDF dạng ảnh chống chỉnh sửa (Image-only PDF)'
+                    : 'Tạo tệp nhị phân chuẩn Minh PDF (Create PDF)'}
+                </h2>
+              </div>
+              <button className="icon-btn" onClick={() => setPdfExportMode(null)}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+              <button
+                className={`btn ${pdfExportMode === 'standard' ? 'btn-doc' : ''}`}
+                style={{ fontSize: 11.5 }}
+                onClick={() => setPdfExportMode('standard')}
+              >
+                Chuẩn sắc nét (300 DPI)
+              </button>
+              <button
+                className={`btn ${pdfExportMode === 'compressed' ? 'btn-doc' : ''}`}
+                style={{ fontSize: 11.5 }}
+                onClick={() => setPdfExportMode('compressed')}
+              >
+                Nén gọn gửi Email
+              </button>
+              <button
+                className={`btn ${pdfExportMode === 'imageOnly' ? 'btn-doc' : ''}`}
+                style={{ fontSize: 11.5 }}
+                onClick={() => setPdfExportMode('imageOnly')}
+              >
+                Ảnh phẳng bảo mật
+              </button>
+            </div>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: '#334155', marginBottom: 18, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={keepPdfAttributes}
+                onChange={(e) => setKeepPdfAttributes(e.target.checked)}
+              />
+              <span>Giữ nguyên Header, Footer, Đánh số trang và Chú thích cuối trang</span>
+            </label>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
+              <button className="btn" onClick={() => setPdfExportMode(null)}>
+                Huỷ
+              </button>
+              <button className="btn" onClick={() => handleCreatePdfDocument(pdfExportMode, false)}>
+                <Download size={14} />
+                <span>Tải tệp .pdf</span>
+              </button>
+              <button className="btn btn-doc" onClick={() => handleCreatePdfDocument(pdfExportMode, true)}>
+                Lưu & Mở trong Minh PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showOcrImportModal && (
+        <div className="dialog-backdrop" onClick={() => setShowOcrImportModal(false)}>
+          <div className="dialog wide" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 620 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h2 style={{ fontSize: 16 }}>Nhận dạng & Trích xuất văn bản (OCR PDF / DOCX / TXT)</h2>
+              <button className="icon-btn" onClick={() => setShowOcrImportModal(false)}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <div style={{ marginBottom: 12 }}>
+              <label className="btn" style={{ cursor: 'pointer', display: 'inline-flex' }}>
+                <Upload size={14} />
+                <span>Chọn tệp .pdf, .docx hoặc .txt để trích xuất chữ…</span>
+                <input
+                  type="file"
+                  accept=".pdf,.docx,.txt"
+                  hidden
+                  onChange={async (e) => {
+                    const f = e.target.files?.[0];
+                    e.target.value = '';
+                    if (f) await handleOcrFileUpload(f);
+                  }}
+                />
+              </label>
+            </div>
+
+            <textarea
+              className="text-field"
+              rows={8}
+              placeholder="Nội dung nhận dạng từ tệp PDF/DOCX sẽ hiển thị tại đây để sếp biên tập trước khi chèn…"
+              value={ocrExtractedText}
+              onChange={(e) => setOcrExtractedText(e.target.value)}
+              style={{ width: '100%', fontSize: 12.5, lineHeight: 1.55, marginBottom: 14 }}
+            />
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button className="btn" onClick={() => setShowOcrImportModal(false)}>
+                Đóng
+              </button>
+              <button
+                className="btn btn-doc"
+                disabled={!ocrExtractedText.trim()}
+                onClick={() => {
+                  if (!editor || !ocrExtractedText.trim()) return;
+                  const paragraphsHtml = ocrExtractedText
+                    .split(/\n{2,}/)
+                    .map((p) => `<p>${p.trim().replace(/\n/g, '<br/>')}</p>`)
+                    .join('');
+                  editor.chain().focus('end').insertContent(paragraphsHtml).run();
+                  setShowOcrImportModal(false);
+                  setSavedStatus('saving');
+                  ui.toast('Đã chèn nội dung OCR vào tài liệu');
+                }}
+              >
+                Chèn vào văn bản
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showMailMergeModal && (
+        <div className="dialog-backdrop" onClick={() => setShowMailMergeModal(false)}>
+          <div className="dialog wide" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 760 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div>
+                <h2 style={{ fontSize: 16 }}>Trộn thư & Xuất văn bản hàng loạt (Mail Merge Studio)</h2>
+                <div className="dialog-subtitle">Chèn trường biến vào văn bản rồi trộn danh sách người nhận thành tài liệu nhiều trang</div>
+              </div>
+              <button className="icon-btn" onClick={() => setShowMailMergeModal(false)}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
+              <span style={{ fontSize: 11.5, fontWeight: 600, color: '#475569' }}>Chèn trường biến tại con trỏ:</span>
+              {(Object.keys(mailRecipients[0] ?? { Ho_ten: '', Chuc_vu: '', Phong_ban: '', Email: '', Ngay: '' })).map((fieldKey) => (
+                <button
+                  key={fieldKey}
+                  className="btn"
+                  style={{ fontSize: 11, padding: '2px 8px', height: 24 }}
+                  onClick={() => {
+                    editor?.chain().focus().insertContent(`{{${fieldKey}}}`).run();
+                    ui.toast(`Đã chèn biến {{${fieldKey}}}`);
+                  }}
+                >
+                  {`{{${fieldKey}}}`}
+                </button>
+              ))}
+              <label className="btn" style={{ fontSize: 11, padding: '2px 8px', height: 24, cursor: 'pointer', marginLeft: 'auto' }}>
+                <Upload size={12} />
+                <span>Nhập CSV / XLSX</span>
+                <input
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  hidden
+                  onChange={async (e) => {
+                    const f = e.target.files?.[0];
+                    e.target.value = '';
+                    if (f) await handleImportMailRecipients(f);
+                  }}
+                />
+              </label>
+            </div>
+
+            <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: 8, marginBottom: 12 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead>
+                  <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                    <th style={{ padding: '6px 8px', textAlign: 'left', width: 34 }}>#</th>
+                    {Object.keys(mailRecipients[0] ?? { Ho_ten: '', Chuc_vu: '', Phong_ban: '', Email: '', Ngay: '' }).map((colKey) => (
+                      <th key={colKey} style={{ padding: '6px 8px', textAlign: 'left' }}>{colKey}</th>
+                    ))}
+                    <th style={{ padding: '6px 8px', width: 36 }} />
+                  </tr>
+                </thead>
+                <tbody>
+                  {mailRecipients.map((rec, rIdx) => {
+                    const colKeys = Object.keys(mailRecipients[0] ?? rec);
+                    return (
+                      <tr key={rIdx} style={{ borderBottom: '1px solid #f1f5f9', background: mailPreviewIdx === rIdx ? '#eff6ff' : '#ffffff' }} onClick={() => setMailPreviewIdx(rIdx)}>
+                        <td style={{ padding: '4px 8px', color: '#64748b', fontWeight: 600 }}>{rIdx + 1}</td>
+                        {colKeys.map((colKey) => (
+                          <td key={colKey} style={{ padding: '4px 6px' }}>
+                            <input
+                              className="text-field"
+                              style={{ fontSize: 11.5, padding: '3px 6px', height: 24, width: '100%' }}
+                              value={rec[colKey] ?? ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setMailRecipients((prev) =>
+                                  prev.map((row, idx) => (idx === rIdx ? { ...row, [colKey]: val } : row))
+                                );
+                              }}
+                            />
+                          </td>
+                        ))}
+                        <td style={{ padding: '4px 6px', textAlign: 'center' }}>
+                          <button
+                            className="icon-btn"
+                            style={{ width: 22, height: 22 }}
+                            disabled={mailRecipients.length <= 1}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMailRecipients((prev) => prev.filter((_, idx) => idx !== rIdx));
+                              setMailPreviewIdx(0);
+                            }}
+                            title="Xoá dòng này"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {mailRecipients[mailPreviewIdx] && (
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 12px', fontSize: 11.5, color: '#334155', marginBottom: 14 }}>
+                <strong>Xem trước bản ghi #{mailPreviewIdx + 1}:</strong>{' '}
+                {Object.entries(mailRecipients[mailPreviewIdx])
+                  .map(([k, v]) => `${k}: ${v}`)
+                  .join(' · ')}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <button
+                className="btn"
+                onClick={() => {
+                  const templateKeys = Object.keys(mailRecipients[0] ?? { Ho_ten: '', Chuc_vu: '', Phong_ban: '', Email: '', Ngay: '' });
+                  const emptyRow: Record<string, string> = {};
+                  templateKeys.forEach((k) => {
+                    emptyRow[k] = k === 'Ngay' ? new Date().toLocaleDateString('vi-VN') : '';
+                  });
+                  setMailRecipients((prev) => [...prev, emptyRow]);
+                }}
+              >
+                + Thêm người nhận
+              </button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn" onClick={() => setShowMailMergeModal(false)}>
+                  Đóng
+                </button>
+                <button className="btn btn-doc" onClick={handleGenerateMailMerge}>
+                  Trộn & Xuất toàn bộ văn bản ({mailRecipients.length} người)
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showShortcutsModal && (
+        <div className="dialog-backdrop" onClick={() => setShowShortcutsModal(false)}>
+          <div className="dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h2 style={{ fontSize: 16 }}>Phím tắt soạn thảo nhanh (Minh Docs)</h2>
+              <button className="icon-btn" onClick={() => setShowShortcutsModal(false)}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', rowGap: 8, columnGap: 16, fontSize: 12.5, color: '#334155', marginBottom: 18 }}>
+              <span>Lưu tài liệu ngay lập tức</span><strong>Ctrl + S</strong>
+              <span>Hoàn tác / Làm lại</span><strong>Ctrl + Z / Ctrl + Y</strong>
+              <span>In đậm / In nghiêng / Gạch chân</span><strong>Ctrl + B / I / U</strong>
+              <span>Tìm kiếm & Thay thế</span><strong>Ctrl + F</strong>
+              <span>Thêm bình luận cho đoạn chọn</span><strong>Ctrl + Alt + M</strong>
+              <span>In trang / Xuất bản in</span><strong>Ctrl + P</strong>
+              <span>Thoát chế độ tập trung (Focus Mode)</span><strong>Esc</strong>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="btn btn-doc" onClick={() => setShowShortcutsModal(false)}>
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {!isFocusMode && (
         <footer className="editor-status">
         <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>

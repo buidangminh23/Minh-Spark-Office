@@ -1,3 +1,4 @@
+import { useWorkspace } from '../../lib/storage';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   createUniver,
@@ -122,18 +123,13 @@ import {
 
 import {
   type FileMeta,
+  type FileContent,
   type SheetContent,
   type SheetPrintSettings,
   type FileVersion,
   type CommentItem,
-  listFiles,
-  loadContent,
-  saveFile,
-  listVersions,
-  saveVersion,
-  restoreVersion,
-  deleteVersion,
 } from '../../lib/storage';
+import { createPdfFromImageBlob } from '../../lib/pdfEngine';
 import type { CellStyle, SheetData, WorkbookData } from '../../lib/sheetTypes';
 import {
   emptyWorkbook,
@@ -204,6 +200,7 @@ interface SheetEditorProps {
   onSave: (meta: FileMeta, content: SheetContent) => void;
   onRename: (name: string) => void;
   onBack: () => void;
+  onOpenWorkspaceFile?: (meta: FileMeta, content: FileContent) => void;
 }
 
 type SheetRibbonTab =
@@ -299,6 +296,7 @@ const inlineSheetStyles = (sheet: SheetData, styles: Record<string, CellStyle>):
 
 export default function SheetEditor({ meta, content, onSave, onRename, onBack }: SheetEditorProps) {
   const ui = useUi();
+  const { listFiles, loadContent, saveFile, listVersions, saveVersion, restoreVersion, deleteVersion } = useWorkspace();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const importSheetInputRef = useRef<HTMLInputElement | null>(null);
@@ -2688,8 +2686,29 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
       signedRole: role,
       signedAt: Date.now(),
     };
+    const wb = captureHydratedWorkbook();
+    const ctx = getActiveContext();
+    const sid = ctx?.fWorksheet.getSheetId() ?? wb.sheetOrder[0];
+    const sh = wb.sheets[sid] ?? wb.sheets[wb.sheetOrder[0]];
     const pdfId = `pdf-${Date.now()}`;
     const pdfName = `${stripSpreadsheetExt(title)} (Đã ký số).pdf`;
+    let pdfDataUrl: string | undefined;
+    let pdfByteSize = 32768;
+    if (sh) {
+      const pngBlob = await renderSheetToPngBlob(wb, sh, {
+        scale: 2,
+        showGridlines,
+        title: stripSpreadsheetExt(title),
+        signedBy: `${signer} (${role})`,
+      });
+      const generatedPdf = await createPdfFromImageBlob(pdfName, pngBlob, {
+        orientation: nextPrint.orientation,
+        extractedText: `${stripSpreadsheetExt(title)} — ${activeSheetName}`,
+      });
+      pdfDataUrl = generatedPdf.dataUrl;
+      pdfByteSize = generatedPdf.bytes.byteLength;
+      downloadBlob(new Blob([generatedPdf.bytes.slice(0)], { type: 'application/pdf' }), pdfName);
+    }
     await saveFile(
       {
         id: pdfId,
@@ -2700,16 +2719,16 @@ export default function SheetEditor({ meta, content, onSave, onRename, onBack }:
         openedAt: Date.now(),
         starred: false,
         deletedAt: null,
-        size: 32768,
+        size: pdfByteSize,
         preview: `Bản xuất từ Minh Sheets "${activeSheetName}" · Đã ký xác thực bởi ${signer} (${role})`,
       },
       {
         kind: 'pdf',
+        pdfDataUrl,
         pageCount: 1,
       }
     );
-    ui.toast(`Đã lưu "${pdfName}" vào kho Minh PDF và mở hộp thoại xuất PDF`);
-    handleTriggerVectorPrint(nextPrint);
+    ui.toast(`Đã tải xuống và lưu "${pdfName}" vào kho Minh PDF`);
   };
 
   const handleCopySummaryTsv = async () => {

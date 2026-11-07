@@ -35,6 +35,48 @@
   box-sizing: border-box;
 }
 
+.auth-page {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 32px 20px;
+  background: radial-gradient(ellipse at top left, #e6edff, transparent 60%), #f6f7fb;
+}
+
+.auth-card {
+  width: min(100%, 460px);
+  padding: 40px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  box-shadow: var(--shadow-lg);
+  text-align: center;
+}
+
+.auth-logo { width: 64px; height: 64px; object-fit: contain; }
+.auth-brand { margin: 16px 0; letter-spacing: 2px; font-size: 11px; font-weight: 700; color: var(--muted); }
+.auth-card h1 { margin: 0; font-size: 28px; line-height: 1.3; letter-spacing: -0.7px; }
+.auth-intro { color: var(--ink-secondary); margin: 16px 0 28px; font-size: 15px; }
+.auth-card .auth-google { width: 100%; min-height: 48px; background: #fff; border: 1px solid #747775; border-radius: 24px; color: #1f1f1f; font-weight: 600; }
+.auth-card .auth-google:hover { background: #f2f5fa; }
+.auth-disclosure, .auth-local-note { font-size: 12px; color: var(--ink-secondary); line-height: 1.65; }
+.auth-disclosure { margin: 16px 0 24px; }
+.auth-divider { height: 1px; background: var(--line); margin: 24px 0; }
+.auth-local { width: 100%; min-height: 44px; }
+.auth-error, .account-error { color: #a32920; background: #fff0ed; padding: 10px 12px; border-radius: 8px; font-size: 12px; }
+.account-control { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.account-avatar { width: 32px; height: 32px; flex: 0 0 32px; border-radius: 50%; display: grid; place-items: center; background: #e8eefb; color: #24549e; font-weight: 700; }
+.account-identity { display: flex; flex-direction: column; max-width: 180px; min-width: 0; }
+.account-identity strong, .account-identity span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-identity span { font-size: 11px; color: var(--muted); }
+.account-error { flex-basis: 100%; margin: 0; max-width: 340px; }
+.topbar-right { flex-wrap: wrap; }
+@media (max-width: 600px) {
+  .auth-card { padding: 28px 22px; }
+  .auth-card h1 { font-size: 24px; }
+  .account-identity { max-width: 140px; }
+}
+
 *, *::before, *::after {
   box-sizing: inherit;
 }
@@ -520,6 +562,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   color: var(--sheet);
 }
 
+.template-badge.pdf {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
 .template-title {
   font-size: 13px;
   font-weight: 600;
@@ -628,6 +675,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .file-icon-box.sheet {
   background: var(--sheet-soft);
   color: var(--sheet);
+}
+
+.file-icon-box.pdf {
+  background: #fee2e2;
+  color: #dc2626;
 }
 
 .file-name-cell {
@@ -1464,6 +1516,82 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   background: #dcfce7;
   border-color: #86efac;
   color: #065f46;
+}
+
+.ribbon.pdf .ribbon-body,
+.ribbon.doc .ribbon-body {
+  padding: 4px 6px;
+  min-height: 84px;
+}
+
+.ribbon.pdf .ribbon-section,
+.ribbon.doc .ribbon-section {
+  padding: 2px 5px;
+}
+
+.ribbon.pdf .ribbon-controls,
+.ribbon.doc .ribbon-controls {
+  gap: 3px;
+}
+
+.ribbon.pdf .ribbon-btn-large,
+.ribbon.doc .ribbon-btn-large {
+  min-width: 40px;
+  height: 58px;
+  padding: 3px 5px;
+  font-size: 10.5px;
+  gap: 2px;
+}
+
+.ribbon.doc .styles-gallery-container {
+  height: 58px;
+  padding: 2px 3px;
+  gap: 3px;
+}
+
+.ribbon.doc .styles-card {
+  width: 50px;
+  height: 50px;
+  padding: 2px;
+}
+
+.ribbon.doc .styles-card-sample {
+  font-size: 11.5px;
+}
+
+.ribbon.doc .styles-card-title {
+  font-size: 9px;
+  margin-top: 2px;
+}
+
+.ribbon.pdf .ribbon-btn-large.active,
+.ribbon.pdf .ribbon-btn-small.active,
+.ribbon.pdf .ribbon-pill-btn.active {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #991b1b;
+}
+
+.doc-show-pilcrow .tiptap p::after,
+.doc-show-pilcrow .tiptap h1::after,
+.doc-show-pilcrow .tiptap h2::after,
+.doc-show-pilcrow .tiptap h3::after {
+  content: ' ¶';
+  color: #94a3b8;
+  font-weight: 400;
+  font-size: 0.85em;
+  pointer-events: none;
+}
+
+.doc-footnotes-region {
+  margin-top: 32px;
+  padding-top: 12px;
+  border-top: 1px solid #cbd5e1;
+  font-size: 12px;
+  color: #475569;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .ribbon-btn-compact {

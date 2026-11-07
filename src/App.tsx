@@ -1,18 +1,10 @@
-import { useEffect, useState, useCallback } from 'react';
+import { createWorkspaceStorage, WorkspaceContext, useWorkspace } from './lib/storage';
+import { Suspense, lazy, useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { Authentication } from './components/Authentication';
 import Home from './components/Home';
-import DocEditor from './editors/doc/DocEditor';
-import SheetEditor from './editors/sheet/SheetEditor';
-import PdfEditor from './editors/pdf/PdfEditor';
 import { UiProvider, useUi } from './components/ui';
 import {
-  listFiles,
-  loadContent,
-  saveFile,
-  updateMeta,
-  removeFile,
   estimateStorage,
-  exportBackup,
-  importBackup,
   defaultPage,
   type FileMeta,
   type FileContent,
@@ -26,12 +18,18 @@ import { importDocx } from './lib/docxConvert';
 import { isEncryptedOffice, decryptOfficeFile, DEFAULT_EXCEL_PASSWORD } from './lib/officeCrypto';
 import { downloadBlob } from './lib/download';
 
+const DocEditor = lazy(() => import('./editors/doc/DocEditor'));
+const SheetEditor = lazy(() => import('./editors/sheet/SheetEditor'));
+const PdfEditor = lazy(() => import('./editors/pdf/PdfEditor'));
+
 function MainApp() {
   const ui = useUi();
+  const { listFiles, loadContent, saveFile, updateMeta, removeFile, exportBackup, importBackup } = useWorkspace();
   const [files, setFiles] = useState<FileMeta[]>([]);
   const [activeMeta, setActiveMeta] = useState<FileMeta | null>(null);
   const [activeContent, setActiveContent] = useState<FileContent | null>(null);
   const [storageInfo, setStorageInfo] = useState<{ usage: number; quota: number } | null>(null);
+  const initialized = useRef(false);
 
   // Refresh files list and storage
   const refreshFiles = useCallback(async () => {
@@ -39,10 +37,12 @@ function MainApp() {
     setFiles(list);
     const est = await estimateStorage();
     if (est) setStorageInfo(est);
-  }, []);
+  }, [listFiles]);
 
   // Initial load & seed default files if empty
   useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
     const init = async () => {
       const list = await listFiles();
       if (list.length === 0) {
@@ -87,8 +87,21 @@ function MainApp() {
         };
         await saveFile(sheetMeta, sheetContent);
 
-        // Seed initial PDF doc
         const pdfId = `pdf-${Date.now() + 2}`;
+        let samplePdfDataUrl: string | undefined;
+        let samplePdfPages: string[] | undefined;
+        let samplePdfSize = 18400;
+        let samplePdfCount = 3;
+        try {
+          const { createCorporateSamplePdf } = await import('./lib/pdfEngine');
+          const built = await createCorporateSamplePdf('Quy chuẩn văn phòng số.pdf');
+          samplePdfDataUrl = built.dataUrl;
+          samplePdfPages = built.extractedPages;
+          samplePdfSize = built.bytes.byteLength;
+          samplePdfCount = built.pageCount;
+        } catch {
+          void 0;
+        }
         const pdfMeta: FileMeta = {
           id: pdfId,
           name: 'Quy chuẩn văn phòng số.pdf',
@@ -98,12 +111,14 @@ function MainApp() {
           openedAt: Date.now() + 2,
           starred: false,
           deletedAt: null,
-          size: 18400,
+          size: samplePdfSize,
           preview: 'Văn bản PDF đã được kiểm duyệt chữ ký số. Cần chuẩn hoá định dạng trang trước khi ban hành.',
         };
         const pdfContent: PdfContent = {
           kind: 'pdf',
-          pageCount: 3,
+          pdfDataUrl: samplePdfDataUrl,
+          pageCount: samplePdfCount,
+          extractedPages: samplePdfPages,
         };
         await saveFile(pdfMeta, pdfContent);
 
@@ -117,7 +132,7 @@ function MainApp() {
     };
 
     void init();
-  }, []);
+  }, [listFiles, saveFile]);
 
   // Open Document
   const handleOpenDoc = async (meta: FileMeta) => {
@@ -234,31 +249,41 @@ function MainApp() {
     }
   };
 
-  // Create new PDF Document
   const handleCreatePdf = async () => {
-    const id = `pdf-${Date.now()}`;
-    const name = 'Tài liệu mới.pdf';
-    const meta: FileMeta = {
-      id,
-      name,
-      kind: 'pdf',
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      openedAt: Date.now(),
-      starred: false,
-      deletedAt: null,
-      size: 4096,
-      preview: 'Minh PDF — Bộ công cụ xử lý và ký số PDF chuyên nghiệp',
-    };
-    const content: PdfContent = {
-      kind: 'pdf',
-      pageCount: 3,
-    };
-    await saveFile(meta, content);
-    await refreshFiles();
-    setActiveMeta(meta);
-    setActiveContent(content);
-    ui.toast('Đã tạo tài liệu Minh PDF mới');
+    try {
+      ui.showBusy('Đang khởi tạo tài liệu PDF…');
+      const { createCorporateSamplePdf } = await import('./lib/pdfEngine');
+      const id = `pdf-${Date.now()}`;
+      const name = 'Tài liệu mới.pdf';
+      const generated = await createCorporateSamplePdf(name);
+      const meta: FileMeta = {
+        id,
+        name,
+        kind: 'pdf',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        openedAt: Date.now(),
+        starred: false,
+        deletedAt: null,
+        size: generated.bytes.byteLength,
+        preview: generated.extractedPages[0]?.slice(0, 160) || 'Minh PDF — Bộ công cụ xử lý và ký số PDF chuyên nghiệp',
+      };
+      const content: PdfContent = {
+        kind: 'pdf',
+        pdfDataUrl: generated.dataUrl,
+        pageCount: generated.pageCount,
+        extractedPages: generated.extractedPages,
+      };
+      await saveFile(meta, content);
+      await refreshFiles();
+      setActiveMeta(meta);
+      setActiveContent(content);
+      ui.toast('Đã tạo tài liệu Minh PDF mới');
+    } catch (err) {
+      ui.toast((err as Error).message || 'Không thể khởi tạo PDF', true);
+    } finally {
+      ui.showBusy(null);
+    }
   };
 
   // Import file (.docx, .xlsx, .csv) with password decryption support
@@ -367,8 +392,11 @@ function MainApp() {
         setActiveContent(content);
         ui.toast(`Đã nạp bảng tính "${file.name}"`);
       } else if (isPdf) {
-        ui.showBusy('Đang mở tệp PDF…');
+        ui.showBusy('Đang đọc nhị phân và trích xuất văn bản PDF…');
+        const { bytesToDataUrl, extractPdfTextAndTables } = await import('./lib/pdfEngine');
+        const extracted = await extractPdfTextAndTables(bytes);
         const id = `pdf-${Date.now()}`;
+        const previewLine = extracted.pagesText.find((p) => p.trim())?.replace(/\s+/g, ' ').slice(0, 160) || '';
         const meta: FileMeta = {
           id,
           name: file.name,
@@ -378,18 +406,20 @@ function MainApp() {
           openedAt: Date.now(),
           starred: false,
           deletedAt: null,
-          size: file.size,
-          preview: 'Tệp PDF tải lên từ thiết bị',
+          size: bytes.byteLength || file.size,
+          preview: previewLine || `Tệp PDF (${extracted.metadata.pageCount} trang)`,
         };
         const content: PdfContent = {
           kind: 'pdf',
-          pageCount: 3,
+          pdfDataUrl: bytesToDataUrl(bytes),
+          pageCount: extracted.metadata.pageCount,
+          extractedPages: extracted.pagesText,
         };
         await saveFile(meta, content);
         await refreshFiles();
         setActiveMeta(meta);
         setActiveContent(content);
-        ui.toast(`Đã nạp tệp PDF "${file.name}"`);
+        ui.toast(`Đã nạp tệp PDF "${file.name}" (${extracted.metadata.pageCount} trang)`);
       } else {
         ui.toast('Định dạng tệp không được hỗ trợ', true);
       }
@@ -406,6 +436,12 @@ function MainApp() {
     setActiveMeta(meta);
     setActiveContent(content);
     await refreshFiles();
+  };
+
+  const handleOpenWorkspaceFile = (nextMeta: FileMeta, nextContent: FileContent) => {
+    void refreshFiles();
+    setActiveMeta(nextMeta);
+    setActiveContent(nextContent);
   };
 
   // Rename file
@@ -515,53 +551,71 @@ function MainApp() {
     }
   };
 
+  const editorFallback = (
+    <div className="busy-overlay">
+      <div className="busy-card">
+        <div className="spinner" />
+        <span>Đang tải trình biên tập…</span>
+      </div>
+    </div>
+  );
+
   // Render active editor or Home
   if (activeMeta && activeContent) {
     if (activeMeta.kind === 'doc' && activeContent.kind === 'doc') {
       return (
-        <DocEditor
-          meta={activeMeta}
-          content={activeContent}
-          onSave={handleSaveActive}
-          onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
-          onBack={() => {
-            setActiveMeta(null);
-            setActiveContent(null);
-            void refreshFiles();
-          }}
-        />
+        <Suspense fallback={editorFallback}>
+          <DocEditor
+            meta={activeMeta}
+            content={activeContent}
+            onSave={handleSaveActive}
+            onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
+            onBack={() => {
+              setActiveMeta(null);
+              setActiveContent(null);
+              void refreshFiles();
+            }}
+            onOpenWorkspaceFile={handleOpenWorkspaceFile}
+          />
+        </Suspense>
       );
     }
 
     if (activeMeta.kind === 'sheet' && activeContent.kind === 'sheet') {
       return (
-        <SheetEditor
-          meta={activeMeta}
-          content={activeContent}
-          onSave={handleSaveActive}
-          onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
-          onBack={() => {
-            setActiveMeta(null);
-            setActiveContent(null);
-            void refreshFiles();
-          }}
-        />
+        <Suspense fallback={editorFallback}>
+          <SheetEditor
+            meta={activeMeta}
+            content={activeContent}
+            onSave={handleSaveActive}
+            onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
+            onBack={() => {
+              setActiveMeta(null);
+              setActiveContent(null);
+              void refreshFiles();
+            }}
+            onOpenWorkspaceFile={handleOpenWorkspaceFile}
+          />
+        </Suspense>
       );
     }
 
     if (activeMeta.kind === 'pdf' && activeContent.kind === 'pdf') {
       return (
-        <PdfEditor
-          meta={activeMeta}
-          content={activeContent}
-          onSave={handleSaveActive}
-          onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
-          onBack={() => {
-            setActiveMeta(null);
-            setActiveContent(null);
-            void refreshFiles();
-          }}
-        />
+        <Suspense fallback={editorFallback}>
+          <PdfEditor
+            meta={activeMeta}
+            content={activeContent}
+            onSave={handleSaveActive}
+            onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
+            onBack={() => {
+              setActiveMeta(null);
+              setActiveContent(null);
+              void refreshFiles();
+            }}
+            onOpenWorkspaceFile={handleOpenWorkspaceFile}
+          />
+        </Suspense>
       );
     }
   }
@@ -589,10 +643,17 @@ function MainApp() {
   );
 }
 
-export default function App() {
+function Workspace({ userId }: { userId: string | null }) {
+  const workspace = useMemo(() => createWorkspaceStorage(userId), [userId]);
   return (
-    <UiProvider>
-      <MainApp />
-    </UiProvider>
+    <WorkspaceContext value={workspace}>
+      <UiProvider>
+        <MainApp />
+      </UiProvider>
+    </WorkspaceContext>
   );
+}
+
+export default function App() {
+  return <Authentication>{(user) => <Workspace key={user?.uid ?? 'guest'} userId={user?.uid ?? null} />}</Authentication>;
 }
