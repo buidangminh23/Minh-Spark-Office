@@ -164,59 +164,6 @@
   text-align: center;
 }
 
-.ws-storage {
-  margin-top: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 16px;
-  border: 1px solid var(--ws-nav-line);
-  border-radius: 12px;
-  background: #262e3d;
-  font-size: 14px;
-  color: var(--ws-nav-muted);
-}
-
-.ws-storage strong {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--ws-nav-text);
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.ws-storage-bar {
-  height: 6px;
-  border-radius: 4px;
-  background: #3b4558;
-  overflow: hidden;
-}
-
-.ws-storage-bar i {
-  display: block;
-  height: 100%;
-  border-radius: 4px;
-  background: var(--ws-blue);
-}
-
-.ws-storage-btn {
-  margin-top: 8px;
-  min-height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  border-radius: 8px;
-  background: #fff;
-  color: var(--ws-ink);
-  font-weight: 600;
-}
-
-.ws-storage-btn:hover {
-  background: #eef2f8;
-}
-
 .ws-main {
   flex: 1;
   min-width: 0;
@@ -1425,10 +1372,6 @@
     width: auto;
     flex: none;
     padding: 8px 12px;
-  }
-
-  .ws-storage {
-    display: none;
   }
 
   .ws-main {

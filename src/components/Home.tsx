@@ -19,7 +19,6 @@ import {
   Star,
   Trash2,
   Upload,
-  CloudUpload,
 } from 'lucide-react';
 import { useAccount } from './Authentication';
 import { SuiteLogo } from './SuiteLogo';
@@ -29,7 +28,7 @@ import './home.css';
 
 import type { FileKind, FileMeta } from '../lib/storage';
 import type { WorkbookData } from '../lib/sheetTypes';
-import { formatBytes, relativeTime } from '../lib/download';
+import { relativeTime } from '../lib/download';
 import {
   sampleDocHtml,
   contractDocHtml,
@@ -117,7 +116,7 @@ function matchesQuery(file: FileMeta, query: string) {
 }
 
 export default function Home(props: HomeProps) {
-  const { files, storageInfo, onCreateDoc, onCreateSheet, onCreatePdf, onImportFile, onExportBackup, onImportBackup } = props;
+  const { files, onCreateDoc, onCreateSheet, onCreatePdf, onImportFile, onExportBackup, onImportBackup } = props;
   const { user } = useAccount();
   const [view, setView] = useState<View>('home');
   const [kindTab, setKindTab] = useState<KindTab>('all');
@@ -156,7 +155,6 @@ export default function Home(props: HomeProps) {
     return sortFiles(starred, sortOrder);
   }, [files, view, kindTab, starredOnly, sortOrder, query, isSearching, kindFixed]);
 
-  const liveCount = useMemo(() => files.filter((file) => !file.deletedAt).length, [files]);
   const trashCount = useMemo(() => files.filter((file) => file.deletedAt).length, [files]);
 
   useEffect(() => {
@@ -290,17 +288,6 @@ export default function Home(props: HomeProps) {
           <NavItem active={view === 'trash' && !isSearching} onClick={() => goTo('trash')} icon={<Trash2 size={20} />} badge={trashCount || undefined}>Thùng rác</NavItem>
           <NavItem active={settingsOpen} onClick={() => setSettingsOpen(true)} icon={<Settings size={20} />}>Cài đặt</NavItem>
         </nav>
-
-        <div className="ws-storage">
-          <strong><CloudUpload size={20} aria-hidden="true" />{user ? 'Kho tài liệu' : 'Bản nháp trên máy'}</strong>
-          <span>{storageInfo ? `Đã dùng ${formatBytes(storageInfo.usage)}` : `${liveCount} tài liệu`}</span>
-          {storageInfo && (
-            <div className="ws-storage-bar"><i style={{ width: `${Math.max(2, Math.min(100, (storageInfo.usage / (storageInfo.quota || 1)) * 100))}%` }} /></div>
-          )}
-          <button className="ws-storage-btn" onClick={onExportBackup} title="Tải về bản sao lưu toàn bộ tài liệu">
-            <CloudUpload size={18} aria-hidden="true" />Sao lưu
-          </button>
-        </div>
       </aside>
 
       <main className="ws-main">
