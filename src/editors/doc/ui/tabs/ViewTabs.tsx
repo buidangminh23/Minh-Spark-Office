@@ -1,6 +1,7 @@
-import { BookOpen, Columns3, Combine, Expand, FileDown, FileImage, Grid3x3, Keyboard, Info, Maximize2, Minimize2, MonitorPlay, Navigation, PenTool, Pilcrow, Printer, Ruler, ScrollText, Split, SpellCheck2, ZoomIn, ZoomOut, Share2, Sparkles, LayoutGrid } from 'lucide-react';
+import { BookOpen, ChevronsUp, Columns3, Combine, Expand, FileDown, FileImage, Focus, Grid3x3, Hash, Keyboard, Info, Maximize2, Minimize2, MonitorPlay, Moon, Navigation, PenTool, Pilcrow, Printer, Ruler, ScrollText, Split, SpellCheck2, ZoomIn, ZoomOut, Share2, Sparkles, LayoutGrid } from 'lucide-react';
 import { useDoc } from '../../DocContext';
-import { exportAsPng, exportSlides, mergeDocument, printDocument, splitDocument } from '../../actions';
+import { mergeDocument, splitDocument } from '../../actions';
+import { exportFormat } from '../../exportFormats';
 import { Big, Group, Rows, Small } from '../RibbonParts';
 
 export const ZOOM_STEPS = [50, 67, 75, 90, 100, 110, 125, 150, 175, 200];
@@ -12,7 +13,7 @@ export const fitWidthZoom = (pageWidth: number) => {
 };
 
 export function ViewTab({ pageWidth, pageHeight }: { pageWidth: number; pageHeight: number }) {
-  const { view, setView } = useDoc();
+  const { view, setView, openDialog } = useDoc();
   const zoomBy = (dir: 1 | -1) => {
     const next = dir > 0 ? ZOOM_STEPS.find((z) => z > view.zoom) ?? 200 : [...ZOOM_STEPS].reverse().find((z) => z < view.zoom) ?? 50;
     setView({ zoom: next });
@@ -39,6 +40,12 @@ export function ViewTab({ pageWidth, pageHeight }: { pageWidth: number; pageHeig
         <Rows>
           <Small icon={<Pilcrow size={14} />} label="Ký hiệu ¶" title="Hiện ký hiệu định dạng" active={view.showMarks} onClick={() => setView({ showMarks: !view.showMarks })} />
           <Small icon={<SpellCheck2 size={14} />} label="Gạch lỗi chính tả" title="Gạch chân từ sai theo từ điển của trình duyệt" active={view.spellcheck} onClick={() => setView({ spellcheck: !view.spellcheck })} />
+          <Small icon={<Hash size={14} />} label="Đi tới trang" title="Nhảy tới một trang (Ctrl+G)" onClick={() => openDialog('goto')} />
+        </Rows>
+        <Rows>
+          <Small icon={<Focus size={14} />} label="Tập trung" title="Ẩn thanh công cụ và khung bên, chỉ còn trang giấy" active={view.focusMode} onClick={() => setView({ focusMode: !view.focusMode })} />
+          <Small icon={<Moon size={14} />} label="Nền tối" title="Làm tối vùng làm việc khi soạn, không đổi màu khi in hay xuất" active={view.dark} onClick={() => setView({ dark: !view.dark })} />
+          <Small icon={<ChevronsUp size={14} />} label="Thu gọn ribbon" title="Ẩn thân ribbon, chỉ giữ hàng tab (Ctrl+F1)" active={view.ribbonCollapsed} onClick={() => setView({ ribbonCollapsed: !view.ribbonCollapsed })} />
         </Rows>
       </Group>
       <Group label="Thu phóng">
@@ -62,8 +69,8 @@ export function PdfTab() {
   return (
     <>
       <Group label="Tạo PDF">
-        <Big icon={<FileDown size={22} color="#d7473c" />} label="Lưu PDF" title="Lưu thành PDF qua hộp thoại in (chọn “Lưu dưới dạng PDF”)" onClick={printDocument} />
-        <Big icon={<Printer size={22} color="#d7473c" />} label="In" title="In tài liệu (Ctrl+P)" onClick={printDocument} />
+        <Big icon={<FileDown size={22} color="#d7473c" />} label="Lưu PDF" title="Lưu thành PDF qua hộp thoại in (chọn “Lưu dưới dạng PDF”)" onClick={ctx.print} />
+        <Big icon={<Printer size={22} color="#d7473c" />} label="In" title="In tài liệu (Ctrl+P)" onClick={ctx.print} />
         <Big icon={<Share2 size={22} color="#d7473c" />} label="Xuất & chia sẻ" title="Mở trang Xuất tệp" onClick={() => ctx.openDialog('backstage')} />
       </Group>
       <Group label="Công cụ">
@@ -72,8 +79,8 @@ export function PdfTab() {
         <Big icon={<Combine size={22} color="#0891b2" />} label="Ghép" title="Ghép thêm tệp vào cuối tài liệu" onClick={() => void mergeDocument(ctx)} />
       </Group>
       <Group label="Chuyển đổi">
-        <Big icon={<FileImage size={22} color="#107c41" />} label="Thành ảnh" title="Xuất trang thành ảnh PNG" onClick={() => void exportAsPng(ctx)} />
-        <Big icon={<MonitorPlay size={22} color="#ea580c" />} label="Thành slide" title="Tạo bộ trình chiếu HTML từ các tiêu đề" onClick={() => exportSlides(ctx)} />
+        <Big icon={<FileImage size={22} color="#107c41" />} label="Thành ảnh" title="Xuất trang thành ảnh PNG" onClick={() => void exportFormat(ctx, 'png')} />
+        <Big icon={<MonitorPlay size={22} color="#ea580c" />} label="Thành slide" title="Tạo bộ trình chiếu PowerPoint từ các tiêu đề" onClick={() => void exportFormat(ctx, 'pptx')} />
         <Big icon={<Sparkles size={22} color="#7c3aed" />} label="Tóm tắt AI" title="Tóm tắt tài liệu bằng Minh AI" onClick={() => ctx.openDialog('ai')} />
       </Group>
     </>

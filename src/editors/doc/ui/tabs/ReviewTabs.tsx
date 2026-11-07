@@ -1,9 +1,12 @@
-import { BookMarked, Check, CheckCheck, ChevronLeft, ChevronRight, Database, Eye, FileDiff, FileStack, FileText, Languages, ListTree, Lock, LockOpen, MessageSquare, MessageSquarePlus, MessageSquareX, PencilLine, Quote, SpellCheck, Tag, Volume2, VolumeX, X, XCircle, Calculator, Download } from 'lucide-react';
+import { Accessibility, Bookmark, BookMarked, Check, CheckCheck, ChevronLeft, ChevronRight, Database, Eye, FileDiff, FileStack, FileText, Globe, Images, IndentIncrease, Languages, Link2, ListTree, Lock, LockOpen, MessageSquare, MessageSquarePlus, MessageSquareX, PencilLine, Quote, ScrollText, SpellCheck, Tag, Volume2, VolumeX, Wand2, X, XCircle, Calculator, Download } from 'lucide-react';
 import type { Editor } from '@tiptap/react';
 import { useDoc } from '../../DocContext';
 import { addComment, insertCaption, insertFootnote, toggleProtection } from '../../actions';
+import { insertBookmarkPrompt, insertEndnote, markIndexEntry } from '../../actionsExtra';
+import type { CitationStyle } from '../../../../lib/storage';
 import { collectChanges } from '../../trackChanges';
 import { finishMerge } from '../MailMerge';
+import { getPagination } from '../../pagination';
 import { Big, Dropdown, Group, MenuItem, Rows, Small } from '../RibbonParts';
 
 export function ReferencesTab() {
@@ -15,24 +18,51 @@ export function ReferencesTab() {
       if (node.type.name === 'tableOfContents') found = true;
       return !found;
     });
-    if (!found) editor.chain().focus().insertTableOfContents().run();
-    ctx.ui.toast(found ? 'Mục lục tự cập nhật theo các tiêu đề — đã làm mới' : 'Đã chèn mục lục tự động');
+    if (!found) editor.chain().focus().insertDocList('tableOfContents').run();
+    getPagination(editor).runNow();
+    ctx.ui.toast(found ? 'Đã cập nhật mục lục và số trang' : 'Đã chèn mục lục tự động');
   };
+  const insertList = (kind: 'bibliography' | 'docIndex' | 'figureList', attrs?: Record<string, unknown>) => editor.chain().focus().insertDocList(kind, attrs).run();
   return (
     <>
       <Group label="Mục lục">
-        <Big icon={<ListTree size={22} color="#2b579a" />} label="Mục lục" title="Chèn mục lục tự cập nhật theo Heading 1–3" onClick={() => editor.chain().focus().insertTableOfContents().run()} />
+        <Dropdown large title="Chèn mục lục" trigger={<><ListTree size={22} color="#2b579a" /><span>Mục lục</span></>}>
+          {(close) => (
+            <>
+              <MenuItem label="Tiêu đề cấp 1 đến 3, có số trang" onClick={() => { close(); editor.chain().focus().insertDocList('tableOfContents', { levels: 3, showPages: true }).run(); }} />
+              <MenuItem label="Tiêu đề cấp 1 đến 2, có số trang" onClick={() => { close(); editor.chain().focus().insertDocList('tableOfContents', { levels: 2, showPages: true }).run(); }} />
+              <MenuItem label="Tiêu đề cấp 1 đến 4, có số trang" onClick={() => { close(); editor.chain().focus().insertDocList('tableOfContents', { levels: 4, showPages: true }).run(); }} />
+              <MenuItem label="Tiêu đề cấp 1 đến 3, không số trang" onClick={() => { close(); editor.chain().focus().insertDocList('tableOfContents', { levels: 3, showPages: false }).run(); }} />
+            </>
+          )}
+        </Dropdown>
         <Small icon={<Check size={14} />} label="Cập nhật" title="Làm mới mục lục" onClick={updateToc} />
       </Group>
       <Group label="Chú thích">
         <Big icon={<FileText size={22} color="#107c41" />} label="Chú thích cuối trang" title="Chèn chú thích cuối trang (Ctrl+Alt+F)" onClick={() => void insertFootnote(ctx)} />
+        <Big icon={<ScrollText size={22} color="#107c41" />} label="Chú thích cuối bài" title="Chèn chú thích tập trung ở cuối tài liệu" onClick={() => void insertEndnote(ctx)} />
       </Group>
       <Group label="Đánh nhãn">
         <Big icon={<Tag size={22} color="#d98e04" />} label="Chèn nhãn" title="Đánh số tự động Hình/Bảng/Biểu đồ" onClick={() => void insertCaption(ctx)} />
+        <Big icon={<Images size={22} color="#d98e04" />} label="Danh mục hình" title="Chèn danh mục hình, bảng theo các nhãn đã đánh" onClick={() => insertList('figureList')} />
+        <Rows>
+          <Small icon={<Link2 size={14} />} label="Tham chiếu chéo" title="Chèn tham chiếu tới tiêu đề, nhãn hoặc dấu trang" onClick={() => ctx.openDialog('crossref')} />
+          <Small icon={<Bookmark size={14} />} label="Dấu trang" title="Đặt dấu trang tại con trỏ" onClick={() => void insertBookmarkPrompt(ctx)} />
+        </Rows>
       </Group>
       <Group label="Trích dẫn">
-        <Big icon={<Quote size={22} color="#586071" />} label="Khối trích dẫn" title="Định dạng đoạn thành trích dẫn" onClick={() => editor.chain().focus().toggleBlockquote().run()} />
-        <Big icon={<BookMarked size={22} color="#586071" />} label="Thư mục" title="Chèn mục Tài liệu tham khảo" onClick={() => editor.chain().focus().insertContent('<h2>Tài liệu tham khảo</h2><ol><li><p>Tác giả (Năm). <em>Tên tài liệu</em>. Nhà xuất bản.</p></li></ol>').run()} />
+        <Big icon={<Quote size={22} color="#2b579a" />} label="Chèn trích dẫn" title="Quản lý nguồn và chèn trích dẫn tại con trỏ" onClick={() => ctx.openDialog('citations')} />
+        <Big icon={<BookMarked size={22} color="#586071" />} label="Danh mục tài liệu" title="Chèn danh mục tài liệu tham khảo, tự cập nhật theo trích dẫn" onClick={() => insertList('bibliography')} />
+        <Rows>
+          <select className="ribbon-select citation-style" aria-label="Kiểu trích dẫn" title="Kiểu trích dẫn" value={ctx.page.citationStyle ?? 'apa'} onChange={(e) => ctx.setPage({ citationStyle: e.target.value as CitationStyle })}>
+            {['apa', 'ieee', 'chicago', 'mla', 'vancouver'].map((style) => <option key={style} value={style}>{style.toUpperCase()}</option>)}
+          </select>
+          <Small icon={<Quote size={14} />} label="Khối trích dẫn" title="Định dạng đoạn thành khối trích dẫn" onClick={() => editor.chain().focus().toggleBlockquote().run()} />
+        </Rows>
+      </Group>
+      <Group label="Chỉ mục">
+        <Big icon={<Tag size={22} color="#7c3aed" />} label="Đánh dấu mục" title="Đánh dấu từ đang chọn vào chỉ mục" onClick={() => void markIndexEntry(ctx)} />
+        <Big icon={<IndentIncrease size={22} color="#7c3aed" />} label="Chèn chỉ mục" title="Chèn bảng chỉ mục theo các mục đã đánh dấu" onClick={() => insertList('docIndex')} />
       </Group>
     </>
   );
@@ -117,10 +147,15 @@ export function ReviewTab() {
       <Group label="Soát lỗi">
         <Big icon={<SpellCheck size={22} color="#107c41" />} label="Chính tả & ngữ pháp" title="Kiểm tra chính tả, ngữ pháp, văn phong (F7)" onClick={() => ctx.openDialog('proofread')} />
         <Big icon={<Calculator size={22} color="#2b579a" />} label="Đếm từ" title="Thống kê số từ (Ctrl+Shift+G)" onClick={() => ctx.openDialog('wordcount')} />
+        <Big icon={<Accessibility size={22} color="#0891b2" />} label="Trợ năng" title="Kiểm tra ảnh thiếu mô tả, tiêu đề nhảy cấp, bảng thiếu tiêu đề, chữ khó đọc" onClick={() => ctx.openDialog('accessibility')} />
+        <Big icon={<Wand2 size={22} color="#7c3aed" />} label="Tự sửa" title="Tự viết hoa đầu câu và đổi cụm gõ tắt khi nhập" active={ctx.page.autocorrect !== false} onClick={() => ctx.setPage({ autocorrect: ctx.page.autocorrect === false })} />
       </Group>
       <Group label="Giọng nói & ngôn ngữ">
         <Big icon={ctx.readAloud.speaking ? <VolumeX size={22} color="#d7473c" /> : <Volume2 size={22} color="#2b579a" />} label="Đọc to" title="Đọc to (Ctrl+Alt+Space)" active={ctx.readAloud.speaking} onClick={ctx.readAloud.toggle} />
         <Big icon={<Languages size={22} color="#2b579a" />} label="Dịch" title="Dịch đoạn chọn hoặc cả tài liệu" onClick={() => ctx.openDialog('translate')} />
+        <Dropdown large title="Ngôn ngữ kiểm tra chính tả của tài liệu" trigger={<><Globe size={22} color="#2b579a" /><span>Ngôn ngữ</span></>}>
+          {(close) => [{ value: 'vi', label: 'Tiếng Việt' }, { value: 'en', label: 'Tiếng Anh' }, { value: 'fr', label: 'Tiếng Pháp' }, { value: 'zh', label: 'Tiếng Trung' }, { value: 'ja', label: 'Tiếng Nhật' }, { value: 'ko', label: 'Tiếng Hàn' }].map((item) => <MenuItem key={item.value} label={item.label} active={(ctx.page.language ?? 'vi') === item.value} onClick={() => { close(); ctx.setPage({ language: item.value }); }} />)}
+        </Dropdown>
       </Group>
       <Group label="Bình luận">
         <Big icon={<MessageSquarePlus size={22} color="#d98e04" />} label="Mới" title="Bình luận mới (Ctrl+Alt+M)" onClick={() => void addComment(ctx)} />
@@ -158,7 +193,8 @@ export function ReviewTab() {
         </Rows>
       </Group>
       <Group label="So sánh">
-        <Big icon={<FileDiff size={22} color="#7c3aed" />} label="So sánh" title="So sánh với một phiên bản đã lưu" onClick={() => ctx.openDialog('history')} />
+        <Big icon={<FileDiff size={22} color="#7c3aed" />} label="So với phiên bản" title="So sánh với một phiên bản đã lưu" onClick={() => ctx.openDialog('history')} />
+        <Big icon={<FileDiff size={22} color="#0891b2" />} label="So với tệp" title="So sánh với một tệp trên máy" onClick={() => ctx.openDialog('compare')} />
       </Group>
       <Group label="Bảo vệ">
         <Big icon={protectedDoc ? <LockOpen size={22} color="#d7473c" /> : <Lock size={22} color="#586071" />} label={protectedDoc ? 'Bỏ bảo vệ' : 'Hạn chế sửa'} title="Khoá tài liệu bằng mật khẩu (chỉ xem)" active={protectedDoc} onClick={() => void toggleProtection(ctx)} />

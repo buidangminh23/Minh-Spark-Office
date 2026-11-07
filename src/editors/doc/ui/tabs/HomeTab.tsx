@@ -1,22 +1,14 @@
-import { AlignCenter, AlignJustify, AlignLeft, AlignRight, Bold, ClipboardPaste, Copy, Eraser, Highlighter, Indent, Italic, List, ListOrdered, ListTodo, Mic, MicOff, Outdent, Paintbrush, Pilcrow, Quote, Replace, Scissors, Search, Sparkles, Strikethrough, Subscript, Superscript, TextSelect, Type, Underline, ArrowDownAZ, Code, Volume2, VolumeX, Baseline, PaintBucket, CaseSensitive } from 'lucide-react';
+import { AlignCenter, AlignJustify, AlignLeft, AlignRight, Bold, ClipboardPaste, Copy, Eraser, Highlighter, Indent, Italic, List, ListOrdered, ListTodo, Mic, MicOff, Outdent, Paintbrush, Pilcrow, Quote, Replace, Scissors, Search, Sparkles, Strikethrough, Subscript, Superscript, TextSelect, Type, Underline, ArrowDownAZ, Code, Volume2, VolumeX, Baseline, PaintBucket, CaseSensitive, ChevronDown, Pencil, Plus, RefreshCw } from 'lucide-react';
 import { useDoc } from '../../DocContext';
 import type { FormatState } from '../../useFormatState';
 import { FONT_SIZES } from '../../extensions';
-import { changeCase, copySelection, paragraphSettings, pastePlainText, pasteRich, sortParagraphs } from '../../actions';
+import { changeCase, copySelection, pastePlainText, pasteRich, sortParagraphs } from '../../actions';
+import { BUILTIN_STYLE_ORDER, activeStyleId, applyDocStyle, resolveStyles, styleSample } from '../../docStyles';
 import FontPicker from '../FontPicker';
 import { Big, ColorPicker, Dropdown, Group, MenuItem, MenuSeparator, Row, Rows, Small } from '../RibbonParts';
 
-export const STYLES: { id: string; label: string; sample: React.CSSProperties; apply: (e: ReturnType<typeof useDoc>['editor']) => void; isActive: (f: FormatState) => boolean }[] = [
-  { id: 'normal', label: 'Normal', sample: {}, apply: (e) => e.chain().focus().setParagraph().run(), isActive: (f) => !f.heading && !f.blockquote && !f.codeBlock },
-  { id: 'title', label: 'Title', sample: { fontSize: 17, fontWeight: 300 }, apply: (e) => e.chain().focus().setHeading({ level: 1 }).setTextAlign('center').run(), isActive: () => false },
-  { id: 'h1', label: 'Heading 1', sample: { fontWeight: 700, color: '#2b579a', fontSize: 14 }, apply: (e) => e.chain().focus().toggleHeading({ level: 1 }).run(), isActive: (f) => f.heading === 1 },
-  { id: 'h2', label: 'Heading 2', sample: { fontWeight: 700, color: '#2b579a', fontSize: 13 }, apply: (e) => e.chain().focus().toggleHeading({ level: 2 }).run(), isActive: (f) => f.heading === 2 },
-  { id: 'h3', label: 'Heading 3', sample: { fontWeight: 600, color: '#1f3864' }, apply: (e) => e.chain().focus().toggleHeading({ level: 3 }).run(), isActive: (f) => f.heading === 3 },
-  { id: 'h4', label: 'Heading 4', sample: { fontWeight: 600, fontStyle: 'italic', color: '#2b579a' }, apply: (e) => e.chain().focus().toggleHeading({ level: 4 }).run(), isActive: (f) => f.heading === 4 },
-  { id: 'subtitle', label: 'Subtitle', sample: { color: '#5a6478', letterSpacing: 1 }, apply: (e) => e.chain().focus().setHeading({ level: 5 }).run(), isActive: (f) => f.heading === 5 },
-  { id: 'quote', label: 'Quote', sample: { fontStyle: 'italic', color: '#555f73' }, apply: (e) => e.chain().focus().toggleBlockquote().run(), isActive: (f) => f.blockquote },
-  { id: 'code', label: 'Code', sample: { fontFamily: 'Consolas, monospace', fontSize: 11 }, apply: (e) => e.chain().focus().toggleCodeBlock().run(), isActive: (f) => f.codeBlock },
-];
+const BULLET_STYLES = [{ value: 'disc', label: '●  Chấm tròn' }, { value: 'circle', label: '○  Tròn rỗng' }, { value: 'square', label: '■  Vuông' }, { value: '–', label: '–  Gạch ngang' }, { value: '+', label: '+  Dấu cộng' }, { value: '✓', label: '✓  Dấu tích' }, { value: '»', label: '»  Mũi tên' }];
+const NUMBER_STYLES = [{ value: 'decimal', label: '1. 2. 3.' }, { value: 'decimal-leading-zero', label: '01. 02. 03.' }, { value: 'lower-alpha', label: 'a. b. c.' }, { value: 'upper-alpha', label: 'A. B. C.' }, { value: 'lower-roman', label: 'i. ii. iii.' }, { value: 'upper-roman', label: 'I. II. III.' }];
 
 const LINE_SPACINGS = [1, 1.15, 1.5, 2, 2.5, 3];
 
@@ -24,6 +16,25 @@ export default function HomeTab({ fmt }: { fmt: FormatState }) {
   const ctx = useDoc();
   const { editor } = ctx;
   const chain = () => editor.chain().focus();
+  const setList = (type: 'bulletList' | 'orderedList', listStyle: string) => {
+    if (editor.isActive(type)) chain().updateAttributes(type, { listStyle }).run();
+    else if (type === 'bulletList') chain().toggleBulletList().updateAttributes(type, { listStyle }).run();
+    else chain().toggleOrderedList().updateAttributes(type, { listStyle }).run();
+  };
+  const styles = resolveStyles(ctx.page);
+  const styleIds = [...BUILTIN_STYLE_ORDER, ...Object.keys(styles).filter((id) => !(BUILTIN_STYLE_ORDER as readonly string[]).includes(id))];
+  const editStyle = (id: string) => {
+    ctx.setEditingStyle(id);
+    ctx.openDialog('style');
+  };
+  const updateStyleFromSelection = () => {
+    const id = activeStyleId(editor);
+    const text = editor.getAttributes('textStyle');
+    const para = editor.getAttributes(editor.isActive('heading') ? 'heading' : 'paragraph');
+    const size = parseFloat(String(text.fontSize ?? ''));
+    ctx.setPage({ styles: { ...(ctx.page.styles ?? {}), [id]: { ...styles[id], ...(text.fontFamily ? { font: String(text.fontFamily).split(',')[0].replaceAll(/["']/g, '') } : {}), ...(size ? { size: String(text.fontSize).endsWith('px') ? size * 0.75 : size } : {}), ...(text.color ? { color: String(text.color) } : {}), ...(para.textAlign ? { align: String(para.textAlign) } : {}), ...(para.lineHeight ? { line: Number(para.lineHeight) } : {}), bold: editor.isActive('bold') || styles[id]?.bold, italic: editor.isActive('italic') || styles[id]?.italic } } });
+    ctx.ui.toast(`Đã cập nhật kiểu ${styles[id]?.name ?? id} theo đoạn đang chọn`);
+  };
   return (
     <>
       <Group label="Clipboard">
@@ -42,7 +53,7 @@ export default function HomeTab({ fmt }: { fmt: FormatState }) {
         </Rows>
       </Group>
 
-      <Group label="Phông chữ">
+      <Group label="Phông chữ" onLauncher={() => ctx.openDialog('font')} launcherTitle="Hộp thoại Phông chữ (Ctrl+D)">
         <Rows>
           <Row>
             <FontPicker value={fmt.fontFamily || ctx.page.fontFamily || 'Arial'} onPick={(font) => chain().setFontFamily(font).run()} onError={(message) => ctx.ui.toast(message, true)} />
@@ -77,11 +88,17 @@ export default function HomeTab({ fmt }: { fmt: FormatState }) {
         </Rows>
       </Group>
 
-      <Group label="Đoạn văn">
+      <Group label="Đoạn văn" onLauncher={() => ctx.openDialog('paragraph')} launcherTitle="Hộp thoại Đoạn văn">
         <Rows>
           <Row>
             <Small icon={<List size={14} />} title="Dấu đầu dòng" active={fmt.bulletList} onClick={() => chain().toggleBulletList().run()} />
+            <Dropdown title="Kiểu dấu đầu dòng" trigger={<span className="sr-only">Kiểu dấu đầu dòng</span>}>
+              {(close) => BULLET_STYLES.map((item) => <MenuItem key={item.value} label={item.label} onClick={() => { close(); setList('bulletList', item.value); }} />)}
+            </Dropdown>
             <Small icon={<ListOrdered size={14} />} title="Đánh số" active={fmt.orderedList} onClick={() => chain().toggleOrderedList().run()} />
+            <Dropdown title="Kiểu đánh số" trigger={<span className="sr-only">Kiểu đánh số</span>}>
+              {(close) => NUMBER_STYLES.map((item) => <MenuItem key={item.value} label={item.label} onClick={() => { close(); setList('orderedList', item.value); }} />)}
+            </Dropdown>
             <Small icon={<ListTodo size={14} />} title="Danh sách việc cần làm" active={fmt.taskList} onClick={() => chain().toggleTaskList().run()} />
             <Small icon={<Outdent size={14} />} title="Giảm thụt lề (Shift+Tab)" onClick={() => chain().decreaseIndent().run()} />
             <Small icon={<Indent size={14} />} title="Tăng thụt lề (Tab)" onClick={() => chain().increaseIndent().run()} />
@@ -100,7 +117,7 @@ export default function HomeTab({ fmt }: { fmt: FormatState }) {
                   <MenuSeparator />
                   <MenuItem label="Thêm khoảng trước đoạn" onClick={() => { close(); chain().setParagraphSpacing(12, null).run(); }} />
                   <MenuItem label="Bỏ khoảng sau đoạn" onClick={() => { close(); chain().setParagraphSpacing(null, 0).run(); }} />
-                  <MenuItem label="Tuỳ chọn giãn dòng…" onClick={() => { close(); void paragraphSettings(ctx); }} />
+                  <MenuItem label="Tuỳ chọn giãn dòng…" onClick={() => { close(); ctx.openDialog('paragraph'); }} />
                 </>
               )}
             </Dropdown>
@@ -112,13 +129,25 @@ export default function HomeTab({ fmt }: { fmt: FormatState }) {
 
       <Group label="Kiểu">
         <div className="styles-gallery-container">
-          {STYLES.map((style) => (
-            <button key={style.id} type="button" className={`styles-card ${style.isActive(fmt) ? 'active' : ''}`} title={`Áp dụng kiểu ${style.label}`} onMouseDown={(e) => e.preventDefault()} onClick={() => style.apply(editor)}>
-              <span className="styles-card-sample" style={style.sample}>AaBbCc</span>
-              <span className="styles-card-title">{style.label}</span>
+          {styleIds.map((id) => (
+            <button key={id} type="button" className={`styles-card ${fmt.styleId === id ? 'active' : ''}`} title={`Áp dụng kiểu ${styles[id].name}. Nhấp đúp để sửa kiểu.`} onMouseDown={(e) => e.preventDefault()} onClick={() => applyDocStyle(editor, id)} onDoubleClick={() => editStyle(id)}>
+              <span className="styles-card-sample" style={styleSample(styles[id])}>AaBbCc</span>
+              <span className="styles-card-title">{styles[id].name}</span>
             </button>
           ))}
         </div>
+        <Dropdown title="Quản lý kiểu" trigger={<ChevronDown size={14} />}>
+          {(close) => (
+            <>
+              <MenuItem icon={<Pencil size={14} />} label={`Sửa kiểu ${styles[fmt.styleId]?.name ?? 'đang dùng'}…`} onClick={() => { close(); editStyle(fmt.styleId); }} />
+              <MenuItem icon={<RefreshCw size={14} />} label="Cập nhật kiểu theo đoạn đang chọn" onClick={() => { close(); updateStyleFromSelection(); }} />
+              <MenuItem icon={<Plus size={14} />} label="Tạo kiểu mới từ đoạn đang chọn…" onClick={() => { close(); editStyle('new'); }} />
+              <MenuItem icon={<Eraser size={14} />} label="Xoá định dạng thủ công" onClick={() => { close(); chain().unsetAllMarks().run(); }} />
+              <MenuSeparator />
+              {styleIds.map((id) => <MenuItem key={id} label={<span style={styleSample(styles[id])}>{styles[id].name}</span>} active={fmt.styleId === id} onClick={() => { close(); applyDocStyle(editor, id); }} />)}
+            </>
+          )}
+        </Dropdown>
       </Group>
 
       <Group label="Chỉnh sửa">
@@ -130,8 +159,10 @@ export default function HomeTab({ fmt }: { fmt: FormatState }) {
       </Group>
 
       <Group label="Giọng nói">
-        <Big icon={ctx.dictation.listening ? <MicOff size={20} color="#d7473c" /> : <Mic size={20} color="#2b579a" />} label="Đọc chính tả" title="Nhập văn bản bằng giọng nói tiếng Việt" active={ctx.dictation.listening} onClick={ctx.dictation.toggle} />
-        <Big icon={ctx.readAloud.speaking ? <VolumeX size={20} color="#d7473c" /> : <Volume2 size={20} color="#2b579a" />} label="Đọc to" title="Đọc to đoạn chọn hoặc cả tài liệu" active={ctx.readAloud.speaking} onClick={ctx.readAloud.toggle} />
+        <Rows>
+          <Small icon={ctx.dictation.listening ? <MicOff size={14} color="#d7473c" /> : <Mic size={14} color="#2b579a" />} label="Đọc chính tả" title="Nhập văn bản bằng giọng nói tiếng Việt" active={ctx.dictation.listening} onClick={ctx.dictation.toggle} />
+          <Small icon={ctx.readAloud.speaking ? <VolumeX size={14} color="#d7473c" /> : <Volume2 size={14} color="#2b579a" />} label="Đọc to" title="Đọc to đoạn chọn hoặc cả tài liệu" active={ctx.readAloud.speaking} onClick={ctx.readAloud.toggle} />
+        </Rows>
       </Group>
 
       <Group label="Minh AI">

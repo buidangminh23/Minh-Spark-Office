@@ -1,6 +1,7 @@
 import { Extension, Mark, Node, mergeAttributes } from '@tiptap/core';
 import Image from '@tiptap/extension-image';
 import { TableCell, TableHeader } from '@tiptap/extension-table';
+import { NodeSelection } from '@tiptap/pm/state';
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -8,6 +9,8 @@ declare module '@tiptap/core' {
       setLineHeight: (value: number | null) => ReturnType;
       setParagraphSpacing: (before: number | null, after: number | null) => ReturnType;
       setIndentLevel: (value: number) => ReturnType;
+      setParagraphIndent: (value: { left?: number; right?: number; firstLine?: number }) => ReturnType;
+      setParagraphAttrs: (patch: Record<string, unknown>) => ReturnType;
       increaseIndent: () => ReturnType;
       decreaseIndent: () => ReturnType;
     };
@@ -22,16 +25,13 @@ declare module '@tiptap/core' {
       unsetCommentById: (commentId: string) => ReturnType;
     };
     footnote: {
-      insertFootnote: (text: string) => ReturnType;
-    };
-    tableOfContents: {
-      insertTableOfContents: () => ReturnType;
+      insertFootnote: (text: string, kind?: 'foot' | 'end') => ReturnType;
     };
     mergeField: {
       insertMergeField: (name: string) => ReturnType;
     };
     imageLayout: {
-      setImageLayout: (attrs: { align?: string; width?: string | null; alt?: string }) => ReturnType;
+      setImageLayout: (attrs: { align?: string; width?: string | null; alt?: string; src?: string; frame?: string | null }) => ReturnType;
     };
   }
 }
@@ -71,6 +71,71 @@ export const ParagraphFormat = Extension.create({
           parseHTML: (element) => (element.style.marginBottom ? parseFloat(element.style.marginBottom) * 0.75 : null),
           renderHTML: (attributes) => (attributes.spaceAfter !== null && attributes.spaceAfter !== undefined ? { style: `margin-bottom: ${attributes.spaceAfter / 0.75}px` } : {}),
         },
+        indentRight: {
+          default: 0,
+          parseHTML: (element) => parseFloat(element.style.marginRight) || 0,
+          renderHTML: (attributes) => (attributes.indentRight ? { style: `margin-right: ${attributes.indentRight}px` } : {}),
+        },
+        firstLine: {
+          default: 0,
+          parseHTML: (element) => parseFloat(element.style.textIndent) || 0,
+          renderHTML: (attributes) => (attributes.firstLine ? { style: `text-indent: ${attributes.firstLine}px` } : {}),
+        },
+        styleId: {
+          default: null,
+          parseHTML: (element) => element.getAttribute('data-style'),
+          renderHTML: (attributes) => (attributes.styleId ? { 'data-style': attributes.styleId } : {}),
+        },
+        keepNext: {
+          default: false,
+          parseHTML: (element) => element.hasAttribute('data-keep-next'),
+          renderHTML: (attributes) => (attributes.keepNext ? { 'data-keep-next': 'true' } : {}),
+        },
+        pageBreakBefore: {
+          default: false,
+          parseHTML: (element) => element.hasAttribute('data-break-before'),
+          renderHTML: (attributes) => (attributes.pageBreakBefore ? { 'data-break-before': 'true' } : {}),
+        },
+        dropCap: {
+          default: false,
+          parseHTML: (element) => element.hasAttribute('data-dropcap'),
+          renderHTML: (attributes) => (attributes.dropCap ? { 'data-dropcap': 'true' } : {}),
+        },
+        captionKind: {
+          default: null,
+          parseHTML: (element) => element.getAttribute('data-caption'),
+          renderHTML: (attributes) => (attributes.captionKind ? { 'data-caption': attributes.captionKind } : {}),
+        },
+        shading: {
+          default: null,
+          parseHTML: (element) => element.getAttribute('data-shading'),
+          renderHTML: (attributes) => (attributes.shading ? { 'data-shading': attributes.shading, style: `background-color: ${attributes.shading}; padding: 2px 4px` } : {}),
+        },
+        borderSides: {
+          default: null,
+          parseHTML: (element) => element.getAttribute('data-border-sides'),
+          renderHTML: (attributes) => {
+            if (!attributes.borderSides) return {};
+            const line = `${attributes.borderWidth ?? 1}px ${attributes.borderStyle ?? 'solid'} ${attributes.borderColor ?? '#334155'}`;
+            const sides = String(attributes.borderSides) === 'box' ? ['top', 'right', 'bottom', 'left'] : String(attributes.borderSides).split(',');
+            return { 'data-border-sides': attributes.borderSides, style: `${sides.map((side) => `border-${side}: ${line}`).join('; ')}; padding: 4px 8px` };
+          },
+        },
+        borderStyle: {
+          default: null,
+          parseHTML: (element) => element.getAttribute('data-border-style'),
+          renderHTML: (attributes) => (attributes.borderStyle ? { 'data-border-style': attributes.borderStyle } : {}),
+        },
+        borderColor: {
+          default: null,
+          parseHTML: (element) => element.getAttribute('data-border-color'),
+          renderHTML: (attributes) => (attributes.borderColor ? { 'data-border-color': attributes.borderColor } : {}),
+        },
+        borderWidth: {
+          default: null,
+          parseHTML: (element) => Number(element.getAttribute('data-border-width')) || null,
+          renderHTML: (attributes) => (attributes.borderWidth ? { 'data-border-width': attributes.borderWidth } : {}),
+        },
       },
     }];
   },
@@ -85,7 +150,13 @@ export const ParagraphFormat = Extension.create({
     return {
       setLineHeight: (value) => updateEach(() => ({ lineHeight: value })),
       setParagraphSpacing: (before, after) => updateEach(() => ({ spaceBefore: before, spaceAfter: after })),
-      setIndentLevel: (value) => updateEach(() => ({ indent: Math.max(0, Math.min(8, value)) })),
+      setIndentLevel: (value) => updateEach(() => ({ indent: Math.max(0, Math.min(16, value)) })),
+      setParagraphIndent: ({ left, right, firstLine }) => updateEach((attrs) => ({
+        indent: left === undefined ? attrs.indent : Math.max(0, left / 48),
+        indentRight: right === undefined ? attrs.indentRight : Math.max(0, right),
+        firstLine: firstLine === undefined ? attrs.firstLine : firstLine,
+      })),
+      setParagraphAttrs: (patch) => updateEach(() => patch),
       increaseIndent: () => ({ editor, commands, ...props }) => {
         if (editor.isActive('listItem') && commands.sinkListItem('listItem')) return true;
         if (editor.isActive('taskItem') && commands.sinkListItem('taskItem')) return true;
@@ -211,10 +282,15 @@ export const Footnote = Node.create({
         parseHTML: (element) => element.getAttribute('data-footnote') ?? '',
         renderHTML: (attributes) => ({ 'data-footnote': attributes.text, title: attributes.text }),
       },
+      kind: {
+        default: 'foot',
+        parseHTML: (element) => element.getAttribute('data-kind') ?? 'foot',
+        renderHTML: (attributes) => ({ 'data-kind': attributes.kind }),
+      },
     };
   },
   parseHTML() {
-    return [{ tag: 'sup[data-footnote]' }];
+    return [{ tag: 'sup[data-footnote]', priority: 60 }];
   },
   renderHTML({ HTMLAttributes }) {
     return ['sup', mergeAttributes(HTMLAttributes, { class: 'footnote-ref' })];
@@ -224,7 +300,7 @@ export const Footnote = Node.create({
   },
   addCommands() {
     return {
-      insertFootnote: (text) => ({ commands }) => commands.insertContent({ type: this.name, attrs: { text } }),
+      insertFootnote: (text, kind = 'foot') => ({ commands }) => commands.insertContent({ type: this.name, attrs: { text, kind } }),
     };
   },
 });
@@ -260,76 +336,15 @@ export const MergeField = Node.create({
   },
 });
 
-const TOC_LEVELS = [1, 2, 3];
-
-const renderToc = (container: HTMLElement, doc: import('@tiptap/pm/model').Node, onJump: (pos: number) => void) => {
-  container.replaceChildren();
-  const title = document.createElement('div');
-  title.className = 'toc-title';
-  title.textContent = 'MỤC LỤC';
-  container.appendChild(title);
-  let count = 0;
-  doc.descendants((node, pos) => {
-    if (node.type.name !== 'heading' || !TOC_LEVELS.includes(node.attrs.level) || !node.textContent.trim()) return;
-    count++;
-    const row = document.createElement('button');
-    row.type = 'button';
-    row.className = `toc-entry toc-l${node.attrs.level}`;
-    row.textContent = node.textContent;
-    row.addEventListener('mousedown', (event) => {
-      event.preventDefault();
-      onJump(pos);
-    });
-    container.appendChild(row);
-  });
-  if (!count) {
-    const empty = document.createElement('div');
-    empty.className = 'toc-empty';
-    empty.textContent = 'Chưa có tiêu đề nào. Dùng kiểu Heading 1–3 để mục lục tự cập nhật.';
-    container.appendChild(empty);
-  }
-};
-
-export const TableOfContents = Node.create({
-  name: 'tableOfContents',
-  group: 'block',
-  atom: true,
-  selectable: true,
-  draggable: true,
-  parseHTML() {
-    return [{ tag: 'div[data-toc]' }];
-  },
-  renderHTML({ HTMLAttributes }) {
-    return ['div', mergeAttributes(HTMLAttributes, { 'data-toc': 'true', class: 'doc-toc' })];
-  },
-  addNodeView() {
-    return ({ editor }) => {
-      const dom = document.createElement('div');
-      dom.className = 'doc-toc';
-      dom.setAttribute('data-toc', 'true');
-      dom.contentEditable = 'false';
-      const jump = (pos: number) => {
-        const target = editor.view.nodeDOM(pos);
-        if (target instanceof HTMLElement) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        editor.chain().focus().setTextSelection(pos + 1).run();
-      };
-      const refresh = () => renderToc(dom, editor.state.doc, jump);
-      refresh();
-      editor.on('update', refresh);
-      return { dom, ignoreMutation: () => true, destroy: () => editor.off('update', refresh) };
-    };
-  },
-  addCommands() {
-    return {
-      insertTableOfContents: () => ({ commands }) => commands.insertContent([{ type: this.name }, { type: 'paragraph' }]),
-    };
-  },
-});
-
 export const LayoutImage = Image.extend({
   addAttributes() {
     return {
       ...this.parent?.(),
+      frame: {
+        default: null,
+        parseHTML: (element) => element.getAttribute('data-frame'),
+        renderHTML: (attributes) => (attributes.frame ? { 'data-frame': attributes.frame } : {}),
+      },
       align: {
         default: 'inline',
         parseHTML: (element) => element.getAttribute('data-align') ?? 'inline',
@@ -345,7 +360,16 @@ export const LayoutImage = Image.extend({
   addCommands() {
     return {
       ...this.parent?.(),
-      setImageLayout: (attrs) => ({ commands }) => commands.updateAttributes('image', attrs),
+      setImageLayout: (attrs) => ({ commands, tr, dispatch }) => {
+        const { selection } = tr;
+        if (!(selection instanceof NodeSelection) || selection.node.type.name !== 'image') return commands.updateAttributes('image', attrs);
+        if (dispatch) {
+          const { from, node } = selection;
+          tr.setNodeMarkup(from, undefined, { ...node.attrs, ...attrs });
+          tr.setSelection(NodeSelection.create(tr.doc, from));
+        }
+        return true;
+      },
     };
   },
 });

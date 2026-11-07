@@ -23,6 +23,7 @@ import {
 import { blankDoc, sampleDocHtml, sampleWorkbook } from './lib/templates';
 import { emptyWorkbook, importSpreadsheet } from './lib/xlsxConvert';
 import { importDocx } from './lib/docxConvert';
+import { extractHtmlBody, importDocxFull, markdownToHtml, textToHtml } from './lib/docxImport';
 import { isEncryptedOffice, decryptOfficeFile, DEFAULT_EXCEL_PASSWORD } from './lib/officeCrypto';
 import { downloadBlob } from './lib/download';
 
@@ -268,6 +269,7 @@ function MainApp() {
       const buffer = await file.arrayBuffer();
       let bytes: Uint8Array<any> = new Uint8Array(buffer);
       const isDoc = /\.(docx|doc)$/i.test(file.name);
+      const isText = /\.(txt|md|markdown|html|htm)$/i.test(file.name);
       const isXls = /\.(xlsx|xlsm|xls|csv|tsv)$/i.test(file.name);
       const isPdf = file.name.toLowerCase().endsWith('.pdf');
 
@@ -317,7 +319,7 @@ function MainApp() {
       // Convert decrypted or plain buffer into document or sheet
       if (isDoc) {
         ui.showBusy('Đang chuyển đổi tệp Word…');
-        const html = await importDocx(bytes.buffer as ArrayBuffer);
+        const imported = await importDocxFull(bytes.buffer as ArrayBuffer).catch(async () => ({ html: await importDocx(bytes.buffer as ArrayBuffer), page: defaultPage() }));
         const id = `doc-${Date.now()}`;
         const meta: FileMeta = {
           id,
@@ -333,14 +335,24 @@ function MainApp() {
         };
         const content: DocContent = {
           kind: 'doc',
-          json: html as any,
-          page: defaultPage(),
+          json: imported.html as any,
+          page: imported.page,
         };
         await saveFile(meta, content);
         await refreshFiles();
         setActiveMeta(meta);
         setActiveContent(content);
         ui.toast(`Đã nạp tệp Word "${file.name}"`);
+      } else if (isText) {
+        const source = new TextDecoder().decode(bytes);
+        const html = /\.(md|markdown)$/i.test(file.name) ? markdownToHtml(source) : /\.txt$/i.test(file.name) ? textToHtml(source) : extractHtmlBody(source);
+        const meta: FileMeta = { id: `doc-${Date.now()}`, name: file.name, kind: 'doc', createdAt: Date.now(), updatedAt: Date.now(), openedAt: Date.now(), starred: false, deletedAt: null, size: file.size, preview: '' };
+        const content: DocContent = { kind: 'doc', json: html as any, page: defaultPage() };
+        await saveFile(meta, content);
+        await refreshFiles();
+        setActiveMeta(meta);
+        setActiveContent(content);
+        ui.toast(`Đã mở "${file.name}"`);
       } else if (isXls) {
         ui.showBusy('Đang đọc dữ liệu bảng tính…');
         const workbook = await importSpreadsheet(bytes.buffer as ArrayBuffer, file.name);
@@ -520,6 +532,7 @@ function MainApp() {
     if (activeMeta.kind === 'doc' && activeContent.kind === 'doc') {
       return (
         <DocEditor
+          key={activeMeta.id}
           meta={activeMeta}
           content={activeContent}
           onSave={handleSaveActive}

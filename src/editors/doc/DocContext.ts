@@ -6,9 +6,18 @@ import type { useUi } from '../../components/ui';
 export type ViewMode = 'print' | 'web' | 'read';
 export type EditMode = 'editing' | 'suggesting' | 'viewing';
 export type SidePanel = 'comments' | 'changes' | null;
-export type DialogId = 'history' | 'mailmerge' | 'shortcuts' | 'signature' | 'ai' | 'translate' | 'proofread' | 'chart' | 'templates' | 'symbols' | 'wordcount' | 'backstage' | 'tablegrid';
+export type DialogId = 'history' | 'mailmerge' | 'shortcuts' | 'signature' | 'ai' | 'translate' | 'proofread' | 'chart' | 'templates' | 'symbols' | 'wordcount' | 'backstage' | 'tablegrid' | 'headerfooter' | 'font' | 'paragraph' | 'style' | 'equation' | 'qr' | 'drawing' | 'imageedit' | 'citations' | 'crossref' | 'accessibility' | 'goto' | 'compare';
+
+export type InkTool = 'pen' | 'highlighter' | 'eraser';
+export type EditingNode = { pos: number; attrs: Record<string, unknown> };
 
 export type ViewState = {
+  inkTool: InkTool | null;
+  inkColor: string;
+  inkWidth: number;
+  focusMode: boolean;
+  dark: boolean;
+  ribbonCollapsed: boolean;
   zoom: number;
   viewMode: ViewMode;
   editMode: EditMode;
@@ -38,6 +47,11 @@ export type DocCtx = {
   activeCommentId: string | null;
   setActiveCommentId: (id: string | null) => void;
   openDialog: (id: DialogId) => void;
+  editing: EditingNode | null;
+  setEditing: (node: EditingNode | null) => void;
+  editingStyle: string | null;
+  setEditingStyle: (id: string | null) => void;
+  print: () => void;
   merge: MergeData | null;
   setMerge: (data: MergeData | null) => void;
   mergePreview: number | null;

@@ -4,6 +4,8 @@ import { useEditorState } from '@tiptap/react';
 import { AUTHOR, newId, useDoc } from '../DocContext';
 import { collectChanges } from '../trackChanges';
 import { addComment } from '../actions';
+import { jumpToPage } from '../actionsExtra';
+import { getPagination } from '../pagination';
 
 export function OutlinePanel() {
   const { editor, setView } = useDoc();
@@ -22,6 +24,21 @@ export function OutlinePanel() {
     equalityFn: (a, b) => JSON.stringify(a) === JSON.stringify(b),
   });
   const [filter, setFilter] = useState('');
+  const [tab, setTab] = useState<'headings' | 'pages'>('headings');
+  const ctx = useDoc();
+  const pages = useEditorState({
+    editor,
+    selector: ({ editor: e }) => {
+      const { breaks, pages: count } = getPagination(e).result;
+      const starts = [0, ...breaks.map((item) => item.pos)];
+      return Array.from({ length: count }, (_, index) => {
+        const from = Math.min(starts[index] ?? 0, e.state.doc.content.size);
+        const to = Math.min(from + 120, e.state.doc.content.size);
+        return { page: index + 1, text: e.state.doc.textBetween(from, to, ' ').trim().slice(0, 70) };
+      });
+    },
+    equalityFn: (a, b) => JSON.stringify(a) === JSON.stringify(b),
+  });
   const jump = (pos: number) => {
     const dom = editor.view.nodeDOM(pos);
     if (dom instanceof HTMLElement) dom.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -31,10 +48,20 @@ export function OutlinePanel() {
   return (
     <aside className="doc-outline" aria-label="Khung điều hướng">
       <div className="panel-head"><span><Navigation size={14} /> Điều hướng</span><button className="icon-btn" aria-label="Đóng" onClick={() => setView({ showNav: false })}><X size={14} /></button></div>
+      <div className="outline-tabs" role="tablist">
+        <button role="tab" aria-selected={tab === 'headings'} className={tab === 'headings' ? 'on' : ''} onClick={() => setTab('headings')}>Tiêu đề</button>
+        <button role="tab" aria-selected={tab === 'pages'} className={tab === 'pages' ? 'on' : ''} onClick={() => setTab('pages')}>Trang</button>
+      </div>
+      {tab === 'pages' ? pages.map((item) => (
+        <button key={item.page} type="button" className="outline-page" onClick={() => jumpToPage(ctx, item.page)}>
+          <strong>{item.page}</strong><span>{item.text || 'Trang trống'}</span>
+        </button>
+      )) : <>
       <input className="text-field panel-search" placeholder="Lọc tiêu đề…" value={filter} onChange={(e) => setFilter(e.target.value)} />
       {items.length === 0 ? <div className="panel-empty">Chưa có tiêu đề. Dùng kiểu Heading 1–6 để tạo đề mục điều hướng.</div> : items.map((h) => (
         <button key={h.pos} type="button" className={`outline-item h${Math.min(h.level, 4)} ${h.pos === headings.current ? 'current' : ''}`} onClick={() => jump(h.pos)} title={h.text}>{h.text}</button>
       ))}
+      </>}
     </aside>
   );
 }

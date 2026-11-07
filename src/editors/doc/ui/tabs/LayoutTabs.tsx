@@ -1,7 +1,8 @@
-import { Columns2, Droplets, FileType, Frame, Hash, Indent, Languages, LayoutTemplate, Maximize, PanelTop, RectangleHorizontal, RectangleVertical, Ruler, ScissorsLineDashed, Square, Stamp, WrapText } from 'lucide-react';
+import { Columns2, Droplets, FileType, Frame, Hash, Indent, Languages, LayoutTemplate, Link, Maximize, Palette, PanelTop, RectangleHorizontal, RectangleVertical, Ruler, ScissorsLineDashed, Square, Stamp, WrapText } from 'lucide-react';
 import { useDoc } from '../../DocContext';
 import type { FormatState } from '../../useFormatState';
-import { customWatermark, headerFooterSetup, imageSettings, pageSetup, paragraphSettings } from '../../actions';
+import { customWatermark, imageSettings, pageSetup } from '../../actions';
+import { STYLE_SETS, styleSample } from '../../docStyles';
 import { ensureFont } from '../../fonts';
 import type { PageSettings } from '../../../../lib/storage';
 import { Big, Dropdown, Group, MenuHeading, MenuItem, MenuSeparator, Row, Rows, Small, THEME_COLORS } from '../RibbonParts';
@@ -33,6 +34,11 @@ export function DesignTab() {
   return (
     <>
       <Group label="Định dạng tài liệu">
+        <Dropdown large title="Bộ kiểu cho cả tài liệu" trigger={<><Palette size={22} color="#7c3aed" /><span>Bộ kiểu</span></>} width={320}>
+          {(close) => STYLE_SETS.map((set) => { ensureFont(set.font); return (
+            <MenuItem key={set.id} label={<span className="style-set-row"><strong style={{ fontFamily: set.font }}>{set.label}</strong><span style={{ ...styleSample(set.styles.h1), fontFamily: set.font }}>Tiêu đề</span><small style={{ fontFamily: set.font }}>{set.font} {set.size}</small></span>} active={(page.styleSet ?? 'office') === set.id} onClick={() => { close(); ensureFont(set.font); setPage({ styles: set.styles, styleSet: set.id, fontFamily: set.font, fontSize: set.size }); }} />
+          ); })}
+        </Dropdown>
         <Dropdown large title="Bộ phông chữ mặc định cho tài liệu" trigger={<><FileType size={22} color="#2b579a" /><span>Phông chủ đạo</span></>}>
           {(close) => THEMES.map((theme) => { ensureFont(theme.font); return (
             <MenuItem key={theme.id} label={<span style={{ fontFamily: theme.font }}>{theme.label}</span>} active={page.fontFamily === theme.font && page.fontSize === theme.size} onClick={() => { close(); ensureFont(theme.font); setPage({ fontFamily: theme.font, fontSize: theme.size }); }} />
@@ -99,7 +105,17 @@ export function LayoutTab({ fmt }: { fmt: FormatState }) {
           {(close) => (['A4', 'A5', 'Letter', 'Legal'] as const).map((size) => <MenuItem key={size} label={size} active={page.size === size} onClick={() => { close(); setPage({ size }); }} />)}
         </Dropdown>
         <Dropdown large title="Chia cột" trigger={<><Columns2 size={22} color="#2b579a" /><span>Cột</span></>}>
-          {(close) => [1, 2, 3].map((n) => <MenuItem key={n} label={`${n} cột`} active={(page.columns ?? 1) === n} onClick={() => { close(); setPage({ columns: n }); }} />)}
+          {(close) => (
+            <>
+              <MenuHeading>Cả tài liệu</MenuHeading>
+              {[1, 2, 3].map((n) => <MenuItem key={n} label={`${n} cột`} active={(page.columns ?? 1) === n} onClick={() => { close(); setPage({ columns: n }); }} />)}
+              <MenuSeparator />
+              <MenuHeading>Chỉ đoạn đang chọn</MenuHeading>
+              <MenuItem label="Chia đoạn chọn thành 2 cột" onClick={() => { close(); editor.chain().focus().wrapInColumns(2).run(); }} />
+              <MenuItem label="Chia đoạn chọn thành 3 cột" onClick={() => { close(); editor.chain().focus().wrapInColumns(3).run(); }} />
+              {fmt.inColumns && <MenuItem label="Bỏ chia cột đoạn này" onClick={() => { close(); editor.chain().focus().unwrapColumns().run(); }} />}
+            </>
+          )}
         </Dropdown>
         <Rows>
           <Small icon={<ScissorsLineDashed size={14} />} label="Ngắt trang" title="Chèn ngắt trang (Ctrl+Enter)" onClick={() => editor.chain().focus().insertPageBreak().run()} />
@@ -107,12 +123,12 @@ export function LayoutTab({ fmt }: { fmt: FormatState }) {
           <Small icon={<Languages size={14} />} label="Ngắt từ" title="Tự động ngắt từ cuối dòng" active={Boolean(page.hyphenate)} onClick={() => setPage({ hyphenate: !page.hyphenate })} />
         </Rows>
         <Rows>
-          <Small icon={<PanelTop size={14} />} label="Đầu/chân trang" title="Đầu trang, chân trang, số trang" onClick={() => void headerFooterSetup(ctx)} />
+          <Small icon={<PanelTop size={14} />} label="Đầu/chân trang" title="Đầu trang, chân trang, số trang" onClick={() => ctx.openDialog('headerfooter')} />
           <Small icon={<Maximize size={14} />} label="Thiết lập trang…" title="Mở hộp thoại thiết lập trang" onClick={() => void pageSetup(ctx)} />
         </Rows>
       </Group>
 
-      <Group label="Đoạn văn">
+      <Group label="Đoạn văn" onLauncher={() => ctx.openDialog('paragraph')} launcherTitle="Hộp thoại Đoạn văn">
         <Rows>
           <MenuHeading>Thụt lề</MenuHeading>
           <Row>
@@ -123,8 +139,12 @@ export function LayoutTab({ fmt }: { fmt: FormatState }) {
         <Rows>
           <MenuHeading>Giãn cách</MenuHeading>
           <Row>
-            <Small icon={<Ruler size={14} />} label={fmt.lineHeight ? `${fmt.lineHeight}×` : 'Giãn dòng'} title="Tuỳ chỉnh thụt lề và giãn cách" onClick={() => void paragraphSettings(ctx)} />
+            <Small icon={<Ruler size={14} />} label={fmt.lineHeight ? `${fmt.lineHeight}×` : 'Giãn dòng'} title="Tuỳ chỉnh thụt lề và giãn cách" onClick={() => ctx.openDialog('paragraph')} />
           </Row>
+        </Rows>
+        <Rows>
+          <Small icon={<Link size={14} />} label="Giữ với đoạn sau" title="Không để đoạn này nằm cuối trang, tách khỏi đoạn kế" active={fmt.keepNext} onClick={() => editor.chain().focus().setParagraphAttrs({ keepNext: !fmt.keepNext }).run()} />
+          <Small icon={<ScissorsLineDashed size={14} />} label="Sang trang trước đoạn" title="Luôn bắt đầu đoạn này ở trang mới" active={fmt.pageBreakBefore} onClick={() => editor.chain().focus().setParagraphAttrs({ pageBreakBefore: !fmt.pageBreakBefore }).run()} />
         </Rows>
       </Group>
 

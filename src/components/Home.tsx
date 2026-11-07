@@ -463,7 +463,7 @@ export default function Home({
             <label className="btn btn-primary" style={{ cursor: 'pointer' }}>
               <Upload size={15} />
               <span>Mở tệp từ máy (.docx, .xlsx, .pdf, .csv)…</span>
-              <input type="file" accept=".docx,.xlsx,.xlsm,.xls,.csv,.tsv,.pdf" hidden onChange={handleFileUpload} />
+              <input type="file" accept=".docx,.txt,.md,.html,.htm,.xlsx,.xlsm,.xls,.csv,.tsv,.pdf" hidden onChange={handleFileUpload} />
             </label>
           </div>
         </header>

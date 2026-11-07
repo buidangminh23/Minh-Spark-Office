@@ -1,13 +1,16 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ArrowDownRight, ChevronDown } from 'lucide-react';
 
 const keepFocus = (event: React.MouseEvent) => event.preventDefault();
 
-export function Group({ label, children }: { label: string; children: ReactNode }) {
+export function Group({ label, children, onLauncher, launcherTitle }: { label: string; children: ReactNode; onLauncher?: () => void; launcherTitle?: string }) {
   return (
     <div className="ribbon-section">
       <div className="ribbon-controls">{children}</div>
-      <div className="ribbon-group-label">{label}</div>
+      <div className="ribbon-group-label">
+        {label}
+        {onLauncher && <button type="button" className="group-launcher" title={launcherTitle} aria-label={launcherTitle} onMouseDown={keepFocus} onClick={onLauncher}><ArrowDownRight size={10} /></button>}
+      </div>
     </div>
   );
 }

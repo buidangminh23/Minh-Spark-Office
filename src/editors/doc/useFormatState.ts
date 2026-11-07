@@ -1,4 +1,5 @@
 import { useEditorState, type Editor } from '@tiptap/react';
+import { activeStyleId } from './docStyles';
 
 const sizeInPt = (raw: unknown) => {
   if (typeof raw !== 'string' || !raw) return '';
@@ -35,6 +36,12 @@ export function useFormatState(editor: Editor) {
         color: String(textStyle.color ?? ''),
         highlight: String(e.getAttributes('highlight').color ?? ''),
         lineHeight: Number(e.getAttributes(heading ? 'heading' : 'paragraph').lineHeight) || 0,
+        styleId: activeStyleId(e),
+        dropCap: Boolean(e.getAttributes('paragraph').dropCap),
+        keepNext: Boolean(e.getAttributes(heading ? 'heading' : 'paragraph').keepNext),
+        pageBreakBefore: Boolean(e.getAttributes(heading ? 'heading' : 'paragraph').pageBreakBefore),
+        inColumns: e.isActive('columnSection'),
+        tableStyle: String(e.getAttributes('table').tableStyle ?? 'grid'),
         inTable: e.isActive('table'),
         imageSelected: e.isActive('image'),
         canUndo: e.can().undo(),

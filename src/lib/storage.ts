@@ -14,6 +14,40 @@ export type CommentItem = {
   replies?: Array<{ id: string; author: string; text: string; createdAt: number }>;
 };
 
+export type PageNumberFormat = 'plain' | 'page' | 'page-of' | 'dash' | 'roman';
+export type PageNumberPosition = 'bottom-left' | 'bottom-center' | 'bottom-right' | 'top-left' | 'top-center' | 'top-right';
+export type CitationStyle = 'apa' | 'ieee' | 'chicago' | 'mla' | 'vancouver';
+
+export type DocStyleDef = {
+  name: string;
+  font?: string;
+  size?: number;
+  color?: string;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  caps?: boolean;
+  align?: string;
+  before?: number;
+  after?: number;
+  line?: number;
+  custom?: boolean;
+};
+
+export type CitationSource = {
+  id: string;
+  type: 'book' | 'article' | 'web' | 'report' | 'other';
+  authors: string;
+  title: string;
+  year: string;
+  publisher?: string;
+  url?: string;
+  pages?: string;
+};
+
+export type InkStroke = { id: string; color: string; width: number; opacity: number; points: number[] };
+export type DocProperties = { author?: string; subject?: string; keywords?: string; company?: string };
+
 export type PageSettings = {
   size: 'A4' | 'A5' | 'Letter' | 'Legal';
   orientation: 'portrait' | 'landscape';
@@ -31,6 +65,22 @@ export type PageSettings = {
   fontSize?: number;
   differentFirstPage?: boolean;
   protectHash?: string;
+  headerFirst?: string;
+  footerFirst?: string;
+  differentOddEven?: boolean;
+  headerEven?: string;
+  footerEven?: string;
+  pageNumberFormat?: PageNumberFormat;
+  pageNumberPosition?: PageNumberPosition;
+  pageNumberStart?: number;
+  styles?: Record<string, DocStyleDef>;
+  styleSet?: string;
+  sources?: CitationSource[];
+  citationStyle?: CitationStyle;
+  ink?: InkStroke[];
+  language?: string;
+  properties?: DocProperties;
+  autocorrect?: boolean;
 };
 
 export type DocContent = {

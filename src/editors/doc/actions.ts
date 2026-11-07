@@ -1,9 +1,12 @@
 import type { JSONContent } from '@tiptap/react';
-import { exportDocx, importDocx, jsonToMarkdown } from '../../lib/docxConvert';
+import { exportDocx, importDocx } from '../../lib/docxConvert';
+import { resolveImages } from '../../lib/docOtherFormats';
+import { importDocxFull } from '../../lib/docxImport';
+import { flattenForExport } from './docFlatten';
 import { downloadBlob, pickFile, readAsDataUrl } from '../../lib/download';
 import { saveFile, type FileMeta, type PageSettings } from '../../lib/storage';
 import { AUTHOR, newId, type DocCtx } from './DocContext';
-import { jsonText, renderElementToPng, sha256, splitByHeading, transformCase, type CaseMode } from './docTools';
+import { jsonText, sha256, splitByHeading, transformCase, type CaseMode } from './docTools';
 
 const baseName = (ctx: DocCtx) => ctx.title.replace(/\.[^/.]+$/, '') || 'Tai-lieu';
 
@@ -19,38 +22,12 @@ const run = async (ctx: DocCtx, busy: string, task: () => Promise<void>, failure
 };
 
 export const exportAsDocx = (ctx: DocCtx) => run(ctx, 'Đang tạo tệp .docx…', async () => {
-  downloadBlob(await exportDocx(ctx.editor.getJSON(), ctx.page, ctx.title), `${baseName(ctx)}.docx`);
+  downloadBlob(await exportDocx(await resolveImages(flattenForExport(ctx.editor)), ctx.page, ctx.title), `${baseName(ctx)}.docx`);
   ctx.ui.toast('Đã tải xuống tệp Word (.docx)');
 }, 'Lỗi khi xuất DOCX');
 
-export const standaloneHtml = (ctx: DocCtx) => `<!DOCTYPE html><html lang="vi"><head><meta charset="utf-8"><title>${ctx.title}</title><style>body{font-family:${ctx.page.fontFamily ?? 'Arial'},sans-serif;max-width:820px;margin:40px auto;padding:0 24px;line-height:1.6;color:#1e2430}table{border-collapse:collapse;width:100%}th,td{border:1px solid #c8ced8;padding:6px 10px}blockquote{border-left:3px solid #2b579a;margin:0;padding-left:14px;color:#555}ins{background:#e6f4ea;text-decoration:none}del{color:#b3261e}.footnote-ref::before{content:'*'}</style></head><body>${ctx.editor.getHTML()}</body></html>`;
-
-export const exportAsHtml = (ctx: DocCtx) => {
-  downloadBlob(new Blob([standaloneHtml(ctx)], { type: 'text/html;charset=utf-8' }), `${baseName(ctx)}.html`);
-  ctx.ui.toast('Đã tải xuống trang web (.html)');
-};
-
-export const exportAsMarkdown = (ctx: DocCtx) => {
-  downloadBlob(new Blob([jsonToMarkdown(ctx.editor.getJSON())], { type: 'text/markdown;charset=utf-8' }), `${baseName(ctx)}.md`);
-  ctx.ui.toast('Đã tải xuống Markdown (.md)');
-};
-
-export const exportAsText = (ctx: DocCtx) => {
-  downloadBlob(new Blob([ctx.editor.getText({ blockSeparator: '\n' })], { type: 'text/plain;charset=utf-8' }), `${baseName(ctx)}.txt`);
-  ctx.ui.toast('Đã tải xuống văn bản thuần (.txt)');
-};
-
-export const exportAsPng = (ctx: DocCtx) => run(ctx, 'Đang dựng ảnh trang…', async () => {
-  const paper = document.querySelector('.doc-paper') as HTMLElement | null;
-  if (!paper) throw new Error('Không tìm thấy trang giấy.');
-  downloadBlob(await renderElementToPng(paper), `${baseName(ctx)}.png`);
-  ctx.ui.toast('Đã xuất ảnh PNG của tài liệu');
-}, 'Không xuất được ảnh');
-
-export const printDocument = () => window.print();
-
-export const exportSlides = (ctx: DocCtx) => {
-  const json = ctx.editor.getJSON();
+export const slidesHtml = (ctx: DocCtx) => {
+  const json = flattenForExport(ctx.editor, { equationAsText: true });
   const slides: { title: string; body: string[] }[] = [];
   for (const block of json.content ?? []) {
     const text = jsonText(block).trim();
@@ -59,15 +36,10 @@ export const exportSlides = (ctx: DocCtx) => {
     else if (slides.length) slides[slides.length - 1].body.push(...text.split('\n').filter(Boolean));
     else slides.push({ title: ctx.title, body: [text] });
   }
-  if (!slides.length) {
-    ctx.ui.toast('Tài liệu chưa có nội dung để tạo slide', true);
-    return;
-  }
+  if (!slides.length) throw new Error('Tài liệu chưa có nội dung để tạo slide');
   const escape = (s: string) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c] ?? c);
   const sections = slides.map((s, i) => `<section class="${i ? '' : 'active'}"><h1>${escape(s.title)}</h1><ul>${s.body.slice(0, 8).map((b) => `<li>${escape(b)}</li>`).join('')}</ul><footer>${i + 1} / ${slides.length}</footer></section>`).join('');
-  const html = `<!DOCTYPE html><html lang="vi"><head><meta charset="utf-8"><title>${escape(ctx.title)}</title><style>body{margin:0;background:#0f172a;font-family:Segoe UI,Arial,sans-serif}section{display:none;box-sizing:border-box;width:100vw;height:100vh;padding:8vh 10vw;background:linear-gradient(135deg,#ffffff,#eef2fb);color:#1e2430}section.active{display:block}h1{font-size:5vh;color:#2b579a;margin:0 0 4vh}li{font-size:3vh;line-height:1.5;margin-bottom:1.5vh}footer{position:absolute;bottom:4vh;right:6vw;color:#798394;font-size:2vh}</style></head><body>${sections}<script>let i=0;const s=document.querySelectorAll('section');const go=d=>{s[i].classList.remove('active');i=Math.max(0,Math.min(s.length-1,i+d));s[i].classList.add('active')};addEventListener('keydown',e=>{if(['ArrowRight','PageDown',' '].includes(e.key))go(1);if(['ArrowLeft','PageUp'].includes(e.key))go(-1)});addEventListener('click',()=>go(1));</script></body></html>`;
-  downloadBlob(new Blob([html], { type: 'text/html;charset=utf-8' }), `${baseName(ctx)} - trinh chieu.html`);
-  ctx.ui.toast(`Đã tạo bộ trình chiếu ${slides.length} slide (mở bằng trình duyệt, bấm → để chuyển)`);
+  return `<!DOCTYPE html><html lang="vi"><head><meta charset="utf-8"><title>${escape(ctx.title)}</title><style>body{margin:0;background:#0f172a;font-family:Segoe UI,Arial,sans-serif}section{display:none;box-sizing:border-box;width:100vw;height:100vh;padding:8vh 10vw;background:linear-gradient(135deg,#ffffff,#eef2fb);color:#1e2430}section.active{display:block}h1{font-size:5vh;color:#2b579a;margin:0 0 4vh}li{font-size:3vh;line-height:1.5;margin-bottom:1.5vh}footer{position:absolute;bottom:4vh;right:6vw;color:#798394;font-size:2vh}</style></head><body>${sections}<script>let i=0;const s=document.querySelectorAll('section');const go=d=>{s[i].classList.remove('active');i=Math.max(0,Math.min(s.length-1,i+d));s[i].classList.add('active')};addEventListener('keydown',e=>{if(['ArrowRight','PageDown',' '].includes(e.key))go(1);if(['ArrowLeft','PageUp'].includes(e.key))go(-1)});addEventListener('click',()=>go(1));</script></body></html>`;
 };
 
 export const insertImageFromDevice = async (ctx: DocCtx) => {
@@ -149,8 +121,12 @@ export const insertCaption = async (ctx: DocCtx) => {
   const res = await ctx.ui.ask({ title: 'Chèn chú thích hình/bảng', fields: [{ name: 'kind', label: 'Nhãn', type: 'select', value: 'Hình', options: ['Hình', 'Bảng', 'Biểu đồ', 'Công thức'].map((v) => ({ value: v, label: v })) }, { name: 'text', label: 'Nội dung', placeholder: 'Sơ đồ tổ chức công ty' }], confirmText: 'Chèn' });
   if (!res) return;
   const kind = String(res.kind);
-  const count = (ctx.editor.getText().match(new RegExp(`(^|\\n)${kind} \\d+[.:]`, 'g')) ?? []).length + 1;
-  ctx.editor.chain().focus().insertContent({ type: 'paragraph', attrs: { textAlign: 'center' }, content: [{ type: 'text', text: `${kind} ${count}: `, marks: [{ type: 'bold' }, { type: 'italic' }] }, ...(String(res.text).trim() ? [{ type: 'text', text: String(res.text).trim(), marks: [{ type: 'italic' }] }] : [])] }).run();
+  let count = 1;
+  ctx.editor.state.doc.descendants((node) => {
+    if (node.attrs?.captionKind === kind) count++;
+    return true;
+  });
+  ctx.editor.chain().focus().insertContent({ type: 'paragraph', attrs: { textAlign: 'center', captionKind: kind }, content: [{ type: 'text', text: `${kind} ${count}: `, marks: [{ type: 'bold' }, { type: 'italic' }] }, ...(String(res.text).trim() ? [{ type: 'text', text: String(res.text).trim(), marks: [{ type: 'italic' }] }] : [])] }).run();
 };
 
 export const changeCase = (ctx: DocCtx, mode: CaseMode) => {
@@ -291,7 +267,7 @@ export const mergeDocument = async (ctx: DocCtx) => {
   await run(ctx, `Đang ghép “${file.name}”…`, async () => {
     const lower = file.name.toLowerCase();
     let content: string;
-    if (lower.endsWith('.docx')) content = await importDocx(await file.arrayBuffer());
+    if (lower.endsWith('.docx')) content = (await importDocxFull(await file.arrayBuffer()).catch(async () => ({ html: await importDocx(await file.arrayBuffer()) }))).html;
     else if (lower.endsWith('.html') || lower.endsWith('.htm')) content = (await file.text()).replace(/^[\s\S]*<body[^>]*>|<\/body>[\s\S]*$/gi, '');
     else content = (await file.text()).split(/\n{2,}/).map((p) => `<p>${p.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c] ?? c).replace(/\n/g, '<br>')}</p>`).join('');
     const end = ctx.editor.state.doc.content.size;

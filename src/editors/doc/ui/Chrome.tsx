@@ -1,15 +1,26 @@
 import { useMemo, useState } from 'react';
-import { ArrowLeft, Bookmark, Clipboard, Download, FileCode2, FileImage, FileText, FileType2, FolderOpen, History, Info, Mail, MonitorPlay, Printer, Save, Share2, FilePlus2, X, BookOpen, ScrollText, Columns3, Minus, Plus, PencilLine } from 'lucide-react';
+import { ArrowLeft, Bookmark, BookText, Clipboard, Copy, Download, FileCode2, FileImage, FileText, FileType2, FolderOpen, History, Info, Mail, MonitorPlay, Package, Printer, Save, Share2, Table2, FilePlus2, X, BookOpen, ScrollText, Columns3, Minus, Plus, PencilLine } from 'lucide-react';
 import { useEditorState } from '@tiptap/react';
 import { pickFile, formatBytes } from '../../../lib/download';
 import { saveVersion } from '../../../lib/storage';
 import { useDoc } from '../DocContext';
 import { textStats } from '../docTools';
-import { exportAsDocx, exportAsHtml, exportAsMarkdown, exportAsPng, exportAsText, exportSlides, printDocument, standaloneHtml, toggleProtection } from '../actions';
+import { exportAsDocx, toggleProtection } from '../actions';
+import { standaloneHtmlFrom } from '../docHtml';
+import { flattenForExport } from '../docFlatten';
+import { EXPORT_GROUPS, exportAllFormats, exportFormat, type ExportFormat } from '../exportFormats';
+import { makeCopy } from '../actionsExtra';
 import { DOC_TEMPLATES } from '../docTemplates';
 import { ZOOM_STEPS } from './tabs/ViewTabs';
 
 type Section = 'info' | 'new' | 'open' | 'export' | 'share';
+
+const FORMAT_ICONS = { word: FileText, pdf: FileText, web: FileCode2, text: FileType2, book: BookText, slides: MonitorPlay, table: Table2, image: FileImage, print: Printer };
+
+function FormatIcon({ format }: { format: ExportFormat }) {
+  const Icon = FORMAT_ICONS[format.icon];
+  return <Icon size={22} color={format.color} />;
+}
 
 export function Backstage({ onClose }: { onClose: () => void }) {
   const ctx = useDoc();
@@ -23,15 +34,6 @@ export function Backstage({ onClose }: { onClose: () => void }) {
     { id: 'share', label: 'Chia sẻ', icon: <Share2 size={16} /> },
   ];
   const act = (fn: () => void) => { onClose(); fn(); };
-  const exportItems: { icon: React.ReactNode; title: string; desc: string; run: () => void }[] = [
-    { icon: <FileText size={22} color="#2b579a" />, title: 'Word (.docx)', desc: 'Mở được bằng Microsoft Word, Google Docs, WPS', run: () => void exportAsDocx(ctx) },
-    { icon: <Printer size={22} color="#d7473c" />, title: 'PDF', desc: 'Chọn “Lưu dưới dạng PDF” trong hộp thoại in', run: printDocument },
-    { icon: <FileCode2 size={22} color="#d98e04" />, title: 'Trang web (.html)', desc: 'Một tệp HTML độc lập', run: () => exportAsHtml(ctx) },
-    { icon: <FileType2 size={22} color="#586071" />, title: 'Markdown (.md)', desc: 'Cho GitHub, Obsidian, Notion', run: () => exportAsMarkdown(ctx) },
-    { icon: <FileText size={22} color="#586071" />, title: 'Văn bản thuần (.txt)', desc: 'Chỉ chữ, không định dạng', run: () => exportAsText(ctx) },
-    { icon: <FileImage size={22} color="#107c41" />, title: 'Ảnh (.png)', desc: 'Ảnh độ phân giải cao của trang', run: () => void exportAsPng(ctx) },
-    { icon: <MonitorPlay size={22} color="#ea580c" />, title: 'Trình chiếu (.html)', desc: 'Mỗi tiêu đề thành một slide', run: () => exportSlides(ctx) },
-  ];
   return (
     <div className="backstage" role="dialog" aria-modal="true" aria-label="Tệp">
       <nav className="backstage-nav">
@@ -41,7 +43,8 @@ export function Backstage({ onClose }: { onClose: () => void }) {
         <button className="backstage-item" onClick={() => act(ctx.saveNow)}><Save size={16} /> Lưu ngay</button>
         <button className="backstage-item" onClick={async () => { await saveVersion(ctx.meta.id, { kind: 'doc', json: ctx.editor.getJSON(), page: ctx.page, comments: ctx.comments }); ctx.ui.toast('Đã lưu một phiên bản'); }}><Bookmark size={16} /> Lưu phiên bản</button>
         <button className="backstage-item" onClick={() => act(() => ctx.openDialog('history'))}><History size={16} /> Lịch sử phiên bản</button>
-        <button className="backstage-item" onClick={() => act(printDocument)}><Printer size={16} /> In</button>
+        <button className="backstage-item" onClick={() => void makeCopy(ctx)}><Copy size={16} /> Tạo bản sao</button>
+        <button className="backstage-item" onClick={() => act(ctx.print)}><Printer size={16} /> In</button>
         <div className="backstage-sep" />
         <button className="backstage-item" onClick={() => act(ctx.onBack)}><X size={16} /> Đóng tài liệu</button>
       </nav>
@@ -57,11 +60,16 @@ export function Backstage({ onClose }: { onClose: () => void }) {
                   <dt>Kích thước</dt><dd>{formatBytes(JSON.stringify(ctx.editor.getJSON()).length)}</dd>
                   <dt>Tạo lúc</dt><dd>{new Date(ctx.meta.createdAt).toLocaleString('vi-VN')}</dd>
                   <dt>Sửa lần cuối</dt><dd>{new Date(ctx.meta.updatedAt).toLocaleString('vi-VN')}</dd>
-                  <dt>Tác giả</dt><dd>Minh Spark</dd>
                   <dt>Số từ</dt><dd>{stats.words.toLocaleString('vi-VN')}</dd>
                   <dt>Số ký tự</dt><dd>{stats.chars.toLocaleString('vi-VN')}</dd>
                   <dt>Bình luận</dt><dd>{ctx.comments.length}</dd>
                 </dl>
+              </div>
+              <div className="info-card">
+                <h3>Thông tin mô tả</h3>
+                {([['author', 'Tác giả'], ['subject', 'Chủ đề'], ['keywords', 'Từ khoá'], ['company', 'Đơn vị']] as const).map(([key, label]) => (
+                  <label key={key} className="field"><span className="field-label">{label}</span><input className="text-field" value={ctx.page.properties?.[key] ?? (key === 'author' ? 'Minh Spark' : '')} onChange={(e) => ctx.setPage({ properties: { ...ctx.page.properties, [key]: e.target.value } })} /></label>
+                ))}
               </div>
               <div className="info-card">
                 <h3>Bảo vệ tài liệu</h3>
@@ -91,8 +99,8 @@ export function Backstage({ onClose }: { onClose: () => void }) {
           <>
             <h1>Mở</h1>
             <div className="export-grid">
-              <button className="export-tile" onClick={async () => { const file = await pickFile('.docx,.doc,.xlsx,.xls,.csv,.pdf'); if (file) act(() => ctx.onOpenFile(file)); }}>
-                <FolderOpen size={22} color="#2b579a" /><div><strong>Mở tệp từ máy</strong><span>.docx, .xlsx, .csv, .pdf</span></div>
+              <button className="export-tile" onClick={async () => { const file = await pickFile('.docx,.txt,.md,.html,.htm,.xlsx,.xls,.csv,.pdf'); if (file) act(() => ctx.onOpenFile(file)); }}>
+                <FolderOpen size={22} color="#2b579a" /><div><strong>Mở tệp từ máy</strong><span>.docx, .txt, .md, .html, .xlsx, .csv, .pdf</span></div>
               </button>
               <button className="export-tile" onClick={() => act(ctx.onBack)}>
                 <FileText size={22} color="#2b579a" /><div><strong>Tệp gần đây</strong><span>Về danh sách tệp trong Minh Office</span></div>
@@ -103,9 +111,15 @@ export function Backstage({ onClose }: { onClose: () => void }) {
         {section === 'export' && (
           <>
             <h1>Xuất</h1>
-            <div className="export-grid">
-              {exportItems.map((item) => <button key={item.title} className="export-tile" onClick={() => act(item.run)}>{item.icon}<div><strong>{item.title}</strong><span>{item.desc}</span></div></button>)}
-            </div>
+            <button className="export-all" onClick={() => act(() => void exportAllFormats(ctx))}><Package size={22} /><span><strong>Tải tất cả định dạng (.zip)</strong><span>Gói Word, PDF, web, văn bản, sách, trình chiếu và ảnh vào một tệp nén</span></span></button>
+            {EXPORT_GROUPS.map((group) => (
+              <section key={group.label} className="export-group">
+                <h2>{group.label}</h2>
+                <div className="export-grid">
+                  {group.formats.map((format) => <button key={format.id} className="export-tile" onClick={() => act(() => void exportFormat(ctx, format.id))}><FormatIcon format={format} /><div><strong>{format.title}</strong><span>{format.desc}</span></div></button>)}
+                </div>
+              </section>
+            ))}
           </>
         )}
         {section === 'share' && (
@@ -114,7 +128,7 @@ export function Backstage({ onClose }: { onClose: () => void }) {
             <div className="export-grid">
               <button className="export-tile" onClick={async () => {
                 try {
-                  await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([standaloneHtml(ctx)], { type: 'text/html' }), 'text/plain': new Blob([ctx.editor.getText({ blockSeparator: '\n' })], { type: 'text/plain' }) })]);
+                  await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([standaloneHtmlFrom(ctx.editor, flattenForExport(ctx.editor), ctx.title.replace(/\.[^/.]+$/, ''), ctx.page)], { type: 'text/html' }), 'text/plain': new Blob([ctx.editor.getText({ blockSeparator: '\n' })], { type: 'text/plain' }) })]);
                   ctx.ui.toast('Đã sao chép tài liệu có định dạng — dán vào email hoặc Google Docs');
                 } catch {
                   ctx.ui.toast('Trình duyệt chặn ghi clipboard', true);
@@ -135,7 +149,7 @@ export type TabId = 'file' | 'home' | 'insert' | 'draw' | 'design' | 'layout' | 
 export function TabBar({ tab, setTab, contextual }: { tab: TabId; setTab: (t: TabId) => void; contextual: TabId[] }) {
   const ctx = useDoc();
   const tabs: { id: TabId; label: string }[] = [
-    { id: 'home', label: 'Trang chủ' }, { id: 'insert', label: 'Chèn' }, { id: 'design', label: 'Thiết kế' }, { id: 'layout', label: 'Bố cục' },
+    { id: 'home', label: 'Trang chủ' }, { id: 'insert', label: 'Chèn' }, { id: 'draw', label: 'Vẽ' }, { id: 'design', label: 'Thiết kế' }, { id: 'layout', label: 'Bố cục' },
     { id: 'references', label: 'Tham chiếu' }, { id: 'mailings', label: 'Gửi thư' }, { id: 'review', label: 'Xem lại' }, { id: 'view', label: 'Xem' },
     { id: 'pdf', label: 'Minh PDF' }, { id: 'help', label: 'Trợ giúp' },
   ];
@@ -149,9 +163,9 @@ export function TabBar({ tab, setTab, contextual }: { tab: TabId; setTab: (t: Ta
       </div>
       <div className="ribbon-top-actions">
         <select className="ribbon-pill-btn mode-select" aria-label="Chế độ" value={ctx.view.editMode} disabled={Boolean(ctx.page.protectHash)} onChange={(e) => ctx.setView({ editMode: e.target.value as typeof ctx.view.editMode })}>
-          <option value="editing">✏️ Chỉnh sửa</option>
-          <option value="suggesting">💬 Đề xuất</option>
-          <option value="viewing">👁 Chỉ xem</option>
+          <option value="editing">Chỉnh sửa</option>
+          <option value="suggesting">Đề xuất</option>
+          <option value="viewing">Chỉ xem</option>
         </select>
       </div>
     </div>
@@ -171,14 +185,14 @@ export function StatusBar({ page, pages }: { page: number; pages: number }) {
   return (
     <footer className="editor-status">
       <div className="status-left">
-        {view.viewMode === 'print' && <span>Trang {page}/{pages}</span>}
+        {view.viewMode === 'print' && <button className="status-btn" onClick={() => ctx.openDialog('goto')} title="Đi tới trang (Ctrl+G)">Trang {page}/{pages}</button>}
         <button className="status-btn" onClick={() => ctx.openDialog('wordcount')} title="Đếm từ">{counts.selected ? `${counts.selected.toLocaleString('vi-VN')} / ` : ''}{counts.words.toLocaleString('vi-VN')} từ</button>
         <span>{counts.chars.toLocaleString('vi-VN')} ký tự</span>
-        <span>Tiếng Việt</span>
+        <span>{({ vi: 'Tiếng Việt', en: 'Tiếng Anh', fr: 'Tiếng Pháp', zh: 'Tiếng Trung', ja: 'Tiếng Nhật', ko: 'Tiếng Hàn' } as Record<string, string>)[ctx.page.language ?? 'vi'] ?? 'Tiếng Việt'}</span>
         {view.editMode === 'suggesting' && <span className="status-badge suggest"><PencilLine size={11} /> Đang theo dõi thay đổi</span>}
         {view.editMode === 'viewing' && <span className="status-badge view">Chỉ xem</span>}
-        {ctx.dictation.listening && <span className="status-badge rec">● Đang nghe…</span>}
-        {ctx.readAloud.speaking && <span className="status-badge">🔊 Đang đọc</span>}
+        {ctx.dictation.listening && <span className="status-badge rec">Đang nghe…</span>}
+        {ctx.readAloud.speaking && <span className="status-badge">Đang đọc</span>}
       </div>
       <div className="status-right">
         <button className={`status-icon ${view.viewMode === 'read' ? 'on' : ''}`} title="Chế độ đọc" aria-label="Chế độ đọc" onClick={() => setView({ viewMode: 'read' })}><BookOpen size={14} /></button>

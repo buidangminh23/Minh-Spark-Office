@@ -135,28 +135,44 @@ export function transformCase(text: string, mode: CaseMode) {
 
 export type DiffPart = { type: 'same' | 'added' | 'removed'; text: string };
 
+const DIFF_TOKEN_LIMIT = 4000;
+
+export const normalizeLines = (text: string) => text.split(/\r?\n/).map((line) => line.replace(/\s+/g, ' ').trim()).filter(Boolean).join('\n');
+
 export function diffWords(before: string, after: string): DiffPart[] {
-  const a = before.split(/(\s+)/);
-  const b = after.split(/(\s+)/);
-  const limit = 4000;
-  if (a.length > limit || b.length > limit) return [{ type: 'removed', text: before }, { type: 'added', text: after }];
-  const dp: number[][] = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
-  for (let i = a.length - 1; i >= 0; i--) for (let j = b.length - 1; j >= 0; j--) dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+  const allBefore = before.split(/(\s+)/);
+  const allAfter = after.split(/(\s+)/);
+  let head = 0;
+  while (head < allBefore.length && head < allAfter.length && allBefore[head] === allAfter[head]) head++;
+  let tail = 0;
+  while (tail < allBefore.length - head && tail < allAfter.length - head && allBefore[allBefore.length - 1 - tail] === allAfter[allAfter.length - 1 - tail]) tail++;
+  const a = allBefore.slice(head, allBefore.length - tail);
+  const b = allAfter.slice(head, allAfter.length - tail);
   const parts: DiffPart[] = [];
   const push = (type: DiffPart['type'], text: string) => {
+    if (!text) return;
     const last = parts[parts.length - 1];
     if (last?.type === type) last.text += text;
     else parts.push({ type, text });
   };
-  let i = 0;
-  let j = 0;
-  while (i < a.length && j < b.length) {
-    if (a[i] === b[j]) { push('same', a[i]); i++; j++; }
-    else if (dp[i + 1][j] >= dp[i][j + 1]) push('removed', a[i++]);
-    else push('added', b[j++]);
+  push('same', allBefore.slice(0, head).join(''));
+  if (a.length > DIFF_TOKEN_LIMIT || b.length > DIFF_TOKEN_LIMIT) {
+    push('removed', a.join(''));
+    push('added', b.join(''));
+  } else {
+    const dp: number[][] = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
+    for (let i = a.length - 1; i >= 0; i--) for (let j = b.length - 1; j >= 0; j--) dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    let i = 0;
+    let j = 0;
+    while (i < a.length && j < b.length) {
+      if (a[i] === b[j]) { push('same', a[i]); i++; j++; }
+      else if (dp[i + 1][j] >= dp[i][j + 1]) push('removed', a[i++]);
+      else push('added', b[j++]);
+    }
+    while (i < a.length) push('removed', a[i++]);
+    while (j < b.length) push('added', b[j++]);
   }
-  while (i < a.length) push('removed', a[i++]);
-  while (j < b.length) push('added', b[j++]);
+  push('same', allBefore.slice(allBefore.length - tail).join(''));
   return parts;
 }
 
@@ -189,50 +205,6 @@ export function splitByHeading(doc: JSONContent, level = 1) {
     }
   }
   return sections.filter((section) => section.content.some((block) => jsonText(block).trim() || block.type === 'image' || block.type === 'table'));
-}
-
-const collectCss = () => {
-  let css = '';
-  for (const sheet of Array.from(document.styleSheets)) {
-    try {
-      for (const rule of Array.from(sheet.cssRules)) css += `${rule.cssText}\n`;
-    } catch {
-      continue;
-    }
-  }
-  return css;
-};
-
-export async function renderElementToPng(element: HTMLElement, scale = 2): Promise<Blob> {
-  const rect = element.getBoundingClientRect();
-  const width = Math.ceil(element.scrollWidth || rect.width);
-  const height = Math.ceil(element.scrollHeight || rect.height);
-  const clone = element.cloneNode(true) as HTMLElement;
-  clone.style.transform = 'none';
-  clone.style.margin = '0';
-  clone.querySelectorAll('[contenteditable]').forEach((node) => node.removeAttribute('contenteditable'));
-  const xhtml = new XMLSerializer().serializeToString(clone);
-  const css = collectCss().replace(/@import[^;]+;/g, '');
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><foreignObject width="100%" height="100%"><div xmlns="http://www.w3.org/1999/xhtml"><style>${css.replace(/</g, '\\3c ')}</style>${xhtml}</div></foreignObject></svg>`;
-  const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-  const image = new Image();
-  await new Promise<void>((resolve, reject) => {
-    image.onload = () => resolve();
-    image.onerror = () => reject(new Error('Trình duyệt không dựng được ảnh trang.'));
-    image.src = url;
-  });
-  const canvas = document.createElement('canvas');
-  canvas.width = width * scale;
-  canvas.height = height * scale;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('Không tạo được canvas.');
-  ctx.scale(scale, scale);
-  ctx.fillStyle = getComputedStyle(element).backgroundColor || '#ffffff';
-  ctx.fillRect(0, 0, width, height);
-  ctx.drawImage(image, 0, 0);
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
-  if (!blob) throw new Error('Không xuất được ảnh PNG.');
-  return blob;
 }
 
 export function parseDelimited(text: string): { headers: string[]; rows: Record<string, string>[] } {

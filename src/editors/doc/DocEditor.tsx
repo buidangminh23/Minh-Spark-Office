@@ -13,22 +13,27 @@ import Placeholder from '@tiptap/extension-placeholder';
 import CharacterCount from '@tiptap/extension-character-count';
 import { ArrowLeft, BookOpen, CheckCircle2, Clock, FileText, History, MessageSquare, Redo2, Save, Share2, Undo2, X } from 'lucide-react';
 
-import { CommentMark, Footnote, FontSizeStep, LayoutImage, MergeField, PageBreak, ParagraphFormat, ShadedTableCell, ShadedTableHeader, TableOfContents } from './extensions';
+import { CommentMark, Footnote, FontSizeStep, LayoutImage, MergeField, PageBreak, ParagraphFormat, ShadedTableCell, ShadedTableHeader } from './extensions';
+import { AutoCorrect, Bibliography, Bookmark, Citation, ColumnSection, CrossRef, DocIndex, DocRefs, EndnoteList, Equation, FigureList, IndexEntry, ListStyles, SmartChip, TableExtras, TableOfContents, TextBox, TextStyleExtras, setRefs } from './extensionsExtra';
+import { Pagination, getPagination } from './pagination';
+import { editNodeAt } from './actionsExtra';
 import { SearchAndReplace } from './search';
 import { DeletionMark, InsertionMark, TrackChanges } from './trackChanges';
-import { DocContext, AUTHOR, type DialogId, type DocCtx, type MergeData, type ViewState } from './DocContext';
+import { DocContext, AUTHOR, type DialogId, type DocCtx, type EditingNode, type MergeData, type ViewState } from './DocContext';
 import { useFormatState } from './useFormatState';
 import { ensureFont, ensureFontsInJson } from './fonts';
 import { useDictation, useReadAloud } from './useSpeech';
 import { addComment, editLink, insertFootnote } from './actions';
 import { defaultPage, saveVersion, type CommentItem, type DocContent, type FileMeta, type PageSettings } from '../../lib/storage';
 import { useUi } from '../../components/ui';
+import 'katex/dist/katex.min.css';
 import './docEditor.css';
 
 import HomeTab from './ui/tabs/HomeTab';
 import InsertTab from './ui/tabs/InsertTab';
 import { DesignTab, LayoutTab } from './ui/tabs/LayoutTabs';
 import { MailingsTab, ReferencesTab, ReviewTab } from './ui/tabs/ReviewTabs';
+import DrawTab from './ui/tabs/DrawTab';
 import { HelpTab, PdfTab, ViewTab, ZOOM_STEPS } from './ui/tabs/ViewTabs';
 import { ImageTab, TableTab } from './ui/tabs/ContextTabs';
 import { Backstage, StatusBar, TabBar, type TabId } from './ui/Chrome';
@@ -39,6 +44,9 @@ import { ChartDialog, ShortcutsDialog, SignatureDialog, SymbolsDialog, Templates
 import { AiDialog, TranslateDialog } from './ui/AiDialogs';
 import { HistoryDialog, ProofreadDialog } from './ui/ReviewDialogs';
 import { MailMergeDialog } from './ui/MailMerge';
+import { FontDialog, HeaderFooterDialog, ParagraphDialog, StyleDialog } from './ui/FormatDialogs';
+import { CitationDialog, CrossRefDialog, DrawingDialog, EquationDialog, ImageEditDialog, QrDialog } from './ui/InsertDialogs';
+import { AccessibilityDialog, CompareDialog, GoToDialog } from './ui/CheckDialogs';
 import SafeBoundary from './ui/SafeBoundary';
 
 interface DocEditorProps {
@@ -56,10 +64,10 @@ const AUTO_VERSION_MS = 10 * 60 * 1000;
 const VIEW_KEY = 'minh-docs-view';
 
 const loadView = (): ViewState => {
-  const base: ViewState = { zoom: 100, viewMode: 'print', editMode: 'editing', showRuler: true, showGrid: false, showMarks: false, showNav: true, spellcheck: true, sidePanel: null, showFind: false, findReplace: false };
+  const base: ViewState = { inkTool: null, inkColor: '#1d4ed8', inkWidth: 3, focusMode: false, dark: false, ribbonCollapsed: false, zoom: 100, viewMode: 'print', editMode: 'editing', showRuler: true, showGrid: false, showMarks: false, showNav: true, spellcheck: true, sidePanel: null, showFind: false, findReplace: false };
   try {
     const saved = JSON.parse(localStorage.getItem(VIEW_KEY) ?? '{}') as Partial<ViewState>;
-    return { ...base, zoom: saved.zoom ?? base.zoom, viewMode: saved.viewMode === 'read' ? 'print' : saved.viewMode ?? base.viewMode, showRuler: saved.showRuler ?? base.showRuler, showNav: saved.showNav ?? base.showNav, spellcheck: saved.spellcheck ?? base.spellcheck };
+    return { ...base, zoom: saved.zoom ?? base.zoom, viewMode: saved.viewMode === 'read' ? 'print' : saved.viewMode ?? base.viewMode, showRuler: saved.showRuler ?? base.showRuler, showNav: saved.showNav ?? base.showNav, spellcheck: saved.spellcheck ?? base.spellcheck, dark: saved.dark ?? base.dark, ribbonCollapsed: saved.ribbonCollapsed ?? base.ribbonCollapsed };
   } catch {
     return base;
   }
@@ -91,12 +99,17 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack, onN
   const [view, setViewState] = useState<ViewState>(loadView);
   const [tab, setTab] = useState<TabId>('home');
   const [dialog, setDialog] = useState<DialogId | null>(null);
+  const [editing, setEditing] = useState<EditingNode | null>(null);
+  const [editingStyle, setEditingStyle] = useState<string | null>(null);
   const [merge, setMerge] = useState<MergeData | null>(null);
   const [mergePreview, setMergePreview] = useState<number | null>(null);
   const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
   const [savedStatus, setSavedStatus] = useState<'saved' | 'saving'>('saved');
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [pages, setPages] = useState({ count: 1, current: 1 });
+  const latestZoom = useRef(view.zoom);
+  latestZoom.current = view.zoom;
+  const ctxRef = useRef<DocCtx | null>(null);
   const [painter, setPainter] = useState<CopiedFormat | null>(null);
   const painterRef = useRef<CopiedFormat | null>(null);
   const dirtySinceVersion = useRef(false);
@@ -134,7 +147,25 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack, onN
       CommentMark,
       Footnote,
       MergeField,
+      Pagination,
+      DocRefs,
       TableOfContents,
+      FigureList,
+      Bibliography,
+      DocIndex,
+      EndnoteList,
+      TextStyleExtras,
+      ListStyles,
+      TableExtras,
+      TextBox,
+      ColumnSection,
+      Equation,
+      SmartChip,
+      Citation,
+      Bookmark,
+      CrossRef,
+      IndexEntry,
+      AutoCorrect,
       SearchAndReplace,
       InsertionMark,
       DeletionMark,
@@ -151,6 +182,12 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack, onN
         }
         return false;
       },
+      handleDoubleClickOn: (_view, _pos, node, nodePos) => {
+        const c = ctxRef.current;
+        if (!c || !['equation', 'footnote', 'smartChip', 'bookmark', 'indexEntry'].includes(node.type.name)) return false;
+        void editNodeAt(c, node, nodePos);
+        return true;
+      },
     },
     onUpdate: ({ transaction }) => {
       if (transaction.docChanged) markDirty();
@@ -158,6 +195,19 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack, onN
   });
 
   const fmt = useFormatState(editor);
+
+  useEffect(() => {
+    setRefs(editor, page.sources ?? [], page.citationStyle ?? 'apa');
+  }, [editor, page.sources, page.citationStyle]);
+
+  useEffect(() => {
+    const storage = editor.storage as unknown as { autoCorrect?: { enabled: boolean } };
+    if (storage.autoCorrect) storage.autoCorrect.enabled = page.autocorrect !== false;
+  }, [editor, page.autocorrect]);
+
+  useEffect(() => {
+    editor.view.dom.setAttribute('lang', page.language ?? 'vi');
+  }, [editor, page.language]);
 
   useEffect(() => {
     ensureFontsInJson(content.json);
@@ -208,11 +258,11 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack, onN
 
   useEffect(() => {
     try {
-      localStorage.setItem(VIEW_KEY, JSON.stringify({ zoom: view.zoom, viewMode: view.viewMode, showRuler: view.showRuler, showNav: view.showNav, spellcheck: view.spellcheck }));
+      localStorage.setItem(VIEW_KEY, JSON.stringify({ zoom: view.zoom, viewMode: view.viewMode, showRuler: view.showRuler, showNav: view.showNav, spellcheck: view.spellcheck, dark: view.dark, ribbonCollapsed: view.ribbonCollapsed }));
     } catch {
       return;
     }
-  }, [view.zoom, view.viewMode, view.showRuler, view.showNav, view.spellcheck]);
+  }, [view.zoom, view.viewMode, view.showRuler, view.showNav, view.spellcheck, view.dark, view.ribbonCollapsed]);
 
   useEffect(() => {
     const locked = Boolean(page.protectHash);
@@ -254,32 +304,49 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack, onN
     },
   }), [painter, editor, ui]);
 
+  const print = useCallback(() => {
+    const previous = latestZoom.current;
+    setViewState((v) => ({ ...v, zoom: 100 }));
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      getPagination(editor).runNow();
+      requestAnimationFrame(() => {
+        window.print();
+        setViewState((v) => ({ ...v, zoom: previous }));
+      });
+    }));
+  }, [editor]);
+
   const ctx: DocCtx = {
     editor, ui, meta, title, page, setPage, view, setView, comments,
     setComments: (updater) => { setComments(updater); markDirty(); },
-    activeCommentId, setActiveCommentId, openDialog: setDialog, merge, setMerge, mergePreview, setMergePreview,
+    activeCommentId, setActiveCommentId, openDialog: setDialog, editing, setEditing, editingStyle, setEditingStyle, print, merge, setMerge, mergePreview, setMergePreview,
     readAloud, dictation, formatPainter, markDirty, saveNow,
     onNewDocument: onNewDocument ?? (() => ui.toast('Mở danh sách tệp để tạo tài liệu mới')),
     onOpenFile: onOpenFile ?? (() => undefined),
     onBack,
   };
-  const ctxRef = useRef(ctx);
   ctxRef.current = ctx;
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const c = ctxRef.current;
+      if (!c) return;
       const mod = e.ctrlKey || e.metaKey;
       const key = e.key.toLowerCase();
       if (e.key === 'F7') { e.preventDefault(); setDialog('proofread'); return; }
       if (e.key === 'Escape' && c.view.showFind) { setView({ showFind: false }); return; }
+      if (e.key === 'Escape' && c.view.focusMode) { setView({ focusMode: false }); return; }
+      if (e.key === 'Escape' && c.view.inkTool) { setView({ inkTool: null }); return; }
       if (e.key === 'Escape' && c.view.viewMode === 'read') { setView({ viewMode: 'print' }); return; }
       if (!mod) return;
       const handled = (() => {
         if (key === 's') return c.saveNow(), true;
         if (key === 'f' && !e.shiftKey) return setView({ showFind: true, findReplace: false }), true;
         if (key === 'h') return setView({ showFind: true, findReplace: true }), true;
-        if (key === 'p') return window.print(), true;
+        if (key === 'p') return c.print(), true;
+        if (key === 'd') return setDialog('font'), true;
+        if (key === 'g' && !e.shiftKey) return setDialog('goto'), true;
+        if (e.key === 'F1') return setView({ ribbonCollapsed: !c.view.ribbonCollapsed }), true;
         if (key === 'k') return void editLink(c), true;
         if (key === '/') return setDialog('shortcuts'), true;
         if (key === '\\') return editor.chain().focus().unsetAllMarks().run(), true;
@@ -314,6 +381,7 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack, onN
     switch (tab) {
       case 'home': return <HomeTab fmt={fmt} />;
       case 'insert': return <InsertTab />;
+      case 'draw': return <DrawTab />;
       case 'design': return <DesignTab />;
       case 'layout': return <LayoutTab fmt={fmt} />;
       case 'references': return <ReferencesTab />;
@@ -332,8 +400,9 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack, onN
 
   return (
     <DocContext.Provider value={ctx}>
-      <div className={`editor-shell doc-editor ${reading ? 'reading' : ''}`}>
+      <div className={`editor-shell doc-editor ${reading ? 'reading' : ''} ${view.focusMode ? 'focus-mode' : ''} ${view.dark ? 'doc-dark' : ''}`}>
         <PrintStyles />
+        {view.focusMode && <button className="btn focus-exit" onClick={() => setView({ focusMode: false })}><X size={14} /> Thoát tập trung (Esc)</button>}
         {reading ? (
           <div className="read-bar">
             <BookOpen size={15} />
@@ -366,14 +435,14 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack, onN
             </header>
             <div className="ribbon">
               <TabBar tab={tab} setTab={setTab} contextual={contextual} />
-              <div className="ribbon-body" role="toolbar" aria-label="Thanh công cụ">{renderTab()}</div>
+              {!view.ribbonCollapsed && <div className="ribbon-body" role="toolbar" aria-label="Thanh công cụ">{renderTab()}</div>}
             </div>
           </>
         )}
 
         <div className="doc-workspace">
           {view.showFind && <FindBar />}
-          {view.showNav && !reading && <OutlinePanel />}
+          {view.showNav && !reading && !view.focusMode && <OutlinePanel />}
           <div className="doc-canvas" onContextMenu={(e) => {
             if (!(e.target as HTMLElement).closest('.ProseMirror')) return;
             e.preventDefault();
@@ -406,6 +475,19 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack, onN
         {dialog === 'templates' && <TemplatesDialog onClose={closeDialog} />}
         {dialog === 'symbols' && <SymbolsDialog onClose={closeDialog} />}
         {dialog === 'wordcount' && <WordCountDialog onClose={closeDialog} />}
+        {dialog === 'headerfooter' && <HeaderFooterDialog onClose={closeDialog} />}
+        {dialog === 'font' && <FontDialog onClose={closeDialog} />}
+        {dialog === 'paragraph' && <ParagraphDialog onClose={closeDialog} />}
+        {dialog === 'style' && <StyleDialog onClose={closeDialog} />}
+        {dialog === 'equation' && <EquationDialog onClose={closeDialog} />}
+        {dialog === 'qr' && <QrDialog onClose={closeDialog} />}
+        {dialog === 'drawing' && <DrawingDialog onClose={closeDialog} />}
+        {dialog === 'imageedit' && <ImageEditDialog onClose={closeDialog} />}
+        {dialog === 'citations' && <CitationDialog onClose={closeDialog} />}
+        {dialog === 'crossref' && <CrossRefDialog onClose={closeDialog} />}
+        {dialog === 'accessibility' && <AccessibilityDialog onClose={closeDialog} />}
+        {dialog === 'goto' && <GoToDialog onClose={closeDialog} />}
+        {dialog === 'compare' && <CompareDialog onClose={closeDialog} />}
         </SafeBoundary>
       </div>
     </DocContext.Provider>

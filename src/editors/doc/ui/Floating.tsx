@@ -188,7 +188,7 @@ export function SlashMenu() {
     { id: 'quote', label: 'Trích dẫn', keywords: 'quote trich dan', icon: <Quote size={15} />, run: () => editor.chain().focus().toggleBlockquote().run() },
     { id: 'code', label: 'Khối mã', keywords: 'code ma', icon: <Code size={15} />, run: () => editor.chain().focus().toggleCodeBlock().run() },
     { id: 'divider', label: 'Đường kẻ ngang', keywords: 'divider hr duong ke line', icon: <Minus size={15} />, run: () => editor.chain().focus().setHorizontalRule().run() },
-    { id: 'toc', label: 'Mục lục', keywords: 'toc muc luc', icon: <ListTree size={15} />, run: () => editor.chain().focus().insertTableOfContents().run() },
+    { id: 'toc', label: 'Mục lục', keywords: 'toc muc luc', icon: <ListTree size={15} />, run: () => editor.chain().focus().insertDocList('tableOfContents').run() },
     { id: 'break', label: 'Ngắt trang', keywords: 'page break ngat trang', icon: <ScissorsLineDashed size={15} />, run: () => editor.chain().focus().insertPageBreak().run() },
     { id: 'date', label: 'Ngày hôm nay', keywords: 'date ngay hom nay', icon: <Calendar size={15} />, run: () => insertDateTime(ctx, 'date') },
     { id: 'ai', label: 'Minh AI', keywords: 'ai tri tue viet', icon: <Sparkles size={15} />, run: () => ctx.openDialog('ai') },
