@@ -1,6 +1,6 @@
 import { createWorkspaceStorage, WorkspaceContext, useWorkspace } from './lib/storage';
 import { Suspense, lazy, useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { Authentication } from './components/Authentication';
+import { Authentication, useAccount } from './components/Authentication';
 import Home from './components/Home';
 import { UiProvider, useUi } from './components/ui';
 import {
@@ -24,12 +24,20 @@ const PdfEditor = lazy(() => import('./editors/pdf/PdfEditor'));
 
 function MainApp() {
   const ui = useUi();
+  const { user } = useAccount();
   const { listFiles, loadContent, saveFile, updateMeta, removeFile, exportBackup, importBackup } = useWorkspace();
   const [files, setFiles] = useState<FileMeta[]>([]);
   const [activeMeta, setActiveMeta] = useState<FileMeta | null>(null);
   const [activeContent, setActiveContent] = useState<FileContent | null>(null);
   const [storageInfo, setStorageInfo] = useState<{ usage: number; quota: number } | null>(null);
   const initialized = useRef(false);
+
+  const openDocumentKey = `minh-office-open:${user?.uid ?? 'guest'}`;
+  const activeDocument = useRef(activeMeta);
+
+  useEffect(() => {
+    activeDocument.current = activeMeta;
+  }, [activeMeta]);
 
   // Refresh files list and storage
   const refreshFiles = useCallback(async () => {
@@ -38,6 +46,50 @@ function MainApp() {
     const est = await estimateStorage();
     if (est) setStorageInfo(est);
   }, [listFiles]);
+
+  useEffect(() => {
+    let active = true;
+    const restore = async () => {
+      try {
+        const id = sessionStorage.getItem(openDocumentKey);
+        if (!id || activeDocument.current) return;
+        const meta = (await listFiles()).find((file) => file.id === id && !file.deletedAt);
+        const content = meta ? await loadContent(meta.id) : undefined;
+        if (active && meta && content && !activeDocument.current) {
+          activeDocument.current = meta;
+          setActiveMeta(meta);
+          setActiveContent(content);
+        }
+      } catch {
+        void 0;
+      }
+    };
+    void restore();
+    return () => {
+      active = false;
+    };
+  }, [openDocumentKey, listFiles, loadContent]);
+
+  useEffect(() => {
+    if (!activeMeta) return;
+    try {
+      sessionStorage.setItem(openDocumentKey, activeMeta.id);
+    } catch {
+      return;
+    }
+  }, [activeMeta, openDocumentKey]);
+
+  const handleCloseEditor = useCallback(() => {
+    try {
+      sessionStorage.removeItem(openDocumentKey);
+    } catch {
+      void 0;
+    }
+    activeDocument.current = null;
+    setActiveMeta(null);
+    setActiveContent(null);
+    void refreshFiles();
+  }, [openDocumentKey, refreshFiles]);
 
   // Initial load & seed default files if empty
   useEffect(() => {
@@ -433,12 +485,20 @@ function MainApp() {
   // Save current active document or sheet
   const handleSaveActive = async (meta: FileMeta, content: FileContent) => {
     await saveFile(meta, content);
-    setActiveMeta(meta);
-    setActiveContent(content);
+    if (activeDocument.current?.id === meta.id) {
+      setActiveMeta(meta);
+      setActiveContent(content);
+    }
     await refreshFiles();
   };
 
   const handleOpenWorkspaceFile = (nextMeta: FileMeta, nextContent: FileContent) => {
+    activeDocument.current = nextMeta;
+    try {
+      sessionStorage.setItem(openDocumentKey, nextMeta.id);
+    } catch {
+      void 0;
+    }
     void refreshFiles();
     setActiveMeta(nextMeta);
     setActiveContent(nextContent);
@@ -566,15 +626,12 @@ function MainApp() {
       return (
         <Suspense fallback={editorFallback}>
           <DocEditor
+            key={activeMeta.id}
             meta={activeMeta}
             content={activeContent}
             onSave={handleSaveActive}
             onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
-            onBack={() => {
-              setActiveMeta(null);
-              setActiveContent(null);
-              void refreshFiles();
-            }}
+            onBack={handleCloseEditor}
             onOpenWorkspaceFile={handleOpenWorkspaceFile}
           />
         </Suspense>
@@ -585,15 +642,12 @@ function MainApp() {
       return (
         <Suspense fallback={editorFallback}>
           <SheetEditor
+            key={activeMeta.id}
             meta={activeMeta}
             content={activeContent}
             onSave={handleSaveActive}
             onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
-            onBack={() => {
-              setActiveMeta(null);
-              setActiveContent(null);
-              void refreshFiles();
-            }}
+            onBack={handleCloseEditor}
             onOpenWorkspaceFile={handleOpenWorkspaceFile}
           />
         </Suspense>
@@ -604,15 +658,12 @@ function MainApp() {
       return (
         <Suspense fallback={editorFallback}>
           <PdfEditor
+            key={activeMeta.id}
             meta={activeMeta}
             content={activeContent}
             onSave={handleSaveActive}
             onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
-            onBack={() => {
-              setActiveMeta(null);
-              setActiveContent(null);
-              void refreshFiles();
-            }}
+            onBack={handleCloseEditor}
             onOpenWorkspaceFile={handleOpenWorkspaceFile}
           />
         </Suspense>

@@ -757,6 +757,17 @@ export default function Home({
               ))}
             </div>
           )}
+
+          <section aria-labelledby="office-overview-title" style={{ marginTop: 28, paddingTop: 20, borderTop: '1px solid var(--line)', lineHeight: 1.7 }}>
+            <h2 id="office-overview-title" style={{ fontSize: 18, marginBottom: 8 }}>Minh Spark Office — Free online office</h2>
+            <p style={{ color: 'var(--ink-secondary)', maxWidth: 760 }}>Soạn thảo văn bản với Minh Docs, làm bảng tính với Minh Sheets và xử lý PDF với Minh PDF miễn phí trên trình duyệt, không cần cài bộ ứng dụng văn phòng. Bản nháp được lưu an toàn trên thiết bị.</p>
+            <nav aria-label="Tìm hiểu sản phẩm" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 24px', marginTop: 12 }}>
+              <a href="/gioi-thieu.html" style={{ color: '#a93229', padding: '10px 0' }}>Giới thiệu Minh Spark Office</a>
+              <a href="/minh-docs.html" style={{ color: '#a93229', padding: '10px 0' }}>Soạn thảo văn bản miễn phí</a>
+              <a href="/minh-sheets.html" style={{ color: '#a93229', padding: '10px 0' }}>Bảng tính online miễn phí</a>
+              <a href="/minh-pdf.html" style={{ color: '#a93229', padding: '10px 0' }}>Xử lý PDF online miễn phí</a>
+            </nav>
+          </section>
         </div>
       </main>
     </div>

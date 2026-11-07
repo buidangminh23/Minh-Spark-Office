@@ -8,9 +8,12 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "node --import tsx --test tests/*.test.ts"
+    "test": "node --import tsx --test tests/*.test.ts",
+    "desktop:dev": "tauri dev",
+    "desktop:build": "tauri build && node scripts/package-desktop.mjs"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2.12.4",
     "@tiptap/extension-character-count": "^3.33.0",
     "@tiptap/extension-highlight": "^3.33.0",
     "@tiptap/extension-image": "^3.33.0",
@@ -50,6 +53,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.12.4",
     "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

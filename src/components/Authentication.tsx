@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut, type Auth, type User } from 'firebase/auth';
 import { authenticationError, authConfigured, initializeAuthentication } from '../lib/auth';
+import { isDesktop, openWebApp } from '../lib/desktop';
 
 type Account = {
   user: User | null;
@@ -20,6 +21,15 @@ export function useAccount() {
 
 export function AccountButton() {
   const { user, pending, error, login, logout } = useAccount();
+  if (isDesktop()) {
+    return (
+      <div className="account-control">
+        <div className="account-identity"><strong>Lưu trên máy</strong><span>Tài liệu chưa đồng bộ với bản web</span></div>
+        <button className="btn" disabled={pending} onClick={() => void login()}>{pending ? 'Đang mở…' : 'Mở bản web'}</button>
+        {error && <p className="account-error" role="alert">{error}</p>}
+      </div>
+    );
+  }
   return (
     <div className="account-control">
       {user ? (
@@ -36,7 +46,36 @@ export function AccountButton() {
   );
 }
 
-export function Authentication({ children }: { children: (user: User | null) => ReactNode }) {
+type AuthenticationProps = { children: (user: User | null) => ReactNode };
+
+function DesktopAuthentication({ children }: AuthenticationProps) {
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState('');
+  const busy = useRef(false);
+
+  const login = async () => {
+    if (busy.current) return;
+    busy.current = true;
+    setPending(true);
+    setError('');
+    try {
+      await openWebApp();
+    } catch {
+      setError('Chưa mở được trình duyệt. Hãy truy cập minhsparkoffice.minhspark.com để dùng bản web.');
+    } finally {
+      busy.current = false;
+      setPending(false);
+    }
+  };
+
+  return <AccountContext value={{ user: null, pending, error, login, logout: async () => {} }}>{children(null)}</AccountContext>;
+}
+
+export function Authentication(props: AuthenticationProps) {
+  return isDesktop() ? <DesktopAuthentication {...props} /> : <WebAuthentication {...props} />;
+}
+
+function WebAuthentication({ children }: AuthenticationProps) {
   const [user, setUser] = useState<User | null>(null);
   const [ready, setReady] = useState(false);
   const [guest, setGuest] = useState(false);
