@@ -19,9 +19,15 @@
     .download-card .download-secondary { display: block; padding: 12px 0; text-align: center; }
     .download-card .download-meta { text-align: center; margin-bottom: 4px; }
     .download-checksum { display: block; margin-top: 22px; font-size: 14px; }
+    .download-command { display: flex; align-items: center; gap: 8px; margin: 16px 0 8px; padding: 8px 8px 8px 16px; border: 1px solid #e3e7ee; border-radius: 12px; background: #f6f7fb; }
+    .download-command code { flex: 1 1 auto; min-width: 0; overflow-x: auto; white-space: nowrap; font: 14px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; user-select: all; }
+    .download-command button { flex: none; min-height: 40px; padding: 8px 16px; border: 0; border-radius: 8px; background: #1e2430; color: #fff; font-family: inherit; font-size: 14px; font-weight: 600; line-height: 1.4; cursor: pointer; }
+    .download-command button:focus-visible { outline: 3px solid #2b579a; outline-offset: 2px; }
+    .download-steps { margin: 16px 0; padding-left: 24px; }
     .download-details { margin-top: 40px; }
     .download-details p:last-child { margin-bottom: 0; }
     @media (max-width: 760px) { .download-layout { grid-template-columns: 1fr; gap: 24px; padding-top: 32px; } }
+    @media (max-width: 480px) { .download-command { flex-direction: column; align-items: stretch; padding: 16px; } .download-command code { white-space: normal; overflow-wrap: anywhere; } }
   </style>
 </head>
 <body class="seo-document">
@@ -54,8 +60,16 @@
         <img src="/logo-icon.png" alt="" width="64" height="64" />
         <h2 id="mac-installer-title">Minh Spark Office cho macOS</h2>
         <p>Dành cho máy Mac dùng chip Apple Silicon (M1, M2, M3, M4 và mới hơn), macOS 13.3 trở lên.</p>
-        <a class="seo-button" href="/downloads/MinhSparkOffice-0.2.7-macos-arm64.dmg" download>Tải cho macOS</a>
-        <p>Mở file DMG, kéo Minh Spark Office vào Applications rồi mở ứng dụng. Bản này chưa có chứng thư Apple Developer ID và chưa được notarize; macOS có thể chặn mở.</p>
+        <p><strong>Cách cài khuyên dùng:</strong> mở ứng dụng Terminal, dán lệnh dưới đây rồi nhấn Return. Lệnh tải bản mới nhất, kiểm tra mã SHA-256 và chữ ký, cài vào Applications rồi mở ứng dụng. macOS không hiện cảnh báo “chưa được mở” với cách cài này.</p>
+        <div class="download-command"><code id="mac-install-command">curl -fsSL https://office.minhspark.com/install-macos.sh | bash</code><button type="button" data-copy="mac-install-command">Sao chép</button></div>
+        <p class="download-meta">Xem trước nội dung lệnh tại <a href="/install-macos.sh">install-macos.sh</a>. Sau lần cài này, ứng dụng tự cập nhật.</p>
+        <a class="download-secondary" href="/downloads/MinhSparkOffice-0.2.7-macos-arm64.dmg" download>Hoặc tải file DMG</a>
+        <p>Bản macOS chưa có chứng thư Apple Developer ID và chưa được notarize, nên file DMG tải bằng trình duyệt sẽ bị macOS chặn với thông báo “Minh Spark Office chưa được mở”. Nếu dùng DMG:</p>
+        <ol class="download-steps">
+          <li>Mở DMG, kéo Minh Spark Office vào Applications, mở ứng dụng một lần rồi bấm Xong.</li>
+          <li>Vào Cài đặt hệ thống → Quyền riêng tư &amp; Bảo mật, kéo xuống và bấm “Vẫn mở”.</li>
+          <li>Hoặc chạy lại lệnh cài ở trên: lệnh thay bản cài từ DMG và gỡ cảnh báo.</li>
+        </ol>
         <p>Máy Mac Intel hiện dùng được <a href="/">bản web</a>.</p>
       </section>
       <div class="seo-grid download-details">
@@ -84,5 +98,15 @@
     </main>
     <footer class="seo-footer">Minh Spark Office · <a href="/">Dùng bản web</a> · <a href="/gioi-thieu.html">Tìm hiểu thêm</a></footer>
   </div>
+  <script>
+    document.querySelectorAll('[data-copy]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const text = document.getElementById(button.dataset.copy).textContent;
+        try { await navigator.clipboard.writeText(text); button.textContent = 'Đã chép'; }
+        catch { getSelection().selectAllChildren(document.getElementById(button.dataset.copy)); button.textContent = 'Nhấn ⌘C'; }
+        setTimeout(() => { button.textContent = 'Sao chép'; }, 2000);
+      });
+    });
+  </script>
 </body>
 </html>
