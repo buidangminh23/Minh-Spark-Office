@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { ArrowLeft, Bookmark, BookText, Clipboard, Copy, Download, FileCode2, FileImage, FileText, FileType2, FolderOpen, History, Info, Mail, MonitorPlay, Package, Printer, Save, Share2, Table2, FilePlus2, X, BookOpen, ScrollText, Columns3, Minus, Plus, PencilLine } from 'lucide-react';
 import { useEditorState } from '@tiptap/react';
 import { pickFile, formatBytes } from '../../../lib/download';
-import { saveVersion } from '../../../lib/storage';
 import { useDoc } from '../DocContext';
 import { textStats } from '../docTools';
 import { exportAsDocx, toggleProtection } from '../actions';
@@ -41,7 +40,7 @@ export function Backstage({ onClose }: { onClose: () => void }) {
         {nav.map((item) => <button key={item.id} className={`backstage-item ${section === item.id ? 'active' : ''}`} onClick={() => setSection(item.id)}>{item.icon}{item.label}</button>)}
         <div className="backstage-sep" />
         <button className="backstage-item" onClick={() => act(ctx.saveNow)}><Save size={16} /> Lưu ngay</button>
-        <button className="backstage-item" onClick={async () => { await saveVersion(ctx.meta.id, { kind: 'doc', json: ctx.editor.getJSON(), page: ctx.page, comments: ctx.comments }); ctx.ui.toast('Đã lưu một phiên bản'); }}><Bookmark size={16} /> Lưu phiên bản</button>
+        <button className="backstage-item" onClick={async () => { await ctx.storage.saveVersion(ctx.meta.id, { kind: 'doc', json: ctx.editor.getJSON(), page: ctx.page, comments: ctx.comments }); ctx.ui.toast('Đã lưu một phiên bản'); }}><Bookmark size={16} /> Lưu phiên bản</button>
         <button className="backstage-item" onClick={() => act(() => ctx.openDialog('history'))}><History size={16} /> Lịch sử phiên bản</button>
         <button className="backstage-item" onClick={() => void makeCopy(ctx)}><Copy size={16} /> Tạo bản sao</button>
         <button className="backstage-item" onClick={() => act(ctx.print)}><Printer size={16} /> In</button>

@@ -1,4 +1,5 @@
-import { createStore, del, get, set } from 'idb-keyval';
+import { createStore, del, get, set, update } from 'idb-keyval';
+import { createContext, useContext } from 'react';
 import type { JSONContent } from '@tiptap/react';
 import type { WorkbookData } from './sheetTypes';
 
@@ -136,7 +137,6 @@ export type FileMeta = {
   preview: string;
 };
 
-const store = createStore('minh-office', 'workspace');
 const INDEX_KEY = 'files-index';
 const contentKey = (id: string) => `content:${id}`;
 const versionsKey = (fileId: string) => `versions:${fileId}`;
@@ -157,107 +157,125 @@ export const defaultPage = (): PageSettings => ({
   pageNumbers: true,
 });
 
-export async function listFiles(): Promise<FileMeta[]> {
-  return (await get<FileMeta[]>(INDEX_KEY, store)) ?? [];
-}
+export function createWorkspaceStorage(userId: string | null) {
+  const store = createStore(userId ? `minh-office-user:${userId}` : 'minh-office', 'workspace');
 
-async function writeIndex(files: FileMeta[]) {
-  await set(INDEX_KEY, files, store);
-}
-
-export async function loadContent(id: string) {
-  return get<FileContent>(contentKey(id), store);
-}
-
-export async function saveFile(meta: FileMeta, content?: FileContent) {
-  if (content) await set(contentKey(meta.id), content, store);
-  const files = await listFiles();
-  const index = files.findIndex((file) => file.id === meta.id);
-  if (index >= 0) files[index] = meta;
-  else files.unshift(meta);
-  await writeIndex(files);
-}
-
-export async function updateMeta(id: string, patch: Partial<FileMeta>) {
-  const files = await listFiles();
-  const index = files.findIndex((file) => file.id === id);
-  if (index < 0) return null;
-  files[index] = { ...files[index], ...patch };
-  await writeIndex(files);
-  return files[index];
-}
-
-export async function removeFile(id: string) {
-  await del(contentKey(id), store);
-  await del(versionsKey(id), store);
-  await writeIndex((await listFiles()).filter((file) => file.id !== id));
-}
-
-export async function listVersions(fileId: string): Promise<FileVersion[]> {
-  return (await get<FileVersion[]>(versionsKey(fileId), store)) ?? [];
-}
-
-export async function saveVersion(
-  fileId: string,
-  content: FileContent,
-  label?: string
-): Promise<FileVersion> {
-  const versions = await listVersions(fileId);
-  const now = Date.now();
-  const timeStr = new Date(now).toLocaleTimeString('vi-VN', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
-  const dateStr = new Date(now).toLocaleDateString('vi-VN');
-  const newVersion: FileVersion = {
-    id: 'v_' + Math.random().toString(36).slice(2, 10),
-    fileId,
-    timestamp: now,
-    label: label || `Bản lưu ${timeStr} (${dateStr})`,
-    content,
-  };
-  const updated = [newVersion, ...versions].slice(0, 30);
-  await set(versionsKey(fileId), updated, store);
-  return newVersion;
-}
-
-export async function restoreVersion(fileId: string, versionId: string): Promise<FileContent | null> {
-  const versions = await listVersions(fileId);
-  const found = versions.find((v) => v.id === versionId);
-  if (!found) return null;
-  await set(contentKey(fileId), found.content, store);
-  return found.content;
-}
-
-export async function deleteVersion(fileId: string, versionId: string): Promise<void> {
-  const versions = await listVersions(fileId);
-  const updated = versions.filter((v) => v.id !== versionId);
-  await set(versionsKey(fileId), updated, store);
-}
-
-export async function exportBackup() {
-  const files = await listFiles();
-  const contents: Record<string, FileContent | undefined> = {};
-  for (const file of files) contents[file.id] = await loadContent(file.id);
-  return { format: 'minh-office-backup', version: 2, exportedAt: new Date().toISOString(), files, contents };
-}
-
-export async function importBackup(payload: unknown) {
-  const data = payload as { format?: string; files?: FileMeta[]; contents?: Record<string, FileContent> };
-  if (data?.format !== 'minh-office-backup' || !Array.isArray(data.files)) throw new Error('Tệp sao lưu không hợp lệ.');
-  const existing = await listFiles();
-  const ids = new Set(existing.map((file) => file.id));
-  let count = 0;
-  for (const file of data.files) {
-    const content = data.contents?.[file.id];
-    if (!content || ids.has(file.id)) continue;
-    await set(contentKey(file.id), content, store);
-    existing.push(file);
-    count++;
+  async function listFiles(): Promise<FileMeta[]> {
+    return (await get<FileMeta[]>(INDEX_KEY, store)) ?? [];
   }
-  await writeIndex(existing);
-  return count;
+
+  async function writeIndex(files: FileMeta[]) {
+    await set(INDEX_KEY, files, store);
+  }
+
+  async function loadContent(id: string) {
+    return get<FileContent>(contentKey(id), store);
+  }
+
+  async function saveFile(meta: FileMeta, content?: FileContent) {
+    if (content) await set(contentKey(meta.id), content, store);
+    await update<FileMeta[]>(INDEX_KEY, (current = []) => {
+      const files = [...current];
+      const index = files.findIndex((file) => file.id === meta.id);
+      if (index >= 0) files[index] = meta;
+      else files.unshift(meta);
+      return files;
+    }, store);
+  }
+
+  async function updateMeta(id: string, patch: Partial<FileMeta>) {
+    const files = await listFiles();
+    const index = files.findIndex((file) => file.id === id);
+    if (index < 0) return null;
+    files[index] = { ...files[index], ...patch };
+    await writeIndex(files);
+    return files[index];
+  }
+
+  async function removeFile(id: string) {
+    await del(contentKey(id), store);
+    await del(versionsKey(id), store);
+    await writeIndex((await listFiles()).filter((file) => file.id !== id));
+  }
+
+  async function listVersions(fileId: string): Promise<FileVersion[]> {
+    return (await get<FileVersion[]>(versionsKey(fileId), store)) ?? [];
+  }
+
+  async function saveVersion(
+    fileId: string,
+    content: FileContent,
+    label?: string
+  ): Promise<FileVersion> {
+    const versions = await listVersions(fileId);
+    const now = Date.now();
+    const timeStr = new Date(now).toLocaleTimeString('vi-VN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+    const dateStr = new Date(now).toLocaleDateString('vi-VN');
+    const newVersion: FileVersion = {
+      id: 'v_' + Math.random().toString(36).slice(2, 10),
+      fileId,
+      timestamp: now,
+      label: label || `Bản lưu ${timeStr} (${dateStr})`,
+      content,
+    };
+    const updated = [newVersion, ...versions].slice(0, 30);
+    await set(versionsKey(fileId), updated, store);
+    return newVersion;
+  }
+
+  async function restoreVersion(fileId: string, versionId: string): Promise<FileContent | null> {
+    const versions = await listVersions(fileId);
+    const found = versions.find((v) => v.id === versionId);
+    if (!found) return null;
+    await set(contentKey(fileId), found.content, store);
+    return found.content;
+  }
+
+  async function deleteVersion(fileId: string, versionId: string): Promise<void> {
+    const versions = await listVersions(fileId);
+    const updated = versions.filter((v) => v.id !== versionId);
+    await set(versionsKey(fileId), updated, store);
+  }
+
+  async function exportBackup() {
+    const files = await listFiles();
+    const contents: Record<string, FileContent | undefined> = {};
+    for (const file of files) contents[file.id] = await loadContent(file.id);
+    return { format: 'minh-office-backup', version: 2, exportedAt: new Date().toISOString(), files, contents };
+  }
+
+  async function importBackup(payload: unknown) {
+    const data = payload as { format?: string; files?: FileMeta[]; contents?: Record<string, FileContent> };
+    if (data?.format !== 'minh-office-backup' || !Array.isArray(data.files)) throw new Error('Tệp sao lưu không hợp lệ.');
+    const existing = await listFiles();
+    const ids = new Set(existing.map((file) => file.id));
+    let count = 0;
+    for (const file of data.files) {
+      const content = data.contents?.[file.id];
+      if (!content || ids.has(file.id)) continue;
+      await set(contentKey(file.id), content, store);
+      existing.push(file);
+      ids.add(file.id);
+      count++;
+    }
+    await writeIndex(existing);
+    return count;
+  }
+
+  return { listFiles, loadContent, saveFile, updateMeta, removeFile, listVersions, saveVersion, restoreVersion, deleteVersion, exportBackup, importBackup };
+}
+
+export type WorkspaceStorage = ReturnType<typeof createWorkspaceStorage>;
+export const WorkspaceContext = createContext<WorkspaceStorage | null>(null);
+
+export function useWorkspace() {
+  const workspace = useContext(WorkspaceContext);
+  if (!workspace) throw new Error('Workspace is unavailable');
+  return workspace;
 }
 
 export async function estimateStorage() {

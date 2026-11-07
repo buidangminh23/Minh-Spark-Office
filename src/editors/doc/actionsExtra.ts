@@ -1,7 +1,7 @@
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { getPagination } from './pagination';
 import { AUTHOR, newId, type DocCtx } from './DocContext';
-import { saveFile, type FileMeta } from '../../lib/storage';
+import { type FileMeta } from '../../lib/storage';
 
 type TableContext = { table: PMNode; pos: number; rowIndex: number; colIndex: number };
 
@@ -228,7 +228,7 @@ export const jumpToPage = (ctx: DocCtx, target: number) => {
 export async function makeCopy(ctx: DocCtx) {
   const name = `Bản sao của ${ctx.title}`;
   const meta: FileMeta = { ...ctx.meta, id: newId('doc'), name, createdAt: Date.now(), updatedAt: Date.now(), openedAt: Date.now(), starred: false };
-  await saveFile(meta, { kind: 'doc', json: ctx.editor.getJSON(), page: ctx.page, comments: ctx.comments });
+  await ctx.storage.saveFile(meta, { kind: 'doc', json: ctx.editor.getJSON(), page: ctx.page, comments: ctx.comments });
   ctx.ui.toast(`Đã tạo "${name}" trong danh sách tệp`);
 }
 

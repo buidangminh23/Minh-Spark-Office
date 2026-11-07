@@ -24,7 +24,7 @@ import { useFormatState } from './useFormatState';
 import { ensureFont, ensureFontsInJson } from './fonts';
 import { useDictation, useReadAloud } from './useSpeech';
 import { addComment, editLink, insertFootnote } from './actions';
-import { defaultPage, saveVersion, type CommentItem, type DocContent, type FileMeta, type PageSettings } from '../../lib/storage';
+import { defaultPage, useWorkspace, type CommentItem, type DocContent, type FileMeta, type PageSettings } from '../../lib/storage';
 import { useUi } from '../../components/ui';
 import 'katex/dist/katex.min.css';
 import './docEditor.css';
@@ -93,6 +93,8 @@ const applyFormat = (editor: Editor, format: CopiedFormat) => {
 
 export default function DocEditor({ meta, content, onSave, onRename, onBack, onNewDocument, onOpenFile }: DocEditorProps) {
   const ui = useUi();
+  const storage = useWorkspace();
+  const { saveVersion } = storage;
   const [title, setTitle] = useState(meta.name);
   const [page, setPageState] = useState<PageSettings>({ ...defaultPage(), ...content.page });
   const [comments, setCommentsState] = useState<CommentItem[]>(content.comments ?? []);
@@ -254,7 +256,7 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack, onN
       void saveVersion(m.id, { kind: 'doc', json: editor.getJSON(), page: p, comments: c }, `Tự động lưu ${new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`);
     }, AUTO_VERSION_MS);
     return () => clearInterval(timer);
-  }, [editor]);
+  }, [editor, saveVersion]);
 
   useEffect(() => {
     try {
@@ -317,6 +319,7 @@ export default function DocEditor({ meta, content, onSave, onRename, onBack, onN
   }, [editor]);
 
   const ctx: DocCtx = {
+    storage,
     editor, ui, meta, title, page, setPage, view, setView, comments,
     setComments: (updater) => { setComments(updater); markDirty(); },
     activeCommentId, setActiveCommentId, openDialog: setDialog, editing, setEditing, editingStyle, setEditingStyle, print, merge, setMerge, mergePreview, setMergePreview,

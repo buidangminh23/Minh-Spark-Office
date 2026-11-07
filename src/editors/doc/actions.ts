@@ -4,7 +4,7 @@ import { resolveImages } from '../../lib/docOtherFormats';
 import { importDocxFull } from '../../lib/docxImport';
 import { flattenForExport } from './docFlatten';
 import { downloadBlob, pickFile, readAsDataUrl } from '../../lib/download';
-import { saveFile, type FileMeta, type PageSettings } from '../../lib/storage';
+import { type FileMeta, type PageSettings } from '../../lib/storage';
 import { AUTHOR, newId, type DocCtx } from './DocContext';
 import { jsonText, sha256, splitByHeading, transformCase, type CaseMode } from './docTools';
 
@@ -255,7 +255,7 @@ export const splitDocument = async (ctx: DocCtx) => {
   await run(ctx, 'Đang tách tài liệu…', async () => {
     for (const [index, section] of sections.entries()) {
       const json: JSONContent = { type: 'doc', content: section.content };
-      await saveFile(newDocMeta(`${baseName(ctx)} - ${index + 1}. ${section.title.slice(0, 50)}.docx`, jsonText(json)), { kind: 'doc', json, page: ctx.page });
+      await ctx.storage.saveFile(newDocMeta(`${baseName(ctx)} - ${index + 1}. ${section.title.slice(0, 50)}.docx`, jsonText(json)), { kind: 'doc', json, page: ctx.page });
     }
     ctx.ui.toast(`Đã tách thành ${sections.length} tài liệu mới trong danh sách tệp`);
   }, 'Không tách được tài liệu');

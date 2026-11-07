@@ -1,3 +1,4 @@
+import { AccountButton, useAccount } from './Authentication';
 import { useState, useMemo } from 'react';
 import {
   FileText,
@@ -71,6 +72,7 @@ export default function Home({
   onExportBackup,
   onImportBackup,
 }: HomeProps) {
+  const { user } = useAccount();
   const [category, setCategory] = useState<NavCategory>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
@@ -399,7 +401,7 @@ export default function Home({
           <div className="storage-box">
             <strong>
               <span className="storage-dot" />
-              Lưu trữ cục bộ an toàn
+              {user ? 'Kho riêng trên máy này' : 'Kho cục bộ không đăng nhập'}
             </strong>
             <div>
               {storageInfo ? (
@@ -460,6 +462,7 @@ export default function Home({
           </div>
 
           <div className="topbar-right">
+            <AccountButton />
             <label className="btn btn-primary" style={{ cursor: 'pointer' }}>
               <Upload size={15} />
               <span>Mở tệp từ máy (.docx, .xlsx, .pdf, .csv)…</span>
@@ -475,7 +478,7 @@ export default function Home({
               <div className="welcome-section">
                 <div>
                   <h1>Bắt đầu tạo mới</h1>
-                  <p>Chọn mẫu tài liệu hoặc bảng tính chuyên nghiệp để bắt đầu làm việc ngay</p>
+                  <p>{user ? 'Đã đăng nhập Google. Tài liệu lưu riêng trên trình duyệt này, chưa đồng bộ cloud.' : 'Chọn mẫu tài liệu hoặc bảng tính chuyên nghiệp để bắt đầu làm việc ngay'}</p>
                 </div>
               </div>
 

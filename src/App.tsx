@@ -1,18 +1,13 @@
-import { useEffect, useState, useCallback } from 'react';
+import { Authentication } from './components/Authentication';
+import { createWorkspaceStorage, WorkspaceContext, useWorkspace } from './lib/storage';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import Home from './components/Home';
 import DocEditor from './editors/doc/DocEditor';
 import SheetEditor from './editors/sheet/SheetEditor';
 import PdfEditor from './editors/pdf/PdfEditor';
 import { UiProvider, useUi } from './components/ui';
 import {
-  listFiles,
-  loadContent,
-  saveFile,
-  updateMeta,
-  removeFile,
   estimateStorage,
-  exportBackup,
-  importBackup,
   defaultPage,
   type FileMeta,
   type FileContent,
@@ -29,10 +24,13 @@ import { downloadBlob } from './lib/download';
 
 function MainApp() {
   const ui = useUi();
+  const { listFiles, loadContent, saveFile, updateMeta, removeFile, exportBackup, importBackup } = useWorkspace();
   const [files, setFiles] = useState<FileMeta[]>([]);
   const [activeMeta, setActiveMeta] = useState<FileMeta | null>(null);
   const [activeContent, setActiveContent] = useState<FileContent | null>(null);
   const [storageInfo, setStorageInfo] = useState<{ usage: number; quota: number } | null>(null);
+
+  const initialized = useRef(false);
 
   // Refresh files list and storage
   const refreshFiles = useCallback(async () => {
@@ -40,10 +38,12 @@ function MainApp() {
     setFiles(list);
     const est = await estimateStorage();
     if (est) setStorageInfo(est);
-  }, []);
+  }, [listFiles]);
 
   // Initial load & seed default files if empty
   useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
     const init = async () => {
       const list = await listFiles();
       if (list.length === 0) {
@@ -118,7 +118,7 @@ function MainApp() {
     };
 
     void init();
-  }, []);
+  }, [listFiles, saveFile]);
 
   // Open Document
   const handleOpenDoc = async (meta: FileMeta) => {
@@ -604,10 +604,17 @@ function MainApp() {
   );
 }
 
-export default function App() {
+function Workspace({ userId }: { userId: string | null }) {
+  const workspace = useMemo(() => createWorkspaceStorage(userId), [userId]);
   return (
-    <UiProvider>
-      <MainApp />
-    </UiProvider>
+    <WorkspaceContext value={workspace}>
+      <UiProvider>
+        <MainApp />
+      </UiProvider>
+    </WorkspaceContext>
   );
+}
+
+export default function App() {
+  return <Authentication>{(user) => <Workspace key={user?.uid ?? 'guest'} userId={user?.uid ?? null} />}</Authentication>;
 }

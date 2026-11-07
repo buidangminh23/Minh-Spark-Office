@@ -1,3 +1,4 @@
+import { useWorkspace } from '../../lib/storage';
 import { useState, useRef } from 'react';
 import {
   ArrowLeft,
@@ -42,9 +43,6 @@ import {
   type PdfContent,
   type FileVersion,
   type CommentItem,
-  listVersions,
-  saveVersion,
-  deleteVersion,
 } from '../../lib/storage';
 import { downloadBlob } from '../../lib/download';
 import { useUi } from '../../components/ui';
@@ -61,6 +59,7 @@ type PdfRibbonTab = 'file' | 'home' | 'minh_pdf' | 'insert' | 'view' | 'tools' |
 
 export default function PdfEditor({ meta, content, onSave, onRename, onBack }: PdfEditorProps) {
   const ui = useUi();
+  const { listVersions, saveVersion, deleteVersion } = useWorkspace();
   const [activeTab, setActiveTab] = useState<PdfRibbonTab>('minh_pdf');
   const [title, setTitle] = useState(meta.name);
   const [savedStatus, setSavedStatus] = useState<'saved' | 'saving'>('saved');

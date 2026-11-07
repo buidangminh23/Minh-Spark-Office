@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react';
 import type { Editor } from '@tiptap/react';
-import type { CommentItem, FileMeta, PageSettings } from '../../lib/storage';
+import type { CommentItem, FileMeta, PageSettings, WorkspaceStorage } from '../../lib/storage';
 import type { useUi } from '../../components/ui';
 
 export type ViewMode = 'print' | 'web' | 'read';
@@ -34,6 +34,7 @@ export type ViewState = {
 export type MergeData = { headers: string[]; rows: Record<string, string>[]; source: string };
 
 export type DocCtx = {
+  storage: WorkspaceStorage;
   editor: Editor;
   ui: ReturnType<typeof useUi>;
   meta: FileMeta;

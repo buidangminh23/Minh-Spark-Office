@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Bookmark, FileDiff, History, SpellCheck, Trash2 } from 'lucide-react';
-import { deleteVersion, listVersions, restoreVersion, saveVersion, type DocContent, type FileVersion } from '../../../lib/storage';
+import { useWorkspace, type DocContent, type FileVersion } from '../../../lib/storage';
 import { useDoc } from '../DocContext';
 import { diffWords, jsonText, proofread, textStats, type ProofIssue } from '../docTools';
 import Modal from './Modal';
@@ -56,6 +56,7 @@ export function ProofreadDialog({ onClose }: { onClose: () => void }) {
 }
 
 export function HistoryDialog({ onClose }: { onClose: () => void }) {
+  const { deleteVersion, listVersions, restoreVersion, saveVersion } = useWorkspace();
   const ctx = useDoc();
   const [versions, setVersions] = useState<FileVersion[]>([]);
   const [label, setLabel] = useState('');

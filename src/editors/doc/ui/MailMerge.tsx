@@ -3,7 +3,7 @@ import { FileSpreadsheet, Upload, X } from 'lucide-react';
 import type { JSONContent } from '@tiptap/react';
 import { exportDocx } from '../../../lib/docxConvert';
 import { downloadBlob, pickFile } from '../../../lib/download';
-import { listFiles, loadContent, saveFile, type FileMeta } from '../../../lib/storage';
+import { type FileMeta } from '../../../lib/storage';
 import type { WorkbookData } from '../../../lib/sheetTypes';
 import { newId, useDoc, type DocCtx, type MergeData } from '../DocContext';
 import { fillMergeFields, jsonText, parseDelimited } from '../docTools';
@@ -44,11 +44,11 @@ export function MailMergeDialog({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    void listFiles().then((files) => setSheets(files.filter((f) => f.kind === 'sheet' && !f.deletedAt)));
-  }, []);
+    void ctx.storage.listFiles().then((files) => setSheets(files.filter((f) => f.kind === 'sheet' && !f.deletedAt)));
+  }, [ctx.storage]);
 
   const loadSheet = async (meta: FileMeta) => {
-    const content = await loadContent(meta.id);
+    const content = await ctx.storage.loadContent(meta.id);
     if (content?.kind !== 'sheet') return setError('Không đọc được bảng tính này.');
     setData(fromWorkbook(content.workbook, meta.name));
     setError('');
@@ -119,7 +119,7 @@ export async function finishMerge(ctx: DocCtx, mode: 'single' | 'files') {
       });
       const json: JSONContent = { type: 'doc', content };
       const meta: FileMeta = { id: newId('doc'), name: `${base} - đã trộn (${merge.rows.length}).docx`, kind: 'doc', createdAt: Date.now(), updatedAt: Date.now(), openedAt: Date.now(), starred: false, deletedAt: null, size: JSON.stringify(json).length, preview: jsonText(json).slice(0, 160) };
-      await saveFile(meta, { kind: 'doc', json, page: ctx.page });
+      await ctx.storage.saveFile(meta, { kind: 'doc', json, page: ctx.page });
       ctx.ui.toast(`Đã tạo “${meta.name}” trong danh sách tệp`);
     } else {
       const rows = merge.rows.slice(0, MAX_FILES);

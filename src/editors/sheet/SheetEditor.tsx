@@ -1,3 +1,4 @@
+import { useWorkspace } from '../../lib/storage';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   createUniver,
@@ -126,13 +127,6 @@ import {
   type SheetPrintSettings,
   type FileVersion,
   type CommentItem,
-  listFiles,
-  loadContent,
-  saveFile,
-  listVersions,
-  saveVersion,
-  restoreVersion,
-  deleteVersion,
 } from '../../lib/storage';
 import type { CellStyle, SheetData, WorkbookData } from '../../lib/sheetTypes';
 import {
@@ -299,6 +293,7 @@ const inlineSheetStyles = (sheet: SheetData, styles: Record<string, CellStyle>):
 
 export default function SheetEditor({ meta, content, onSave, onRename, onBack }: SheetEditorProps) {
   const ui = useUi();
+  const { listFiles, loadContent, saveFile, listVersions, saveVersion, restoreVersion, deleteVersion } = useWorkspace();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const importSheetInputRef = useRef<HTMLInputElement | null>(null);
