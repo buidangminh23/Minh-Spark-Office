@@ -30,7 +30,6 @@ import './home.css';
 import type { FileKind, FileMeta } from '../lib/storage';
 import type { WorkbookData } from '../lib/sheetTypes';
 import { formatBytes, relativeTime } from '../lib/download';
-import { isDesktop } from '../lib/desktop';
 import {
   sampleDocHtml,
   contractDocHtml,
@@ -379,18 +378,6 @@ export default function Home(props: HomeProps) {
                   ))}
                 </div>
               </section>
-
-              {!isDesktop() && (
-                <section className="ws-about" aria-labelledby="office-overview-title">
-                  <h2 id="office-overview-title">Minh Spark Office — văn phòng online miễn phí</h2>
-                  <p>Soạn thảo văn bản, làm bảng tính và xử lý PDF ngay trên trình duyệt. Đăng nhập cùng tài khoản Google trên web và ứng dụng máy tính để dùng chung kho tài liệu; khi mất mạng, thay đổi được lưu trên thiết bị và đồng bộ khi kết nối lại.</p>
-                  <nav aria-label="Tìm hiểu sản phẩm">
-                    <a href="/gioi-thieu.html">Giới thiệu Minh Spark Office</a>
-                    <a href="/minh-docs.html">Soạn thảo văn bản miễn phí</a>
-                    <a href="/minh-sheets.html">Bảng tính online miễn phí</a>
-                  </nav>
-                </section>
-              )}
             </>
           ) : (
             <section className="ws-section ws-section-first" aria-labelledby="ws-list-title">

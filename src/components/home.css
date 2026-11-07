@@ -1242,41 +1242,6 @@
   border-bottom: 1px solid #e3e7ee;
 }
 
-.ws-about {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-top: 24px;
-  border-top: 1px solid var(--ws-line);
-  color: var(--ws-muted);
-  line-height: 1.6;
-}
-
-.ws-about h2 {
-  margin: 0;
-  color: var(--ws-ink-2);
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.ws-about p {
-  margin: 0;
-  max-width: 760px;
-}
-
-.ws-about nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 24px;
-}
-
-.ws-about a {
-  display: inline-flex;
-  align-items: center;
-  min-height: 40px;
-  color: var(--ws-blue);
-}
-
 .ws-drop {
   position: fixed;
   inset: 0;
