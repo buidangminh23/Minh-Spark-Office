@@ -67,6 +67,9 @@ import { FontDialog, HeaderFooterDialog, ParagraphDialog, StyleDialog } from './
 import { CitationDialog, CrossRefDialog, DrawingDialog, EquationDialog, ImageEditDialog, QrDialog } from './ui/InsertDialogs';
 import { AccessibilityDialog, CompareDialog, GoToDialog } from './ui/CheckDialogs';
 import SafeBoundary from './ui/SafeBoundary';
+import { AUTO_TITLE_SCAN_BLOCKS, deriveDocTitle, isDefaultDocName, type TitleBlock } from './autoTitle';
+
+const AUTO_TITLE_DEBOUNCE_MS = 800;
 
 interface DocEditorProps {
   meta: FileMeta;
@@ -116,6 +119,7 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
   const storage = useWorkspace();
   const { saveVersion } = storage;
   const [title, setTitle] = useState(meta.name);
+  const autoTitleRef = useRef(isDefaultDocName(meta.name));
   const [page, setPageState] = useState<PageSettings>({ ...basePage(), ...content.page });
   const [comments, setCommentsState] = useState<CommentItem[]>(content.comments ?? []);
   const [view, setViewState] = useState<ViewState>(loadView);
@@ -236,6 +240,28 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
     const storage = editor.storage as unknown as { autoCorrect?: { enabled: boolean } };
     if (storage.autoCorrect) storage.autoCorrect.enabled = page.autocorrect !== false;
   }, [editor, page.autocorrect]);
+
+  useEffect(() => {
+    if (!autoTitleRef.current) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const refreshTitle = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (!autoTitleRef.current) return;
+        const blocks: TitleBlock[] = [];
+        editor.state.doc.forEach((node) => {
+          if (blocks.length < AUTO_TITLE_SCAN_BLOCKS) blocks.push({ heading: node.type.name === 'heading', text: node.textContent });
+        });
+        const next = deriveDocTitle(blocks);
+        if (next) setTitle((current) => (current === next ? current : next));
+      }, AUTO_TITLE_DEBOUNCE_MS);
+    };
+    editor.on('update', refreshTitle);
+    return () => {
+      editor.off('update', refreshTitle);
+      clearTimeout(timer);
+    };
+  }, [editor]);
 
   useEffect(() => {
     editor.view.dom.setAttribute('lang', page.language ?? 'vi');
@@ -480,7 +506,7 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
               <div className="editor-title-group">
                 <button className="icon-btn" onClick={() => { void persist(false).then((saved) => { if (saved) onBack(); }); }} title="Về danh sách tệp" aria-label="Quay lại"><ArrowLeft size={18} /></button>
                 <SuiteLogo kind="doc" size={32} decorative={false} />
-                <input className="editor-title-input" value={title} aria-label="Tên tài liệu" onChange={(e) => { setTitle(e.target.value); markDirty(); }} onBlur={handleTitleBlur} onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()} />
+                <input className="editor-title-input" value={title} aria-label="Tên tài liệu" onChange={(e) => { autoTitleRef.current = false; setTitle(e.target.value); markDirty(); }} onBlur={handleTitleBlur} onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()} />
                 <div className="quick-access">
                   <button className="icon-btn" title="Lưu chính thức (Ctrl+S)" aria-label="Lưu" onClick={saveNow}><Save size={16} /></button>
                   <button className="icon-btn" title="Hoàn tác (Ctrl+Z)" aria-label="Hoàn tác" disabled={!fmt.canUndo} onClick={() => editor.chain().focus().undo().run()}><Undo2 size={16} /></button>
