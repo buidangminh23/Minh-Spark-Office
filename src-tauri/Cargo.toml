@@ -1,6 +1,6 @@
 [package]
 name = "minh-spark-office"
-version = "0.2.8"
+version = "0.2.9"
 description = "Minh Spark Office desktop workspace"
 authors = ["Minh Spark"]
 edition = "2021"
