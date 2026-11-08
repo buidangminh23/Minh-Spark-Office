@@ -20,6 +20,7 @@ interface SlideCanvasProps {
   isPreviewingTransition?: boolean;
   previewingAnimElementId?: string | null;
   showAnimBadges?: boolean;
+  hiddenElementIds?: string[];
 }
 
 export function SlideCanvas({
@@ -41,6 +42,7 @@ export function SlideCanvas({
   isPreviewingTransition = false,
   previewingAnimElementId = null,
   showAnimBadges = true,
+  hiddenElementIds = [],
 }: SlideCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
@@ -374,6 +376,7 @@ export function SlideCanvas({
       {/* Slide Elements */}
       {slide.elements.map((el) => {
         const isSelected = !readOnly && el.id === selectedElementId;
+        const isHidden = hiddenElementIds.includes(el.id);
         const isEditing = el.id === editingTextId;
         const isAnimPreview = previewingAnimElementId === 'ALL' || previewingAnimElementId === el.id;
         const animType = el.animations?.[0]?.type || el.animation?.type || 'fade-in';
@@ -385,7 +388,8 @@ export function SlideCanvas({
           width: `${el.width}%`,
           height: `${el.height}%`,
           transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined,
-          opacity: el.opacity ?? 1,
+          opacity: isHidden ? 0 : (el.opacity ?? 1),
+          pointerEvents: isHidden ? 'none' : undefined,
           zIndex: el.zIndex ?? (isSelected ? 20 : 10),
           boxShadow: el.shapeShadow
             ? `0 ${el.shadowOffsetY ?? 6}px ${el.shadowBlur ?? 12}px ${el.shadowColor || 'rgba(0,0,0,0.25)'}`

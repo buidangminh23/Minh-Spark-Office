@@ -1382,6 +1382,7 @@ export default function SlideEditor({
           if (contextMenuElementId) updateSlideElement(contextMenuElementId, { shapeType: shape });
         }}
         onOpenFormat={() => setIsFormatPaneOpen(true)}
+        onOpenAnimation={() => { setActiveTab('animations'); setIsAnimationPaneOpen(true); }}
         onAddSlide={handleAddSlide}
         onDuplicateSlide={() => handleDuplicateSlide(activeSlideIndex)}
       />

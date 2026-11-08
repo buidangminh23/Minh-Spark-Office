@@ -18,6 +18,7 @@ import {
   ArrowRight,
   Plus,
   Layout,
+  Sparkles,
 } from 'lucide-react';
 import type { ShapeType, SlideLayout } from '../../lib/slideTypes';
 
@@ -43,6 +44,7 @@ interface SlideContextMenuProps {
   onSendBackward: () => void;
   onChangeShape: (shape: ShapeType) => void;
   onOpenFormat: () => void;
+  onOpenAnimation?: () => void;
   onAddSlide: (layout: SlideLayout) => void;
   onDuplicateSlide: () => void;
 }
@@ -64,6 +66,7 @@ export function SlideContextMenu({
   onSendBackward,
   onChangeShape,
   onOpenFormat,
+  onOpenAnimation,
   onAddSlide,
   onDuplicateSlide,
 }: SlideContextMenuProps) {
@@ -221,6 +224,15 @@ export function SlideContextMenu({
 
           <div className="ppt-ctx-divider" />
 
+          <button
+            className="ppt-ctx-item"
+            onClick={() => {
+              onOpenAnimation?.();
+              onClose();
+            }}
+          >
+            <Sparkles size={15} color="#107C41" /> <span>Gán hoạt hình (Animation)...</span>
+          </button>
           <button
             className="ppt-ctx-item"
             onClick={() => {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import type { SlideData } from '../../lib/slideTypes';
 import { SlideCanvas } from './SlideCanvas';
+import { playTransitionSound } from '../../lib/slideAudio';
 
 interface SlideShowProps {
   slides: SlideData[];
@@ -39,20 +40,87 @@ export function SlideShow({
   const [secondsElapsed, setSecondsElapsed] = useState(0);
   const [isTimerRunning, setIsTimerRunning] = useState(true);
 
+  // Animation step-by-step state
+  const [animStep, setAnimStep] = useState(0);
+  const [previewingAnimElementId, setPreviewingAnimElementId] = useState<string | null>(null);
+
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const currentSlide = slides[currentIndex];
+  const currentSlide = slides[currentIndex] || slides[0];
   const nextSlide = currentIndex < slides.length - 1 ? slides[currentIndex + 1] : null;
+
+  // Identify all elements with entrance animations on current slide
+  const entranceElements = currentSlide.elements.filter((el) => {
+    if (el.animations && el.animations.length > 0) {
+      return el.animations.some((a) => a.category === 'entrance' && a.type !== 'none');
+    }
+    if (el.animation && el.animation.type !== 'none') {
+      const t = el.animation.type;
+      return !t.includes('out') && !t.includes('disappear') && !t.includes('pulse') && !t.includes('spin') && !t.includes('teeter');
+    }
+    return false;
+  });
+
+  // Hidden elements are entrance elements that have not yet been stepped into
+  const hiddenElementIds = entranceElements
+    .filter((_, idx) => idx >= animStep)
+    .map((el) => el.id);
+
+  // Play transition sound on slide change
+  useEffect(() => {
+    playTransitionSound(currentSlide.transition?.sound || 'none');
+    setAnimStep(0);
+  }, [currentIndex, currentSlide.transition?.sound]);
+
+  // Advance presentation (next animation step, or next slide)
+  const handleAdvance = useCallback(() => {
+    if (animStep < entranceElements.length) {
+      const nextEl = entranceElements[animStep];
+      setAnimStep((s) => s + 1);
+      setPreviewingAnimElementId(nextEl.id);
+      setTimeout(() => setPreviewingAnimElementId(null), 800);
+    } else {
+      if (currentIndex < slides.length - 1) {
+        setCurrentIndex((i) => i + 1);
+        setAnimStep(0);
+      }
+    }
+  }, [animStep, entranceElements, currentIndex, slides.length]);
+
+  // Step back presentation (previous animation step, or previous slide)
+  const handleStepBack = useCallback(() => {
+    if (animStep > 0) {
+      setAnimStep((s) => s - 1);
+    } else {
+      if (currentIndex > 0) {
+        const prevIdx = currentIndex - 1;
+        setCurrentIndex(prevIdx);
+        // On previous slide, reveal all its animations
+        const prevSlide = slides[prevIdx];
+        const prevAnimCount = prevSlide.elements.filter((el) => {
+          if (el.animations && el.animations.length > 0) {
+            return el.animations.some((a) => a.category === 'entrance' && a.type !== 'none');
+          }
+          if (el.animation && el.animation.type !== 'none') {
+            const t = el.animation.type;
+            return !t.includes('out') && !t.includes('disappear') && !t.includes('pulse') && !t.includes('spin') && !t.includes('teeter');
+          }
+          return false;
+        }).length;
+        setAnimStep(prevAnimCount);
+      }
+    }
+  }, [animStep, currentIndex, slides]);
 
   // Key navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (['ArrowRight', 'ArrowDown', ' ', 'PageDown'].includes(e.key)) {
+      if (['ArrowRight', 'ArrowDown', ' ', 'PageDown', 'Enter'].includes(e.key)) {
         e.preventDefault();
-        if (currentIndex < slides.length - 1) setCurrentIndex((i) => i + 1);
+        handleAdvance();
       } else if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace'].includes(e.key)) {
         e.preventDefault();
-        if (currentIndex > 0) setCurrentIndex((i) => i - 1);
+        handleStepBack();
       } else if (e.key === 'Escape') {
         onClose();
       } else if (e.key.toLowerCase() === 'l') {
@@ -62,7 +130,18 @@ export function SlideShow({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentIndex, slides.length, onClose]);
+  }, [handleAdvance, handleStepBack, onClose]);
+
+  // Auto-advance timer if configured on slide transition
+  useEffect(() => {
+    const afterSec = currentSlide.transition?.advanceAfterSeconds;
+    if (afterSec && afterSec > 0) {
+      const timer = setTimeout(() => {
+        handleAdvance();
+      }, afterSec * 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [currentIndex, animStep, currentSlide.transition?.advanceAfterSeconds, handleAdvance]);
 
   // Mouse move for laser pointer
   const handlePointerMove = (e: React.PointerEvent) => {
@@ -148,6 +227,9 @@ export function SlideShow({
               selectedElementId={null}
               onSelectElement={() => {}}
               onUpdateElement={() => {}}
+              hiddenElementIds={hiddenElementIds}
+              previewingAnimElementId={previewingAnimElementId}
+              showAnimBadges={false}
               readOnly
             />
           </div>
@@ -166,6 +248,7 @@ export function SlideShow({
                   selectedElementId={null}
                   onSelectElement={() => {}}
                   onUpdateElement={() => {}}
+                  showAnimBadges={false}
                   readOnly
                 />
               ) : (
@@ -191,19 +274,26 @@ export function SlideShow({
         {/* Bottom Navigation */}
         <div style={{ height: '54px', background: '#111827', borderTop: '1px solid #1F2937', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '20px' }}>
           <button
-            onClick={() => currentIndex > 0 && setCurrentIndex((i) => i - 1)}
-            disabled={currentIndex === 0}
+            onClick={handleStepBack}
+            disabled={currentIndex === 0 && animStep === 0}
             className="ppt-ss-btn"
+            title="Lùi lại (Mũi tên trái)"
           >
             <ChevronLeft size={24} />
           </button>
           <span style={{ fontSize: '14px', fontWeight: 600 }}>
             Trang chiếu {currentIndex + 1} / {slides.length}
+            {entranceElements.length > 0 && (
+              <span style={{ color: '#38BDF8', marginLeft: '8px' }}>
+                (Hoạt hình: {animStep}/{entranceElements.length})
+              </span>
+            )}
           </span>
           <button
-            onClick={() => currentIndex < slides.length - 1 && setCurrentIndex((i) => i + 1)}
-            disabled={currentIndex === slides.length - 1}
+            onClick={handleAdvance}
+            disabled={currentIndex === slides.length - 1 && animStep === entranceElements.length}
             className="ppt-ss-btn"
+            title="Tiến tới (Mũi tên phải / Phím cách)"
           >
             <ChevronRight size={24} />
           </button>
@@ -218,9 +308,7 @@ export function SlideShow({
       ref={containerRef}
       className="ppt-slideshow-overlay"
       onPointerMove={handlePointerMove}
-      onClick={() => {
-        if (currentIndex < slides.length - 1) setCurrentIndex((i) => i + 1);
-      }}
+      onClick={handleAdvance}
     >
       {/* Laser pointer glow */}
       {isLaserActive && (
@@ -238,6 +326,9 @@ export function SlideShow({
           selectedElementId={null}
           onSelectElement={() => {}}
           onUpdateElement={() => {}}
+          hiddenElementIds={hiddenElementIds}
+          previewingAnimElementId={previewingAnimElementId}
+          showAnimBadges={false}
           readOnly
         />
       </div>
@@ -246,22 +337,27 @@ export function SlideShow({
       <div className="ppt-slideshow-bar" onClick={(e) => e.stopPropagation()}>
         <button
           className="ppt-ss-btn"
-          disabled={currentIndex === 0}
-          onClick={() => currentIndex > 0 && setCurrentIndex((i) => i - 1)}
-          title="Trang chiếu trước (Mũi tên trái)"
+          disabled={currentIndex === 0 && animStep === 0}
+          onClick={handleStepBack}
+          title="Lùi bước diễn hoạt hoặc trang chiếu trước"
         >
           <ChevronLeft size={20} />
         </button>
 
-        <span style={{ fontSize: '13px', fontWeight: 600, minWidth: '60px', textAlign: 'center' }}>
+        <span style={{ fontSize: '13px', fontWeight: 600, minWidth: '80px', textAlign: 'center' }}>
           {currentIndex + 1} / {slides.length}
+          {entranceElements.length > 0 && (
+            <span style={{ color: '#F59E0B', marginLeft: '4px', fontSize: '11px' }}>
+              [{animStep}/{entranceElements.length}]
+            </span>
+          )}
         </span>
 
         <button
           className="ppt-ss-btn"
-          disabled={currentIndex === slides.length - 1}
-          onClick={() => currentIndex < slides.length - 1 && setCurrentIndex((i) => i + 1)}
-          title="Trang chiếu kế tiếp (Mũi tên phải)"
+          disabled={currentIndex === slides.length - 1 && animStep === entranceElements.length}
+          onClick={handleAdvance}
+          title="Tiến bước diễn hoạt hoặc trang chiếu kế tiếp"
         >
           <ChevronRight size={20} />
         </button>
