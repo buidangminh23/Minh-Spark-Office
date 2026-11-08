@@ -244,12 +244,12 @@ del.track-deletion { color: #b3261e; text-decoration: line-through; background: 
 .symbol-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: var(--doc-gap-1); }
 .symbol-cell { height: 40px; font-size: 20px; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
 .symbol-cell:hover { background: #edf2fc; border-color: var(--accent-doc); }
-.symbol-recent { display: grid; grid-template-columns: repeat(20, minmax(0, 1fr)); gap: 2px; margin-bottom: var(--doc-gap-3); }
+.symbol-recent { display: grid; grid-template-columns: repeat(20, minmax(0, 1fr)); gap: var(--doc-gap-1); margin-bottom: var(--doc-gap-3); }
 .symbol-recent .symbol-cell { height: 34px; font-size: 17px; }
 .symbol-layout { display: grid; grid-template-columns: 190px minmax(0, 1fr) 150px; gap: var(--doc-gap-3); }
-.symbol-sets { display: flex; flex-direction: column; gap: 2px; max-height: 420px; overflow-y: auto; }
+.symbol-sets { display: flex; flex-direction: column; gap: var(--doc-gap-1); max-height: 420px; overflow-y: auto; }
 .symbol-sets .text-field { margin-bottom: var(--doc-gap-2); }
-.symbol-set { display: flex; justify-content: space-between; gap: var(--doc-gap-2); padding: 6px var(--doc-gap-2); border: 0; border-radius: 4px; background: none; font-size: 13px; text-align: left; color: #334155; }
+.symbol-set { display: flex; justify-content: space-between; gap: var(--doc-gap-2); padding: var(--doc-gap-1) var(--doc-gap-2); border: 0; border-radius: 4px; background: none; font-size: 13px; text-align: left; color: #334155; }
 .symbol-set span { color: var(--muted); font-size: 11px; }
 .symbol-set:hover { background: #f4f7fd; }
 .symbol-set.on { background: #edf2fc; color: var(--accent-doc); font-weight: 600; }
