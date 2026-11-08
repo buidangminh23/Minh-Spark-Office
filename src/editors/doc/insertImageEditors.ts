@@ -13,7 +13,7 @@ const parseMeta = (raw: unknown) => {
 NODE_EDITORS.image = (ctx, node, pos) => {
   const meta = parseMeta(node.attrs.meta);
   if (!meta?.kind) return false;
-  if (meta.kind === 'smartart' || meta.kind === 'wordart' || meta.kind === 'model3d') {
+  if (meta.kind === 'smartart' || meta.kind === 'wordart' || meta.kind === 'model3d' || meta.kind === 'chart') {
     ctx.setEditing({ pos, attrs: { meta } });
     ctx.openDialog(meta.kind);
     return true;

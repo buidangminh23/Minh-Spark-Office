@@ -137,8 +137,8 @@ export default function InsertTab() {
         </Dropdown>
         <Big icon={<Smile size={22} color="#d98e04" />} label="Biểu tượng" title="Chèn biểu tượng, đổi màu và kích thước" onClick={() => ctx.openDialog('icons')} />
         <Big icon={<Box size={22} color="#7c3aed" />} label="Mô hình 3D" title="Khối 3D hoặc tệp .obj, .stl, xoay rồi chèn thành ảnh" onClick={() => { ctx.setEditing(null); ctx.openDialog('model3d'); }} />
-        <Big icon={<Network size={22} color="#107c41" />} label="SmartArt" title="Sơ đồ danh sách, quy trình, chu kỳ, phân cấp, quan hệ, ma trận, kim tự tháp" onClick={() => { ctx.setEditing(null); ctx.openDialog('smartart'); }} />
-        <Big icon={<BarChart3 size={22} color="#d98e04" />} label="Biểu đồ" title="Tạo biểu đồ cột, đường hoặc tròn" onClick={() => ctx.openDialog('chart')} />
+        <Big icon={<Network size={22} color="#107c41" />} label="SmartArt" title="22 bố cục: danh sách, quy trình, chu kỳ, phân cấp, quan hệ, ma trận, kim tự tháp, dòng thời gian, phễu, toả tròn, bánh răng…" onClick={() => { ctx.setEditing(null); ctx.openDialog('smartart'); }} />
+        <Big icon={<BarChart3 size={22} color="#d98e04" />} label="Biểu đồ" title="Hơn 30 loại biểu đồ: cột, thanh, đường, vùng, tròn, phân tán, bong bóng, cổ phiếu, Pareto, hộp và râu, Gantt, đồng hồ đo…" onClick={() => { ctx.setEditing(null); ctx.openDialog('chart'); }} />
         <Dropdown large title="Chụp màn hình" trigger={<><Monitor size={22} color="#2b579a" /><span>Chụp màn hình</span></>}>
           {(close) => (
             <>

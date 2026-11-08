@@ -32,6 +32,7 @@ export function ShapeGallery({ onPick }: { onPick: (shape: ShapePick) => void })
         <label>Viền <input type="color" value={stroke} onChange={(e) => setStroke(e.target.value)} /></label>
         <input className="text-field insert-shape-text" placeholder="Chữ trong hình (tuỳ chọn)" aria-label="Chữ trong hình" value={text} onChange={(e) => setText(e.target.value)} />
       </div>
+      <div className="insert-shape-scroll">
       {SHAPE_GROUPS.map((group) => (
         <div key={group}>
           <div className="ribbon-menu-heading">{group}</div>
@@ -44,6 +45,7 @@ export function ShapeGallery({ onPick }: { onPick: (shape: ShapePick) => void })
           </div>
         </div>
       ))}
+      </div>
     </div>
   );
 }

@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
-import { Activity, AlertTriangle, Archive, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Award, Banknote, BarChart3, Battery, Bike, Bookmark, BookOpen, Box, Briefcase, Building2, Calendar, Camera, Car, Check, Clock, Cloud, Code, Coffee, Cpu, CreditCard, Database, DollarSign, Download, Droplets, Factory, File, FileText, Flag, Flame, Folder, Gift, Globe, GraduationCap, Hammer, Heart, Home, Image as ImageIcon, Info, Key, Laptop, Leaf, Lightbulb, Link2, Lock, Mail, MapPin, MessageCircle, Mic, Monitor, Moon, Music, Network, Pencil, Phone, Plane, Plug, Printer, Save, Search, Send, Server, Settings, Share2, Shield, Ship, ShoppingCart, Smartphone, Smile, Sparkles, Star, Sun, Tag, Target, ThumbsUp, Train, Trash2, TreePine, TrendingDown, TrendingUp, Trophy, Truck, Type, Umbrella, Unlock, Upload, User, Users, Utensils, Video, Wallet, Wifi, Wrench, X, Zap } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Box, Network, Type, Upload } from 'lucide-react';
 import { pickFile } from '../../../../lib/download';
 import { useDoc } from '../../DocContext';
 import { insertMetaImage } from '../../insertActions';
-import { normalizeMesh, parseObj, parseStl, primitiveMesh, PRIMITIVES, renderMesh, type Mesh, type Primitive } from '../../insertModel3d';
+import { ICON_CATEGORIES, ICONS, searchIcons, type IconEntry } from '../../insertIcons';
+import { normalizeMesh, parseObj, parseStl, primitiveMesh, PRIMITIVE_GROUPS, PRIMITIVES, renderMesh, type Mesh, type Primitive } from '../../insertModel3d';
 import { parseItems, SMARTART_LAYOUTS, SMARTART_PALETTES, smartArtDataUrl, type SmartArtLayout } from '../../insertSmartArt';
 import { WORDART_FONTS, WORDART_PRESETS, WORDART_TRANSFORMS, wordArtDataUrl, type WordArtTransform } from '../../insertWordArt';
 import Modal from '../Modal';
@@ -15,6 +16,7 @@ export function SmartArtDialog({ onClose }: { onClose: () => void }) {
   const [text, setText] = useState(meta?.text ?? SMARTART_LAYOUTS.find((item) => item.id === 'process')!.sample);
   const [palette, setPalette] = useState(meta?.palette ?? 'blue');
   const preview = useMemo(() => smartArtDataUrl({ layout, text, palette }), [layout, text, palette]);
+  const thumbs = useMemo(() => SMARTART_LAYOUTS.map((item) => ({ ...item, src: smartArtDataUrl({ layout: item.id, text: item.sample, palette }) })), [palette]);
   const close = () => { ctx.setEditing(null); onClose(); };
   const pickLayout = (id: SmartArtLayout) => {
     const current = SMARTART_LAYOUTS.find((item) => item.id === layout);
@@ -29,8 +31,10 @@ export function SmartArtDialog({ onClose }: { onClose: () => void }) {
     <Modal title={ctx.editing ? 'Sửa sơ đồ SmartArt' : 'Chèn sơ đồ SmartArt'} subtitle="Mỗi dòng là một mục, thụt vào hai dấu cách để tạo mục con. Nhấp đúp sơ đồ để sửa lại." icon={<Network size={20} />} onClose={close} width={900} actions={<><button className="btn" onClick={close}>Huỷ</button><button className="btn btn-primary" disabled={!parseItems(text).length} onClick={apply}>{ctx.editing ? 'Lưu' : 'Chèn'}</button></>}>
       <div className="insert-graphic-editor">
         <div className="insert-graphic-form">
-          <div className="insert-layout-grid">
-            {SMARTART_LAYOUTS.map((item) => <button key={item.id} type="button" className={`btn snippet ${layout === item.id ? 'btn-primary' : ''}`} onClick={() => pickLayout(item.id)}>{item.label}</button>)}
+          <div className="insert-thumb-scroll">
+            <div className="insert-thumb-grid">
+              {thumbs.map((item) => <button key={item.id} type="button" className={`insert-thumb ${layout === item.id ? 'on' : ''}`} title={item.label} onClick={() => pickLayout(item.id)}><img src={item.src} alt="" /><span>{item.label}</span></button>)}
+            </div>
           </div>
           <label className="field"><span className="field-label">Màu</span><select className="text-field" value={palette} onChange={(e) => setPalette(e.target.value)}>{SMARTART_PALETTES.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
           <label className="field"><span className="field-label">Nội dung</span><textarea className="text-field insert-outline-input" rows={10} value={text} onChange={(e) => setText(e.target.value)} /></label>
@@ -72,43 +76,46 @@ export function WordArtDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
-const ICONS: [string, ComponentType<Record<string, unknown>>][] = ([
-  ['nha trang chu', Home], ['nguoi tai khoan', User], ['nhom nhieu nguoi', Users], ['thu email', Mail], ['dien thoai goi', Phone], ['dia diem ban do', MapPin], ['lich ngay', Calendar], ['dong ho gio', Clock], ['sao danh gia', Star], ['tim yeu thich', Heart], ['dau tich dung', Check], ['dau nhan dong', X], ['canh bao', AlertTriangle], ['thong tin', Info], ['cai dat', Settings], ['tim kiem', Search], ['khoa bao mat', Lock], ['mo khoa', Unlock], ['chia khoa', Key], ['khien bao ve', Shield], ['qua dia cau mang', Globe], ['lien ket', Link2], ['anh hinh', ImageIcon], ['may anh', Camera], ['video phim', Video], ['nhac am nhac', Music], ['micro', Mic], ['tep', File], ['tai lieu van ban', FileText], ['thu muc', Folder], ['luu tru', Archive], ['tai xuong', Download], ['tai len', Upload], ['chia se', Share2], ['gui', Send], ['may in', Printer], ['luu', Save], ['thung rac xoa', Trash2], ['but sua', Pencil], ['danh dau', Bookmark], ['co', Flag], ['nhan the', Tag], ['qua tang', Gift], ['gio hang', ShoppingCart], ['the ngan hang', CreditCard], ['do la tien', DollarSign], ['tien giay', Banknote], ['vi', Wallet], ['tang truong', TrendingUp], ['suy giam', TrendingDown], ['bieu do cot', BarChart3], ['hoat dong', Activity], ['muc tieu', Target], ['huy chuong', Award], ['cup', Trophy], ['cap cong tac', Briefcase], ['toa nha cong ty', Building2], ['nha may', Factory], ['xe tai van chuyen', Truck], ['o to', Car], ['may bay', Plane], ['tau thuy', Ship], ['tau hoa', Train], ['xe dap', Bike], ['co le sua chua', Wrench], ['bua', Hammer], ['set dien', Zap], ['pin', Battery], ['phich cam', Plug], ['bong den y tuong', Lightbulb], ['mat troi', Sun], ['mat trang', Moon], ['may', Cloud], ['o du', Umbrella], ['la cay', Leaf], ['cay thong', TreePine], ['giot nuoc', Droplets], ['lua', Flame], ['ca phe', Coffee], ['an uong', Utensils], ['sach', BookOpen], ['tot nghiep hoc', GraduationCap], ['may tinh xach tay', Laptop], ['dien thoai di dong', Smartphone], ['man hinh', Monitor], ['wifi', Wifi], ['co so du lieu', Database], ['may chu', Server], ['chip', Cpu], ['ma lap trinh', Code], ['mui ten phai', ArrowRight], ['mui ten trai', ArrowLeft], ['mui ten len', ArrowUp], ['mui ten xuong', ArrowDown], ['thich', ThumbsUp], ['mat cuoi', Smile], ['tin nhan', MessageCircle], ['lap lanh', Sparkles],
-] as unknown) as [string, ComponentType<Record<string, unknown>>][];
-
 const ICON_COLORS = ['#1f2430', '#2b579a', '#107c41', '#d7473c', '#d98e04', '#7c3aed', '#0891b2', '#64748b'];
-const fold = (value: string) => value.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').toLowerCase();
 
 export function IconsDialog({ onClose }: { onClose: () => void }) {
   const ctx = useDoc();
   const [query, setQuery] = useState('');
-  const [selected, setSelected] = useState(0);
+  const [category, setCategory] = useState<string | null>(null);
+  const [selected, setSelected] = useState<IconEntry>(ICONS[0]);
   const [color, setColor] = useState(ICON_COLORS[1]);
   const [size, setSize] = useState(64);
   const [stroke, setStroke] = useState(2);
+  const [filled, setFilled] = useState(false);
   const preview = useRef<HTMLDivElement | null>(null);
-  const list = ICONS.map((item, index) => ({ name: item[0], Icon: item[1], index })).filter((item) => item.name.includes(fold(query)));
-  const Selected = ICONS[selected][1];
+  const list = useMemo(() => searchIcons(query, category), [query, category]);
+  const Selected = selected.Icon;
   const insert = () => {
     const svg = preview.current?.querySelector('svg');
     if (!svg) return;
     const clone = svg.cloneNode(true) as SVGElement;
     clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-    insertMetaImage(ctx, { src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(clone.outerHTML)}`, alt: ICONS[selected][0], width: `${size}px` });
+    insertMetaImage(ctx, { src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(clone.outerHTML)}`, alt: selected.name, width: `${size}px` });
     onClose();
   };
   return (
-    <Modal title="Chèn biểu tượng" subtitle="Tìm bằng tiếng Việt không dấu hoặc có dấu." icon={<Box size={20} />} onClose={onClose} width={720} actions={<><button className="btn" onClick={onClose}>Huỷ</button><button className="btn btn-primary" onClick={insert}>Chèn</button></>}>
+    <Modal title="Chèn biểu tượng" subtitle={`${ICONS.length} biểu tượng. Tìm bằng tiếng Việt có dấu hoặc không dấu.`} icon={<Box size={20} />} onClose={onClose} width={820} actions={<><button className="btn" onClick={onClose}>Huỷ</button><button className="btn btn-primary" onClick={insert}>Chèn</button></>}>
       <input className="text-field" placeholder="Tìm biểu tượng, ví dụ: điện thoại" autoFocus value={query} onChange={(e) => setQuery(e.target.value)} />
+      <div className="insert-icon-cats">
+        <button type="button" className={`insert-chip ${category === null ? 'on' : ''}`} onClick={() => setCategory(null)}>Tất cả</button>
+        {ICON_CATEGORIES.map((item) => <button key={item} type="button" className={`insert-chip ${category === item ? 'on' : ''}`} onClick={() => setCategory(item)}>{item}</button>)}
+      </div>
       <div className="insert-icon-layout">
         <div className="insert-icon-grid">
           {list.length === 0 && <div className="panel-empty">Không có biểu tượng nào khớp.</div>}
-          {list.map(({ name, Icon, index }) => <button key={name} type="button" className={`insert-icon-cell ${selected === index ? 'on' : ''}`} title={name} aria-label={name} onClick={() => setSelected(index)}><Icon size={22} /></button>)}
+          {list.map((item) => <button key={`${item.category}-${item.name}`} type="button" className={`insert-icon-cell ${selected === item ? 'on' : ''}`} title={item.name} aria-label={item.name} onClick={() => setSelected(item)}><item.Icon size={22} /></button>)}
         </div>
         <div className="insert-icon-side">
-          <div className="insert-icon-preview" ref={preview}><Selected size={size} color={color} strokeWidth={stroke} /></div>
+          <div className="insert-icon-preview" ref={preview}><Selected size={size} color={color} strokeWidth={stroke} fill={filled ? color : 'none'} fillOpacity={filled ? 0.22 : undefined} /></div>
+          <div className="muted">{selected.name}</div>
           <div className="pen-toolbar">{ICON_COLORS.map((item) => <button key={item} type="button" className={`color-swatch ${color === item ? 'selected' : ''}`} style={{ background: item }} aria-label={item} onClick={() => setColor(item)} />)}</div>
           <label className="field"><span className="field-label">Màu khác</span><input className="text-field color-field" type="color" value={color} onChange={(e) => setColor(e.target.value)} /></label>
+          <label className="insert-check"><input type="checkbox" checked={filled} onChange={(e) => setFilled(e.target.checked)} /> Tô nền nhạt</label>
           <label className="field"><span className="field-label">Kích thước: {size} px</span><input type="range" min={16} max={200} step={4} value={size} onChange={(e) => setSize(Number(e.target.value))} /></label>
           <label className="field"><span className="field-label">Độ dày nét: {stroke}</span><input type="range" min={1} max={4} step={0.5} value={stroke} onChange={(e) => setStroke(Number(e.target.value))} /></label>
         </div>
@@ -116,6 +123,18 @@ export function IconsDialog({ onClose }: { onClose: () => void }) {
     </Modal>
   );
 }
+
+const MODEL_COLORS = ['#5b8def', '#2b579a', '#107c41', '#d7473c', '#d98e04', '#7c3aed', '#0891b2', '#94a3b8'];
+
+const modelThumbs = (color: string) => {
+  const canvas = document.createElement('canvas');
+  canvas.width = 120;
+  canvas.height = 90;
+  return Object.fromEntries(PRIMITIVES.map((item) => {
+    renderMesh(canvas, primitiveMesh(item.id), { rx: 20, ry: 35, rz: 0, color, zoom: 1 });
+    return [item.id, canvas.toDataURL('image/png')];
+  })) as Record<Primitive, string>;
+};
 
 const CANVAS_W = 720;
 const CANVAS_H = 480;
@@ -133,6 +152,7 @@ export function Model3dDialog({ onClose }: { onClose: () => void }) {
   const canvas = useRef<HTMLCanvasElement | null>(null);
   const drag = useRef<{ x: number; y: number; rx: number; ry: number } | null>(null);
   const mesh = useMemo(() => custom?.mesh ?? primitiveMesh(primitive), [custom, primitive]);
+  const thumbs = useMemo(() => modelThumbs(color), [color]);
   useEffect(() => {
     if (canvas.current) renderMesh(canvas.current, mesh, { rx, ry, rz, color, zoom });
   }, [mesh, rx, ry, rz, color, zoom]);
@@ -158,9 +178,17 @@ export function Model3dDialog({ onClose }: { onClose: () => void }) {
     <Modal title="Mô hình 3D" subtitle="Kéo trên khung vẽ để xoay. Chèn thành ảnh ở góc nhìn đang chọn." icon={<Box size={20} />} onClose={close} width={920} actions={<><button className="btn" onClick={close}>Huỷ</button><button className="btn btn-primary" onClick={apply}>{ctx.editing ? 'Lưu' : 'Chèn'}</button></>}>
       <div className="insert-graphic-editor">
         <div className="insert-graphic-form">
-          <div className="insert-layout-grid">
-            {PRIMITIVES.map((item) => <button key={item.id} type="button" className={`btn snippet ${!custom && primitive === item.id ? 'btn-primary' : ''}`} onClick={() => { setCustom(null); setPrimitive(item.id); }}>{item.label}</button>)}
+          <div className="insert-thumb-scroll">
+            {PRIMITIVE_GROUPS.map((group) => (
+              <div key={group.label}>
+                <div className="ribbon-menu-heading">{group.label}</div>
+                <div className="insert-thumb-grid">
+                  {group.items.map((item) => <button key={item.id} type="button" className={`insert-thumb ${!custom && primitive === item.id ? 'on' : ''}`} title={item.label} onClick={() => { setCustom(null); setPrimitive(item.id); }}><img src={thumbs[item.id]} alt="" /><span>{item.label}</span></button>)}
+                </div>
+              </div>
+            ))}
           </div>
+          <div className="pen-toolbar">{MODEL_COLORS.map((item) => <button key={item} type="button" className={`color-swatch ${color === item ? 'selected' : ''}`} style={{ background: item }} aria-label={item} onClick={() => setColor(item)} />)}</div>
           <button type="button" className="btn" onClick={() => void openFile()}><Upload size={14} /> Mở tệp .obj hoặc .stl</button>
           {custom && <div className="muted">Đang xem: {custom.name} ({custom.mesh.faces.length.toLocaleString('vi-VN')} mặt)</div>}
           <label className="field"><span className="field-label">Màu</span><input className="text-field color-field" type="color" value={color} onChange={(e) => setColor(e.target.value)} /></label>

@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { BarChart3, Calculator, Keyboard, LayoutTemplate, Omega, PenTool } from 'lucide-react';
-import { readAsDataUrl } from '../../../lib/download';
+import { useMemo, useRef, useState } from 'react';
+import { Calculator, Keyboard, LayoutTemplate, Omega, PenTool } from 'lucide-react';
 import { useDoc } from '../DocContext';
-import { drawChart, textStats } from '../docTools';
+import { textStats } from '../docTools';
+import { loadRecentSymbols, pushRecentSymbol } from '../insertActions';
+import { searchSymbols, SYMBOL_SETS, symbolCode } from '../insertSymbols';
 import { DOC_TEMPLATES } from '../docTemplates';
 import Modal from './Modal';
 
@@ -28,33 +29,36 @@ export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
-const SYMBOL_SETS: Record<string, string[]> = {
-  'Thông dụng': ['©', '®', '™', '§', '¶', '†', '‡', '•', '…', '–', '—', '«', '»', '“', '”', '‘', '’', '°', '№', '℃'],
-  'Tiền tệ': ['₫', '$', '€', '£', '¥', '₩', '₹', '₽', '¢', '₿'],
-  'Toán học': [
-    '±', '∓', '×', '÷', '·', '≠', '≈', '≡', '≤', '≥', '∞', '√', '∛', '∜',
-    '∑', '∏', '∫', '∬', '∭', '∮', '∆', '∂', '∇', 'π', 'µ', 'Ω', 'α', 'β',
-    'γ', 'δ', 'θ', 'λ', 'σ', 'ω', '½', '¼', '¾', '²', '³', '‰', '°', '∠',
-    '⊥', '∥', '∈', '∉', '⊂', '⊆', '⊃', '⊇', '∪', '∩', '∅', '∀', '∃', '¬',
-    '∧', '∨', '⇒', '⇔', '→', '←', '↔', 'ℝ', 'ℕ', 'ℤ', 'ℚ', 'ℂ', '⋮', '⋯', '⋱'
-  ],
-  'Mũi tên': ['→', '←', '↑', '↓', '↔', '↕', '⇒', '⇐', '⇔', '➜', '↗', '↘'],
-  'Hình': ['★', '☆', '●', '○', '■', '□', '▲', '△', '◆', '◇', '✔', '✘', '☑', '☐', '♥', '♦', '♣', '♠'],
-  'Biểu tượng': ['😀', '😊', '😂', '😍', '🤔', '👍', '👏', '🙏', '🎉', '🔥', '✅', '❌', '⚠️', '📌', '📎', '📅', '📞', '📧', '💡', '🚀', '⭐', '❤️', '🇻🇳'],
-};
-
 export function SymbolsDialog({ onClose }: { onClose: () => void }) {
   const { editor } = useDoc();
-  const [tab, setTab] = useState(Object.keys(SYMBOL_SETS)[0]);
-  const [code, setCode] = useState('');
-  const insert = (text: string) => editor.chain().focus().insertContent(text).run();
+  const [tab, setTab] = useState(SYMBOL_SETS[0].name);
+  const [query, setQuery] = useState('');
+  const [hover, setHover] = useState<string | null>(null);
+  const [recent, setRecent] = useState(loadRecentSymbols);
+  const list = query.trim() ? searchSymbols(query) : SYMBOL_SETS.find((set) => set.name === tab)?.symbols ?? [];
+  const insert = (text: string) => {
+    editor.chain().focus().insertContent(text).run();
+    pushRecentSymbol(text);
+    setRecent(loadRecentSymbols());
+  };
+  const shown = hover ?? list[0] ?? '';
   return (
-    <Modal title="Ký hiệu & biểu tượng" icon={<Omega size={20} />} onClose={onClose} width={520}>
-      <div className="symbol-tabs">{Object.keys(SYMBOL_SETS).map((name) => <button key={name} type="button" className={`comments-tab ${tab === name ? 'active' : ''}`} onClick={() => setTab(name)}>{name}</button>)}</div>
-      <div className="symbol-grid">{SYMBOL_SETS[tab].map((s) => <button key={s} type="button" className="symbol-cell" title={`U+${s.codePointAt(0)?.toString(16).toUpperCase()}`} onClick={() => insert(s)}>{s}</button>)}</div>
-      <div className="symbol-code">
-        <input className="text-field" placeholder="Mã Unicode, ví dụ 2605" value={code} onChange={(e) => setCode(e.target.value.replace(/[^0-9a-f]/gi, ''))} />
-        <button className="btn" disabled={!code} onClick={() => { const n = parseInt(code, 16); if (n > 0 && n <= 0x10ffff) insert(String.fromCodePoint(n)); }}>Chèn {code && (() => { try { return String.fromCodePoint(parseInt(code, 16)); } catch { return ''; } })()}</button>
+    <Modal title="Ký hiệu & biểu tượng" subtitle="Nhấp để chèn. Tìm bằng chính ký tự hoặc mã Unicode, ví dụ 2605." icon={<Omega size={20} />} onClose={onClose} width={860}>
+      <div className="symbol-recent">{recent.map((s) => <button key={s} type="button" className="symbol-cell" title={symbolCode(s)} onMouseEnter={() => setHover(s)} onClick={() => insert(s)}>{s}</button>)}</div>
+      <div className="symbol-layout">
+        <div className="symbol-sets">
+          <input className="text-field" placeholder="Tìm ký hiệu hoặc mã U+…" value={query} onChange={(e) => setQuery(e.target.value)} />
+          {SYMBOL_SETS.map((set) => <button key={set.name} type="button" className={`symbol-set ${!query && tab === set.name ? 'on' : ''}`} onClick={() => { setQuery(''); setTab(set.name); }}>{set.name}<span>{set.symbols.length}</span></button>)}
+        </div>
+        <div className="symbol-grid symbol-grid-scroll" onMouseLeave={() => setHover(null)}>
+          {list.length === 0 && <div className="panel-empty">Không có ký hiệu nào khớp.</div>}
+          {list.map((s, i) => <button key={`${s}-${i}`} type="button" className="symbol-cell" title={symbolCode(s)} onMouseEnter={() => setHover(s)} onClick={() => insert(s)}>{s}</button>)}
+        </div>
+        <div className="symbol-preview">
+          <div className="symbol-preview-glyph">{shown}</div>
+          <code>{shown ? symbolCode(shown) : ''}</code>
+          <button className="btn btn-primary" disabled={!shown} onClick={() => insert(shown)}>Chèn</button>
+        </div>
       </div>
     </Modal>
   );
@@ -113,37 +117,6 @@ export function TemplatesDialog({ onClose }: { onClose: () => void }) {
             </div>
           </div>
         ))}
-      </div>
-    </Modal>
-  );
-}
-
-export function ChartDialog({ onClose }: { onClose: () => void }) {
-  const ctx = useDoc();
-  const [kind, setKind] = useState<'bar' | 'line' | 'pie'>('bar');
-  const [title, setTitle] = useState('Doanh thu theo quý');
-  const [raw, setRaw] = useState('Quý I, 120\nQuý II, 150\nQuý III, 135\nQuý IV, 190');
-  const [preview, setPreview] = useState('');
-  const data = useMemo(() => raw.split('\n').map((line) => {
-    const idx = Math.max(line.lastIndexOf(','), line.lastIndexOf('\t'), line.lastIndexOf(';'));
-    return { label: line.slice(0, idx).trim(), value: parseFloat(line.slice(idx + 1).replace(',', '.')) };
-  }).filter((d) => d.label && Number.isFinite(d.value)), [raw]);
-  useEffect(() => {
-    let alive = true;
-    void drawChart(kind, title, data).then(async (blob) => { if (blob && alive) setPreview(await readAsDataUrl(blob)); });
-    return () => { alive = false; };
-  }, [kind, title, data]);
-  return (
-    <Modal title="Chèn biểu đồ" icon={<BarChart3 size={20} />} onClose={onClose} width={760} actions={<><button className="btn" onClick={onClose}>Huỷ</button><button className="btn btn-primary" disabled={!data.length || !preview} onClick={() => { ctx.editor.chain().focus().setImage({ src: preview, alt: title }).run(); onClose(); }}>Chèn biểu đồ</button></>}>
-      <div className="chart-editor">
-        <div className="chart-form">
-          <label className="field"><span className="field-label">Loại</span>
-            <select className="text-field" value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}><option value="bar">Cột</option><option value="line">Đường</option><option value="pie">Tròn</option></select>
-          </label>
-          <label className="field"><span className="field-label">Tiêu đề</span><input className="text-field" value={title} onChange={(e) => setTitle(e.target.value)} /></label>
-          <label className="field"><span className="field-label">Dữ liệu (mỗi dòng: nhãn, giá trị) — dán thẳng từ Excel được</span><textarea className="text-field" rows={8} value={raw} onChange={(e) => setRaw(e.target.value)} /></label>
-        </div>
-        <div className="chart-preview">{preview ? <img src={preview} alt="Xem trước biểu đồ" /> : 'Nhập dữ liệu để xem trước'}</div>
       </div>
     </Modal>
   );

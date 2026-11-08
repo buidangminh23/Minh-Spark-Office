@@ -213,7 +213,7 @@ export function SlashMenu() {
     { id: 'todo', label: 'Việc cần làm', keywords: 'todo checklist task viec', icon: <ListTodo size={15} />, run: () => editor.chain().focus().toggleTaskList().run() },
     { id: 'table', label: 'Bảng 3×3', keywords: 'table bang', icon: <Table size={15} />, run: () => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
     { id: 'image', label: 'Ảnh', keywords: 'image anh hinh picture', icon: <ImageIcon size={15} />, run: () => void insertImageFromDevice(ctx) },
-    { id: 'chart', label: 'Biểu đồ', keywords: 'chart bieu do', icon: <BarChart3 size={15} />, run: () => ctx.openDialog('chart') },
+    { id: 'chart', label: 'Biểu đồ', keywords: 'chart bieu do', icon: <BarChart3 size={15} />, run: () => { ctx.setEditing(null); ctx.openDialog('chart'); } },
     { id: 'quote', label: 'Trích dẫn', keywords: 'quote trich dan', icon: <Quote size={15} />, run: () => editor.chain().focus().toggleBlockquote().run() },
     { id: 'code', label: 'Khối mã', keywords: 'code ma', icon: <Code size={15} />, run: () => editor.chain().focus().toggleCodeBlock().run() },
     { id: 'divider', label: 'Đường kẻ ngang', keywords: 'divider hr duong ke line', icon: <Minus size={15} />, run: () => editor.chain().focus().setHorizontalRule().run() },

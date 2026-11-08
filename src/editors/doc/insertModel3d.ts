@@ -1,11 +1,18 @@
 export type Vec3 = [number, number, number];
 export type Mesh = { vertices: Vec3[]; faces: number[][] };
-export type Primitive = 'cube' | 'pyramid' | 'cylinder' | 'cone' | 'sphere' | 'torus';
+export type Primitive = 'cube' | 'cuboid' | 'pyramid' | 'pyramid3' | 'pyramid6' | 'cylinder' | 'cone' | 'frustum' | 'sphere' | 'hemisphere' | 'capsule' | 'egg' | 'torus' | 'tube'
+  | 'prism3' | 'prism5' | 'prism6' | 'prism8' | 'tetrahedron' | 'octahedron' | 'icosahedron' | 'dodecahedron' | 'gem' | 'cup' | 'bowl'
+  | 'star' | 'heart' | 'arrow' | 'cross' | 'house' | 'stairs' | 'gear' | 'lshape' | 'tshape';
 
-export const PRIMITIVES: { id: Primitive; label: string }[] = [
-  { id: 'cube', label: 'Khối lập phương' }, { id: 'pyramid', label: 'Khối chóp' }, { id: 'cylinder', label: 'Khối trụ' },
-  { id: 'cone', label: 'Khối nón' }, { id: 'sphere', label: 'Khối cầu' }, { id: 'torus', label: 'Khối xuyến' },
+export const PRIMITIVE_GROUPS: { label: string; items: { id: Primitive; label: string }[] }[] = [
+  { label: 'Khối cơ bản', items: [{ id: 'cube', label: 'Lập phương' }, { id: 'cuboid', label: 'Hộp chữ nhật' }, { id: 'sphere', label: 'Khối cầu' }, { id: 'hemisphere', label: 'Bán cầu' }, { id: 'cylinder', label: 'Khối trụ' }, { id: 'cone', label: 'Khối nón' }, { id: 'frustum', label: 'Nón cụt' }, { id: 'torus', label: 'Khối xuyến' }, { id: 'tube', label: 'Ống tròn' }, { id: 'capsule', label: 'Viên nang' }, { id: 'egg', label: 'Quả trứng' }] },
+  { label: 'Lăng trụ và chóp', items: [{ id: 'prism3', label: 'Lăng trụ tam giác' }, { id: 'prism5', label: 'Lăng trụ ngũ giác' }, { id: 'prism6', label: 'Lăng trụ lục giác' }, { id: 'prism8', label: 'Lăng trụ bát giác' }, { id: 'pyramid', label: 'Chóp tứ giác' }, { id: 'pyramid3', label: 'Chóp tam giác' }, { id: 'pyramid6', label: 'Chóp lục giác' }] },
+  { label: 'Đa diện đều', items: [{ id: 'tetrahedron', label: 'Tứ diện' }, { id: 'octahedron', label: 'Bát diện' }, { id: 'dodecahedron', label: 'Thập nhị diện' }, { id: 'icosahedron', label: 'Nhị thập diện' }, { id: 'gem', label: 'Viên kim cương' }] },
+  { label: 'Hình nổi', items: [{ id: 'star', label: 'Ngôi sao' }, { id: 'heart', label: 'Trái tim' }, { id: 'arrow', label: 'Mũi tên' }, { id: 'cross', label: 'Chữ thập' }, { id: 'lshape', label: 'Thanh chữ L' }, { id: 'tshape', label: 'Thanh chữ T' }, { id: 'gear', label: 'Bánh răng' }] },
+  { label: 'Đồ vật', items: [{ id: 'house', label: 'Ngôi nhà' }, { id: 'stairs', label: 'Cầu thang' }, { id: 'cup', label: 'Cái cốc' }, { id: 'bowl', label: 'Cái bát' }] },
 ];
+
+export const PRIMITIVES = PRIMITIVE_GROUPS.flatMap((group) => group.items);
 
 const SEGMENTS = 32;
 
@@ -19,23 +26,23 @@ const pyramid = (): Mesh => ({
   faces: [[0, 1, 2, 3], [0, 4, 1], [1, 4, 2], [2, 4, 3], [3, 4, 0]],
 });
 
-const lathe = (profile: [number, number][], closedTop: boolean, closedBottom: boolean): Mesh => {
+const lathe = (profile: [number, number][], closedTop: boolean, closedBottom: boolean, segments = SEGMENTS): Mesh => {
   const vertices: Vec3[] = [];
   const faces: number[][] = [];
   for (const [radius, y] of profile) {
-    for (let i = 0; i < SEGMENTS; i++) {
-      const a = (i / SEGMENTS) * Math.PI * 2;
+    for (let i = 0; i < segments; i++) {
+      const a = (i / segments) * Math.PI * 2;
       vertices.push([radius * Math.cos(a), y, radius * Math.sin(a)]);
     }
   }
   for (let r = 0; r < profile.length - 1; r++) {
-    for (let i = 0; i < SEGMENTS; i++) {
-      const next = (i + 1) % SEGMENTS;
-      faces.push([r * SEGMENTS + i, r * SEGMENTS + next, (r + 1) * SEGMENTS + next, (r + 1) * SEGMENTS + i]);
+    for (let i = 0; i < segments; i++) {
+      const next = (i + 1) % segments;
+      faces.push([r * segments + i, r * segments + next, (r + 1) * segments + next, (r + 1) * segments + i]);
     }
   }
-  if (closedBottom) faces.push(Array.from({ length: SEGMENTS }, (_, i) => SEGMENTS - 1 - i));
-  if (closedTop) faces.push(Array.from({ length: SEGMENTS }, (_, i) => (profile.length - 1) * SEGMENTS + i));
+  if (closedBottom) faces.push(Array.from({ length: segments }, (_, i) => segments - 1 - i));
+  if (closedTop) faces.push(Array.from({ length: segments }, (_, i) => (profile.length - 1) * segments + i));
   return { vertices, faces };
 };
 
@@ -62,18 +69,100 @@ const torus = (): Mesh => {
   return { vertices, faces };
 };
 
+const arcProfile = (from: number, to: number, steps: number, rx = 1, ry = 1, dy = 0): [number, number][] => Array.from({ length: steps + 1 }, (_, i) => {
+  const a = from + ((to - from) * i) / steps;
+  return [Math.max(0.001, Math.cos(a) * rx), Math.sin(a) * ry + dy];
+});
+
+const extrude = (outline: [number, number][], depth = 0.5): Mesh => {
+  const n = outline.length;
+  const vertices: Vec3[] = [...outline.map(([x, y]) => [x, y, depth] as Vec3), ...outline.map(([x, y]) => [x, y, -depth] as Vec3)];
+  const faces: number[][] = [Array.from({ length: n }, (_, i) => i), Array.from({ length: n }, (_, i) => 2 * n - 1 - i)];
+  for (let i = 0; i < n; i++) faces.push([i, (i + 1) % n, n + ((i + 1) % n), n + i]);
+  return { vertices, faces };
+};
+
+const starOutline = (points: number, outer: number, inner: number, rotation = Math.PI / 2): [number, number][] =>
+  Array.from({ length: points * 2 }, (_, i) => {
+    const r = i % 2 ? inner : outer;
+    const a = rotation + (i * Math.PI) / points;
+    return [r * Math.cos(a), r * Math.sin(a)];
+  });
+
+const heartOutline = (): [number, number][] => Array.from({ length: 48 }, (_, i) => {
+  const t = (i / 48) * Math.PI * 2;
+  return [(16 * Math.sin(t) ** 3) / 16, (13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t)) / 16];
+});
+
+const GEAR_TOOTH: [number, number][] = [[0, 0.78], [0.18, 1], [0.5, 1], [0.68, 0.78]];
+
+const gearOutline = (teeth = 12): [number, number][] => Array.from({ length: teeth }, (_, i) => GEAR_TOOTH.map(([offset, r]) => {
+  const a = ((i + offset) / teeth) * Math.PI * 2;
+  return [r * Math.cos(a), r * Math.sin(a)] as [number, number];
+})).flat();
+
+const cross = (a: Vec3, b: Vec3): Vec3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const dot = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+
+const icosahedron = (): Mesh => {
+  const t = (1 + Math.sqrt(5)) / 2;
+  return {
+    vertices: [[-1, t, 0], [1, t, 0], [-1, -t, 0], [1, -t, 0], [0, -1, t], [0, 1, t], [0, -1, -t], [0, 1, -t], [t, 0, -1], [t, 0, 1], [-t, 0, -1], [-t, 0, 1]],
+    faces: [[0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11], [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8], [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9], [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1]],
+  };
+};
+
+const dodecahedron = (): Mesh => {
+  const ico = icosahedron();
+  const centers = ico.faces.map((face) => face.reduce<Vec3>((sum, index) => [sum[0] + ico.vertices[index][0] / 3, sum[1] + ico.vertices[index][1] / 3, sum[2] + ico.vertices[index][2] / 3], [0, 0, 0]));
+  const faces = ico.vertices.map((axis, vi) => {
+    const u = cross(axis, Math.abs(axis[0]) < 0.9 * Math.hypot(...axis) ? [1, 0, 0] : [0, 1, 0]);
+    const v = cross(axis, u);
+    const angle = (fi: number) => Math.atan2(dot(centers[fi], v), dot(centers[fi], u));
+    return ico.faces.map((face, fi) => (face.includes(vi) ? fi : -1)).filter((fi) => fi >= 0).sort((p, q) => angle(p) - angle(q));
+  });
+  return { vertices: centers, faces };
+};
+
+const BUILDERS: Record<Primitive, () => Mesh> = {
+  cube,
+  cuboid: () => ({ ...cube(), vertices: cube().vertices.map(([x, y, z]) => [x * 1.5, y * 0.8, z] as Vec3) }),
+  pyramid,
+  pyramid3: () => lathe([[1, -1], [0.001, 1]], false, true, 3),
+  pyramid6: () => lathe([[1, -1], [0.001, 1]], false, true, 6),
+  cylinder: () => lathe([[1, -1], [1, 1]], true, true),
+  cone: () => lathe([[1, -1], [0.001, 1]], false, true),
+  frustum: () => lathe([[1, -1], [0.55, 1]], true, true),
+  sphere: () => lathe(arcProfile(-Math.PI / 2, Math.PI / 2, 16), false, false),
+  hemisphere: () => lathe(arcProfile(0, Math.PI / 2, 8, 1, 1, -0.5), false, true),
+  capsule: () => lathe([...arcProfile(-Math.PI / 2, 0, 8, 0.6, 0.6, -0.8), ...arcProfile(0, Math.PI / 2, 8, 0.6, 0.6, 0.8)], false, false),
+  egg: () => lathe(arcProfile(-Math.PI / 2, Math.PI / 2, 16).map(([r, y]) => [r * (0.78 - y * 0.12), y] as [number, number]), false, false),
+  torus,
+  tube: () => lathe([[1, -1], [1, 1], [0.65, 1], [0.65, -1], [1, -1]], false, false),
+  prism3: () => lathe([[1, -1], [1, 1]], true, true, 3),
+  prism5: () => lathe([[1, -1], [1, 1]], true, true, 5),
+  prism6: () => lathe([[1, -1], [1, 1]], true, true, 6),
+  prism8: () => lathe([[1, -1], [1, 1]], true, true, 8),
+  tetrahedron: () => ({ vertices: [[1, 1, 1], [-1, -1, 1], [-1, 1, -1], [1, -1, -1]], faces: [[0, 1, 2], [0, 3, 1], [0, 2, 3], [1, 3, 2]] }),
+  octahedron: () => ({ vertices: [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]], faces: [[0, 2, 4], [2, 1, 4], [1, 3, 4], [3, 0, 4], [2, 0, 5], [1, 2, 5], [3, 1, 5], [0, 3, 5]] }),
+  icosahedron,
+  dodecahedron,
+  gem: () => lathe([[0.001, -1.1], [1, 0.25], [0.62, 0.7]], true, false, 8),
+  cup: () => lathe([[0.001, -1], [0.62, -1], [0.78, 1], [0.7, 1], [0.56, -0.86], [0.001, -0.86]], false, false),
+  bowl: () => lathe([...arcProfile(-Math.PI / 2, 0, 10, 1, 0.8, 0.2), ...arcProfile(0, -Math.PI / 2, 10, 0.9, 0.7, 0.2)], false, false),
+  star: () => extrude(starOutline(5, 1, 0.42), 0.3),
+  heart: () => extrude(heartOutline(), 0.3),
+  arrow: () => extrude([[-1, -0.25], [0.2, -0.25], [0.2, -0.6], [1, 0], [0.2, 0.6], [0.2, 0.25], [-1, 0.25]], 0.25),
+  cross: () => extrude([[-0.3, -1], [0.3, -1], [0.3, -0.3], [1, -0.3], [1, 0.3], [0.3, 0.3], [0.3, 1], [-0.3, 1], [-0.3, 0.3], [-1, 0.3], [-1, -0.3], [-0.3, -0.3]], 0.3),
+  lshape: () => extrude([[-0.8, -1], [0.8, -1], [0.8, -0.5], [-0.3, -0.5], [-0.3, 1], [-0.8, 1]], 0.35),
+  tshape: () => extrude([[-1, 1], [1, 1], [1, 0.5], [0.25, 0.5], [0.25, -1], [-0.25, -1], [-0.25, 0.5], [-1, 0.5]], 0.35),
+  gear: () => extrude(gearOutline(), 0.25),
+  house: () => extrude([[-1, -1], [1, -1], [1, 0.2], [0, 1], [-1, 0.2]], 0.9),
+  stairs: () => extrude([[-1, -1], [1, -1], [1, 1], [0.5, 1], [0.5, 0.5], [0, 0.5], [0, 0], [-0.5, 0], [-0.5, -0.5], [-1, -0.5]], 0.7),
+};
+
 export function primitiveMesh(kind: Primitive): Mesh {
-  switch (kind) {
-    case 'pyramid': return pyramid();
-    case 'cylinder': return lathe([[1, -1], [1, 1]], true, true);
-    case 'cone': return lathe([[1, -1], [0.001, 1]], false, true);
-    case 'sphere': return lathe(Array.from({ length: 17 }, (_, i) => {
-      const a = -Math.PI / 2 + (i / 16) * Math.PI;
-      return [Math.max(0.001, Math.cos(a)), Math.sin(a)] as [number, number];
-    }), false, false);
-    case 'torus': return torus();
-    default: return cube();
-  }
+  return (BUILDERS[kind] ?? cube)();
 }
 
 export function parseObj(text: string): Mesh {
