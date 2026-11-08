@@ -6,12 +6,19 @@ const suiteNames: Record<FileKind, string> = {
   sheet: 'Minh Sheets',
   pdf: 'Minh PDF',
   slide: 'Minh Slides',
+  image: 'Minh Photos',
 };
 
 export function SuiteLogo({ kind, size = 28, decorative = true }: { kind: FileKind; size?: number; decorative?: boolean }) {
   return (
     <span className="suite-logo" style={{ width: size, height: size }} aria-hidden={decorative || undefined}>
-      <img src={suiteLogos[kind]} alt={decorative ? '' : suiteNames[kind]} width={1280} height={1280} draggable={false} />
+      <img
+        src={suiteLogos[kind]}
+        alt={decorative ? '' : suiteNames[kind]}
+        width={1280}
+        height={1280}
+        draggable={false}
+      />
     </span>
   );
 }

@@ -4,7 +4,7 @@ import type { JSONContent } from '@tiptap/react';
 import type { WorkbookData } from './sheetTypes';
 import type { PresentationData } from './slideTypes';
 
-export type FileKind = 'doc' | 'sheet' | 'pdf' | 'slide';
+export type FileKind = 'doc' | 'sheet' | 'pdf' | 'slide' | 'image';
 
 export type CommentItem = {
   id: string;
@@ -145,7 +145,21 @@ export type SlideContent = {
   presentation: PresentationData;
   comments?: CommentItem[];
 };
-export type FileContent = DocContent | SheetContent | PdfContent | SlideContent;
+export type ImageContent = {
+  kind: 'image';
+  imageDataUrl: string;
+  mimeType: string;
+  width?: number;
+  height?: number;
+  comments?: CommentItem[];
+  zoom?: number;
+  rotation?: number;
+  flipX?: boolean;
+  flipY?: boolean;
+  filter?: string;
+  markupDataUrl?: string;
+};
+export type FileContent = DocContent | SheetContent | PdfContent | SlideContent | ImageContent;
 
 export type FileVersion = {
   id: string;

@@ -14,6 +14,8 @@ import DocEditor from './editors/doc/DocEditor';
 import SheetEditor from './editors/sheet/SheetEditor';
 import PdfEditor from './editors/pdf/PdfEditor';
 import SlideEditor from './editors/slide/SlideEditor';
+import ImageEditor from './editors/image/ImageEditor';
+import { isImageFile, readImageFile, formatFileSize } from './lib/imageFormats';
 import { UiProvider, useUi } from './components/ui';
 import {
   estimateStorage,
@@ -24,9 +26,10 @@ import {
   type SheetContent,
   type PdfContent,
   type SlideContent,
+  type ImageContent,
 } from './lib/storage';
 import { blankDoc, sampleDocHtml, sampleWorkbook } from './lib/templates';
-import { blankPresentation, businessPitchPresentation } from './lib/slideTemplates';
+import { blankPresentation, businessPitchPresentation, createSlideFromLayout } from './lib/slideTemplates';
 import { importFromPptx } from './lib/pptxImport';
 import type { PresentationData } from './lib/slideTypes';
 import { emptyWorkbook, importSpreadsheet } from './lib/xlsxConvert';
@@ -435,6 +438,138 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
     ui.toast('Đã tạo bài thuyết trình Minh Slides mới');
   };
 
+
+  // Open Image Document
+  const handleOpenImage = async (meta: FileMeta) => {
+    try {
+      ui.showBusy('Đang mở hình ảnh…');
+      syncedWorkspace(storage)?.setActiveFile(meta.id);
+      const content = await loadContent(meta.id);
+      if (content && content.kind === 'image') {
+        activeDocument.current = meta;
+        setActiveMeta(meta);
+        setActiveContent(content);
+        await updateMeta(meta.id, { openedAt: Date.now() });
+      } else {
+        ui.toast('Không tìm thấy nội dung hình ảnh', true);
+      }
+    } catch {
+      ui.toast('Lỗi khi mở hình ảnh', true);
+    } finally {
+      ui.showBusy(null);
+    }
+  };
+
+  const handleCreateDocWithImage = async (imageDataUrl: string, imageName: string) => {
+    const id = `doc-${Date.now()}`;
+    const name = `Tài liệu có ảnh ${imageName.replace(/\.[^/.]+$/, '')}.docx`;
+    const html = `<p><img src="${imageDataUrl}" alt="${imageName}" style="max-width:100%" /></p><p></p>`;
+    const meta: FileMeta = {
+      id,
+      name,
+      kind: 'doc',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      openedAt: Date.now(),
+      starred: false,
+      deletedAt: null,
+      size: 2048,
+      preview: `Văn bản chèn ảnh ${imageName}`,
+    };
+    const content: DocContent = {
+      kind: 'doc',
+      json: html as any,
+      page: defaultPage(),
+    };
+    await saveFile(meta, content);
+    await refreshFiles();
+    setActiveMeta(meta);
+    setActiveContent(content);
+    ui.toast('Đã tạo tài liệu Minh Docs từ hình ảnh');
+  };
+
+  const handleCreateSlideWithImage = async (imageDataUrl: string, imageName: string) => {
+    const id = `slide-${Date.now()}`;
+    const name = `Trình chiếu ${imageName.replace(/\.[^/.]+$/, '')}.pptx`;
+    const slide = createSlideFromLayout('blank', 0);
+    slide.elements = [
+      {
+        id: 'el-title',
+        type: 'text',
+        x: 10,
+        y: 8,
+        width: 80,
+        height: 12,
+        text: imageName,
+        fontSize: 28,
+        fontWeight: 'bold',
+      },
+      {
+        id: 'el-img',
+        type: 'image',
+        src: imageDataUrl,
+        x: 10,
+        y: 22,
+        width: 80,
+        height: 70,
+      },
+    ];
+    const presentation: PresentationData = {
+      title: name,
+      aspectRatio: '16:9',
+      themeId: 'office-classic',
+      slides: [slide],
+    };
+    const meta: FileMeta = {
+      id,
+      name,
+      kind: 'slide',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      openedAt: Date.now(),
+      starred: false,
+      deletedAt: null,
+      size: 4096,
+      preview: `Bài thuyết trình chèn ảnh ${imageName}`,
+    };
+    const content: SlideContent = {
+      kind: 'slide',
+      presentation,
+    };
+    await saveFile(meta, content);
+    await refreshFiles();
+    setActiveMeta(meta);
+    setActiveContent(content);
+    ui.toast('Đã tạo bài thuyết trình Minh Slides từ hình ảnh');
+  };
+
+  const handleCreateSheetWithImage = async (_imageDataUrl: string, imageName: string) => {
+    const id = `sheet-${Date.now()}`;
+    const name = `Bảng tính ${imageName.replace(/\.[^/.]+$/, '')}.xlsx`;
+    const wb = emptyWorkbook(imageName.slice(0, 20));
+    const meta: FileMeta = {
+      id,
+      name,
+      kind: 'sheet',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      openedAt: Date.now(),
+      starred: false,
+      deletedAt: null,
+      size: 2048,
+      preview: `Bảng tính đính kèm ảnh ${imageName}`,
+    };
+    const content: SheetContent = {
+      kind: 'sheet',
+      workbook: wb,
+    };
+    await saveFile(meta, content);
+    await refreshFiles();
+    setActiveMeta(meta);
+    setActiveContent(content);
+    ui.toast('Đã tạo bảng tính Minh Sheets từ hình ảnh');
+  };
+
   // Import file (.docx, .xlsx, .csv) with password decryption support
   const handleImportFile = async (file: File) => {
     try {
@@ -446,6 +581,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
       const isXls = /\.(xlsx|xlsm|xls|csv|tsv)$/i.test(file.name);
       const isPdf = file.name.toLowerCase().endsWith('.pdf');
       const isPpt = /\.(pptx|ppt)$/i.test(file.name);
+      const isImage = isImageFile(file.name);
 
       // Check if file is encrypted with MS Office agile encryption
       if (isEncryptedOffice(bytes)) {
@@ -607,6 +743,34 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
         setActiveMeta(meta);
         setActiveContent(content);
         ui.toast(`Đã nạp bài thuyết trình "${file.name}"`);
+      } else if (isImage) {
+        ui.showBusy(`Đang nạp hình ảnh ${file.name}…`);
+        const parsed = await readImageFile(file);
+        const id = `image-${Date.now()}`;
+        const meta: FileMeta = {
+          id,
+          name: file.name,
+          kind: 'image',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          openedAt: Date.now(),
+          starred: false,
+          deletedAt: null,
+          size: file.size,
+          preview: `${parsed.width} × ${parsed.height} · ${formatFileSize(file.size)}`,
+        };
+        const content: ImageContent = {
+          kind: 'image',
+          imageDataUrl: parsed.dataUrl,
+          mimeType: parsed.mimeType,
+          width: parsed.width,
+          height: parsed.height,
+        };
+        await saveFile(meta, content);
+        await refreshFiles();
+        setActiveMeta(meta);
+        setActiveContent(content);
+        ui.toast(`Đã nạp hình ảnh "${file.name}"`);
       } else {
         ui.toast('Định dạng tệp không được hỗ trợ', true);
       }
@@ -831,6 +995,22 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
       );
     }
 
+    if (activeMeta.kind === 'image' && activeContent.kind === 'image') {
+      return (
+        <ImageEditor
+          key={activeMeta.id}
+          meta={activeMeta}
+          content={activeContent}
+          onSave={handleSaveActive}
+          onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
+          onBack={handleCloseEditor}
+          onOpenInDoc={handleCreateDocWithImage}
+          onOpenInSheet={handleCreateSheetWithImage}
+          onOpenInSlide={handleCreateSlideWithImage}
+        />
+      );
+    }
+
     if (activeMeta.kind === 'pdf' && activeContent.kind === 'pdf') {
       return (
         <PdfEditor
@@ -853,6 +1033,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
       onOpenSheet={handleOpenSheet}
       onOpenPdf={handleOpenPdf}
       onOpenSlide={handleOpenSlide}
+      onOpenImage={handleOpenImage}
       onCreateDoc={handleCreateDoc}
       onCreateSheet={handleCreateSheet}
       onCreatePdf={handleCreatePdf}

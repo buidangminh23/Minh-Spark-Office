@@ -34,7 +34,7 @@ test('document string compatibility retains representation, page and size valida
 });
 
 test('round trips document, workbook and PDF payloads with version history and Vietnamese text', async () => {
-  const contents: FileContent[] = [document('Tài liệu có dấu và ký hiệu 📄'), { kind: 'sheet', workbook: { id: 'wb', name: 'Bảng tính', appVersion: '1', locale: 'vi', styles: {}, sheets: {}, sheetOrder: [] } }, { kind: 'pdf', pdfDataUrl: 'data:application/pdf;base64,JVBERi0xLjQ=', pageCount: 1 }];
+  const contents: FileContent[] = [document('Tài liệu có dấu và ký hiệu 📄'), { kind: 'sheet', workbook: { id: 'wb', name: 'Bảng tính', appVersion: '1', locale: 'vi', styles: {}, sheets: {}, sheetOrder: [] } }, { kind: 'pdf', pdfDataUrl: 'data:application/pdf;base64,JVBERi0xLjQ=', pageCount: 1 }, { kind: 'image', imageDataUrl: 'data:image/png;base64,iVBORw0KGgo=', mimeType: 'image/png' }];
   for (const content of contents) {
     const meta = metadata(content.kind);
     const versions: FileVersion[] = [{ id: 'v1', fileId: meta.id, label: 'Bản trước', timestamp: 1, content }];

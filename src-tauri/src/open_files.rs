@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use tauri::{Emitter, Manager};
 
-const MAX_BYTES: u64 = 32 * 1024 * 1024;
+const MAX_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_PENDING: usize = 16;
 const EXTENSIONS: &[&str] = &[
     "docx", "xlsx", "xlsm", "xls", "csv", "tsv", "pdf", "pptx", "ppt", "txt", "md",

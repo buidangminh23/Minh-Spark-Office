@@ -5,5 +5,5 @@ export const suiteLogos: Record<FileKind, string> = {
   sheet: '/logos/minh-sheets.png',
   pdf: '/logos/minh-pdf.png',
   slide: '/logos/minh-slides.png',
+  image: '/logos/minh-photos.png',
 };
-

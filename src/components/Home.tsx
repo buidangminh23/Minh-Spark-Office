@@ -48,6 +48,7 @@ interface HomeProps {
   onOpenSheet: (file: FileMeta) => void;
   onOpenPdf: (file: FileMeta) => void;
   onOpenSlide: (file: FileMeta) => void;
+  onOpenImage: (file: FileMeta) => void;
   onCreateDoc: (templateHtml?: string) => void;
   onCreateSheet: (templateWorkbook?: WorkbookData) => void;
   onCreatePdf: () => void;
@@ -69,10 +70,10 @@ type SortOrder = 'recent' | 'oldest' | 'name';
 
 const RECENT_LIMIT = 5;
 const FEATURED_TEMPLATES = 4;
-const IMPORT_ACCEPT = '.docx,.txt,.md,.html,.htm,.xlsx,.xlsm,.xls,.csv,.tsv,.pdf,.pptx,.ppt';
+const IMPORT_ACCEPT = '.docx,.txt,.md,.html,.htm,.xlsx,.xlsm,.xls,.csv,.tsv,.pdf,.pptx,.ppt,.png,.jpg,.jpeg,.jfif,.jpe,.webp,.gif,.svg,.svgz,.bmp,.dib,.ico,.avif,.tiff,.tif,.heic,.heif';
 
-const KIND_LABEL: Record<FileKind, string> = { doc: 'Docs', sheet: 'Sheets', pdf: 'PDF', slide: 'Slides' };
-const PRODUCT_NAME: Record<FileKind, string> = { doc: 'Minh Docs', sheet: 'Minh Sheets', pdf: 'Minh PDF', slide: 'Minh Slides' };
+const KIND_LABEL: Record<FileKind, string> = { doc: 'Docs', sheet: 'Sheets', pdf: 'PDF', slide: 'Slides', image: 'Photos' };
+const PRODUCT_NAME: Record<FileKind, string> = { doc: 'Minh Docs', sheet: 'Minh Sheets', pdf: 'Minh PDF', slide: 'Minh Slides', image: 'Minh Photos' };
 const VIEW_TITLE: Record<Exclude<View, 'home'>, string> = {
   all: 'Tất cả tệp',
   starred: 'Được gắn sao',
@@ -80,6 +81,7 @@ const VIEW_TITLE: Record<Exclude<View, 'home'>, string> = {
   sheet: 'Minh Sheets',
   pdf: 'Minh PDF',
   slide: 'Minh Slides',
+  image: 'Minh Photos',
   trash: 'Thùng rác',
 };
 const SORT_LABEL: Record<SortOrder, string> = { recent: 'Mới cập nhật', oldest: 'Cũ nhất', name: 'Tên A → Z' };
@@ -180,6 +182,7 @@ export default function Home(props: HomeProps) {
     else if (file.kind === 'sheet') props.onOpenSheet(file);
     else if (file.kind === 'pdf') props.onOpenPdf(file);
     else if (file.kind === 'slide') props.onOpenSlide(file);
+    else if (file.kind === 'image') props.onOpenImage(file);
   };
 
   const create = (kind: FileKind) => {
@@ -257,7 +260,7 @@ export default function Home(props: HomeProps) {
           <div className="ws-drop-card">
             <Upload size={48} aria-hidden="true" />
             <h2>Thả tệp vào đây để mở ngay</h2>
-            <p>Hỗ trợ <strong>.docx</strong>, <strong>.xlsx</strong>, <strong>.pptx</strong>, <strong>.csv</strong> và <strong>.pdf</strong></p>
+            <p>Hỗ trợ <strong>.docx</strong>, <strong>.xlsx</strong>, <strong>.pptx</strong>, <strong>.pdf</strong> và <strong>các định dạng ảnh</strong> (PNG, JPG, WebP, GIF, SVG, BMP, ICO, AVIF, TIFF...)</p>
           </div>
         </div>
       )}
@@ -279,7 +282,7 @@ export default function Home(props: HomeProps) {
             </button>
           }
         >
-          {(['doc', 'sheet', 'slide', 'pdf'] as FileKind[]).map((kind) => (
+          {(['doc', 'sheet', 'slide', 'pdf', 'image'] as FileKind[]).map((kind) => (
             <button key={kind} role="menuitem" className="ws-menu-item" onClick={() => create(kind)}>
               <SuiteLogo kind={kind} size={24} />{PRODUCT_NAME[kind]}
             </button>
@@ -343,6 +346,7 @@ export default function Home(props: HomeProps) {
                 <AppCard kind="sheet" title="Minh Sheets" desc="Tạo bảng tính" action="plus" onClick={() => onCreateSheet()} />
                 <AppCard kind="slide" title="Minh Slides" desc="Soạn bài thuyết trình" action="plus" onClick={() => props.onCreateSlide()} />
                 <AppCard kind="pdf" title="Minh PDF" desc="Chỉnh sửa & chuyển đổi" action="arrow" onClick={onCreatePdf} />
+                <label style={{ display: 'contents', cursor: 'pointer' }}><AppCard kind="image" title="Minh Photos" desc="Xem và sửa ảnh đa định dạng" action="arrow" onClick={() => {}} /><input type="file" accept={IMPORT_ACCEPT} hidden onChange={handleImport} /></label>
               </div>
 
               <section className="ws-section" aria-labelledby="ws-recent-title">

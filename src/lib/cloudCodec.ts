@@ -29,7 +29,7 @@ export function validateCloudMeta(value: unknown, id: string): asserts value is 
   const keys = ['id', 'name', 'kind', 'createdAt', 'updatedAt', 'openedAt', 'starred', 'deletedAt', 'size', 'preview'];
   if (Object.keys(value).length !== keys.length || keys.some((key) => !(key in value))) fail('Unexpected metadata fields');
   if (value.id !== id || !text(value.name, 1024) || !text(value.preview, 8000)) fail('Invalid file metadata');
-  if (!['doc', 'sheet', 'pdf', 'slide'].includes(String(value.kind))) fail('Invalid file kind');
+  if (!['doc', 'sheet', 'pdf', 'slide', 'image'].includes(String(value.kind))) fail('Invalid file kind');
   if (![value.createdAt, value.updatedAt, value.openedAt, value.size].every(finite) || typeof value.starred !== 'boolean') fail('Invalid metadata values');
   if (value.deletedAt !== null && !finite(value.deletedAt)) fail('Invalid deletion timestamp');
 }
@@ -54,6 +54,8 @@ function validateContent(value: unknown, kind: FileMeta['kind']): asserts value 
     if (value.pageCount !== undefined && (!Number.isInteger(value.pageCount) || !finite(value.pageCount))) fail('Invalid PDF page count');
   } else if (kind === 'slide') {
     if (!object(value.presentation) || !Array.isArray(value.presentation.slides)) fail('Invalid presentation content');
+  } else if (kind === 'image') {
+    if (typeof value.imageDataUrl !== 'string' || (!value.imageDataUrl.startsWith('data:image/') && !value.imageDataUrl.startsWith('blob:'))) fail('Invalid image data');
   }
 }
 
