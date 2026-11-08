@@ -35,17 +35,32 @@ const SOUNDS_LIST: { id: TransitionSound; label: string }[] = [
   { id: 'voltage', label: 'Xung điện (Voltage)' },
 ];
 
-export function SlideAnimationDialog({
-  isOpen,
+export function SlideAnimationDialog(props: SlideAnimationDialogProps) {
+  const { isOpen, element, animation } = props;
+  if (!isOpen || !element || !animation) return null;
+  return (
+    <SlideAnimationDialogBody
+      key={`${element.id}:${animation.id}:${props.defaultTab ?? 'effect'}`}
+      {...props}
+      element={element}
+      animation={animation}
+    />
+  );
+}
+
+type SlideAnimationDialogBodyProps = SlideAnimationDialogProps & {
+  element: SlideElement;
+  animation: ElementAnimation;
+};
+
+function SlideAnimationDialogBody({
   onClose,
   element,
   animation,
   slideElements,
   onSave,
   defaultTab = 'effect',
-}: SlideAnimationDialogProps) {
-  if (!isOpen || !element || !animation) return null;
-
+}: SlideAnimationDialogBodyProps) {
   const [activeTab, setActiveTab] = useState<'effect' | 'timing'>(defaultTab);
 
   // Form states

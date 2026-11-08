@@ -68,6 +68,14 @@ interface SlideEditorProps {
 
 const AUTOSAVE_DEBOUNCE_MS = 1000;
 
+const CONTEXTUAL_TAB_BY_TYPE: Partial<Record<SlideElement['type'], RibbonTab>> = {
+  shape: 'shape-format',
+  image: 'picture-format',
+  table: 'table-design',
+  chart: 'chart-design',
+};
+const CONTEXTUAL_TABS = new Set<RibbonTab>(Object.values(CONTEXTUAL_TAB_BY_TYPE));
+
 export default function SlideEditor({
   meta,
   content,
@@ -138,23 +146,14 @@ export default function SlideEditor({
   const selectedElement = currentSlide?.elements.find((el) => el.id === selectedElementId) || null;
 
   // Auto-switch contextual tab when element is selected
+  const selectedElementType = selectedElement?.type;
   useEffect(() => {
-    if (selectedElement) {
-      if (selectedElement.type === 'shape') {
-        setActiveTab('shape-format');
-      } else if (selectedElement.type === 'image') {
-        setActiveTab('picture-format');
-      } else if (selectedElement.type === 'table') {
-        setActiveTab('table-design');
-      } else if (selectedElement.type === 'chart') {
-        setActiveTab('chart-design');
-      }
-    } else {
-      if (['shape-format', 'picture-format', 'table-design', 'chart-design'].includes(activeTab)) {
-        setActiveTab('home');
-      }
-    }
-  }, [selectedElementId]);
+    const contextualTab = selectedElementType ? CONTEXTUAL_TAB_BY_TYPE[selectedElementType] : undefined;
+    setActiveTab((current) => {
+      if (contextualTab) return contextualTab;
+      return CONTEXTUAL_TABS.has(current) ? 'home' : current;
+    });
+  }, [selectedElementId, selectedElementType]);
 
   // Record history for Undo
   const pushHistory = useCallback((currentPres: PresentationData) => {
@@ -221,6 +220,8 @@ export default function SlideEditor({
     return saved;
   });
 
+  const duplicateElementRef = useRef<() => void>(() => {});
+
   // Global Keyboard Shortcuts
   useEffect(() => {
     const handleGlobalKeys = (e: KeyboardEvent) => {
@@ -244,7 +245,7 @@ export default function SlideEditor({
         setIsExportModalOpen(true);
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
         e.preventDefault();
-        if (selectedElementId) handleDuplicateElement();
+        if (selectedElementId) duplicateElementRef.current();
       } else if (e.key === 'F5') {
         e.preventDefault();
         if (e.shiftKey) {
@@ -312,6 +313,10 @@ export default function SlideEditor({
     triggerAutoSave(newPres);
     ui.toast('Đã nhân bản phần tử');
   };
+
+  useEffect(() => {
+    duplicateElementRef.current = handleDuplicateElement;
+  });
 
   // Clipboard Cut / Copy / Paste
   const handleCut = () => {
