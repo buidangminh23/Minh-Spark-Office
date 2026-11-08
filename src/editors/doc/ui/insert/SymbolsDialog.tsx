@@ -3,12 +3,21 @@ import { Omega } from 'lucide-react';
 import { useDoc } from '../../DocContext';
 import { insertMetaImage, loadRecentSymbols, pushRecentSymbol } from '../../insertActions';
 import { FLAG_SET_NAME, loadFlags, searchFlags, type FlagEntry } from '../../insertFlags';
-import { searchSymbols, SYMBOL_SETS, symbolCode } from '../../insertSymbols';
+import { invisibleSymbol, searchSymbols, SYMBOL_SETS, symbolCode, symbolTitle } from '../../insertSymbols';
 import Modal from '../Modal';
 
 type Hover = { kind: 'symbol'; value: string } | { kind: 'flag'; flag: FlagEntry } | null;
 
 const FLAG_WIDTH = '24px';
+
+function SymbolCell({ symbol, onHover, onInsert }: { symbol: string; onHover: () => void; onInsert: () => void }) {
+  const invisible = invisibleSymbol(symbol);
+  return (
+    <button type="button" className={`symbol-cell${invisible ? ' symbol-cell-invisible' : ''}`} title={symbolTitle(symbol)} aria-label={invisible?.name} onMouseEnter={onHover} onClick={onInsert}>
+      {invisible ? invisible.label : symbol}
+    </button>
+  );
+}
 
 function useFlags(active: boolean) {
   const [flags, setFlags] = useState<FlagEntry[] | null>(null);
@@ -40,10 +49,11 @@ export function SymbolsDialog({ onClose }: { onClose: () => void }) {
   };
   const insertFlag = (flag: FlagEntry) => insertMetaImage(ctx, { src: flag.src, alt: `Cờ ${flag.name}`, width: FLAG_WIDTH });
   const shown: Hover = hover ?? (symbols[0] ? { kind: 'symbol', value: symbols[0] } : flagList[0] ? { kind: 'flag', flag: flagList[0] } : null);
-  const loadingFlags = (onFlags || searching) && !flags && !failed;
+  const shownInvisible = shown?.kind === 'symbol' ? invisibleSymbol(shown.value) : null;
+  const loadingFlags =(onFlags || searching) && !flags && !failed;
   return (
     <Modal title="Ký hiệu & biểu tượng" subtitle="Nhấp để chèn. Tìm bằng ký tự, mã Unicode (ví dụ 2605) hoặc tên nước." icon={<Omega size={20} />} onClose={onClose} width={860}>
-      <div className="symbol-recent">{recent.map((s) => <button key={s} type="button" className="symbol-cell" title={symbolCode(s)} onMouseEnter={() => setHover({ kind: 'symbol', value: s })} onClick={() => insertSymbol(s)}>{s}</button>)}</div>
+      <div className="symbol-recent">{recent.map((s) => <SymbolCell key={s} symbol={s} onHover={() => setHover({ kind: 'symbol', value: s })} onInsert={() => insertSymbol(s)} />)}</div>
       <div className="symbol-layout">
         <div className="symbol-sets">
           <input className="text-field" placeholder="Tìm ký hiệu, mã U+… hoặc tên nước" value={query} onChange={(e) => setQuery(e.target.value)} />
@@ -53,7 +63,7 @@ export function SymbolsDialog({ onClose }: { onClose: () => void }) {
         <div className="symbol-grid-scroll symbol-results" onMouseLeave={() => setHover(null)}>
           {symbols.length > 0 && (
             <div className="symbol-grid">
-              {symbols.map((s, i) => <button key={`${s}-${i}`} type="button" className="symbol-cell" title={symbolCode(s)} onMouseEnter={() => setHover({ kind: 'symbol', value: s })} onClick={() => insertSymbol(s)}>{s}</button>)}
+              {symbols.map((s, i) => <SymbolCell key={`${s}-${i}`} symbol={s} onHover={() => setHover({ kind: 'symbol', value: s })} onInsert={() => insertSymbol(s)} />)}
             </div>
           )}
           {flagList.length > 0 && (
@@ -75,7 +85,14 @@ export function SymbolsDialog({ onClose }: { onClose: () => void }) {
             </>
           ) : (
             <>
-              <div className="symbol-preview-glyph">{shown?.value ?? ''}</div>
+              {shownInvisible ? (
+                <>
+                  <div className="symbol-preview-glyph symbol-preview-invisible">{shownInvisible.label}</div>
+                  <strong className="flag-preview-name">{shownInvisible.name}</strong>
+                </>
+              ) : (
+                <div className="symbol-preview-glyph">{shown?.value ?? ''}</div>
+              )}
               <code>{shown ? symbolCode(shown.value) : ''}</code>
               <button className="btn btn-primary" disabled={!shown} onClick={() => shown && insertSymbol(shown.value)}>Chèn</button>
             </>

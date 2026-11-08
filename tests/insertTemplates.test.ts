@@ -5,7 +5,7 @@ import { SMARTART_LAYOUTS, SMARTART_PALETTES, smartArtDataUrl } from '../src/edi
 import { PRIMITIVES, primitiveMesh } from '../src/editors/doc/insertModel3d';
 import { CHART_KINDS, CHART_TEMPLATES, parseChartData } from '../src/editors/doc/insertCharts';
 import { ICON_CATEGORIES, ICONS, searchIcons } from '../src/editors/doc/insertIcons';
-import { searchSymbols, SYMBOL_SETS } from '../src/editors/doc/insertSymbols';
+import { invisibleSymbol, searchSymbols, SYMBOL_SETS } from '../src/editors/doc/insertSymbols';
 import { buildFlags, searchFlags } from '../src/editors/doc/insertFlags';
 
 const unique = (values: string[]) => new Set(values).size === values.length;
@@ -86,4 +86,10 @@ test('symbol sets cover the common Unicode blocks and search by code point', () 
   assert.ok(searchSymbols('2605').includes('★'));
   assert.ok(searchSymbols('U+20AB').includes('₫'));
   assert.ok(SYMBOL_SETS.find((set) => set.name === 'Hy Lạp')?.symbols.includes('Ω'));
+});
+
+test('every whitespace or invisible symbol has a visible label', () => {
+  const blank = [...new Set(SYMBOL_SETS.flatMap((set) => set.symbols))].filter((s) => /^[\s\u00ad\u200b-\u200f\u2028-\u202f\u2060-\u2064\ufeff]+$/u.test(s));
+  assert.ok(blank.length > 0);
+  for (const symbol of blank) assert.ok(invisibleSymbol(symbol)?.label, `missing label for U+${symbol.codePointAt(0)!.toString(16)}`);
 });

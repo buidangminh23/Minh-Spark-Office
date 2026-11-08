@@ -4,6 +4,7 @@ import { SHAPES, SHAPE_GROUPS, shapeDataUrl } from '../../insertShapes';
 import { COVER_STYLES } from '../../insertGalleries';
 import { TEMPLATE_SUBJECTS, katexStrict } from '../../mathCatalog';
 import { loadRecentSymbols, pushRecentSymbol } from '../../insertActions';
+import { invisibleSymbol, symbolTitle } from '../../insertSymbols';
 
 export function TableGrid({ onPick }: { onPick: (rows: number, cols: number) => void }) {
   const [hover, setHover] = useState({ rows: 0, cols: 0 });
@@ -91,7 +92,10 @@ export function SymbolGallery({ onPick }: { onPick: (symbol: string) => void }) 
   const symbols = useMemo(loadRecentSymbols, []);
   return (
     <div className="insert-symbol-grid">
-      {symbols.map((symbol) => <button key={symbol} type="button" className="symbol-cell" aria-label={symbol} onClick={() => { pushRecentSymbol(symbol); onPick(symbol); }}>{symbol}</button>)}
+      {symbols.map((symbol) => {
+        const invisible = invisibleSymbol(symbol);
+        return <button key={symbol} type="button" className={`symbol-cell${invisible ? ' symbol-cell-invisible' : ''}`} title={symbolTitle(symbol)} aria-label={invisible?.name ?? symbol} onClick={() => { pushRecentSymbol(symbol); onPick(symbol); }}>{invisible ? invisible.label : symbol}</button>;
+      })}
     </div>
   );
 }

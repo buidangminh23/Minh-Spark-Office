@@ -28,6 +28,22 @@ export const SYMBOL_SETS: { name: string; symbols: string[] }[] = [
   { name: 'Dấu & ký hiệu', symbols: words('✅ ☑️ ✔️ ❌ ❎ ➕ ➖ ➗ ✖️ 🟰 ♾️ ‼️ ⁉️ ❓ ❔ ❗ ❕ ⚠️ 🚫 ⛔ 🔞 📵 🚭 ♻️ ⚜️ 🔰 ⭕ 🛑 🆗 🆕 🆓 🆙 🆒 🆘 🔴 🟠 🟡 🟢 🔵 🟣 🟤 ⚫ ⚪ 🟥 🟧 🟨 🟩 🟦 🟪 🟫 ⬛ ⬜ 🔶 🔷 🔸 🔹 🔺 🔻 💠 🔘 🔳 🔲 ▶️ ⏸️ ⏯️ ⏹️ ⏺️ ⏭️ ⏮️ ⏩ ⏪ 🔀 🔁 🔂 🔄 🔃 🔼 🔽 ➡️ ⬅️ ⬆️ ⬇️ ↗️ ↘️ ↙️ ↖️ ↕️ ↔️ ↩️ ↪️ ⤴️ ⤵️ ℹ️ 🔤 🔢 🏁 🚩 🏳️ 🏴 🏳️‍🌈 #️⃣ *️⃣ 0️⃣ 1️⃣ 2️⃣ 3️⃣ 4️⃣ 5️⃣ 6️⃣ 7️⃣ 8️⃣ 9️⃣ 🔟') },
 ];
 
+const INVISIBLE_SYMBOLS: Record<string, { label: string; name: string }> = {
+  ' ': { label: 'NBSP', name: 'Khoảng trắng không ngắt dòng' },
+  ' ': { label: 'EN', name: 'Khoảng trắng en' },
+  ' ': { label: 'EM', name: 'Khoảng trắng em' },
+  ' ': { label: 'THIN', name: 'Khoảng trắng hẹp' },
+  '​': { label: 'ZWSP', name: 'Khoảng trắng độ rộng 0' },
+  '­': { label: 'SHY', name: 'Gạch nối mềm' },
+};
+
+export const invisibleSymbol = (symbol: string) => INVISIBLE_SYMBOLS[symbol] ?? null;
+
+export const symbolTitle = (symbol: string) => {
+  const info = invisibleSymbol(symbol);
+  return info ? `${info.name} (${symbolCode(symbol)})` : symbolCode(symbol);
+};
+
 export const symbolCode = (symbol: string) => Array.from(symbol).map((ch) => `U+${ch.codePointAt(0)!.toString(16).toUpperCase().padStart(4, '0')}`).join(' ');
 
 export const searchSymbols = (query: string) => {
