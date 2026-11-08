@@ -6,6 +6,7 @@ import { PRIMITIVES, primitiveMesh } from '../src/editors/doc/insertModel3d';
 import { CHART_KINDS, CHART_TEMPLATES, parseChartData } from '../src/editors/doc/insertCharts';
 import { ICON_CATEGORIES, ICONS, searchIcons } from '../src/editors/doc/insertIcons';
 import { searchSymbols, SYMBOL_SETS } from '../src/editors/doc/insertSymbols';
+import { buildFlags, searchFlags } from '../src/editors/doc/insertFlags';
 
 const unique = (values: string[]) => new Set(values).size === values.length;
 const svgOf = (dataUrl: string) => decodeURIComponent(dataUrl.replace('data:image/svg+xml;charset=utf-8,', ''));
@@ -65,6 +66,19 @@ test('icon library is categorised and searchable without diacritics', () => {
   assert.ok(ICON_CATEGORIES.every((category) => ICONS.some((icon) => icon.category === category)));
   assert.ok(searchIcons('dien thoai', null).some((icon) => icon.name === 'Điện thoại'));
   assert.ok(searchIcons('', 'Y tế').every((icon) => icon.category === 'Y tế'));
+});
+
+test('world flags load as SVG images with Vietnamese names and search', async () => {
+  const flags = buildFlags((await import('country-flag-icons/string/3x2')) as unknown as Record<string, string>);
+  assert.ok(flags.length >= 250, `only ${flags.length} flags`);
+  assert.ok(unique(flags.map((flag) => flag.code)));
+  assert.equal(flags[0].code, 'VN');
+  assert.equal(flags[0].name, 'Việt Nam');
+  assert.ok(flags.every((flag) => flag.src.startsWith('data:image/svg+xml') && flag.name.length > 1));
+  assert.ok(searchFlags(flags, 'han quoc').some((flag) => flag.code === 'KR'));
+  assert.ok(searchFlags(flags, 'germany').some((flag) => flag.code === 'DE'));
+  assert.ok(searchFlags(flags, 'scotland').some((flag) => flag.code === 'GB-SCT'));
+  assert.ok(!SYMBOL_SETS.some((set) => set.symbols.some((symbol) => /[\u{1F1E6}-\u{1F1FF}]{2}/u.test(symbol))), 'emoji flags render as letters on Windows');
 });
 
 test('symbol sets cover the common Unicode blocks and search by code point', () => {

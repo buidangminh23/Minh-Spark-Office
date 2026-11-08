@@ -1,9 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
-import { Calculator, Keyboard, LayoutTemplate, Omega, PenTool } from 'lucide-react';
+import { Calculator, Keyboard, LayoutTemplate, PenTool } from 'lucide-react';
 import { useDoc } from '../DocContext';
 import { textStats } from '../docTools';
-import { loadRecentSymbols, pushRecentSymbol } from '../insertActions';
-import { searchSymbols, SYMBOL_SETS, symbolCode } from '../insertSymbols';
 import { DOC_TEMPLATES } from '../docTemplates';
 import Modal from './Modal';
 
@@ -24,41 +22,6 @@ export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
       <input className="text-field" placeholder="Tìm phím tắt…" value={query} autoFocus onChange={(e) => setQuery(e.target.value)} />
       <div className="shortcut-list">
         {rows.map(([key, label]) => <div key={key} className="shortcut-row"><span>{label}</span><kbd>{key}</kbd></div>)}
-      </div>
-    </Modal>
-  );
-}
-
-export function SymbolsDialog({ onClose }: { onClose: () => void }) {
-  const { editor } = useDoc();
-  const [tab, setTab] = useState(SYMBOL_SETS[0].name);
-  const [query, setQuery] = useState('');
-  const [hover, setHover] = useState<string | null>(null);
-  const [recent, setRecent] = useState(loadRecentSymbols);
-  const list = query.trim() ? searchSymbols(query) : SYMBOL_SETS.find((set) => set.name === tab)?.symbols ?? [];
-  const insert = (text: string) => {
-    editor.chain().focus().insertContent(text).run();
-    pushRecentSymbol(text);
-    setRecent(loadRecentSymbols());
-  };
-  const shown = hover ?? list[0] ?? '';
-  return (
-    <Modal title="Ký hiệu & biểu tượng" subtitle="Nhấp để chèn. Tìm bằng chính ký tự hoặc mã Unicode, ví dụ 2605." icon={<Omega size={20} />} onClose={onClose} width={860}>
-      <div className="symbol-recent">{recent.map((s) => <button key={s} type="button" className="symbol-cell" title={symbolCode(s)} onMouseEnter={() => setHover(s)} onClick={() => insert(s)}>{s}</button>)}</div>
-      <div className="symbol-layout">
-        <div className="symbol-sets">
-          <input className="text-field" placeholder="Tìm ký hiệu hoặc mã U+…" value={query} onChange={(e) => setQuery(e.target.value)} />
-          {SYMBOL_SETS.map((set) => <button key={set.name} type="button" className={`symbol-set ${!query && tab === set.name ? 'on' : ''}`} onClick={() => { setQuery(''); setTab(set.name); }}>{set.name}<span>{set.symbols.length}</span></button>)}
-        </div>
-        <div className="symbol-grid symbol-grid-scroll" onMouseLeave={() => setHover(null)}>
-          {list.length === 0 && <div className="panel-empty">Không có ký hiệu nào khớp.</div>}
-          {list.map((s, i) => <button key={`${s}-${i}`} type="button" className="symbol-cell" title={symbolCode(s)} onMouseEnter={() => setHover(s)} onClick={() => insert(s)}>{s}</button>)}
-        </div>
-        <div className="symbol-preview">
-          <div className="symbol-preview-glyph">{shown}</div>
-          <code>{shown ? symbolCode(shown) : ''}</code>
-          <button className="btn btn-primary" disabled={!shown} onClick={() => insert(shown)}>Chèn</button>
-        </div>
       </div>
     </Modal>
   );
