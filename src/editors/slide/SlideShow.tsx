@@ -11,10 +11,22 @@ import {
   Clock,
   Layout,
   Presentation,
+  PenTool,
+  Highlighter,
+  Eraser,
+  Search,
+  Mic,
+  MicOff,
+  Volume2,
+  Timer,
+  Trash2,
+  Moon,
+  Sun,
+  Radio,
 } from 'lucide-react';
 import type { SlideData } from '../../lib/slideTypes';
 import { SlideCanvas } from './SlideCanvas';
-import { playTransitionSound } from '../../lib/slideAudio';
+import { playTransitionSound, playPresenterSound } from '../../lib/slideAudio';
 
 interface SlideShowProps {
   slides: SlideData[];
@@ -33,10 +45,33 @@ export function SlideShow({
 }: SlideShowProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [isPresenterMode, setIsPresenterMode] = useState(defaultPresenter);
-  const [isLaserActive, setIsLaserActive] = useState(false);
-  const [laserPos, setLaserPos] = useState({ x: -100, y: -100 });
 
-  // Timer state for presenter mode
+  // Presentation Interactive Tools
+  const [isLaserActive, setIsLaserActive] = useState(false);
+  const [isSpotlightActive, setIsSpotlightActive] = useState(false);
+  const [isMagnifierActive, setIsMagnifierActive] = useState(false);
+  const [blankMode, setBlankMode] = useState<'none' | 'black' | 'white'>('none');
+  const [pointerPos, setPointerPos] = useState({ x: -100, y: -100 });
+
+  // In-Show Annotations (Drawing)
+  const [drawTool, setDrawTool] = useState<'none' | 'pen' | 'highlighter' | 'eraser'>('none');
+  const drawCanvasRef = useRef<HTMLCanvasElement>(null);
+  const isDrawingRef = useRef(false);
+
+  // Live Vietnamese Subtitles
+  const [isSubtitlesActive, setIsSubtitlesActive] = useState(false);
+  const [liveTranscript, setLiveTranscript] = useState('');
+  const recognitionRef = useRef<any>(null);
+
+  // Presenter Countdown Timer
+  const [isTimerOpen, setIsTimerOpen] = useState(false);
+  const [timerSecondsLeft, setTimerSecondsLeft] = useState(300); // 5 minutes default
+  const [isCountdownRunning, setIsCountdownRunning] = useState(false);
+
+  // Soundboard popover
+  const [showSoundboard, setShowSoundboard] = useState(false);
+
+  // Elapsed presentation time
   const [secondsElapsed, setSecondsElapsed] = useState(0);
   const [isTimerRunning, setIsTimerRunning] = useState(true);
 
@@ -49,7 +84,23 @@ export function SlideShow({
   const currentSlide = slides[currentIndex] || slides[0];
   const nextSlide = currentIndex < slides.length - 1 ? slides[currentIndex + 1] : null;
 
-  // Identify all elements with entrance animations on current slide
+  // Sync to dual-screen via BroadcastChannel
+  useEffect(() => {
+    try {
+      const channel = new BroadcastChannel('minh-slides-screen');
+      channel.postMessage({
+        type: 'SLIDE_CHANGE',
+        index: currentIndex,
+        animStep,
+        slideId: currentSlide?.id,
+      });
+      return () => channel.close();
+    } catch {
+      // BroadcastChannel unsupported fallback
+    }
+  }, [currentIndex, animStep, currentSlide?.id]);
+
+  // Entrance animations on current slide
   const entranceElements = currentSlide.elements.filter((el) => {
     if (el.animations && el.animations.length > 0) {
       return el.animations.some((a) => a.category === 'entrance' && a.type !== 'none');
@@ -61,7 +112,6 @@ export function SlideShow({
     return false;
   });
 
-  // Hidden elements are entrance elements that have not yet been stepped into
   const hiddenElementIds = entranceElements
     .filter((_, idx) => idx >= animStep)
     .map((el) => el.id);
@@ -70,10 +120,19 @@ export function SlideShow({
   useEffect(() => {
     playTransitionSound(currentSlide.transition?.sound || 'none');
     setAnimStep(0);
+    // Clear drawing canvas on slide change
+    if (drawCanvasRef.current) {
+      const ctx = drawCanvasRef.current.getContext('2d');
+      if (ctx) ctx.clearRect(0, 0, drawCanvasRef.current.width, drawCanvasRef.current.height);
+    }
   }, [currentIndex, currentSlide.transition?.sound]);
 
-  // Advance presentation (next animation step, or next slide)
+  // Advance presentation
   const handleAdvance = useCallback(() => {
+    if (blankMode !== 'none') {
+      setBlankMode('none');
+      return;
+    }
     if (animStep < entranceElements.length) {
       const nextEl = entranceElements[animStep];
       setAnimStep((s) => s + 1);
@@ -93,20 +152,23 @@ export function SlideShow({
         setAnimStep(0);
       }
     }
-  }, [animStep, entranceElements, currentIndex, slides.length]);
+  }, [blankMode, animStep, entranceElements, currentIndex, slides]);
 
-  // Step back presentation (previous animation step, or previous slide)
+  // Step back presentation
   const handleStepBack = useCallback(() => {
+    if (blankMode !== 'none') {
+      setBlankMode('none');
+      return;
+    }
     if (animStep > 0) {
       setAnimStep((s) => s - 1);
     } else {
       let prevIdx = currentIndex - 1;
-        while (prevIdx >= 0 && slides[prevIdx].hidden) {
-          prevIdx--;
-        }
-        if (prevIdx >= 0) {
-          setCurrentIndex(prevIdx);
-        // On previous slide, reveal all its animations
+      while (prevIdx >= 0 && slides[prevIdx].hidden) {
+        prevIdx--;
+      }
+      if (prevIdx >= 0) {
+        setCurrentIndex(prevIdx);
         const prevSlide = slides[prevIdx];
         const prevAnimCount = prevSlide.elements.filter((el) => {
           if (el.animations && el.animations.length > 0) {
@@ -121,12 +183,68 @@ export function SlideShow({
         setAnimStep(prevAnimCount);
       }
     }
-  }, [animStep, currentIndex, slides]);
+  }, [blankMode, animStep, currentIndex, slides]);
 
-  // Key navigation
+  // Auto-advance slide if advanceAfterSeconds is configured
+  useEffect(() => {
+    const afterSec = currentSlide.transition?.advanceAfterSeconds;
+    if (afterSec && afterSec > 0 && animStep >= entranceElements.length) {
+      const timer = setTimeout(() => {
+        handleAdvance();
+      }, afterSec * 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [currentSlide, animStep, entranceElements.length, handleAdvance]);
+
+  // Key navigation & hotkeys
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (['ArrowRight', 'ArrowDown', ' ', 'PageDown', 'Enter'].includes(e.key)) {
+      // Hotkeys for presenter tools
+      if (e.key.toLowerCase() === 'l') {
+        e.preventDefault();
+        setIsLaserActive((v) => !v);
+        setIsSpotlightActive(false);
+        setIsMagnifierActive(false);
+      } else if (e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        setIsSpotlightActive((v) => !v);
+        setIsLaserActive(false);
+        setIsMagnifierActive(false);
+      } else if (e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        setIsMagnifierActive((v) => !v);
+        setIsLaserActive(false);
+        setIsSpotlightActive(false);
+      } else if (e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        setBlankMode((m) => (m === 'black' ? 'none' : 'black'));
+      } else if (e.key.toLowerCase() === 'w') {
+        e.preventDefault();
+        setBlankMode((m) => (m === 'white' ? 'none' : 'white'));
+      } else if (e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        setDrawTool((t) => (t === 'pen' ? 'none' : 'pen'));
+      } else if (e.key.toLowerCase() === 'i') {
+        e.preventDefault();
+        setDrawTool((t) => (t === 'highlighter' ? 'none' : 'highlighter'));
+      } else if (e.key.toLowerCase() === 'e') {
+        e.preventDefault();
+        setDrawTool((t) => (t === 'eraser' ? 'none' : 'eraser'));
+      } else if (e.key.toLowerCase() === 'c') {
+        e.preventDefault();
+        if (drawCanvasRef.current) {
+          const ctx = drawCanvasRef.current.getContext('2d');
+          if (ctx) ctx.clearRect(0, 0, drawCanvasRef.current.width, drawCanvasRef.current.height);
+        }
+      } else if (e.key === '1') {
+        playPresenterSound('applause');
+      } else if (e.key === '2') {
+        playPresenterSound('ding');
+      } else if (e.key === '3') {
+        playPresenterSound('drum');
+      } else if (e.key === '4') {
+        playPresenterSound('fanfare');
+      } else if (['ArrowRight', 'ArrowDown', ' ', 'PageDown', 'Enter'].includes(e.key)) {
         e.preventDefault();
         handleAdvance();
       } else if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace'].includes(e.key)) {
@@ -134,8 +252,6 @@ export function SlideShow({
         handleStepBack();
       } else if (e.key === 'Escape') {
         onClose();
-      } else if (e.key.toLowerCase() === 'l') {
-        setIsLaserActive((val) => !val);
       }
     };
 
@@ -143,22 +259,131 @@ export function SlideShow({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleAdvance, handleStepBack, onClose]);
 
-  // Auto-advance timer if configured on slide transition
+  // Web Speech API for Vietnamese Subtitles
   useEffect(() => {
-    const afterSec = currentSlide.transition?.advanceAfterSeconds;
-    if (afterSec && afterSec > 0) {
-      const timer = setTimeout(() => {
-        handleAdvance();
-      }, afterSec * 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [currentIndex, animStep, currentSlide.transition?.advanceAfterSeconds, handleAdvance]);
+    if (typeof window === 'undefined') return;
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
-  // Mouse move for laser pointer
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (isLaserActive) {
-      setLaserPos({ x: e.clientX, y: e.clientY });
+    if (isSubtitlesActive && SpeechRecognition) {
+      try {
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'vi-VN';
+        recognition.continuous = true;
+        recognition.interimResults = true;
+
+        recognition.onresult = (event: any) => {
+          let currentText = '';
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            currentText += event.results[i][0].transcript;
+          }
+          setLiveTranscript(currentText);
+        };
+
+        recognition.onerror = () => {
+          // Re-listen on error
+        };
+
+        recognition.onend = () => {
+          if (isSubtitlesActive) {
+            try { recognition.start(); } catch {}
+          }
+        };
+
+        recognition.start();
+        recognitionRef.current = recognition;
+      } catch {
+        // Speech API not supported
+      }
+    } else {
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch {}
+        recognitionRef.current = null;
+      }
+      setLiveTranscript('');
     }
+
+    return () => {
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch {}
+      }
+    };
+  }, [isSubtitlesActive]);
+
+  // Countdown timer interval
+  useEffect(() => {
+    if (!isCountdownRunning || timerSecondsLeft <= 0) return;
+    const interval = setInterval(() => {
+      setTimerSecondsLeft((s) => {
+        if (s <= 1) {
+          setIsCountdownRunning(false);
+          playPresenterSound('timer');
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isCountdownRunning, timerSecondsLeft]);
+
+  // Resize canvas for drawing
+  useEffect(() => {
+    const handleResize = () => {
+      if (drawCanvasRef.current) {
+        drawCanvasRef.current.width = window.innerWidth;
+        drawCanvasRef.current.height = window.innerHeight;
+      }
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Drawing event handlers
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (drawTool === 'none') return;
+    isDrawingRef.current = true;
+    const canvas = drawCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.beginPath();
+    ctx.moveTo(e.clientX, e.clientY);
+
+    if (drawTool === 'pen') {
+      ctx.strokeStyle = '#EF4444';
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.globalCompositeOperation = 'source-over';
+    } else if (drawTool === 'highlighter') {
+      ctx.strokeStyle = 'rgba(250, 204, 21, 0.45)';
+      ctx.lineWidth = 20;
+      ctx.lineCap = 'square';
+      ctx.lineJoin = 'miter';
+      ctx.globalCompositeOperation = 'source-over';
+    } else if (drawTool === 'eraser') {
+      ctx.lineWidth = 30;
+      ctx.globalCompositeOperation = 'destination-out';
+    }
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    setPointerPos({ x: e.clientX, y: e.clientY });
+
+    if (!isDrawingRef.current || drawTool === 'none') return;
+    const canvas = drawCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.lineTo(e.clientX, e.clientY);
+    ctx.stroke();
+  };
+
+  const handlePointerUp = () => {
+    isDrawingRef.current = false;
   };
 
   // Timer interval for presenter mode
@@ -176,8 +401,8 @@ export function SlideShow({
     return `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
   };
 
-  const transitionClass = currentSlide.transition.type !== 'none'
-    ? `ppt-transition-${currentSlide.transition.type}`
+  const transitionClass = currentSlide.transition?.type !== 'none'
+    ? `ppt-transition-${currentSlide.transition?.type}`
     : '';
 
   // Render Presenter View
@@ -318,17 +543,33 @@ export function SlideShow({
     <div
       ref={containerRef}
       className="ppt-slideshow-overlay"
+      onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
-      onClick={handleAdvance}
+      onPointerUp={handlePointerUp}
+      onClick={drawTool === 'none' ? handleAdvance : undefined}
+      style={{
+        cursor: drawTool !== 'none'
+          ? 'crosshair'
+          : isLaserActive
+          ? 'none'
+          : 'default',
+      }}
     >
-      {/* Laser pointer glow */}
-      {isLaserActive && (
+      {/* 1. Blank Screen Overlays */}
+      {blankMode === 'black' && (
         <div
-          className="ppt-laser-dot"
-          style={{ left: `${laserPos.x}px`, top: `${laserPos.y}px` }}
+          style={{ position: 'fixed', inset: 0, background: '#000000', zIndex: 1000, cursor: 'pointer' }}
+          onClick={() => setBlankMode('none')}
+        />
+      )}
+      {blankMode === 'white' && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: '#FFFFFF', zIndex: 1000, cursor: 'pointer' }}
+          onClick={() => setBlankMode('none')}
         />
       )}
 
+      {/* 2. Main Slide Canvas */}
       <div className={`ppt-slideshow-canvas ${transitionClass}`}>
         <SlideCanvas
           slide={currentSlide}
@@ -344,21 +585,252 @@ export function SlideShow({
         />
       </div>
 
-      {/* Floating on-screen toolbar */}
+      {/* 3. In-Show Annotation Canvas Layer */}
+      <canvas
+        ref={drawCanvasRef}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          pointerEvents: drawTool !== 'none' ? 'auto' : 'none',
+          zIndex: 800,
+        }}
+      />
+
+      {/* 4. Spotlight Focus Overlay */}
+      {isSpotlightActive && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.78)',
+            maskImage: `radial-gradient(circle 140px at ${pointerPos.x}px ${pointerPos.y}px, transparent 100%, black 100%)`,
+            WebkitMaskImage: `radial-gradient(circle 140px at ${pointerPos.x}px ${pointerPos.y}px, transparent 0%, transparent 120px, black 140px)`,
+            pointerEvents: 'none',
+            zIndex: 850,
+          }}
+        />
+      )}
+
+      {/* 5. Laser Pointer Glow */}
+      {isLaserActive && (
+        <div
+          className="ppt-laser-dot"
+          style={{
+            left: `${pointerPos.x}px`,
+            top: `${pointerPos.y}px`,
+            pointerEvents: 'none',
+            zIndex: 900,
+          }}
+        />
+      )}
+
+      {/* 6. Magnifier Loupe (2.5x Zoom) */}
+      {isMagnifierActive && (
+        <div
+          style={{
+            position: 'fixed',
+            left: `${pointerPos.x - 90}px`,
+            top: `${pointerPos.y - 90}px`,
+            width: '180px',
+            height: '180px',
+            borderRadius: '50%',
+            border: '3px solid #0078D4',
+            boxShadow: '0 8px 30px rgba(0,0,0,0.5), inset 0 0 15px rgba(0,120,212,0.2)',
+            overflow: 'hidden',
+            pointerEvents: 'none',
+            zIndex: 950,
+            background: '#FFFFFF',
+          }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              width: '100vw',
+              height: '100vh',
+              transformOrigin: '0 0',
+              transform: `scale(2.2) translate(${-pointerPos.x + 40}px, ${-pointerPos.y + 40}px)`,
+            }}
+          >
+            <SlideCanvas
+              slide={currentSlide}
+              aspectRatio={aspectRatio}
+              zoom={100}
+              selectedElementId={null}
+              onSelectElement={() => {}}
+              onUpdateElement={() => {}}
+              hiddenElementIds={hiddenElementIds}
+              showAnimBadges={false}
+              readOnly
+            />
+          </div>
+        </div>
+      )}
+
+      {/* 7. Live Vietnamese Subtitles Bar */}
+      {isSubtitlesActive && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '76px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            maxWidth: '850px',
+            width: '90%',
+            background: 'rgba(15, 23, 42, 0.88)',
+            backdropFilter: 'blur(8px)',
+            border: '1px solid rgba(255,255,255,0.15)',
+            borderRadius: '12px',
+            padding: '12px 24px',
+            color: '#FFFFFF',
+            fontSize: '18px',
+            fontWeight: 600,
+            textAlign: 'center',
+            zIndex: 880,
+            boxShadow: '0 10px 25px rgba(0,0,0,0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '12px',
+          }}
+        >
+          <span style={{ display: 'inline-flex', width: '10px', height: '10px', borderRadius: '50%', background: '#EF4444', animation: 'pptPulse 1s infinite' }} />
+          <span>{liveTranscript || 'Đang lắng nghe giọng nói tiếng Việt...'}</span>
+        </div>
+      )}
+
+      {/* 8. Floating Countdown Timer Box */}
+      {isTimerOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            top: '24px',
+            right: '24px',
+            background: 'rgba(15, 23, 42, 0.92)',
+            backdropFilter: 'blur(8px)',
+            border: '1px solid #334155',
+            borderRadius: '12px',
+            padding: '12px 16px',
+            color: '#FFFFFF',
+            zIndex: 900,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+            <span style={{ fontSize: '11px', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase' }}>
+              Đồng hồ đếm ngược
+            </span>
+            <button
+              onClick={() => setIsTimerOpen(false)}
+              style={{ background: 'transparent', border: 'none', color: '#94A3B8', cursor: 'pointer', padding: 0 }}
+            >
+              <X size={14} />
+            </button>
+          </div>
+          <div style={{ fontSize: '28px', fontWeight: 800, fontFamily: 'monospace', textAlign: 'center', color: timerSecondsLeft <= 30 ? '#EF4444' : '#38BDF8' }}>
+            {formatTimer(timerSecondsLeft)}
+          </div>
+          <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+            <button
+              onClick={() => setIsCountdownRunning((r) => !r)}
+              className="ppt-ss-btn"
+              style={{ padding: '4px 12px', fontSize: '12px', background: isCountdownRunning ? '#EF4444' : '#107C41' }}
+            >
+              {isCountdownRunning ? 'Dừng' : 'Bắt đầu'}
+            </button>
+            <button
+              onClick={() => { setIsCountdownRunning(false); setTimerSecondsLeft(300); }}
+              className="ppt-ss-btn"
+              style={{ padding: '4px 8px' }}
+              title="Đặt lại 5 phút"
+            >
+              5p
+            </button>
+            <button
+              onClick={() => { setIsCountdownRunning(false); setTimerSecondsLeft(600); }}
+              className="ppt-ss-btn"
+              style={{ padding: '4px 8px' }}
+              title="Đặt lại 10 phút"
+            >
+              10p
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 9. Presenter Soundboard Popover */}
+      {showSoundboard && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '76px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'rgba(15, 23, 42, 0.94)',
+            backdropFilter: 'blur(8px)',
+            border: '1px solid #334155',
+            borderRadius: '12px',
+            padding: '10px 16px',
+            display: 'flex',
+            gap: '12px',
+            zIndex: 900,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => playPresenterSound('applause')}
+            className="ppt-ss-btn"
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}
+            title="Phím tắt: 1"
+          >
+            <span>👏</span> <span>Vỗ tay (1)</span>
+          </button>
+          <button
+            onClick={() => playPresenterSound('ding')}
+            className="ppt-ss-btn"
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}
+            title="Phím tắt: 2"
+          >
+            <span>🔔</span> <span>Đing đúng (2)</span>
+          </button>
+          <button
+            onClick={() => playPresenterSound('drum')}
+            className="ppt-ss-btn"
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}
+            title="Phím tắt: 3"
+          >
+            <span>🥁</span> <span>Trống cuộn (3)</span>
+          </button>
+          <button
+            onClick={() => playPresenterSound('fanfare')}
+            className="ppt-ss-btn"
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}
+            title="Phím tắt: 4"
+          >
+            <span>🎺</span> <span>Kèn mừng (4)</span>
+          </button>
+        </div>
+      )}
+
+      {/* 10. Sleek Floating Presenter Dock at Bottom */}
       <div className="ppt-slideshow-bar" onClick={(e) => e.stopPropagation()}>
         <button
           className="ppt-ss-btn"
           disabled={currentIndex === 0 && animStep === 0}
           onClick={handleStepBack}
-          title="Lùi bước diễn hoạt hoặc trang chiếu trước"
+          title="Lùi lại (Mũi tên trái)"
         >
-          <ChevronLeft size={20} />
+          <ChevronLeft size={18} />
         </button>
 
-        <span style={{ fontSize: '13px', fontWeight: 600, minWidth: '80px', textAlign: 'center' }}>
+        <span style={{ fontSize: '12px', fontWeight: 600, minWidth: '70px', textAlign: 'center' }}>
           {currentIndex + 1} / {slides.length}
           {entranceElements.length > 0 && (
-            <span style={{ color: '#F59E0B', marginLeft: '4px', fontSize: '11px' }}>
+            <span style={{ color: '#F59E0B', marginLeft: '4px', fontSize: '10px' }}>
               [{animStep}/{entranceElements.length}]
             </span>
           )}
@@ -368,35 +840,159 @@ export function SlideShow({
           className="ppt-ss-btn"
           disabled={currentIndex === slides.length - 1 && animStep === entranceElements.length}
           onClick={handleAdvance}
-          title="Tiến bước diễn hoạt hoặc trang chiếu kế tiếp"
+          title="Tiến tới (Mũi tên phải / Phím cách)"
         >
-          <ChevronRight size={20} />
+          <ChevronRight size={18} />
         </button>
 
         <span style={{ width: '1px', height: '16px', background: 'rgba(255,255,255,0.2)' }} />
 
+        {/* Laser (L) */}
         <button
           className={`ppt-ss-btn ${isLaserActive ? 'is-active' : ''}`}
-          onClick={() => setIsLaserActive((v) => !v)}
-          title="Bút Laser Pointer (L)"
+          onClick={() => {
+            setIsLaserActive((v) => !v);
+            setIsSpotlightActive(false);
+            setIsMagnifierActive(false);
+            setDrawTool('none');
+          }}
+          title="Tia Laser đỏ (L)"
         >
-          <Sparkles size={18} />
+          <Sparkles size={16} />
         </button>
 
+        {/* Spotlight (S) */}
+        <button
+          className={`ppt-ss-btn ${isSpotlightActive ? 'is-active' : ''}`}
+          onClick={() => {
+            setIsSpotlightActive((v) => !v);
+            setIsLaserActive(false);
+            setIsMagnifierActive(false);
+          }}
+          title="Đèn rọi Spotlight (S)"
+        >
+          <Radio size={16} />
+        </button>
+
+        {/* Magnifier (Z) */}
+        <button
+          className={`ppt-ss-btn ${isMagnifierActive ? 'is-active' : ''}`}
+          onClick={() => {
+            setIsMagnifierActive((v) => !v);
+            setIsLaserActive(false);
+            setIsSpotlightActive(false);
+          }}
+          title="Kính lúp phóng đại (Z)"
+        >
+          <Search size={16} />
+        </button>
+
+        {/* In-Show Pen (P) */}
+        <button
+          className={`ppt-ss-btn ${drawTool === 'pen' ? 'is-active' : ''}`}
+          onClick={() => setDrawTool((t) => (t === 'pen' ? 'none' : 'pen'))}
+          title="Bút vẽ trực tiếp (P)"
+        >
+          <PenTool size={16} />
+        </button>
+
+        {/* In-Show Highlighter (I) */}
+        <button
+          className={`ppt-ss-btn ${drawTool === 'highlighter' ? 'is-active' : ''}`}
+          onClick={() => setDrawTool((t) => (t === 'highlighter' ? 'none' : 'highlighter'))}
+          title="Bút dạ quang đánh dấu (I)"
+        >
+          <Highlighter size={16} />
+        </button>
+
+        {/* Eraser Tool (E) */}
+        <button
+          className={`ppt-ss-btn ${drawTool === 'eraser' ? 'is-active' : ''}`}
+          onClick={() => setDrawTool((t) => (t === 'eraser' ? 'none' : 'eraser'))}
+          title="Tẩy nét vẽ (E)"
+        >
+          <Eraser size={16} />
+        </button>
+
+        {/* Clear All Drawing (C) */}
+        <button
+          className="ppt-ss-btn"
+          onClick={() => {
+            if (drawCanvasRef.current) {
+              const ctx = drawCanvasRef.current.getContext('2d');
+              if (ctx) ctx.clearRect(0, 0, drawCanvasRef.current.width, drawCanvasRef.current.height);
+            }
+          }}
+          title="Xóa tất cả nét vẽ trên trang chiếu (C)"
+        >
+          <Trash2 size={16} />
+        </button>
+
+        <span style={{ width: '1px', height: '16px', background: 'rgba(255,255,255,0.2)' }} />
+
+        {/* Live Vietnamese Subtitles */}
+        <button
+          className={`ppt-ss-btn ${isSubtitlesActive ? 'is-active' : ''}`}
+          onClick={() => setIsSubtitlesActive((v) => !v)}
+          title="Bật/tắt Phụ đề tiếng Việt theo giọng nói"
+        >
+          {isSubtitlesActive ? <Mic size={16} color="#22C55E" /> : <MicOff size={16} />}
+        </button>
+
+        {/* Soundboard */}
+        <button
+          className={`ppt-ss-btn ${showSoundboard ? 'is-active' : ''}`}
+          onClick={() => setShowSoundboard((v) => !v)}
+          title="Bàn phím âm thanh tương tác (1: Vỗ tay, 2: Ding, 3: Trống, 4: Kèn)"
+        >
+          <Volume2 size={16} />
+        </button>
+
+        {/* Countdown Timer */}
+        <button
+          className={`ppt-ss-btn ${isTimerOpen ? 'is-active' : ''}`}
+          onClick={() => setIsTimerOpen((v) => !v)}
+          title="Đồng hồ đếm ngược"
+        >
+          <Timer size={16} />
+        </button>
+
+        {/* Black Screen (B) */}
+        <button
+          className="ppt-ss-btn"
+          onClick={() => setBlankMode((m) => (m === 'black' ? 'none' : 'black'))}
+          title="Màn hình Đen (B)"
+        >
+          <Moon size={16} />
+        </button>
+
+        {/* White Screen (W) */}
+        <button
+          className="ppt-ss-btn"
+          onClick={() => setBlankMode((m) => (m === 'white' ? 'none' : 'white'))}
+          title="Màn hình Trắng (W)"
+        >
+          <Sun size={16} />
+        </button>
+
+        <span style={{ width: '1px', height: '16px', background: 'rgba(255,255,255,0.2)' }} />
+
+        {/* Presenter View */}
         <button
           className="ppt-ss-btn"
           onClick={() => setIsPresenterMode(true)}
           title="Chế độ Diễn giả (Presenter View)"
         >
-          <Layout size={18} />
+          <Layout size={16} />
         </button>
 
+        {/* Exit (Esc) */}
         <button
           className="ppt-ss-btn"
           onClick={onClose}
           title="Thoát trình chiếu (Esc)"
         >
-          <X size={18} />
+          <X size={16} />
         </button>
       </div>
     </div>

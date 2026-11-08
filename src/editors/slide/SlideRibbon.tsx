@@ -49,6 +49,10 @@ import {
   Paintbrush,
   ArrowUp,
   ArrowDown,
+  Code2,
+  Sigma,
+  Lock,
+  ShieldCheck,
 } from 'lucide-react';
 import type {
   SlideElement,
@@ -312,6 +316,12 @@ interface SlideRibbonProps {
   onBringForward: () => void;
   onSendBackward: () => void;
   onAlignElement: (align: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom') => void;
+  isDesignerOpen?: boolean;
+  onToggleDesigner?: () => void;
+  onAddCode?: (lang?: string) => void;
+  onAddMath?: () => void;
+  onToggleLockElement?: () => void;
+  onOpenWatermarkModal?: () => void;
 }
 
 const FONTS = [
@@ -410,6 +420,12 @@ export function SlideRibbon(props: SlideRibbonProps) {
     onBringForward,
     onSendBackward,
     onAlignElement,
+    isDesignerOpen = false,
+    onToggleDesigner,
+    onAddCode,
+    onAddMath,
+    onToggleLockElement,
+    onOpenWatermarkModal,
   } = props;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -809,6 +825,31 @@ export function SlideRibbon(props: SlideRibbonProps) {
               <div className="ppt-group-footer">Chỉnh sửa</div>
             </div>
 
+            {/* Designer / AI Suggestions Group */}
+            <div className="ppt-ribbon-group">
+              <div className="ppt-group-content">
+                <button
+                  className={`ppt-tool-btn-large ${isDesignerOpen ? 'is-active' : ''}`}
+                  onClick={onToggleDesigner}
+                  title="Ý tưởng Thiết kế AI (Slide Designer) - Tự động dàn trang hiện đại"
+                >
+                  <Sparkles size={18} color="#8E2DE2" />
+                  <span>Ý tưởng TK</span>
+                </button>
+                {selectedElement && (
+                  <button
+                    className={`ppt-tool-btn-large ${selectedElement.locked ? 'is-active' : ''}`}
+                    onClick={onToggleLockElement}
+                    title={selectedElement.locked ? 'Mở khóa đối tượng này' : 'Khóa đối tượng (chống vô tình dịch chuyển)'}
+                  >
+                    <Lock size={18} color={selectedElement.locked ? '#DC2626' : '#64748B'} />
+                    <span>{selectedElement.locked ? 'Đã khóa' : 'Khóa'}</span>
+                  </button>
+                )}
+              </div>
+              <div className="ppt-group-footer">Thiết kế & Khóa</div>
+            </div>
+
             {/* Delete button */}
             {selectedElement && (
               <div className="ppt-ribbon-group">
@@ -916,6 +957,28 @@ export function SlideRibbon(props: SlideRibbonProps) {
                 </button>
               </div>
               <div className="ppt-group-footer">Văn bản & Mã</div>
+            </div>
+
+            <div className="ppt-ribbon-group">
+              <div className="ppt-group-content">
+                <button
+                  className="ppt-tool-btn-large"
+                  onClick={() => onAddCode?.('typescript')}
+                  title="Chèn khối mã nguồn lập trình có đánh số dòng và nút copy"
+                >
+                  <Code2 size={20} color="#2563EB" />
+                  <span>Khối Code</span>
+                </button>
+                <button
+                  className="ppt-tool-btn-large"
+                  onClick={() => onAddMath?.()}
+                  title="Chèn công thức toán học LaTeX"
+                >
+                  <Sigma size={20} color="#D97706" />
+                  <span>Công thức</span>
+                </button>
+              </div>
+              <div className="ppt-group-footer">Mã nguồn & Toán</div>
             </div>
           </>
         )}
@@ -1064,6 +1127,28 @@ export function SlideRibbon(props: SlideRibbonProps) {
                 </button>
               </div>
               <div className="ppt-group-footer">Tùy biến</div>
+            </div>
+
+            <div className="ppt-ribbon-group">
+              <div className="ppt-group-content">
+                <button
+                  className={`ppt-tool-btn-large ${isDesignerOpen ? 'is-active' : ''}`}
+                  onClick={onToggleDesigner}
+                  title="Ý tưởng Thiết kế AI (Slide Designer) - Gợi ý dàn trang tự động"
+                >
+                  <Sparkles size={20} color="#8E2DE2" />
+                  <span>Ý tưởng TK</span>
+                </button>
+                <button
+                  className="ppt-tool-btn-large"
+                  onClick={onOpenWatermarkModal}
+                  title="Cài đặt hình mờ / chữ bản quyền cho bài thuyết trình"
+                >
+                  <ShieldCheck size={20} color="#059669" />
+                  <span>Hình mờ</span>
+                </button>
+              </div>
+              <div className="ppt-group-footer">Designer & Bản quyền</div>
             </div>
           </>
         )}

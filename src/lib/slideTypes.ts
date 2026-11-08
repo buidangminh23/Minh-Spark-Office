@@ -166,7 +166,7 @@ export interface ElementAnimation {
   motionPathCoords?: { dx: number; dy: number };
 }
 
-export type ElementType = 'text' | 'shape' | 'image' | 'table' | 'chart' | 'smartart' | 'qr' | 'ink';
+export type ElementType = 'text' | 'shape' | 'image' | 'table' | 'chart' | 'smartart' | 'qr' | 'ink' | 'code' | 'math' | 'zoom';
 
 export interface ChartSeries {
   name: string;
@@ -260,6 +260,20 @@ export interface SlideElement {
   inkColor?: string;
   inkWidth?: number;
 
+  // Code properties
+  codeLang?: string;
+  codeContent?: string;
+
+  // Math properties
+  mathFormula?: string;
+
+  // Zoom slide properties
+  zoomSlideId?: string;
+  zoomSlideTitle?: string;
+
+  // Lock status
+  locked?: boolean;
+
   // Animation properties
   animation?: {
     type: AnimationType;
@@ -287,6 +301,12 @@ export interface SlideTransition {
   morphMode?: 'objects' | 'words' | 'characters';
 }
 
+export interface SlideSection {
+  id: string;
+  name: string;
+  collapsed?: boolean;
+}
+
 export interface SlideData {
   id: string;
   layout: SlideLayout;
@@ -295,6 +315,7 @@ export interface SlideData {
   notes: string;
   transition: SlideTransition;
   hidden?: boolean;
+  sectionId?: string;
 }
 
 export interface SlideTheme {
@@ -317,4 +338,10 @@ export interface PresentationData {
   themeId: string;
   title?: string;
   author?: string;
+  sections?: SlideSection[];
+  watermark?: {
+    text: string;
+    enabled: boolean;
+    opacity?: number;
+  };
 }

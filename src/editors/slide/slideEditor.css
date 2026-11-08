@@ -3591,3 +3591,241 @@
   75% { transform: translate(-25px, 20px); }
   100% { transform: translate(0, 0); }
 }
+
+/* ==========================================================================
+   MINH SPARK OFFICE PRESENTATION SUPERPOWERS & DESIGNER STYLES
+   (Rule 19 Spacing & Rhythm Compliant)
+   ========================================================================== */
+
+/* Code Block Element */
+.ppt-code-container {
+  width: 100%;
+  height: 100%;
+  background: #0F172A;
+  border-radius: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 var(--space-1) var(--space-4) rgba(0, 0, 0, 0.25);
+  border: 1px solid #334155;
+}
+
+.ppt-code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-1-5) var(--space-3);
+  background: #1E293B;
+  border-bottom: 1px solid #334155;
+}
+
+.ppt-code-lang-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: #38BDF8;
+  background: rgba(56, 189, 248, 0.15);
+  padding: 2px var(--space-1-5);
+  border-radius: var(--space-1);
+  letter-spacing: 0.5px;
+}
+
+.ppt-code-title {
+  font-size: 12px;
+  color: #94A3B8;
+  font-weight: 500;
+}
+
+.ppt-code-copy-btn {
+  background: #334155;
+  border: none;
+  color: #E2E8F0;
+  font-size: 11px;
+  padding: var(--space-0-5) var(--space-2);
+  border-radius: var(--space-1);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.ppt-code-copy-btn:hover {
+  background: #475569;
+}
+
+.ppt-code-pre {
+  margin: 0;
+  padding: var(--space-3);
+  flex: 1;
+  overflow: auto;
+  font-family: 'Consolas', 'Fira Code', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #F8FAFC;
+}
+
+/* Math LaTeX Formula Element */
+.ppt-math-container {
+  width: 100%;
+  height: 100%;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-3);
+  box-shadow: 0 2px var(--space-2) rgba(0, 0, 0, 0.05);
+}
+
+.ppt-math-formula {
+  font-size: 20px;
+  font-family: 'Cambria Math', 'KaTeX_Main', serif;
+  font-style: italic;
+  color: #0F172A;
+  text-align: center;
+  word-break: break-all;
+}
+
+.ppt-math-sub {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #94A3B8;
+  margin-top: var(--space-1-5);
+  letter-spacing: 0.5px;
+}
+
+/* Slide Zoom Element */
+.ppt-zoom-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background: #FFFFFF;
+  border: 2px solid #0078D4;
+  border-radius: var(--space-2);
+  overflow: hidden;
+  box-shadow: 0 var(--space-1) var(--space-3) rgba(0, 120, 212, 0.2);
+}
+
+.ppt-zoom-thumb {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #F8FAFC;
+}
+
+.ppt-zoom-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.ppt-zoom-badge {
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-1);
+  background: #0078D4;
+  color: #FFFFFF;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px var(--space-1-5);
+  border-radius: var(--space-1);
+}
+
+/* Lock Badge on Canvas */
+.ppt-canvas-lock-badge {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  width: 20px;
+  height: 20px;
+  background: #DC2626;
+  color: #FFFFFF;
+  border-radius: 50%;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px var(--space-1) rgba(0, 0, 0, 0.2);
+  z-index: 30;
+  pointer-events: none;
+}
+
+/* Watermark Overlay on Canvas */
+.ppt-canvas-watermark {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 48px;
+  font-weight: 900;
+  color: #64748B;
+  transform: rotate(-30deg);
+  letter-spacing: var(--space-1);
+  pointer-events: none;
+  z-index: 5;
+  user-select: none;
+  text-transform: uppercase;
+}
+
+/* AI Modal Tabs Strip */
+.ppt-ai-tab-strip {
+  display: flex;
+  background: #F1F5F9;
+  border-bottom: 1px solid #E2E8F0;
+  padding: var(--space-1) var(--space-4) 0 var(--space-4);
+  gap: var(--space-1);
+}
+
+.ppt-ai-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  padding: var(--space-2) var(--space-4);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #64748B;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ppt-ai-tab-btn:hover {
+  color: #1E293B;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.ppt-ai-tab-btn.is-active {
+  color: #4338CA;
+  border-bottom-color: #4338CA;
+  background: #FFFFFF;
+  border-radius: var(--space-1) var(--space-1) 0 0;
+}
+
+/* Quick chips for Chat-to-edit */
+.ppt-quick-chip-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  padding: var(--space-1-5) var(--space-3);
+  border-radius: 9999px;
+  font-size: 12px;
+  color: #334155;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  transition: all 0.15s ease;
+}
+
+.ppt-quick-chip-btn:hover {
+  background: #FFF7ED;
+  border-color: #FDBA74;
+  color: #C2410C;
+  transform: translateY(-1px);
+}

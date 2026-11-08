@@ -48,6 +48,7 @@ import { SlideHorizontalRuler, SlideVerticalRuler } from './SlideRuler';
 import { SlideFindReplaceModal } from './SlideFindReplaceModal';
 import { SlideExportModal } from './SlideExportModal';
 import { SlideAiModal } from './SlideAiModal';
+import { SlideDesignerPane } from './SlideDesignerPane';
 import './slideEditor.css';
 
 interface SlideEditorProps {
@@ -99,6 +100,11 @@ export default function SlideEditor({
   const [isPresenterMode, setIsPresenterMode] = useState(false);
   const [isBackstageOpen, setIsBackstageOpen] = useState(false);
   const [isAnimationPaneOpen, setIsAnimationPaneOpen] = useState(false);
+  const [isDesignerOpen, setIsDesignerOpen] = useState(false);
+  const [isWatermarkModalOpen, setIsWatermarkModalOpen] = useState(false);
+  const [watermarkText, setWatermarkText] = useState(presentation.watermark?.text || 'BẢN QUYỀN - MINH SPARK');
+  const [watermarkEnabled, setWatermarkEnabled] = useState(presentation.watermark?.enabled ?? false);
+  const [watermarkOpacity, setWatermarkOpacity] = useState(presentation.watermark?.opacity ?? 0.15);
   const [isPreviewingTransition, setIsPreviewingTransition] = useState(false);
   const [previewingAnimElementId, setPreviewingAnimElementId] = useState<string | null>(null);
   const [animationPainterActive, setAnimationPainterActive] = useState(false);
@@ -673,6 +679,89 @@ export default function SlideEditor({
     ui.toast('Đã chèn mã QR');
   };
 
+  const handleAddCode = (lang: string = 'typescript') => {
+    pushHistory(presentation);
+    const newEl: SlideElement = {
+      id: `code-${Date.now()}`,
+      type: 'code',
+      x: 15,
+      y: 25,
+      width: 70,
+      height: 50,
+      codeLang: lang,
+      codeContent: '// Minh Spark Code Snippet\\nexport function calculateGrowth(rate: number, years: number) {\\n  return Math.pow(1 + rate, years);\\n}',
+      placeholder: 'Khối mã nguồn',
+    };
+    const updatedSlides = presentation.slides.map((s, idx) =>
+      idx === activeSlideIndex ? { ...s, elements: [...s.elements, newEl] } : s
+    );
+    const newPres = { ...presentation, slides: updatedSlides };
+    setPresentation(newPres);
+    setSelectedElementId(newEl.id);
+    triggerAutoSave(newPres);
+    ui.toast('Đã chèn khối mã nguồn');
+  };
+
+  const handleAddMath = () => {
+    pushHistory(presentation);
+    const newEl: SlideElement = {
+      id: `math-${Date.now()}`,
+      type: 'math',
+      x: 20,
+      y: 35,
+      width: 60,
+      height: 25,
+      mathFormula: 'f(x) = \\\\int_{-\\\\infty}^\\\\infty \\\\hat{f}(\\\\xi) e^{2\\\\pi i \\\\xi x} d\\\\xi',
+    };
+    const updatedSlides = presentation.slides.map((s, idx) =>
+      idx === activeSlideIndex ? { ...s, elements: [...s.elements, newEl] } : s
+    );
+    const newPres = { ...presentation, slides: updatedSlides };
+    setPresentation(newPres);
+    setSelectedElementId(newEl.id);
+    triggerAutoSave(newPres);
+    ui.toast('Đã chèn công thức Toán LaTeX');
+  };
+
+  const handleToggleLockElement = () => {
+    if (!selectedElement) return;
+    const isLocked = !selectedElement.locked;
+    updateSlideElement(selectedElement.id, { locked: isLocked });
+    ui.toast(isLocked ? 'Đã khóa đối tượng' : 'Đã mở khóa đối tượng');
+  };
+
+  const handleApplyDesignerLayout = (newElements: SlideElement[], newBackground?: SlideBackground) => {
+    pushHistory(presentation);
+    const updatedSlides = presentation.slides.map((s, idx) => {
+      if (idx !== activeSlideIndex) return s;
+      return {
+        ...s,
+        elements: newElements,
+        background: newBackground || s.background,
+      };
+    });
+    const updatedPres = { ...presentation, slides: updatedSlides };
+    setPresentation(updatedPres);
+    triggerAutoSave(updatedPres);
+    ui.toast('Đã áp dụng bố cục thiết kế từ AI Designer');
+  };
+
+  const handleSaveWatermark = () => {
+    pushHistory(presentation);
+    const updated = {
+      ...presentation,
+      watermark: {
+        text: watermarkText,
+        enabled: watermarkEnabled,
+        opacity: watermarkOpacity,
+      },
+    };
+    setPresentation(updated);
+    triggerAutoSave(updated);
+    setIsWatermarkModalOpen(false);
+    ui.toast('Đã lưu cấu hình hình mờ bài thuyết trình');
+  };
+
   // Change Theme
   const handleApplyTheme = (themeId: string) => {
     pushHistory(presentation);
@@ -1173,6 +1262,12 @@ export default function SlideEditor({
         onBringForward={handleBringForward}
         onSendBackward={handleSendBackward}
         onAlignElement={handleAlignElement}
+        isDesignerOpen={isDesignerOpen}
+        onToggleDesigner={() => setIsDesignerOpen(!isDesignerOpen)}
+        onAddCode={handleAddCode}
+        onAddMath={handleAddMath}
+        onToggleLockElement={handleToggleLockElement}
+        onOpenWatermarkModal={() => setIsWatermarkModalOpen(true)}
       />
 
       {/* 3. Main Workspace Area */}
@@ -1232,6 +1327,7 @@ export default function SlideEditor({
                     isPreviewingTransition={isPreviewingTransition}
                     previewingAnimElementId={previewingAnimElementId}
                     showAnimBadges={activeTab === 'animations' || isAnimationPaneOpen}
+                    watermark={presentation.watermark}
                   />
                 </div>
               </div>
@@ -1321,6 +1417,16 @@ export default function SlideEditor({
             isPlayingPreview={previewingAnimElementId !== null}
           />
         )}
+
+        {/* Right-Hand AI Designer Pane */}
+        {isDesignerOpen && (
+          <SlideDesignerPane
+            slide={currentSlide}
+            themeId={presentation.themeId}
+            onApplyDesign={handleApplyDesignerLayout}
+            onClose={() => setIsDesignerOpen(false)}
+          />
+        )}
       </div>
 
       {/* 4. Office Status Bar */}
@@ -1365,6 +1471,13 @@ export default function SlideEditor({
             title="Ngăn Hoạt hình"
           >
             Ngăn Hoạt hình
+          </button>
+          <button
+            className={`ppt-status-btn ${isDesignerOpen ? 'is-active' : ''}`}
+            onClick={() => setIsDesignerOpen(!isDesignerOpen)}
+            title="Ý tưởng Thiết kế AI (Slide Designer)"
+          >
+            Ý tưởng TK
           </button>
 
           <span style={{ color: '#CBD5E1' }}>|</span>
@@ -1472,6 +1585,8 @@ export default function SlideEditor({
         isOpen={isAiModalOpen}
         onClose={() => setIsAiModalOpen(false)}
         currentThemeId={presentation.themeId}
+        slides={presentation.slides}
+        currentSlideIndex={activeSlideIndex}
         onApplyGeneratedDeck={(newSlides, themeId) => {
           pushHistory(presentation);
           const newPres = { ...presentation, slides: newSlides, themeId };
@@ -1480,7 +1595,82 @@ export default function SlideEditor({
           triggerAutoSave(newPres);
           ui.toast('AI Copilot đã tạo bài thuyết trình mới hoàn chỉnh!');
         }}
+        onUpdateSlideElements={(slideId, elements) => {
+          pushHistory(presentation);
+          const updatedSlides = presentation.slides.map((s) =>
+            s.id === slideId ? { ...s, elements } : s
+          );
+          const newPres = { ...presentation, slides: updatedSlides };
+          setPresentation(newPres);
+          triggerAutoSave(newPres);
+        }}
+        onUpdateSlideBackground={(slideId, bg) => {
+          pushHistory(presentation);
+          const updatedSlides = presentation.slides.map((s) =>
+            s.id === slideId ? { ...s, background: bg } : s
+          );
+          const newPres = { ...presentation, slides: updatedSlides };
+          setPresentation(newPres);
+          triggerAutoSave(newPres);
+        }}
+        onApplyTheme={handleApplyTheme}
+        onUpdatePresentationSlides={(newSlides) => {
+          pushHistory(presentation);
+          const newPres = { ...presentation, slides: newSlides };
+          setPresentation(newPres);
+          triggerAutoSave(newPres);
+        }}
       />
+
+      {/* Watermark Configuration Modal */}
+      {isWatermarkModalOpen && (
+        <div className="ppt-modal-backdrop" onClick={() => setIsWatermarkModalOpen(false)}>
+          <div className="ppt-dialog-card" onClick={(e) => e.stopPropagation()} style={{ width: '440px' }}>
+            <div className="ppt-dialog-header">
+              <span style={{ fontWeight: 700 }}>Hình Mờ & Bản Quyền (Watermark)</span>
+              <button className="ppt-dialog-close-btn" onClick={() => setIsWatermarkModalOpen(false)}>×</button>
+            </div>
+            <div className="ppt-dialog-body">
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '16px' }}>
+                <input
+                  type="checkbox"
+                  checked={watermarkEnabled}
+                  onChange={(e) => setWatermarkEnabled(e.target.checked)}
+                />
+                <span style={{ fontWeight: 600 }}>Bật hiển thị hình mờ trên toàn bộ bài thuyết trình</span>
+              </label>
+
+              <div className="ppt-dialog-field">
+                <label style={{ fontWeight: 600 }}>Nội dung chữ hình mờ (Watermark Text):</label>
+                <input
+                  type="text"
+                  className="ppt-input"
+                  value={watermarkText}
+                  onChange={(e) => setWatermarkText(e.target.value)}
+                  placeholder="Ví dụ: BẢN QUYỀN - MINH SPARK, BẢO MẬT NỘI BỘ..."
+                />
+              </div>
+
+              <div className="ppt-dialog-field" style={{ marginTop: '12px' }}>
+                <label style={{ fontWeight: 600 }}>Độ mờ đục ({Math.round(watermarkOpacity * 100)}%):</label>
+                <input
+                  type="range"
+                  min="0.05"
+                  max="0.5"
+                  step="0.05"
+                  value={watermarkOpacity}
+                  onChange={(e) => setWatermarkOpacity(Number(e.target.value))}
+                  style={{ width: '100%' }}
+                />
+              </div>
+            </div>
+            <div className="ppt-dialog-footer">
+              <button className="ppt-secondary-action-btn" onClick={() => setIsWatermarkModalOpen(false)}>Huỷ</button>
+              <button className="ppt-primary-action-btn" onClick={handleSaveWatermark}>Lưu cấu hình</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Fullscreen Slide Show Mode */}
       {isSlideShowActive && (

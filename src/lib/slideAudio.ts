@@ -183,3 +183,72 @@ export function playTransitionSound(sound: TransitionSound): void {
     // Ignore audio playback errors if audio context blocked by browser policy
   }
 }
+
+export function playPresenterSound(type: 'applause' | 'ding' | 'drum' | 'fanfare' | 'timer'): void {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+
+  try {
+    switch (type) {
+      case 'ding': {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(1760, now); // A6
+        gain.gain.setValueAtTime(0.35, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.8);
+        break;
+      }
+      case 'fanfare': {
+        // C4, E4, G4, C5 brass fanfare chord sequence
+        const notes = [261.63, 329.63, 392.00, 523.25];
+        notes.forEach((freq, idx) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sawtooth';
+          const t = now + idx * 0.12;
+          osc.frequency.setValueAtTime(freq, t);
+          gain.gain.setValueAtTime(0.2, t);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(t);
+          osc.stop(t + 0.5);
+        });
+        break;
+      }
+      case 'applause': {
+        playTransitionSound('applause');
+        break;
+      }
+      case 'drum': {
+        playTransitionSound('drum');
+        break;
+      }
+      case 'timer': {
+        // Two-tone bell alert
+        [880, 1320].forEach((freq, i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          const t = now + i * 0.18;
+          osc.frequency.setValueAtTime(freq, t);
+          gain.gain.setValueAtTime(0.3, t);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(t);
+          osc.stop(t + 0.6);
+        });
+        break;
+      }
+    }
+  } catch {
+    // Audio synthesis fallback
+  }
+}

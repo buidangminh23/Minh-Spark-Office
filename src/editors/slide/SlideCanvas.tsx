@@ -21,6 +21,11 @@ interface SlideCanvasProps {
   previewingAnimElementId?: string | null;
   showAnimBadges?: boolean;
   hiddenElementIds?: string[];
+  watermark?: {
+    text: string;
+    enabled: boolean;
+    opacity?: number;
+  };
 }
 
 export function SlideCanvas({
@@ -43,6 +48,7 @@ export function SlideCanvas({
   previewingAnimElementId = null,
   showAnimBadges = true,
   hiddenElementIds = [],
+  watermark,
 }: SlideCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
@@ -88,6 +94,8 @@ export function SlideCanvas({
 
     e.stopPropagation();
     onSelectElement(el.id);
+
+    if (el.locked) return; // Prevent drag if element is locked
 
     if (editingTextId === el.id) return;
 
@@ -375,6 +383,16 @@ export function SlideCanvas({
         </div>
       )}
 
+      {/* Presentation Watermark */}
+      {watermark?.enabled && watermark.text && (
+        <div
+          className="ppt-canvas-watermark"
+          style={{ opacity: watermark.opacity ?? 0.15 }}
+        >
+          {watermark.text}
+        </div>
+      )}
+
       {/* Slide Elements */}
       {slide.elements.map((el) => {
         const isSelected = !readOnly && el.id === selectedElementId;
@@ -479,9 +497,16 @@ export function SlideCanvas({
               </div>
             )}
 
+            {/* Lock Badge */}
+            {el.locked && (
+              <div className="ppt-canvas-lock-badge" title="Đối tượng này đã bị khóa (Lock)">
+                🔒
+              </div>
+            )}
+
             {renderElementContent(el, isEditing, (newText) => onUpdateElement(el.id, { text: newText }))}
 
-            {isSelected && drawMode === 'select' && (
+            {isSelected && drawMode === 'select' && !el.locked && (
               <>
                 {/* Rotate Handle */}
                 <div className="ppt-rotate-stem" />
@@ -744,6 +769,59 @@ function renderElementContent(
           strokeLinejoin="round"
         />
       </svg>
+    );
+  }
+
+  if (el.type === 'code') {
+    const code = el.codeContent || el.text || '// Minh Spark Code Snippet\nfunction presentationSuperpower() {\n  console.log("Ready to present!");\n}';
+    const lang = el.codeLang || 'typescript';
+    return (
+      <div className="ppt-code-container">
+        <div className="ppt-code-header">
+          <span className="ppt-code-lang-tag">{lang.toUpperCase()}</span>
+          <span className="ppt-code-title">{el.placeholder || 'Khối Mã Nguồn'}</span>
+          <button
+            type="button"
+            className="ppt-code-copy-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              navigator.clipboard?.writeText(code);
+            }}
+            title="Sao chép mã nguồn"
+          >
+            📋 Copy
+          </button>
+        </div>
+        <pre className="ppt-code-pre">
+          <code>{code}</code>
+        </pre>
+      </div>
+    );
+  }
+
+  if (el.type === 'math') {
+    const formula = el.mathFormula || el.text || 'f(x) = \\int_{-\\infty}^\\infty \\hat{f}(\\xi) e^{2\\pi i \\xi x} d\\xi';
+    return (
+      <div className="ppt-math-container">
+        <div className="ppt-math-formula">{formula}</div>
+        <div className="ppt-math-sub">Công thức Toán (LaTeX)</div>
+      </div>
+    );
+  }
+
+  if (el.type === 'zoom') {
+    return (
+      <div className="ppt-zoom-container">
+        <div className="ppt-zoom-thumb">
+          <div className="ppt-zoom-inner">
+            <span style={{ fontSize: '24px' }}>🔍</span>
+            <span style={{ fontWeight: 600, fontSize: '13px', color: '#1E293B' }}>
+              {el.zoomSlideTitle || 'Trang chiếu phóng to (Slide Zoom)'}
+            </span>
+          </div>
+        </div>
+        <div className="ppt-zoom-badge">Slide Zoom</div>
+      </div>
     );
   }
 
