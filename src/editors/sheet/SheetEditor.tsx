@@ -30,6 +30,7 @@ import {
   ImageSourceType,
 } from '@univerjs/presets';
 import { UniverSheetsCorePreset } from '@univerjs/preset-sheets-core';
+import { EXTRA_FUNCTION_DESCRIPTIONS, EXTRA_FUNCTIONS } from './extraFunctions';
 import UniverPresetSheetsCoreViVN from '@univerjs/preset-sheets-core/locales/vi-VN';
 import UniverPresetSheetsCoreEnUS from '@univerjs/preset-sheets-core/locales/en-US';
 import { UniverSheetsConditionalFormattingPreset, CFValueType } from '@univerjs/preset-sheets-conditional-formatting';
@@ -1144,6 +1145,10 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
             header: false,
             toolbar: false,
             formulaBar: true,
+            formula: {
+              function: EXTRA_FUNCTIONS,
+              description: EXTRA_FUNCTION_DESCRIPTIONS,
+            },
             footer: {
               sheetBar: true,
               statisticBar: true,
