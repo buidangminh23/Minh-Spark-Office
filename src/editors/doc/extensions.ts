@@ -2,6 +2,8 @@ import { Extension, Mark, Node, mergeAttributes } from '@tiptap/core';
 import Image from '@tiptap/extension-image';
 import { TableCell, TableHeader } from '@tiptap/extension-table';
 import { NodeSelection } from '@tiptap/pm/state';
+import type { ResizableNodeView } from '@tiptap/core';
+import { enhanceImageView } from './resizeObjects';
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -354,6 +356,13 @@ export const MergeField = Node.create({
   },
 });
 
+const cssLength = (value: unknown) => (/^\d+(\.\d+)?$/.test(String(value)) ? `${value}px` : String(value));
+
+export const imageSizeStyle = (width: unknown, height: unknown) => {
+  const w = cssLength(width);
+  return height && w.endsWith('px') ? `width: ${w}; height: ${cssLength(height)}` : `width: ${w}`;
+};
+
 export const LayoutImage = Image.extend({
   addAttributes() {
     return {
@@ -376,14 +385,20 @@ export const LayoutImage = Image.extend({
       width: {
         default: null,
         parseHTML: (element) => element.getAttribute('width') ?? element.style.width ?? null,
-        renderHTML: (attributes) => (attributes.width ? { style: `width: ${/^\d+(\.\d+)?$/.test(String(attributes.width)) ? `${attributes.width}px` : attributes.width}` } : {}),
+        renderHTML: (attributes) => (attributes.width ? { style: imageSizeStyle(attributes.width, attributes.height) } : {}),
       },
     };
+  },
+  addNodeView() {
+    const base = this.parent?.();
+    if (!base) return null;
+    return (props) => enhanceImageView(base(props) as unknown as ResizableNodeView);
   },
   addCommands() {
     return {
       ...this.parent?.(),
-      setImageLayout: (attrs) => ({ commands, tr, dispatch }) => {
+      setImageLayout: (input) => ({ commands, tr, dispatch }) => {
+        const attrs = typeof input.width === 'string' && input.width.trim().endsWith('%') ? { ...input, height: null } : input;
         const { selection } = tr;
         if (!(selection instanceof NodeSelection) || selection.node.type.name !== 'image') return commands.updateAttributes('image', attrs);
         if (dispatch) {

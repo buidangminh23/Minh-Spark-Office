@@ -1,11 +1,13 @@
 import { Extension, Node, mergeAttributes, type Editor } from '@tiptap/core';
 import type { JSONContent } from '@tiptap/react';
+import type { Node as PMNode } from '@tiptap/pm/model';
 import type { DocProperties } from '../../lib/storage';
 import { getRefs } from './extensionsExtra';
 import { getPagination, pageAtPos } from './pagination';
 import { FLATTEN_EXTRA } from './docFlattenExtra';
 import { NODE_EDITORS } from './nodeEditors';
 import { defaultFormat, formatDate, type FieldKind } from './insertFields';
+import { attachWidthHandles, isObjectHandleEvent } from './resizeObjects';
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -186,6 +188,53 @@ export const VideoEmbed = Node.create({
   },
   renderText({ node }) {
     return String(node.attrs.url);
+  },
+  addNodeView() {
+    return ({ node: initial, editor, getPos }) => {
+      let node = initial;
+      const dom = document.createElement('div');
+      dom.className = 'doc-video';
+      dom.dataset.videoEmbed = 'true';
+      const mover = document.createElement('div');
+      mover.className = 'doc-video-handle';
+      mover.contentEditable = 'false';
+      mover.title = 'Bấm để chọn, kéo để di chuyển video';
+      mover.setAttribute('aria-label', 'Chọn video');
+      dom.append(mover);
+      let shownUrl = '';
+      const render = (current: PMNode) => {
+        dom.style.width = `${current.attrs.width}%`;
+        dom.dataset.width = String(current.attrs.width);
+        const url = String(current.attrs.url);
+        if (url === shownUrl) return;
+        shownUrl = url;
+        dom.querySelector('iframe, a.doc-video-link')?.remove();
+        const embed = videoEmbedUrl(url);
+        const frame = embed ? Object.assign(document.createElement('iframe'), { src: embed, title: 'Video trực tuyến', loading: 'lazy', allowFullscreen: true, referrerPolicy: 'strict-origin-when-cross-origin' }) : Object.assign(document.createElement('a'), { href: url, textContent: url, className: 'doc-video-link' });
+        if (frame instanceof HTMLIFrameElement) frame.allow = 'encrypted-media; picture-in-picture';
+        dom.insertBefore(frame, mover.nextSibling);
+      };
+      render(node);
+      const cleanup = attachWidthHandles({
+        editor, dom, getPos,
+        directions: ['top-left', 'top-right', 'right', 'bottom-right', 'bottom-left', 'left'],
+        minPercent: 20,
+        isCentered: () => true,
+        commit: (_current, percent) => ({ width: percent }),
+      });
+      return {
+        dom,
+        update: (next) => {
+          if (next.type !== node.type) return false;
+          node = next;
+          render(next);
+          return true;
+        },
+        stopEvent: isObjectHandleEvent,
+        ignoreMutation: () => true,
+        destroy: cleanup,
+      };
+    };
   },
   addCommands() {
     return {

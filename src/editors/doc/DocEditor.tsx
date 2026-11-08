@@ -17,6 +17,7 @@ import { ArrowLeft, BookOpen, CheckCircle2, Clock, History, MessageSquare, Redo2
 
 import { CommentMark, Footnote, FontSizeStep, LayoutImage, MergeField, PageBreak, ParagraphFormat, ShadedTableCell, ShadedTableHeader } from './extensions';
 import { AutoCorrect, Bibliography, Bookmark, Citation, ColumnSection, CrossRef, DocIndex, DocRefs, EndnoteList, Equation, FigureList, IndexEntry, ListStyles, SmartChip, TableExtras, TableOfContents, TextBox, TextStyleExtras, setRefs } from './extensionsExtra';
+import { ALL_DIRECTIONS, TableTools } from './resizeObjects';
 import { Pagination, getPagination } from './pagination';
 import { editNodeAt } from './actionsExtra';
 import { EQUATION_OPEN_DIALOG } from './equationInline';
@@ -164,7 +165,7 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
       TaskList,
       TaskItem.configure({ nested: true }),
       Highlight.configure({ multicolor: true }),
-      LayoutImage.configure({ inline: true, allowBase64: true, resize: { enabled: true, alwaysPreserveAspectRatio: true, minWidth: 40, minHeight: 20 } }),
+      LayoutImage.configure({ inline: true, allowBase64: true, resize: { enabled: true, directions: [...ALL_DIRECTIONS], alwaysPreserveAspectRatio: false, minWidth: 8, minHeight: 8 } }),
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       TextStyle,
       FontFamily,
@@ -191,6 +192,7 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
       TextStyleExtras,
       ListStyles,
       TableExtras,
+      TableTools,
       TextBox,
       ColumnSection,
       Equation,

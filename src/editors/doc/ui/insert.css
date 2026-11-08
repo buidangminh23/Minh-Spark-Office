@@ -67,11 +67,11 @@
 .doc-editor .doc-paper .tiptap .doc-field { padding-inline: 1px; background: rgba(148, 163, 184, 0.18); border-radius: 2px; }
 .doc-editor .doc-paper .tiptap .doc-field.ProseMirror-selectednode { outline: 2px solid #5b8def; }
 
-.doc-editor .doc-paper .tiptap .doc-video { position: relative; max-width: 100%; margin: var(--doc-gap-3) auto; border-radius: 6px; background: #0f172a; overflow: hidden; break-inside: avoid; }
+.doc-editor .doc-paper .tiptap .doc-video { position: relative; max-width: 100%; margin: var(--doc-gap-3) auto; border-radius: 6px; background: #0f172a; break-inside: avoid; }
 .doc-editor .doc-paper .tiptap .doc-video.ProseMirror-selectednode { outline: 2px solid #5b8def; outline-offset: 2px; }
 .doc-editor .doc-paper .tiptap .doc-video-handle { position: absolute; top: 8px; right: 8px; z-index: 1; width: 24px; height: 24px; border-radius: 6px; background: rgba(15, 23, 42, .72) radial-gradient(circle, #fff 1.5px, transparent 2px) 0 0 / 8px 8px; opacity: 0; cursor: grab; transition: opacity .15s; user-select: none; }
 .doc-editor .doc-paper .tiptap .doc-video:hover .doc-video-handle, .doc-editor .doc-paper .tiptap .doc-video.ProseMirror-selectednode .doc-video-handle { opacity: 1; }
-.doc-editor .doc-paper .tiptap .doc-video iframe { display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; }
+.doc-editor .doc-paper .tiptap .doc-video iframe { display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; border-radius: inherit; }
 
 .doc-editor .doc-paper .tiptap .file-object { display: inline-block; padding: 0 var(--doc-gap-2); border: 1px solid #cbd5e1; border-radius: 12px; background: #f8fafc; color: #1e3a8a; font-size: 0.9em; line-height: 1.5; text-decoration: none; cursor: pointer; }
 .doc-editor .doc-paper .tiptap .file-object::before { content: 'Tệp: '; color: #64748b; }

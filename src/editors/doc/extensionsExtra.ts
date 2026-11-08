@@ -8,6 +8,7 @@ import { katexStrict } from './mathCatalog';
 import { EquationInlineEditor } from './equationInline';
 import type { CitationSource, CitationStyle } from '../../lib/storage';
 import { getPagination, pageAtPos } from './pagination';
+import { attachWidthHandles, isObjectHandleEvent } from './resizeObjects';
 import { SUPERSCRIPT_TRIGGER, SYMBOL_TRIGGER, isInsideOpenMath, looksLikeDisplayMath, looksLikeInlineMath, superscriptFor, symbolForCommand } from './mathInput';
 
 declare module '@tiptap/core' {
@@ -463,6 +464,48 @@ export const TextBox = Node.create({
     const align = String(node.attrs.align);
     const width = align === 'full' ? '100%' : `${node.attrs.boxWidth}%`;
     return ['div', mergeAttributes(HTMLAttributes, { 'data-text-box': 'true', class: `doc-textbox align-${align}`, style: `background-color: ${node.attrs.fill}; border-color: ${node.attrs.stroke}; width: ${width}` }), 0];
+  },
+  addNodeView() {
+    return ({ node: initial, editor, getPos }) => {
+      let node = initial;
+      const dom = document.createElement('div');
+      dom.dataset.textBox = 'true';
+      const body = document.createElement('div');
+      body.className = 'doc-textbox-body';
+      dom.append(body);
+      const render = (current: typeof initial) => {
+        const align = String(current.attrs.align);
+        dom.className = `doc-textbox align-${align}`;
+        dom.dataset.align = align;
+        dom.dataset.fill = String(current.attrs.fill);
+        dom.dataset.stroke = String(current.attrs.stroke);
+        dom.dataset.boxWidth = String(current.attrs.boxWidth);
+        dom.style.backgroundColor = String(current.attrs.fill);
+        dom.style.borderColor = String(current.attrs.stroke);
+        dom.style.width = align === 'full' ? '100%' : `${current.attrs.boxWidth}%`;
+      };
+      render(node);
+      const cleanup = attachWidthHandles({
+        editor, dom, getPos,
+        directions: ['left', 'right'],
+        minPercent: 15,
+        isCentered: () => ['full', 'center'].includes(String(node.attrs.align)),
+        commit: (current, percent) => ({ boxWidth: String(percent), align: current.attrs.align === 'full' ? (percent >= 100 ? 'full' : 'center') : current.attrs.align }),
+      });
+      return {
+        dom,
+        contentDOM: body,
+        update: (next) => {
+          if (next.type !== node.type) return false;
+          node = next;
+          render(next);
+          return true;
+        },
+        stopEvent: isObjectHandleEvent,
+        ignoreMutation: (mutation) => mutation.type !== 'selection' && !body.contains(mutation.target),
+        destroy: cleanup,
+      };
+    };
   },
   addCommands() {
     return {
