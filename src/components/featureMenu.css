@@ -1,0 +1,125 @@
+.feature-menu {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  max-width: calc(100vw - 16px);
+  background: #fff;
+  border: 1px solid #d5dbe5;
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
+  overflow: hidden;
+  color: #1f2937;
+  font-size: 13px;
+}
+
+.feature-menu-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px;
+  padding: 0 12px;
+  min-height: 32px;
+  border: 1px solid #d5dbe5;
+  border-radius: 6px;
+  color: #64748b;
+}
+
+.feature-menu-search:focus-within {
+  border-color: #0f766e;
+  box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.18);
+}
+
+.feature-menu-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+}
+
+.feature-menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 8px 8px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.feature-menu-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.feature-menu-group h3 {
+  margin: 0 0 4px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.feature-menu-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+
+.feature-menu-item:hover,
+.feature-menu-item:focus-visible {
+  background: #eef6f5;
+  outline: none;
+}
+
+.feature-menu-item:focus-visible {
+  box-shadow: inset 0 0 0 2px #0f766e;
+}
+
+.feature-menu-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: #f1f5f9;
+}
+
+.feature-menu-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.feature-menu-text strong {
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.feature-menu-text small {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.feature-menu-empty {
+  margin: 0;
+  padding: 16px 8px;
+  color: #64748b;
+  text-align: center;
+}

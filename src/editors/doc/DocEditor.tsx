@@ -55,7 +55,7 @@ import InsertTab from './ui/tabs/InsertTab';
 import { DesignTab, LayoutTab } from './ui/tabs/LayoutTabs';
 import { MailingsTab, ReferencesTab, ReviewTab } from './ui/tabs/ReviewTabs';
 import DrawTab from './ui/tabs/DrawTab';
-import { HelpTab, OutlineTab, PdfTab, ViewTab, ZOOM_STEPS } from './ui/tabs/ViewTabs';
+import { HelpTab, OutlineTab, ViewTab, ZOOM_STEPS } from './ui/tabs/ViewTabs';
 import { ImageTab, TableTab } from './ui/tabs/ContextTabs';
 import { Backstage, StatusBar, TabBar, type TabId } from './ui/Chrome';
 import { ChangesPanel, CommentsPanel, OutlinePanel } from './ui/Panels';
@@ -498,7 +498,6 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
       case 'mailings': return <MailingsTab />;
       case 'review': return <ReviewTab />;
       case 'view': return <ViewTab pageWidth={dims.width} pageHeight={dims.height} />;
-      case 'pdf': return <PdfTab />;
       case 'help': return <HelpTab />;
       case 'table': return <TableTab fmt={fmt} />;
       case 'image': return <ImageTab />;

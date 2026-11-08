@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { FeatureMenu, type FeatureItem } from '../../components/FeatureMenu';
 import {
   FileText,
   Eye,
@@ -545,6 +546,17 @@ export function SlideRibbon(props: SlideRibbonProps) {
   const isTableSelected = selectedElement?.type === 'table';
   const isChartSelected = selectedElement?.type === 'chart';
 
+  const slideFeatures: FeatureItem[] = [
+    { id: 'qr', group: 'Chèn nhanh', label: 'Mã QR', description: 'Mã QR để khán giả mở liên kết của buổi thuyết trình', icon: <QrCode size={16} color="#1E293B" />, run: () => onAddQrCode('https://office.minhspark.com') },
+    { id: 'code', group: 'Chèn nhanh', label: 'Khối code', description: 'Mã nguồn có đánh số dòng và nút sao chép', icon: <Code2 size={16} color="#2563EB" />, run: () => onAddCode?.('typescript') },
+    { id: 'countdown', group: 'Tương tác khán giả', label: 'Đồng hồ đếm ngược', description: 'Đếm giờ có chuông báo khi hết giờ', icon: <Timer size={16} color="#D97706" />, run: () => onAddCountdown?.() },
+    { id: 'poll', group: 'Tương tác khán giả', label: 'Bình chọn trực tiếp', description: 'Thẻ bình chọn kèm mã QR cho khán giả', icon: <Vote size={16} color="#16A34A" />, run: () => onAddLivePoll?.() },
+    { id: 'mail-merge', group: 'Dữ liệu', label: 'Trộn thư', description: 'Nhân bản hàng loạt slide từ Excel hoặc CSV', icon: <Users size={16} color="#D83B01" />, run: () => onOpenMailMerge?.() },
+    { id: 'sheets-link', group: 'Dữ liệu', label: 'Dữ liệu từ Minh Sheets', description: 'Liên kết số liệu sống từ sổ tính .xlsx', icon: <FileSpreadsheet size={16} color="#059669" />, run: () => onOpenLiveSheetsLink?.() },
+    { id: 'brand', group: 'Nhận diện', label: 'Bảng màu thương hiệu', description: 'Lấy 5 màu từ logo và áp cho cả bài', icon: <Palette size={16} color="#7C3AED" />, run: () => onOpenBrandPalette?.() },
+    { id: 'watermark', group: 'Nhận diện', label: 'Hình mờ bản quyền', description: 'Đặt chữ hoặc hình mờ cho bài thuyết trình', icon: <ShieldCheck size={16} color="#059669" />, run: () => onOpenWatermarkModal?.() },
+  ];
+
   return (
     <div className="ppt-ribbon-container">
       {/* 1. Ribbon Tabs Bar */}
@@ -938,6 +950,13 @@ export function SlideRibbon(props: SlideRibbonProps) {
               <div className="ppt-group-footer">Thiết kế & Khóa</div>
             </div>
 
+            <div className="ppt-ribbon-group">
+              <div className="ppt-group-content">
+                <FeatureMenu items={slideFeatures} className="ppt-tool-btn-large" activeClass="is-active" />
+              </div>
+              <div className="ppt-group-footer">Tính năng</div>
+            </div>
+
             {/* Delete button */}
             {selectedElement && (
               <div className="ppt-ribbon-group">
@@ -1035,28 +1054,12 @@ export function SlideRibbon(props: SlideRibbonProps) {
                   <Type size={20} color="#0F172A" />
                   <span>Hộp chữ</span>
                 </button>
-                <button
-                  className="ppt-tool-btn-large"
-                  onClick={() => onAddQrCode('https://office.minhspark.com')}
-                  title="Tạo mã QR cho buổi thuyết trình"
-                >
-                  <QrCode size={20} color="#1E293B" />
-                  <span>Mã QR</span>
-                </button>
               </div>
-              <div className="ppt-group-footer">Văn bản & Mã</div>
+              <div className="ppt-group-footer">Văn bản</div>
             </div>
 
             <div className="ppt-ribbon-group">
               <div className="ppt-group-content">
-                <button
-                  className="ppt-tool-btn-large"
-                  onClick={() => onAddCode?.('typescript')}
-                  title="Chèn khối mã nguồn lập trình có đánh số dòng và nút copy"
-                >
-                  <Code2 size={20} color="#2563EB" />
-                  <span>Khối Code</span>
-                </button>
                 <button
                   className="ppt-tool-btn-large"
                   onClick={() => onAddMath?.()}
@@ -1066,7 +1069,7 @@ export function SlideRibbon(props: SlideRibbonProps) {
                   <span>Công thức</span>
                 </button>
               </div>
-              <div className="ppt-group-footer">Mã nguồn & Toán</div>
+              <div className="ppt-group-footer">Ký hiệu</div>
             </div>
 
             {/* Multimedia & 3D Models */}
@@ -1097,22 +1100,6 @@ export function SlideRibbon(props: SlideRibbonProps) {
               <div className="ppt-group-content">
                 <button
                   className="ppt-tool-btn-large"
-                  onClick={onAddCountdown}
-                  title="Chèn widget đồng hồ đếm ngược có chuông báo hết giờ"
-                >
-                  <Timer size={20} color="#D97706" />
-                  <span>Đồng hồ</span>
-                </button>
-                <button
-                  className="ppt-tool-btn-large"
-                  onClick={onAddLivePoll}
-                  title="Chèn thẻ bình chọn trực tiếp kèm mã QR khán giả"
-                >
-                  <Vote size={20} color="#16A34A" />
-                  <span>Bình chọn</span>
-                </button>
-                <button
-                  className="ppt-tool-btn-large"
                   onClick={onAddSlideZoom}
                   title="Chèn ảnh thu nhỏ liên kết thu phóng (Slide Zoom)"
                 >
@@ -1120,30 +1107,7 @@ export function SlideRibbon(props: SlideRibbonProps) {
                   <span>Thu phóng</span>
                 </button>
               </div>
-              <div className="ppt-group-footer">Tương tác</div>
-            </div>
-
-            {/* Automation & Live Data */}
-            <div className="ppt-ribbon-group">
-              <div className="ppt-group-content">
-                <button
-                  className="ppt-tool-btn-large"
-                  onClick={onOpenMailMerge}
-                  title="Tự động nhân bản hàng loạt slide từ dữ liệu Excel / CSV"
-                >
-                  <Users size={20} color="#D83B01" />
-                  <span>Trộn thư</span>
-                </button>
-                <button
-                  className="ppt-tool-btn-large"
-                  onClick={onOpenLiveSheetsLink}
-                  title="Liên kết dữ liệu sống từ sổ tính Minh Sheets (.xlsx)"
-                >
-                  <FileSpreadsheet size={20} color="#059669" />
-                  <span>Dữ liệu Sheets</span>
-                </button>
-              </div>
-              <div className="ppt-group-footer">Tự động & Data</div>
+              <div className="ppt-group-footer">Liên kết</div>
             </div>
           </>
         )}
@@ -1297,20 +1261,6 @@ export function SlideRibbon(props: SlideRibbonProps) {
             <div className="ppt-ribbon-group">
               <div className="ppt-group-content">
                 <button
-                  className="ppt-tool-btn-large"
-                  onClick={onOpenBrandPalette}
-                  title="Trích xuất bảng 5 màu chuẩn từ Logo và áp dụng đồng loạt vào bài chiếu"
-                >
-                  <Palette size={20} color="#7C3AED" />
-                  <span>Bảng màu Brand</span>
-                </button>
-              </div>
-              <div className="ppt-group-footer">Bộ nhận diện</div>
-            </div>
-
-            <div className="ppt-ribbon-group">
-              <div className="ppt-group-content">
-                <button
                   className={`ppt-tool-btn-large ${isDesignerOpen ? 'is-active' : ''}`}
                   onClick={onToggleDesigner}
                   title="Ý tưởng Thiết kế AI (Slide Designer) - Gợi ý dàn trang tự động"
@@ -1318,16 +1268,8 @@ export function SlideRibbon(props: SlideRibbonProps) {
                   <Sparkles size={20} color="#8E2DE2" />
                   <span>Ý tưởng TK</span>
                 </button>
-                <button
-                  className="ppt-tool-btn-large"
-                  onClick={onOpenWatermarkModal}
-                  title="Cài đặt hình mờ / chữ bản quyền cho bài thuyết trình"
-                >
-                  <ShieldCheck size={20} color="#059669" />
-                  <span>Hình mờ</span>
-                </button>
               </div>
-              <div className="ppt-group-footer">Designer & Bản quyền</div>
+              <div className="ppt-group-footer">Designer</div>
             </div>
           </>
         )}

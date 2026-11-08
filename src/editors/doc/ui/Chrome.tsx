@@ -164,21 +164,21 @@ export function Backstage({ onClose }: { onClose: () => void }) {
   );
 }
 
-export type TabId = 'file' | 'home' | 'insert' | 'draw' | 'design' | 'layout' | 'references' | 'mailings' | 'review' | 'view' | 'pdf' | 'help' | 'table' | 'image' | 'outline';
+export type TabId = 'file' | 'home' | 'insert' | 'draw' | 'design' | 'layout' | 'references' | 'mailings' | 'review' | 'view' | 'help' | 'table' | 'image' | 'outline';
 
 export function TabBar({ tab, setTab, contextual }: { tab: TabId; setTab: (t: TabId) => void; contextual: TabId[] }) {
   const ctx = useDoc();
   const tabs: { id: TabId; label: string }[] = [
     { id: 'home', label: 'Trang chủ' }, { id: 'insert', label: 'Chèn' }, { id: 'draw', label: 'Vẽ' }, { id: 'design', label: 'Thiết kế' }, { id: 'layout', label: 'Bố cục' },
     { id: 'references', label: 'Tham chiếu' }, { id: 'mailings', label: 'Gửi thư' }, { id: 'review', label: 'Xem lại' }, { id: 'view', label: 'Xem' },
-    { id: 'pdf', label: 'Minh PDF' }, { id: 'help', label: 'Trợ giúp' },
+    { id: 'help', label: 'Trợ giúp' },
   ];
   const labels: Partial<Record<TabId, string>> = { table: 'Bảng', image: 'Ảnh', outline: 'Dàn ý' };
   return (
     <div className="ribbon-tabs-bar" role="tablist">
       <div className="ribbon-tabs-list">
         <button role="tab" className="ribbon-tab file-tab" onClick={() => ctx.openDialog('backstage')}>Tệp</button>
-        {tabs.map((t) => <button key={t.id} role="tab" aria-selected={tab === t.id} className={`ribbon-tab ${tab === t.id ? 'active' : ''} ${t.id === 'pdf' ? 'pdf-tab' : ''}`} onClick={() => setTab(t.id)}>{t.label}</button>)}
+        {tabs.map((t) => <button key={t.id} role="tab" aria-selected={tab === t.id} className={`ribbon-tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>{t.label}</button>)}
         {contextual.map((id) => <button key={id} role="tab" aria-selected={tab === id} className={`ribbon-tab contextual ${tab === id ? 'active' : ''}`} onClick={() => setTab(id)}>{labels[id]}</button>)}
       </div>
       <div className="ribbon-top-actions">

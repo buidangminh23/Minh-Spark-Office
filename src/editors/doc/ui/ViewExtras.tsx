@@ -14,7 +14,8 @@ import InsertTab from './tabs/InsertTab';
 import DrawTab from './tabs/DrawTab';
 import { DesignTab, LayoutTab } from './tabs/LayoutTabs';
 import { MailingsTab, ReferencesTab, ReviewTab } from './tabs/ReviewTabs';
-import { HelpTab, PdfTab, ViewTab } from './tabs/ViewTabs';
+import { HelpTab, ViewTab } from './tabs/ViewTabs';
+import { useDocFeatures } from './tabs/useDocFeatures';
 import { pageDimensions } from './Paper';
 import { disposeMirrors } from '../viewMirror';
 
@@ -282,7 +283,7 @@ function ImmersiveReader({ onClose }: { onClose: () => void }) {
 
 type PaletteItem = { id: string; label: string; tab?: string; tabLabel: string; run?: () => void };
 
-const TAB_LABELS: Record<string, string> = { home: 'Trang chủ', insert: 'Chèn', draw: 'Vẽ', design: 'Thiết kế', layout: 'Bố cục', references: 'Tham chiếu', mailings: 'Gửi thư', review: 'Xem lại', view: 'Xem', pdf: 'Minh PDF', help: 'Trợ giúp' };
+const TAB_LABELS: Record<string, string> = { home: 'Trang chủ', insert: 'Chèn', draw: 'Vẽ', design: 'Thiết kế', layout: 'Bố cục', references: 'Tham chiếu', mailings: 'Gửi thư', review: 'Xem lại', view: 'Xem', help: 'Trợ giúp' };
 const fold = (text: string) => text.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').toLowerCase();
 
 function CommandPalette({ onClose }: { onClose: () => void }) {
@@ -293,6 +294,7 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState('');
   const [index, setIndex] = useState(0);
   const [commands, setCommands] = useState<PaletteItem[]>([]);
+  const features = useDocFeatures();
   useEffect(() => {
     const found: PaletteItem[] = [];
     hidden.current?.querySelectorAll<HTMLElement>('[data-palette-tab]').forEach((section) => {
@@ -304,8 +306,9 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
     });
     const dialogs: [string, DialogId][] = [['Hộp thoại Phông chữ', 'font'], ['Hộp thoại Đoạn văn', 'paragraph'], ['Thiết lập trang', 'pagesetup'], ['Danh sách phím tắt', 'shortcuts'], ['Macro', 'macros'], ['Tuỳ chọn tự sửa', 'autocorrect'], ['Trình đọc chân thực', 'immersive'], ['Thu phóng', 'zoom'], ['Tệp và xuất', 'backstage']];
     dialogs.forEach(([label, id]) => found.push({ id: `dialog:${id}`, label, tabLabel: 'Hộp thoại', run: () => ctx.openDialog(id) }));
+    features.forEach((feature) => found.push({ id: `feature:${feature.id}`, label: feature.label, tabLabel: 'Tính năng', run: feature.run }));
     setCommands(found);
-  }, [ctx]);
+  }, [ctx, features]);
   const results = useMemo(() => {
     const term = fold(query.trim());
     return (term ? commands.filter((item) => fold(`${item.label} ${item.tabLabel}`).includes(term)) : commands).slice(0, 40);
@@ -355,7 +358,6 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
         <div data-palette-tab="mailings"><MailingsTab /></div>
         <div data-palette-tab="review"><ReviewTab /></div>
         <div data-palette-tab="view"><ViewTab pageWidth={dims.width} pageHeight={dims.height} /></div>
-        <div data-palette-tab="pdf"><PdfTab /></div>
         <div data-palette-tab="help"><HelpTab /></div>
       </div>
     </div>

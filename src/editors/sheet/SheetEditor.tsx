@@ -4,6 +4,7 @@ import { useAccount } from '../../components/Authentication';
 import { useWorkspace } from '../../lib/storage';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AddinPanel, AddinRibbonButtons } from '../../addins/AddinPane';
+import { FeatureMenu, type FeatureItem } from '../../components/FeatureMenu';
 import { sheetHost } from '../../addins/hosts';
 import { currentAuthorName } from '../../lib/currentAuthor';
 import type { VietQrCard } from '../../lib/vietQrCard';
@@ -113,7 +114,6 @@ import {
   Calculator,
   CopyCheck,
   Table,
-  PenTool,
   Minimize2,
   Maximize2,
   Plus,
@@ -312,7 +312,6 @@ interface SheetEditorProps {
 type SheetRibbonTab =
   | 'file'
   | 'home'
-  | 'minh_pdf'
   | 'insert'
   | 'draw'
   | 'page_layout'
@@ -360,14 +359,6 @@ interface SelectionStats {
   avg: number;
   min: number;
   max: number;
-}
-
-interface MacroExecutionRecord {
-  id: string;
-  macroId: string;
-  title: string;
-  detail: string;
-  time: number;
 }
 
 export interface AuditTraceItem {
@@ -677,7 +668,6 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
     max: 0,
   });
 
-  const [macroLogs, setMacroLogs] = useState<MacroExecutionRecord[]>([]);
   const [versions, setVersions] = useState<FileVersion[]>([]);
   const [workspaceSheets, setWorkspaceSheets] = useState<FileMeta[]>([]);
 
@@ -3776,10 +3766,6 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
     }
 
     setSavedStatus('saving');
-    setMacroLogs((prev) => [
-      { id: `m-${Date.now()}`, macroId, title: macroTitle, detail, time: Date.now() },
-      ...prev.slice(0, 9),
-    ]);
     ui.toast(`${macroTitle}: ${detail}`);
   };
 
@@ -4142,6 +4128,32 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
 
   const unresolvedCommentCount = comments.filter((c) => !c.resolved).length;
 
+  const MACRO_GROUP = 'Macro kế toán 1 chạm';
+  const sheetFeatures: FeatureItem[] = [
+    { id: 'pdf', group: 'Minh PDF', label: 'Xuất PDF', description: 'In hoặc lưu bảng tính thành PDF theo vùng in', icon: <Printer size={16} color="#dc2626" />, run: () => setModal('pageSetup') },
+    { id: 'png', group: 'Minh PDF', label: 'Xuất ảnh PNG', description: 'Chụp vùng dữ liệu thành ảnh', icon: <ImageIcon size={16} color="#ea580c" />, run: () => setModal('image') },
+    { id: 'html', group: 'Minh PDF', label: 'Tải bản HTML in', description: 'Bản HTML đúng bố cục in để gửi đi', icon: <FileCheck size={16} color="#0284c7" />, run: () => handleDownloadPrintHtml(printSettings) },
+    { id: 'split', group: 'Minh PDF', label: 'Tách từng Sheet', description: 'Tách mỗi trang tính thành một tệp riêng', icon: <Split size={16} color="#107c41" />, run: () => setModal('split') },
+    { id: 'merge', group: 'Minh PDF', label: 'Gộp nhiều tệp', description: 'Gộp dữ liệu từ nhiều bảng tính', icon: <Layers size={16} color="#2563eb" />, run: () => void handleOpenMergeModal() },
+    { id: 'sign', group: 'Chữ ký & thanh toán', label: 'Ký tay & đóng mộc', description: 'Vẽ chữ ký, chèn con dấu đỏ vào bảng tính', icon: <FileSignature size={16} color="#b91c1c" />, run: () => setModal('signature') },
+    { id: 'vietqr', group: 'Chữ ký & thanh toán', label: 'Mã VietQR', description: 'Tạo mã chuyển khoản NAPAS 247', icon: <QrCode size={16} color="#107c41" />, run: () => setModal('vietqr') },
+    { id: 'money-words', group: MACRO_GROUP, label: 'Đọc số tiền thành chữ', description: 'Đọc số VNĐ ở ô đang chọn thành chữ kế toán', icon: <Calculator size={16} color="#d97706" />, run: handleReadMoneyWords },
+    { id: 'money-words-col', group: MACRO_GROUP, label: 'Đọc chữ VNĐ cho cả cột', description: 'Thêm cột số tiền bằng chữ cho bảng dữ liệu', icon: <Calculator size={16} color="#b45309" />, run: () => handleRunMacro('moneyWordsCol') },
+    { id: 'normalize', group: MACRO_GROUP, label: 'Chuẩn hoá bảng', description: 'Dọn khoảng trắng, chuẩn định dạng bảng dữ liệu', icon: <Play size={16} color="#107c41" />, run: () => handleRunMacro('normalizeTable') },
+    { id: 'stt', group: MACRO_GROUP, label: 'Đánh STT 1..N', description: 'Đánh số thứ tự tự động cho bảng', icon: <Play size={16} color="#0284c7" />, run: () => handleRunMacro('autoNumberStt') },
+    { id: 'variance', group: MACRO_GROUP, label: 'Tô âm/dương', description: 'Tô màu số âm và số dương', icon: <Sparkles size={16} color="#7c3aed" />, run: () => handleRunMacro('highlightVariance') },
+    { id: 'blank-rows', group: MACRO_GROUP, label: 'Xoá dòng trống', description: 'Bỏ các dòng trống trong bảng', icon: <Trash2 size={16} color="#dc2626" />, run: () => handleRunMacro('cleanBlankRows') },
+    { id: 'iferror', group: MACRO_GROUP, label: 'Bọc IFERROR', description: 'Bọc công thức đang lỗi để hiện ô trống', icon: <ShieldCheck size={16} color="#0f766e" />, run: handleWrapErrorsWithIfError },
+    { id: 'cleaning', group: 'Dữ liệu', label: 'Xưởng làm sạch', description: 'Xoá trùng, chuẩn hoá, tách cột trong một chỗ', icon: <Sparkles size={16} color="#107c41" />, run: () => openTableTool('dataCleaning') },
+    { id: 'fuzzy', group: 'Dữ liệu', label: 'Đối soát gần đúng', description: 'Khớp tên khách hàng với sổ ngân hàng', icon: <Search size={16} color="#4f46e5" />, run: () => openTableTool('fuzzyReconcile') },
+    { id: 'sql', group: 'Dữ liệu', label: 'Truy vấn SQL', description: 'Hỏi dữ liệu bảng tính bằng câu lệnh SQL', icon: <Database size={16} color="#0284c7" />, run: () => openTableTool('sheetSql') },
+    { id: 'python', group: 'Dữ liệu', label: 'Python Sandbox', description: 'Chạy Python (pandas, numpy) trên bảng tính', icon: <Terminal size={16} color="#0284c7" />, run: () => openTableTool('pythonSandbox') },
+    { id: 'vn-map', group: 'Dữ liệu', label: 'Bản đồ Việt Nam', description: 'Cộng số liệu theo tỉnh thành và 3 miền', icon: <Globe size={16} color="#0284c7" />, run: () => openTableTool('choropleth') },
+    { id: 'market', group: 'Dữ liệu', label: 'Dữ liệu thị trường', description: 'Giá cổ phiếu VN, crypto, ngoại tệ, vàng SJC', icon: <TrendingUp size={16} color="#16a34a" />, run: () => setModal('marketQuotes') },
+    { id: 'diff', group: 'Dữ liệu', label: 'So sánh sổ tính', description: 'Tìm khác biệt giữa hai trang tính hoặc bản lưu', icon: <GitCompare size={16} color="#ea580c" />, run: () => void openWorkbookDiff() },
+    { id: 'doctor', group: 'Dữ liệu', label: 'Bác sĩ tối ưu', description: 'Dọn ô thừa, giảm dung lượng sổ tính', icon: <Sparkles size={16} color="#059669" />, run: openWorkbookDoctor },
+  ];
+
   return (
     <div className="editor-shell">
       <input ref={imageInputRef} type="file" accept="image/*" hidden onChange={handleUploadImageFile} />
@@ -4253,18 +4265,12 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                   ['review', 'Review'],
                   ['view', 'View'],
                   ['automate', 'Automate'],
-                  ['minh_pdf', 'Minh PDF'],
                   ['help', 'Help'],
                 ] as const
               ).map(([tabId, label]) => (
                 <button
                   key={tabId}
                   className={`ribbon-tab ${activeTab === tabId ? 'active' : ''}`}
-                  style={
-                    tabId === 'minh_pdf' && activeTab === 'minh_pdf'
-                      ? { color: '#dc2626', borderBottomColor: '#dc2626' }
-                      : undefined
-                  }
                   onClick={() => {
                     setPopover(null);
                     setActiveTab(tabId);
@@ -4324,14 +4330,6 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                     <button className="ribbon-btn-large" onClick={() => void handleOpenHistory()}>
                       <History size={20} color="#2563eb" />
                       <span>Lịch sử</span>
-                    </button>
-                    <button
-                      className="ribbon-btn-large"
-                      onClick={openWorkbookDoctor}
-                      title="Dọn dẹp ô ma và tối ưu hóa dung lượng sổ tính"
-                    >
-                      <Sparkles size={20} color="#059669" />
-                      <span>Bác sĩ tối ưu</span>
                     </button>
                   </div>
                   <div className="ribbon-group-label">Lưu trữ</div>
@@ -4709,6 +4707,13 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
 
                 <div className="ribbon-section">
                   <div className="ribbon-controls">
+                    <FeatureMenu items={sheetFeatures} className="ribbon-btn-large" />
+                  </div>
+                  <div className="ribbon-group-label">Tính năng</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
                     <button className="ribbon-btn-large" onClick={() => setModal('aiAnalysis')}>
                       <Bot size={20} color="#7c3aed" />
                       <span>Minh AI</span>
@@ -4751,18 +4756,6 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                     <button className="ribbon-btn-large" onClick={() => imageInputRef.current?.click()}>
                       <ImageIcon size={20} color="#2563eb" />
                       <span>Chèn ảnh</span>
-                    </button>
-                    <button className="ribbon-btn-large" onClick={() => setModal('signature')}>
-                      <FileSignature size={20} color="#dc2626" />
-                      <span>Con dấu ký</span>
-                    </button>
-                    <button className="ribbon-btn-large" onClick={() => setModal('vietqr')} title="Tạo mã VietQR chuyển khoản NAPAS 247">
-                      <QrCode size={20} color="#107c41" />
-                      <span>Mã VietQR</span>
-                    </button>
-                    <button className="ribbon-btn-large" onClick={() => openTableTool('choropleth')} title="Cộng số liệu của bảng đang chọn theo tỉnh thành và 3 miền">
-                      <Globe size={20} color="#0284c7" />
-                      <span>Bản đồ VN</span>
                     </button>
                     <button
                       className="ribbon-btn-large"
@@ -4862,19 +4855,6 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
 
             {activeTab === 'draw' && (
               <>
-                <div className="ribbon-section">
-                  <div className="ribbon-controls">
-                    <button className="ribbon-btn-large" onClick={() => setModal('signature')}>
-                      <PenTool size={20} color="#dc2626" />
-                      <span>Vẽ chữ ký tay</span>
-                    </button>
-                    <button className="ribbon-btn-large" onClick={() => setModal('signature')}>
-                      <FileSignature size={20} color="#1d4ed8" />
-                      <span>Đóng mộc đỏ</span>
-                    </button>
-                  </div>
-                  <div className="ribbon-group-label">Bút ký & Con dấu</div>
-                </div>
 
                 <div className="ribbon-section">
                   <div className="ribbon-controls">
@@ -4985,10 +4965,6 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                       <span style={{ fontSize: 18, fontWeight: 800, color: '#107c41', lineHeight: 1 }}>∑</span>
                       <span>AutoSum ▾</span>
                     </button>
-                    <button className="ribbon-btn-large" onClick={handleReadMoneyWords} title="Đọc số tiền VNĐ thành chữ kế toán">
-                      <Calculator size={20} color="#d97706" />
-                      <span>Đọc số VNĐ</span>
-                    </button>
                   </div>
                   <div className="ribbon-group-label">Hàm & Kế toán</div>
                 </div>
@@ -5038,10 +5014,6 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                     <button className="ribbon-btn-large" onClick={() => setModal('aiAudit')}>
                       <AlertTriangle size={20} color="#dc2626" />
                       <span>Kiểm lỗi #</span>
-                    </button>
-                    <button className="ribbon-btn-large" onClick={handleWrapErrorsWithIfError}>
-                      <ShieldCheck size={20} color="#0f766e" />
-                      <span>Bọc IFERROR</span>
                     </button>
                     <button
                       className="ribbon-btn-large"
@@ -5162,36 +5134,6 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                   </div>
                   <div className="ribbon-group-label">Phân tích dữ liệu</div>
                 </div>
-
-                <div className="ribbon-section">
-                  <div className="ribbon-controls">
-                    <button className="ribbon-btn-large" onClick={() => openTableTool('dataCleaning')} title="Xưởng làm sạch dữ liệu (Xóa trùng lặp, chuẩn hóa, tách cột)">
-                      <Sparkles size={20} color="#107c41" />
-                      <span>Xưởng làm sạch</span>
-                    </button>
-                    <button className="ribbon-btn-large" onClick={() => openTableTool('fuzzyReconcile')} title="Đối soát gần đúng tên khách hàng & sổ ngân hàng">
-                      <Search size={20} color="#4f46e5" />
-                      <span>Đối soát Fuzzy</span>
-                    </button>
-                    <button className="ribbon-btn-large" onClick={() => openTableTool('sheetSql')} title="Truy vấn dữ liệu bảng tính bằng câu lệnh SQL">
-                      <Database size={20} color="#0284c7" />
-                      <span>Truy vấn SQL</span>
-                    </button>
-                    <button className="ribbon-btn-large" onClick={() => setModal('marketQuotes')} title="Bảng giá trực tiếp Cổ phiếu VN, Crypto, Ngoại tệ, Vàng SJC">
-                      <TrendingUp size={20} color="#16a34a" />
-                      <span>Dữ liệu sống</span>
-                    </button>
-                    <button
-                      className="ribbon-btn-large"
-                      onClick={() => void openWorkbookDiff()}
-                      title="So sánh sự khác biệt giữa hai trang tính hoặc bản lưu"
-                    >
-                      <GitCompare size={20} color="#ea580c" />
-                      <span>So sánh sổ tính</span>
-                    </button>
-                  </div>
-                  <div className="ribbon-group-label">Thị trường & So sánh</div>
-                </div>
               </>
             )}
 
@@ -5238,10 +5180,6 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                     <button className={`ribbon-btn-large ${isProtected ? 'active' : ''}`} onClick={handleToggleProtect}>
                       {isProtected ? <Unlock size={20} color="#dc2626" /> : <Lock size={20} color="#0f766e" />}
                       <span>{isProtected ? 'Mở khoá Sheet' : 'Khoá bảo vệ'}</span>
-                    </button>
-                    <button className="ribbon-btn-large" onClick={() => setModal('signature')}>
-                      <FileSignature size={20} color="#b91c1c" />
-                      <span>Chữ ký số</span>
                     </button>
                   </div>
                   <div className="ribbon-group-label">Bảo vệ dữ liệu</div>
@@ -5339,35 +5277,6 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
 
             {activeTab === 'automate' && (
               <>
-                <div className="ribbon-section">
-                  <div className="ribbon-controls">
-                    <button className="ribbon-btn-large" onClick={() => handleRunMacro('normalizeTable')}>
-                      <Play size={20} color="#107c41" />
-                      <span>Chuẩn hoá Bảng</span>
-                    </button>
-                    <button className="ribbon-btn-large" onClick={() => handleRunMacro('autoNumberStt')}>
-                      <Play size={20} color="#0284c7" />
-                      <span>Đánh STT 1..N</span>
-                    </button>
-                    <button className="ribbon-btn-large" onClick={() => handleRunMacro('moneyWordsCol')}>
-                      <Calculator size={20} color="#d97706" />
-                      <span>Đọc chữ VNĐ</span>
-                    </button>
-                    <button className="ribbon-btn-large" onClick={() => handleRunMacro('highlightVariance')}>
-                      <Sparkles size={20} color="#7c3aed" />
-                      <span>Tô Âm/Dương</span>
-                    </button>
-                    <button className="ribbon-btn-large" onClick={() => handleRunMacro('cleanBlankRows')}>
-                      <Trash2 size={20} color="#dc2626" />
-                      <span>Xoá dòng trống</span>
-                    </button>
-                    <button className="ribbon-btn-large" onClick={() => handleRunMacro('wrapIfError')}>
-                      <ShieldCheck size={20} color="#0f766e" />
-                      <span>Bọc IFERROR</span>
-                    </button>
-                  </div>
-                  <div className="ribbon-group-label">Macro Kế toán 1-chạm ({macroLogs.length} lần chạy)</div>
-                </div>
 
                 <div className="ribbon-section">
                   <div className="ribbon-controls">
@@ -5375,63 +5284,12 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                       <Bot size={20} color="#4f46e5" />
                       <span>Trợ lý Công thức</span>
                     </button>
-                    <button className="ribbon-btn-large" onClick={() => openTableTool('pythonSandbox')} title="Chạy script Python (pandas, numpy) trực tiếp trong ô và bảng tính">
-                      <Terminal size={20} color="#0284c7" />
-                      <span>Python Sandbox</span>
-                    </button>
                   </div>
                   <div className="ribbon-group-label">Tự động hoá AI</div>
                 </div>
               </>
             )}
-
-            {activeTab === 'minh_pdf' && (
-              <>
-                <div className="ribbon-section">
-                  <div className="ribbon-controls">
-                    <button className="ribbon-btn-large" onClick={() => setModal('pageSetup')}>
-                      <Printer size={20} color="#dc2626" />
-                      <span>Xuất PDF Vector</span>
-                    </button>
-                    <button className="ribbon-btn-large" onClick={() => setModal('image')}>
-                      <ImageIcon size={20} color="#ea580c" />
-                      <span>Kết xuất PNG</span>
-                    </button>
-                    <button className="ribbon-btn-large" onClick={() => handleDownloadPrintHtml(printSettings)}>
-                      <FileCheck size={20} color="#0284c7" />
-                      <span>Tải bản HTML</span>
-                    </button>
-                  </div>
-                  <div className="ribbon-group-label">Xuất bản Hồ sơ</div>
-                </div>
-
-                <div className="ribbon-section">
-                  <div className="ribbon-controls">
-                    <button className="ribbon-btn-large" onClick={() => setModal('split')}>
-                      <Split size={20} color="#107c41" />
-                      <span>Tách từng Sheet</span>
-                    </button>
-                    <button className="ribbon-btn-large" onClick={() => void handleOpenMergeModal()}>
-                      <Layers size={20} color="#2563eb" />
-                      <span>Gộp nhiều File</span>
-                    </button>
-                  </div>
-                  <div className="ribbon-group-label">Tách & Gộp Bảng tính</div>
-                </div>
-
-                <div className="ribbon-section">
-                  <div className="ribbon-controls">
-                    <button className="ribbon-btn-large" onClick={() => setModal('signature')}>
-                      <FileSignature size={20} color="#b91c1c" />
-                      <span>Ký tươi & Mộc đỏ</span>
-                    </button>
-                  </div>
-                  <div className="ribbon-group-label">Xác thực Pháp lý</div>
-                </div>
-              </>
-            )}
-
-            {activeTab === 'help' && (
+{activeTab === 'help' && (
               <>
                 <div className="ribbon-section">
                   <div className="ribbon-controls">

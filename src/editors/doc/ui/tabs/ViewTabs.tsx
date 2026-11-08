@@ -1,7 +1,5 @@
-import { AppWindow, ArrowLeftRight, ArrowUpDown, BookOpen, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ChevronsLeft, ChevronsRight, ChevronsUp, Circle, CirclePlay, Columns2, Columns3, Combine, Expand, File, FileDown, FileImage, FileType, Files, Focus, Glasses, Globe, Hash, Info, Keyboard, LayoutGrid, ListTree, Minus, MonitorPlay, PenTool, Plus, Printer, RotateCcw, Rows2, ScrollText, Share2, Sparkles, Split, Unlink2, X, ZoomIn } from 'lucide-react';
+import { AppWindow, ArrowLeftRight, ArrowUpDown, BookOpen, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ChevronsLeft, ChevronsRight, ChevronsUp, Circle, CirclePlay, Columns2, Columns3, Expand, File, FileType, Files, Focus, Glasses, Globe, Hash, Info, Keyboard, LayoutGrid, ListTree, Minus, Plus, RotateCcw, Rows2, ScrollText, Unlink2, X, ZoomIn } from 'lucide-react';
 import { useDoc } from '../../DocContext';
-import { mergeDocument, splitDocument } from '../../actions';
-import { exportFormat } from '../../exportFormats';
 import { Big, Dropdown, Group, MenuItem, MenuSeparator, Row, Rows, Small } from '../RibbonParts';
 import { moveBlock, shiftHeading } from '../../viewShortcuts';
 import { openMirrorChannel } from '../../viewMirror';
@@ -183,29 +181,6 @@ export function OutlineTab() {
       </Group>
       <Group label="Đóng">
         <Big icon={<X size={22} color="#d7473c" />} label="Đóng dàn ý" title="Quay về Bố cục in" onClick={() => setView({ viewMode: 'print' })} />
-      </Group>
-    </>
-  );
-}
-
-export function PdfTab() {
-  const ctx = useDoc();
-  return (
-    <>
-      <Group label="Tạo PDF">
-        <Big icon={<FileDown size={22} color="#d7473c" />} label="Lưu PDF" title="Lưu thành PDF qua hộp thoại in (chọn “Lưu dưới dạng PDF”)" onClick={ctx.print} />
-        <Big icon={<Printer size={22} color="#d7473c" />} label="In" title="In tài liệu (Ctrl+P)" onClick={ctx.print} />
-        <Big icon={<Share2 size={22} color="#d7473c" />} label="Xuất & chia sẻ" title="Mở trang Xuất tệp" onClick={() => ctx.openDialog('backstage')} />
-      </Group>
-      <Group label="Công cụ">
-        <Big icon={<PenTool size={22} color="#4338ca" />} label="Ký tên" title="Vẽ chữ ký và chèn vào tài liệu" onClick={() => ctx.openDialog('signature')} />
-        <Big icon={<Split size={22} color="#d98e04" />} label="Tách" title="Tách tài liệu theo tiêu đề thành nhiều tệp" onClick={() => void splitDocument(ctx)} />
-        <Big icon={<Combine size={22} color="#0891b2" />} label="Ghép" title="Ghép thêm tệp vào cuối tài liệu" onClick={() => void mergeDocument(ctx)} />
-      </Group>
-      <Group label="Chuyển đổi">
-        <Big icon={<FileImage size={22} color="#107c41" />} label="Thành ảnh" title="Xuất trang thành ảnh PNG" onClick={() => void exportFormat(ctx, 'png')} />
-        <Big icon={<MonitorPlay size={22} color="#ea580c" />} label="Thành slide" title="Tạo bộ trình chiếu PowerPoint từ các tiêu đề" onClick={() => void exportFormat(ctx, 'pptx')} />
-        <Big icon={<Sparkles size={22} color="#7c3aed" />} label="Tóm tắt AI" title="Tóm tắt tài liệu bằng Minh AI" onClick={() => ctx.openDialog('ai')} />
       </Group>
     </>
   );

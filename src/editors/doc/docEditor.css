@@ -20,7 +20,6 @@
 
 .ribbon-tab.file-tab { background: var(--accent-doc); color: #fff; border-radius: 4px 4px 0 0; margin-right: var(--doc-gap-1); }
 .ribbon-tab.file-tab:hover { background: #1f4680; color: #fff; }
-.ribbon-tab.pdf-tab.active { color: #c2271d; border-bottom-color: #c2271d; }
 .ribbon-tab.contextual { color: #7c3aed; }
 .ribbon-tab.contextual.active { color: #6d28d9; border-bottom-color: #7c3aed; background: #f5f3ff; }
 .mode-select { cursor: pointer; }

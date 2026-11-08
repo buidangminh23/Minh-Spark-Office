@@ -1,4 +1,4 @@
-import { BarChart3, Blocks, Bookmark, BookOpen, Box, Calendar, CalendarClock, CaseUpper, CircleUser, FilePlus2, FileSignature, FileSpreadsheet, FileText, FileUp, Globe, Grid3x3, Hash, Image as ImageIcon, Link2, ListChecks, ListTree, MapPin, MessageSquarePlus, Minus, Monitor, Network, Omega, PanelBottom, PanelTop, Paperclip, Pencil, PenTool, QrCode, ScissorsLineDashed, Shapes, Signature, Sigma, Smile, SquareDashed, SquareSplitVertical, Table as TableIcon, TableProperties, Trash2, Type, Upload, Variable, Video } from 'lucide-react';
+import { BarChart3, Blocks, Bookmark, BookOpen, Box, Calendar, CalendarClock, CaseUpper, CircleUser, FilePlus2, FileSpreadsheet, FileText, FileUp, Globe, Grid3x3, Hash, Image as ImageIcon, Link2, ListChecks, ListTree, MapPin, MessageSquarePlus, Minus, Monitor, Network, Omega, PanelBottom, PanelTop, Paperclip, Pencil, PenTool, ScissorsLineDashed, Shapes, Signature, Sigma, Smile, SquareDashed, SquareSplitVertical, Table as TableIcon, TableProperties, Trash2, Type, Upload, Variable, Video } from 'lucide-react';
 import { useDoc } from '../../DocContext';
 import { addComment, editLink, insertFootnote, insertImageFromDevice, insertImageFromUrl, mergeDocument } from '../../actions';
 import { insertChip, textToTable } from '../../actionsExtra';
@@ -150,7 +150,6 @@ export default function InsertTab() {
         </Dropdown>
         <Rows>
           <Small icon={<Pencil size={14} />} label="Bản vẽ" title="Vẽ đường, mũi tên, hình, chữ rồi chèn thành ảnh" onClick={() => ctx.openDialog('drawing')} />
-          <Small icon={<QrCode size={14} />} label="Mã QR" title="Tạo mã QR từ đường dẫn hoặc nội dung" onClick={() => ctx.openDialog('qr')} />
           <Small icon={<Minus size={14} />} label="Đường kẻ" title="Chèn đường kẻ ngang" onClick={() => chain().setHorizontalRule().run()} />
         </Rows>
       </Group>
@@ -285,10 +284,6 @@ export default function InsertTab() {
           <Small icon={<FileText size={14} />} label="Chú thích" title="Chú thích cuối trang (Ctrl+Alt+F)" onClick={() => void insertFootnote(ctx)} />
           <Small icon={<SquareSplitVertical size={14} />} label="Mã code" title="Chèn khối mã" onClick={() => chain().toggleCodeBlock().run()} />
         </Rows>
-      </Group>
-
-      <Group label="Chữ ký điện tử">
-        <Big icon={<FileSignature size={22} color="#2b579a" />} label="Trường chữ ký" title="Đặt trường chữ ký, tên, ngày cho từng người ký" onClick={() => { ctx.setEditing(null); ctx.openDialog('esign'); }} />
       </Group>
     </>
   );

@@ -6,6 +6,7 @@ import { changeCase, copySelection, pastePlainText, pasteRich, sortParagraphs } 
 import { BUILTIN_STYLE_ORDER, activeStyleId, applyDocStyle, resolveStyles, styleSample } from '../../docStyles';
 import FontPicker from '../FontPicker';
 import { AddinRibbonButtons } from '../../../../addins/AddinPane';
+import { DocFeatureMenu } from './DocFeatures';
 import { Big, ColorPicker, Dropdown, Group, MenuItem, MenuSeparator, Row, Rows, Small } from '../RibbonParts';
 
 const BULLET_STYLES = [{ value: 'disc', label: '●  Chấm tròn' }, { value: 'circle', label: '○  Tròn rỗng' }, { value: 'square', label: '■  Vuông' }, { value: '–', label: '–  Gạch ngang' }, { value: '+', label: '+  Dấu cộng' }, { value: '✓', label: '✓  Dấu tích' }, { value: '»', label: '»  Mũi tên' }];
@@ -164,6 +165,10 @@ export default function HomeTab({ fmt }: { fmt: FormatState }) {
           <Small icon={ctx.dictation.listening ? <MicOff size={14} color="#d7473c" /> : <Mic size={14} color="#2b579a" />} label="Đọc chính tả" title="Nhập văn bản bằng giọng nói tiếng Việt" active={ctx.dictation.listening} onClick={ctx.dictation.toggle} />
           <Small icon={ctx.readAloud.speaking ? <VolumeX size={14} color="#d7473c" /> : <Volume2 size={14} color="#2b579a" />} label="Đọc to" title="Đọc to đoạn chọn hoặc cả tài liệu" active={ctx.readAloud.speaking} onClick={ctx.readAloud.toggle} />
         </Rows>
+      </Group>
+
+      <Group label="Tính năng">
+        <DocFeatureMenu />
       </Group>
 
       <Group label="Minh AI">
