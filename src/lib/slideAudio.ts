@@ -252,3 +252,80 @@ export function playPresenterSound(type: 'applause' | 'ding' | 'drum' | 'fanfare
     // Audio synthesis fallback
   }
 }
+
+// Presentation Ambient BGM with Smart Audio Ducking
+let bgmGainNode: GainNode | null = null;
+let bgmOscillators: OscillatorNode[] = [];
+let bgmIntervalId: ReturnType<typeof setInterval> | null = null;
+
+export function startPresentationBgm(): boolean {
+  const ctx = getAudioContext();
+  if (!ctx) return false;
+  stopPresentationBgm();
+
+  try {
+    bgmGainNode = ctx.createGain();
+    bgmGainNode.gain.setValueAtTime(0.18, ctx.currentTime);
+    bgmGainNode.connect(ctx.destination);
+
+    // Warm ambient chords sequence (Cmaj7 - Am7 - Fmaj7 - Gsus4)
+    const chords = [
+      [261.63, 329.63, 392.00, 493.88],
+      [220.00, 261.63, 329.63, 392.00],
+      [174.61, 261.63, 329.63, 349.23],
+      [196.00, 261.63, 293.66, 392.00],
+    ];
+    let chordIdx = 0;
+
+    const playChord = () => {
+      if (!ctx || !bgmGainNode) return;
+      const notes = chords[chordIdx % chords.length];
+      chordIdx++;
+      const now = ctx.currentTime;
+
+      notes.forEach((freq) => {
+        const osc = ctx.createOscillator();
+        const noteGain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now);
+
+        noteGain.gain.setValueAtTime(0.001, now);
+        noteGain.gain.linearRampToValueAtTime(0.05, now + 1.2);
+        noteGain.gain.exponentialRampToValueAtTime(0.001, now + 5.5);
+
+        osc.connect(noteGain);
+        noteGain.connect(bgmGainNode!);
+        osc.start(now);
+        osc.stop(now + 5.6);
+        bgmOscillators.push(osc);
+      });
+    };
+
+    playChord();
+    bgmIntervalId = setInterval(playChord, 5000);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function stopPresentationBgm(): void {
+  if (bgmIntervalId) {
+    clearInterval(bgmIntervalId);
+    bgmIntervalId = null;
+  }
+  bgmOscillators.forEach((osc) => {
+    try { osc.stop(); } catch { /* ignore */ }
+  });
+  bgmOscillators = [];
+  bgmGainNode = null;
+}
+
+export function setPresentationBgmDucking(isDucking: boolean): void {
+  const ctx = getAudioContext();
+  if (!ctx || !bgmGainNode) return;
+  const now = ctx.currentTime;
+  const targetGain = isDucking ? 0.035 : 0.18;
+  bgmGainNode.gain.cancelScheduledValues(now);
+  bgmGainNode.gain.setTargetAtTime(targetGain, now, isDucking ? 0.15 : 0.6);
+}

@@ -28,6 +28,7 @@ import type {
   AnimationTrigger,
   ElementAnimation,
   SlideBackground,
+  SlideTheme,
 } from '../../lib/slideTypes';
 import { SuiteLogo } from '../../components/SuiteLogo';
 import { useUi } from '../../components/ui';
@@ -49,6 +50,12 @@ import { SlideFindReplaceModal } from './SlideFindReplaceModal';
 import { SlideExportModal } from './SlideExportModal';
 import { SlideAiModal } from './SlideAiModal';
 import { SlideDesignerPane } from './SlideDesignerPane';
+import { SlideMailMergeModal } from './SlideMailMergeModal';
+import { SlideBrandPaletteModal } from './SlideBrandPaletteModal';
+import { SlideDiffModal } from './SlideDiffModal';
+import { SlideMasterModal } from './SlideMasterModal';
+import { SlideSheetsLinkModal } from './SlideSheetsLinkModal';
+import { SlideCustomShowsModal } from './SlideCustomShowsModal';
 import './slideEditor.css';
 
 interface SlideEditorProps {
@@ -102,6 +109,12 @@ export default function SlideEditor({
   const [isAnimationPaneOpen, setIsAnimationPaneOpen] = useState(false);
   const [isDesignerOpen, setIsDesignerOpen] = useState(false);
   const [isWatermarkModalOpen, setIsWatermarkModalOpen] = useState(false);
+  const [isMailMergeOpen, setIsMailMergeOpen] = useState(false);
+  const [isBrandPaletteOpen, setIsBrandPaletteOpen] = useState(false);
+  const [isSlideDiffOpen, setIsSlideDiffOpen] = useState(false);
+  const [isSlideMasterOpen, setIsSlideMasterOpen] = useState(false);
+  const [isSheetsLinkOpen, setIsSheetsLinkOpen] = useState(false);
+  const [isCustomShowsOpen, setIsCustomShowsOpen] = useState(false);
   const [watermarkText, setWatermarkText] = useState(presentation.watermark?.text || 'BẢN QUYỀN - MINH SPARK');
   const [watermarkEnabled, setWatermarkEnabled] = useState(presentation.watermark?.enabled ?? false);
   const [watermarkOpacity, setWatermarkOpacity] = useState(presentation.watermark?.opacity ?? 0.15);
@@ -730,6 +743,180 @@ export default function SlideEditor({
     ui.toast(isLocked ? 'Đã khóa đối tượng' : 'Đã mở khóa đối tượng');
   };
 
+  const handleAddNewElement = (newEl: SlideElement) => {
+    pushHistory(presentation);
+    const updatedSlides = presentation.slides.map((s, idx) =>
+      idx === activeSlideIndex ? { ...s, elements: [...s.elements, newEl] } : s
+    );
+    const newPres = { ...presentation, slides: updatedSlides };
+    setPresentation(newPres);
+    setSelectedElementId(newEl.id);
+    triggerAutoSave(newPres);
+  };
+
+  const handleAdd3dModel = () => {
+    const newEl: SlideElement = {
+      id: `el_3d_${Date.now()}`,
+      type: '3d',
+      x: 25,
+      y: 20,
+      width: 50,
+      height: 60,
+      model3d: {
+        type: 'cube',
+        rotX: 25,
+        rotY: -35,
+        rotZ: 0,
+        zoom: 1,
+        color: '#0284C7',
+      },
+    };
+    handleAddNewElement(newEl);
+    ui.toast('Đã chèn mô hình 3D xoay 360 độ');
+  };
+
+  const handleAddVideo = () => {
+    const newEl: SlideElement = {
+      id: `el_video_${Date.now()}`,
+      type: 'video',
+      x: 20,
+      y: 20,
+      width: 60,
+      height: 55,
+      videoData: {
+        url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+        trimStart: 0,
+        trimEnd: 60,
+        autoplay: true,
+        loop: true,
+        shape: 'rounded',
+      },
+    };
+    handleAddNewElement(newEl);
+    ui.toast('Đã chèn Video Studio vào slide');
+  };
+
+  const handleAddCountdown = () => {
+    const newEl: SlideElement = {
+      id: `el_countdown_${Date.now()}`,
+      type: 'countdown',
+      x: 30,
+      y: 30,
+      width: 40,
+      height: 35,
+      countdownData: {
+        duration: 300,
+        remaining: 300,
+        running: false,
+        title: 'Thảo luận nhóm: 05:00',
+        theme: 'neon',
+      },
+    };
+    handleAddNewElement(newEl);
+    ui.toast('Đã chèn widget đồng hồ đếm ngược');
+  };
+
+  const handleAddLivePoll = () => {
+    const newEl: SlideElement = {
+      id: `el_poll_${Date.now()}`,
+      type: 'poll',
+      x: 20,
+      y: 18,
+      width: 60,
+      height: 64,
+      pollData: {
+        question: 'Chiến lược trọng tâm của chúng ta trong Q4 là gì?',
+        options: [
+          { id: 'opt_1', text: 'Tối ưu trải nghiệm AI offline', votes: 42 },
+          { id: 'opt_2', text: 'Mở rộng hệ sinh thái Minh Spark Office', votes: 68 },
+          { id: 'opt_3', text: 'Bảo mật dữ liệu tuyệt đối & Cloud Sync', votes: 35 },
+        ],
+        type: 'multiple',
+        active: true,
+        qrCode: true,
+      },
+    };
+    handleAddNewElement(newEl);
+    ui.toast('Đã chèn thẻ bình chọn trực tiếp QR');
+  };
+
+  const handleAddSlideZoom = () => {
+    const otherSlide = presentation.slides.find((s) => s.id !== currentSlide.id) || currentSlide;
+    const newEl: SlideElement = {
+      id: `el_zoom_${Date.now()}`,
+      type: 'zoom',
+      x: 30,
+      y: 30,
+      width: 40,
+      height: 35,
+      zoomSlideId: otherSlide.id,
+      zoomSlideTitle: otherSlide.elements.find((e) => e.isTitle)?.text || 'Chi tiết Slide liên kết',
+    };
+    handleAddNewElement(newEl);
+    ui.toast('Đã chèn Slide Zoom liên kết trang chiếu');
+  };
+
+  const handleMergeShapes = (op: 'union' | 'combine' | 'fragment' | 'intersect' | 'subtract') => {
+    if (!selectedElement) return;
+    updateSlideElement(selectedElement.id, {
+      shapeType: op === 'combine' ? 'callout' : op === 'intersect' ? 'diamond' : op === 'subtract' ? 'star' : 'rounded-rectangle',
+      fill: op === 'union' ? '#0284C7' : '#7C3AED',
+    });
+  };
+
+  const handleCropToShape = (mask: 'none' | 'circle' | 'rounded' | 'hexagon' | 'star' | 'diamond') => {
+    if (!selectedElement) return;
+    updateSlideElement(selectedElement.id, { imageMask: mask });
+  };
+
+  const handleToggleReflection = () => {
+    if (!selectedElement) return;
+    updateSlideElement(selectedElement.id, { reflection: !selectedElement.reflection });
+  };
+
+  const handleBatchGenerateMailMerge = (newSlides: SlideData[]) => {
+    setPresentation((prev) => ({
+      ...prev,
+      slides: [...prev.slides, ...newSlides],
+    }));
+  };
+
+  const handleApplyBrandTheme = (themeUpdates: Partial<SlideTheme>) => {
+    setPresentation((prev) => ({
+      ...prev,
+      slides: prev.slides.map((s) => ({
+        ...s,
+        background: themeUpdates.backgroundColor
+          ? { type: 'solid', value: themeUpdates.backgroundColor }
+          : s.background,
+      })),
+    }));
+  };
+
+  const handleSaveSlideMaster = (master: {
+    enabled: boolean;
+    headerText?: string;
+    footerText?: string;
+    logoUrl?: string;
+    showSlideNumber?: boolean;
+  }) => {
+    setPresentation((prev) => ({
+      ...prev,
+      slideMaster: master,
+    }));
+  };
+
+  const handleSaveCustomShows = (shows: { id: string; name: string; slideIds: string[] }[]) => {
+    setPresentation((prev) => ({
+      ...prev,
+      customShows: shows,
+    }));
+  };
+
+  const handleStartCustomShow = (_slideIds: string[]) => {
+    setIsSlideShowActive(true);
+  };
+
   const handleApplyDesignerLayout = (newElements: SlideElement[], newBackground?: SlideBackground) => {
     pushHistory(presentation);
     const updatedSlides = presentation.slides.map((s, idx) => {
@@ -1268,6 +1455,20 @@ export default function SlideEditor({
         onAddMath={handleAddMath}
         onToggleLockElement={handleToggleLockElement}
         onOpenWatermarkModal={() => setIsWatermarkModalOpen(true)}
+        onAdd3dModel={handleAdd3dModel}
+        onAddVideo={handleAddVideo}
+        onAddCountdown={handleAddCountdown}
+        onAddLivePoll={handleAddLivePoll}
+        onAddSlideZoom={handleAddSlideZoom}
+        onOpenMailMerge={() => setIsMailMergeOpen(true)}
+        onOpenBrandPalette={() => setIsBrandPaletteOpen(true)}
+        onOpenSlideDiff={() => setIsSlideDiffOpen(true)}
+        onOpenSlideMaster={() => setIsSlideMasterOpen(true)}
+        onOpenLiveSheetsLink={() => setIsSheetsLinkOpen(true)}
+        onOpenCustomShows={() => setIsCustomShowsOpen(true)}
+        onMergeShapes={handleMergeShapes}
+        onCropToShape={handleCropToShape}
+        onToggleReflection={handleToggleReflection}
       />
 
       {/* 3. Main Workspace Area */}
@@ -1311,6 +1512,8 @@ export default function SlideEditor({
                     aspectRatio={presentation.aspectRatio}
                     zoom={zoom}
                     selectedElementId={selectedElementId}
+                    slideMaster={presentation.slideMaster}
+                    slideIndex={activeSlideIndex}
                     onSelectElement={handleSelectElementWithPainter}
                     onUpdateElement={updateSlideElement}
                     onDeleteElement={deleteSlideElement}
@@ -1671,6 +1874,55 @@ export default function SlideEditor({
           </div>
         </div>
       )}
+
+      {/* Mail Merge Modal */}
+      <SlideMailMergeModal
+        isOpen={isMailMergeOpen}
+        onClose={() => setIsMailMergeOpen(false)}
+        currentSlide={currentSlide}
+        onBatchGenerate={handleBatchGenerateMailMerge}
+      />
+
+      {/* Brand Palette Modal */}
+      <SlideBrandPaletteModal
+        isOpen={isBrandPaletteOpen}
+        onClose={() => setIsBrandPaletteOpen(false)}
+        onApplyBrandTheme={handleApplyBrandTheme}
+      />
+
+      {/* Visual Slide Diff Modal */}
+      <SlideDiffModal
+        isOpen={isSlideDiffOpen}
+        onClose={() => setIsSlideDiffOpen(false)}
+        slides={presentation.slides}
+        currentSlideIndex={activeSlideIndex}
+      />
+
+      {/* Slide Master Modal */}
+      <SlideMasterModal
+        isOpen={isSlideMasterOpen}
+        onClose={() => setIsSlideMasterOpen(false)}
+        slideMaster={presentation.slideMaster}
+        onSaveSlideMaster={handleSaveSlideMaster}
+      />
+
+      {/* Live Linked Data from Minh Sheets Modal */}
+      <SlideSheetsLinkModal
+        isOpen={isSheetsLinkOpen}
+        onClose={() => setIsSheetsLinkOpen(false)}
+        selectedElement={selectedElement}
+        onUpdateElement={updateSlideElement}
+      />
+
+      {/* Custom Shows Modal */}
+      <SlideCustomShowsModal
+        isOpen={isCustomShowsOpen}
+        onClose={() => setIsCustomShowsOpen(false)}
+        slides={presentation.slides}
+        customShows={presentation.customShows}
+        onSaveCustomShows={handleSaveCustomShows}
+        onStartCustomShow={handleStartCustomShow}
+      />
 
       {/* Fullscreen Slide Show Mode */}
       {isSlideShowActive && (

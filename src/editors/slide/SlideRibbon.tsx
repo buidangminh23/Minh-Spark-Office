@@ -53,6 +53,14 @@ import {
   Sigma,
   Lock,
   ShieldCheck,
+  Box,
+  Video,
+  Vote,
+  ZoomIn,
+  Users,
+  FileSpreadsheet,
+  GitCompare,
+  LayoutTemplate,
 } from 'lucide-react';
 import type {
   SlideElement,
@@ -322,6 +330,20 @@ interface SlideRibbonProps {
   onAddMath?: () => void;
   onToggleLockElement?: () => void;
   onOpenWatermarkModal?: () => void;
+  onAdd3dModel?: () => void;
+  onAddVideo?: () => void;
+  onAddCountdown?: () => void;
+  onAddLivePoll?: () => void;
+  onAddSlideZoom?: () => void;
+  onOpenMailMerge?: () => void;
+  onOpenBrandPalette?: () => void;
+  onOpenSlideDiff?: () => void;
+  onOpenSlideMaster?: () => void;
+  onOpenLiveSheetsLink?: () => void;
+  onOpenCustomShows?: () => void;
+  onMergeShapes?: (op: 'union' | 'combine' | 'fragment' | 'intersect' | 'subtract') => void;
+  onCropToShape?: (mask: 'none' | 'circle' | 'rounded' | 'hexagon' | 'star' | 'diamond') => void;
+  onToggleReflection?: () => void;
 }
 
 const FONTS = [
@@ -426,6 +448,20 @@ export function SlideRibbon(props: SlideRibbonProps) {
     onAddMath,
     onToggleLockElement,
     onOpenWatermarkModal,
+    onAdd3dModel,
+    onAddVideo,
+    onAddCountdown,
+    onAddLivePoll,
+    onAddSlideZoom,
+    onOpenMailMerge,
+    onOpenBrandPalette,
+    onOpenSlideDiff,
+    onOpenSlideMaster,
+    onOpenLiveSheetsLink,
+    onOpenCustomShows,
+    onMergeShapes,
+    onCropToShape,
+    onToggleReflection,
   } = props;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -980,6 +1016,83 @@ export function SlideRibbon(props: SlideRibbonProps) {
               </div>
               <div className="ppt-group-footer">Mã nguồn & Toán</div>
             </div>
+
+            {/* Multimedia & 3D Models */}
+            <div className="ppt-ribbon-group">
+              <div className="ppt-group-content">
+                <button
+                  className="ppt-tool-btn-large"
+                  onClick={onAdd3dModel}
+                  title="Chèn mô hình 3D tương tác xoay 360 độ"
+                >
+                  <Box size={20} color="#0284C7" />
+                  <span>Mô hình 3D</span>
+                </button>
+                <button
+                  className="ppt-tool-btn-large"
+                  onClick={onAddVideo}
+                  title="Chèn Video MP4 kèm công cụ cắt ghép thời lượng"
+                >
+                  <Video size={20} color="#DC2626" />
+                  <span>Video Studio</span>
+                </button>
+              </div>
+              <div className="ppt-group-footer">Đồ họa & Video</div>
+            </div>
+
+            {/* Interactive Widgets */}
+            <div className="ppt-ribbon-group">
+              <div className="ppt-group-content">
+                <button
+                  className="ppt-tool-btn-large"
+                  onClick={onAddCountdown}
+                  title="Chèn widget đồng hồ đếm ngược có chuông báo hết giờ"
+                >
+                  <Timer size={20} color="#D97706" />
+                  <span>Đồng hồ</span>
+                </button>
+                <button
+                  className="ppt-tool-btn-large"
+                  onClick={onAddLivePoll}
+                  title="Chèn thẻ bình chọn trực tiếp kèm mã QR khán giả"
+                >
+                  <Vote size={20} color="#16A34A" />
+                  <span>Bình chọn</span>
+                </button>
+                <button
+                  className="ppt-tool-btn-large"
+                  onClick={onAddSlideZoom}
+                  title="Chèn ảnh thu nhỏ liên kết thu phóng (Slide Zoom)"
+                >
+                  <ZoomIn size={20} color="#8B5CF6" />
+                  <span>Thu phóng</span>
+                </button>
+              </div>
+              <div className="ppt-group-footer">Tương tác</div>
+            </div>
+
+            {/* Automation & Live Data */}
+            <div className="ppt-ribbon-group">
+              <div className="ppt-group-content">
+                <button
+                  className="ppt-tool-btn-large"
+                  onClick={onOpenMailMerge}
+                  title="Tự động nhân bản hàng loạt slide từ dữ liệu Excel / CSV"
+                >
+                  <Users size={20} color="#D83B01" />
+                  <span>Trộn thư</span>
+                </button>
+                <button
+                  className="ppt-tool-btn-large"
+                  onClick={onOpenLiveSheetsLink}
+                  title="Liên kết dữ liệu sống từ sổ tính Minh Sheets (.xlsx)"
+                >
+                  <FileSpreadsheet size={20} color="#059669" />
+                  <span>Dữ liệu Sheets</span>
+                </button>
+              </div>
+              <div className="ppt-group-footer">Tự động & Data</div>
+            </div>
           </>
         )}
 
@@ -1127,6 +1240,20 @@ export function SlideRibbon(props: SlideRibbonProps) {
                 </button>
               </div>
               <div className="ppt-group-footer">Tùy biến</div>
+            </div>
+
+            <div className="ppt-ribbon-group">
+              <div className="ppt-group-content">
+                <button
+                  className="ppt-tool-btn-large"
+                  onClick={onOpenBrandPalette}
+                  title="Trích xuất bảng 5 màu chuẩn từ Logo và áp dụng đồng loạt vào bài chiếu"
+                >
+                  <Palette size={20} color="#7C3AED" />
+                  <span>Bảng màu Brand</span>
+                </button>
+              </div>
+              <div className="ppt-group-footer">Bộ nhận diện</div>
             </div>
 
             <div className="ppt-ribbon-group">
@@ -2059,6 +2186,20 @@ export function SlideRibbon(props: SlideRibbonProps) {
               <div className="ppt-group-footer">Thiết lập</div>
             </div>
 
+            <div className="ppt-ribbon-group">
+              <div className="ppt-group-content">
+                <button
+                  className="ppt-tool-btn-large"
+                  onClick={onOpenCustomShows}
+                  title="Tạo các bài chiếu rút gọn tùy biến (ví dụ: Bản 5 phút cho Ban Giám Đốc)"
+                >
+                  <Presentation size={20} color="#8B5CF6" />
+                  <span>Bài chiếu tùy biến</span>
+                </button>
+              </div>
+              <div className="ppt-group-footer">Trình chiếu tùy chọn</div>
+            </div>
+
             {/* Monitors & Timing */}
             <div className="ppt-ribbon-group">
               <div className="ppt-group-content" style={{ flexDirection: 'column', gap: '4px', justifyContent: 'center' }}>
@@ -2130,6 +2271,21 @@ export function SlideRibbon(props: SlideRibbonProps) {
                 </button>
               </div>
               <div className="ppt-group-footer">In ấn & Xuất</div>
+            </div>
+
+            {/* Version Diff & Compare */}
+            <div className="ppt-ribbon-group">
+              <div className="ppt-group-content">
+                <button
+                  className="ppt-tool-btn-large"
+                  onClick={onOpenSlideDiff}
+                  title="So sánh trực quan sự khác biệt giữa 2 phiên bản slide (Visual Slide Diff)"
+                >
+                  <GitCompare size={20} color="#059669" />
+                  <span>So sánh Slide</span>
+                </button>
+              </div>
+              <div className="ppt-group-footer">Kiểm soát phiên bản</div>
             </div>
           </>
         )}
@@ -2219,6 +2375,21 @@ export function SlideRibbon(props: SlideRibbonProps) {
               <div className="ppt-group-footer">Thu phóng</div>
             </div>
 
+            {/* Master Views */}
+            <div className="ppt-ribbon-group">
+              <div className="ppt-group-content">
+                <button
+                  className="ppt-tool-btn-large"
+                  onClick={onOpenSlideMaster}
+                  title="Tùy chỉnh bố cục gốc: Logo, Chân trang, Số trang tự động (Slide Master)"
+                >
+                  <LayoutTemplate size={20} color="#D83B01" />
+                  <span>Bố cục gốc</span>
+                </button>
+              </div>
+              <div className="ppt-group-footer">Chế độ Master</div>
+            </div>
+
             {/* Format Pane */}
             <div className="ppt-ribbon-group">
               <div className="ppt-group-content">
@@ -2262,6 +2433,32 @@ export function SlideRibbon(props: SlideRibbonProps) {
                 </button>
               </div>
               <div className="ppt-group-footer">Chèn hình</div>
+            </div>
+
+            {/* Merge Shapes Boolean Operations */}
+            <div className="ppt-ribbon-group">
+              <div className="ppt-group-content" style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  <button className="ppt-tool-btn" onClick={() => onMergeShapes?.('union')} title="Hợp nhất các hình thành 1 khối duy nhất (Union)">
+                    Hợp nhất
+                  </button>
+                  <button className="ppt-tool-btn" onClick={() => onMergeShapes?.('combine')} title="Kết hợp giữ phần riêng, khoét rỗng phần chồng (Combine)">
+                    Kết hợp
+                  </button>
+                  <button className="ppt-tool-btn" onClick={() => onMergeShapes?.('fragment')} title="Phân mảnh từng mẩu giao nhau thành hình độc lập (Fragment)">
+                    Phân mảnh
+                  </button>
+                </div>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  <button className="ppt-tool-btn" onClick={() => onMergeShapes?.('intersect')} title="Giao nhau chỉ giữ lại phần chung (Intersect)">
+                    Giao nhau
+                  </button>
+                  <button className="ppt-tool-btn" onClick={() => onMergeShapes?.('subtract')} title="Trừ khối: dùng hình trên khoét hình dưới (Subtract)">
+                    Trừ khối
+                  </button>
+                </div>
+              </div>
+              <div className="ppt-group-footer">Hợp nhất hình (Merge Shapes)</div>
             </div>
 
             {/* Shape Styles & Fill */}
@@ -2535,6 +2732,34 @@ export function SlideRibbon(props: SlideRibbonProps) {
                 </button>
               </div>
               <div className="ppt-group-footer">Kiểu hình ảnh</div>
+            </div>
+
+            {/* Crop to Shape & Reflection */}
+            <div className="ppt-ribbon-group">
+              <div className="ppt-group-content" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  <button className="ppt-tool-btn" onClick={() => onCropToShape?.('circle')} title="Cắt ảnh theo hình tròn">
+                    Cắt Tròn
+                  </button>
+                  <button className="ppt-tool-btn" onClick={() => onCropToShape?.('hexagon')} title="Cắt ảnh theo hình lục giác">
+                    Lục giác
+                  </button>
+                  <button className="ppt-tool-btn" onClick={() => onCropToShape?.('star')} title="Cắt ảnh theo hình ngôi sao">
+                    Ngôi sao
+                  </button>
+                  <button className="ppt-tool-btn" onClick={() => onCropToShape?.('diamond')} title="Cắt ảnh theo hình thoi">
+                    Hình thoi
+                  </button>
+                </div>
+                <button
+                  className={`ppt-tool-btn ${selectedElement?.reflection ? 'is-active' : ''}`}
+                  onClick={onToggleReflection}
+                  title="Bật hiệu ứng phản chiếu gương mặt sàn bóng loáng (Floor Reflection)"
+                >
+                  ✨ Phản chiếu gương sàn
+                </button>
+              </div>
+              <div className="ppt-group-footer">Nghệ thuật & Cắt hình</div>
             </div>
 
             {/* Crop & Fit */}

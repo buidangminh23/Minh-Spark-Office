@@ -26,6 +26,14 @@ interface SlideCanvasProps {
     enabled: boolean;
     opacity?: number;
   };
+  slideMaster?: {
+    enabled: boolean;
+    headerText?: string;
+    footerText?: string;
+    logoUrl?: string;
+    showSlideNumber?: boolean;
+  };
+  slideIndex?: number;
 }
 
 export function SlideCanvas({
@@ -49,6 +57,8 @@ export function SlideCanvas({
   showAnimBadges = true,
   hiddenElementIds = [],
   watermark,
+  slideMaster,
+  slideIndex = 0,
 }: SlideCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
@@ -68,6 +78,9 @@ export function SlideCanvas({
   // Freehand drawing live points
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentInkPoints, setCurrentInkPoints] = useState<number[]>([]);
+  const [snapGuideX, setSnapGuideX] = useState<number | null>(null);
+  const [snapGuideY, setSnapGuideY] = useState<number | null>(null);
+  const [snapDistanceBadge, setSnapDistanceBadge] = useState<{ x: number; y: number; text: string } | null>(null);
 
   const selectedElement = slide.elements.find((el) => el.id === selectedElementId);
 
@@ -180,8 +193,32 @@ export function SlideCanvas({
       const deltaYPct = ((e.clientY - dragStart.y) / rect.height) * 100;
 
       if (isDragging) {
-        const newX = Math.max(0, Math.min(100 - selectedElement.width, dragStart.elX + deltaXPct));
-        const newY = Math.max(0, Math.min(100 - selectedElement.height, dragStart.elY + deltaYPct));
+        let newX = Math.max(0, Math.min(100 - selectedElement.width, dragStart.elX + deltaXPct));
+        let newY = Math.max(0, Math.min(100 - selectedElement.height, dragStart.elY + deltaYPct));
+
+        // Smart Magnetic Guides & Snapping
+        const centerX = newX + selectedElement.width / 2;
+        const centerY = newY + selectedElement.height / 2;
+        let snapX: number | null = null;
+        let snapY: number | null = null;
+        let badge: { x: number; y: number; text: string } | null = null;
+
+        // Snap to slide center (50%)
+        if (Math.abs(centerX - 50) < 1.5) {
+          newX = 50 - selectedElement.width / 2;
+          snapX = 50;
+          badge = { x: 50, y: Math.max(5, newY - 4), text: '⟷ 16px Căn Giữa ⟷' };
+        }
+        if (Math.abs(centerY - 50) < 1.5) {
+          newY = 50 - selectedElement.height / 2;
+          snapY = 50;
+          badge = { x: Math.max(10, newX + selectedElement.width / 2), y: 50, text: '↕ 16px Căn Giữa ↕' };
+        }
+
+        setSnapGuideX(snapX);
+        setSnapGuideY(snapY);
+        setSnapDistanceBadge(badge);
+
         onUpdateElement(selectedElement.id, {
           x: Math.round(newX * 10) / 10,
           y: Math.round(newY * 10) / 10,
@@ -230,6 +267,9 @@ export function SlideCanvas({
     };
 
     const handlePointerUp = () => {
+      setSnapGuideX(null);
+      setSnapGuideY(null);
+      setSnapDistanceBadge(null);
       if (isDrawing && currentInkPoints.length >= 4) {
         // Calculate bounding box
         const xs = currentInkPoints.filter((_, idx) => idx % 2 === 0);
@@ -393,6 +433,118 @@ export function SlideCanvas({
         </div>
       )}
 
+      {/* Slide Master Global Header & Footer */}
+      {slideMaster?.enabled && (
+        <>
+          {slideMaster.headerText && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '12px',
+                left: '24px',
+                right: '24px',
+                fontSize: '11px',
+                fontWeight: 600,
+                color: '#64748B',
+                letterSpacing: '0.8px',
+                borderBottom: '1px solid rgba(148,163,184,0.3)',
+                paddingBottom: '4px',
+                pointerEvents: 'none',
+                zIndex: 5,
+              }}
+            >
+              {slideMaster.headerText}
+            </div>
+          )}
+          {slideMaster.footerText && (
+            <div
+              style={{
+                position: 'absolute',
+                bottom: '12px',
+                left: '24px',
+                right: '70px',
+                fontSize: '10px',
+                color: '#94A3B8',
+                pointerEvents: 'none',
+                zIndex: 5,
+              }}
+            >
+              {slideMaster.footerText}
+            </div>
+          )}
+          {slideMaster.showSlideNumber && (
+            <div
+              style={{
+                position: 'absolute',
+                bottom: '12px',
+                right: '24px',
+                fontSize: '11px',
+                fontWeight: 700,
+                color: '#D83B01',
+                pointerEvents: 'none',
+                zIndex: 5,
+              }}
+            >
+              Trang {slideIndex + 1}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Smart Magnetic Guides (Cyan Snap Lines) */}
+      {snapGuideX !== null && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            bottom: 0,
+            left: `${snapGuideX}%`,
+            width: '1.5px',
+            background: '#06B6D4',
+            zIndex: 900,
+            pointerEvents: 'none',
+            boxShadow: '0 0 6px #06B6D4',
+          }}
+        />
+      )}
+      {snapGuideY !== null && (
+        <div
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            top: `${snapGuideY}%`,
+            height: '1.5px',
+            background: '#06B6D4',
+            zIndex: 900,
+            pointerEvents: 'none',
+            boxShadow: '0 0 6px #06B6D4',
+          }}
+        />
+      )}
+      {snapDistanceBadge && (
+        <div
+          style={{
+            position: 'absolute',
+            left: `${snapDistanceBadge.x}%`,
+            top: `${snapDistanceBadge.y}%`,
+            transform: 'translate(-50%, -50%)',
+            background: '#06B6D4',
+            color: '#FFFFFF',
+            fontSize: '10px',
+            fontWeight: 800,
+            padding: '2px 8px',
+            borderRadius: '10px',
+            zIndex: 950,
+            pointerEvents: 'none',
+            boxShadow: '0 2px 8px rgba(6,182,212,0.5)',
+            letterSpacing: '0.5px',
+          }}
+        >
+          {snapDistanceBadge.text}
+        </div>
+      )}
+
       {/* Slide Elements */}
       {slide.elements.map((el) => {
         const isSelected = !readOnly && el.id === selectedElementId;
@@ -504,7 +656,27 @@ export function SlideCanvas({
               </div>
             )}
 
-            {renderElementContent(el, isEditing, (newText) => onUpdateElement(el.id, { text: newText }))}
+            {/* Live Sheets Linked Badge */}
+            {el.sheetLink && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '-18px',
+                  right: '0',
+                  background: '#059669',
+                  color: '#FFFFFF',
+                  fontSize: '9px',
+                  fontWeight: 700,
+                  padding: '2px 6px',
+                  borderRadius: '4px',
+                  zIndex: 30,
+                  pointerEvents: 'none',
+                }}
+              >
+                📊 Minh Sheets: {el.sheetLink.range}
+              </div>
+            )}
+            {renderElementContent(el, isEditing, (newText) => onUpdateElement(el.id, { text: newText }), (updates) => onUpdateElement(el.id, updates))}
 
             {isSelected && drawMode === 'select' && !el.locked && (
               <>
@@ -562,7 +734,8 @@ export function SlideCanvas({
 function renderElementContent(
   el: SlideElement,
   isEditing: boolean,
-  onTextChange: (val: string) => void
+  onTextChange: (val: string) => void,
+  onUpdateElementProps?: (updates: Partial<SlideElement>) => void
 ): ReactNode {
   if (el.type === 'text') {
     const textStyle: React.CSSProperties = {
@@ -654,19 +827,35 @@ function renderElementContent(
   }
 
   if (el.type === 'image' && el.src) {
+    let clipPath: string | undefined = undefined;
+    if (el.imageMask === 'circle') clipPath = 'circle(50% at 50% 50%)';
+    else if (el.imageMask === 'hexagon') clipPath = 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)';
+    else if (el.imageMask === 'star') clipPath = 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)';
+    else if (el.imageMask === 'diamond') clipPath = 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)';
+    else if (el.imageMask === 'rounded') clipPath = 'inset(0 round 16px)';
+
     return (
-      <img
-        src={el.src}
-        alt={el.alt || 'Hình ảnh slide'}
+      <div
         style={{
           width: '100%',
           height: '100%',
-          objectFit: el.objectFit || 'cover',
-          borderRadius: `${el.borderRadius || 6}px`,
-          pointerEvents: 'none',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+          WebkitBoxReflect: el.reflection ? 'below 2px linear-gradient(transparent, transparent 65%, rgba(255,255,255,0.4))' : undefined,
         }}
-      />
+      >
+        <img
+          src={el.src}
+          alt={el.alt || 'Hình ảnh slide'}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: el.objectFit || 'cover',
+            borderRadius: `${el.borderRadius || 6}px`,
+            clipPath,
+            pointerEvents: 'none',
+            boxShadow: el.reflection ? 'none' : '0 4px 12px rgba(0,0,0,0.1)',
+          }}
+        />
+      </div>
     );
   }
 
@@ -821,6 +1010,294 @@ function renderElementContent(
           </div>
         </div>
         <div className="ppt-zoom-badge">Slide Zoom</div>
+      </div>
+    );
+  }
+
+  if (el.type === '3d') {
+    const rotX = el.model3d?.rotX ?? 25;
+    const rotY = el.model3d?.rotY ?? -35;
+    const color = el.model3d?.color || '#0284C7';
+    const modelType = el.model3d?.type || 'cube';
+
+    return (
+      <div
+        className="ppt-3d-container"
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          perspective: '800px',
+          background: 'radial-gradient(circle at center, rgba(30,41,59,0.1) 0%, transparent 70%)',
+          borderRadius: '8px',
+          overflow: 'hidden',
+          position: 'relative',
+        }}
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          const startX = e.clientX;
+          const startY = e.clientY;
+          const origRotX = rotX;
+          const origRotY = rotY;
+          const moveHandler = (me: PointerEvent) => {
+            const dx = me.clientX - startX;
+            const dy = me.clientY - startY;
+            onUpdateElementProps?.({
+              model3d: {
+                ...(el.model3d || { type: 'cube', rotX: 25, rotY: -35, rotZ: 0, zoom: 1 }),
+                rotX: origRotX - dy * 0.5,
+                rotY: origRotY + dx * 0.5,
+              },
+            });
+          };
+          const upHandler = () => {
+            window.removeEventListener('pointermove', moveHandler);
+            window.removeEventListener('pointerup', upHandler);
+          };
+          window.addEventListener('pointermove', moveHandler);
+          window.addEventListener('pointerup', upHandler);
+        }}
+      >
+        <div
+          style={{
+            width: '100px',
+            height: '100px',
+            position: 'relative',
+            transformStyle: 'preserve-3d',
+            transform: `rotateX(${rotX}deg) rotateY(${rotY}deg)`,
+            transition: 'transform 0.05s ease-out',
+            cursor: 'grab',
+          }}
+        >
+          <div style={{ position: 'absolute', width: '100px', height: '100px', background: color, opacity: 0.85, transform: 'translateZ(50px)', border: '1px solid rgba(255,255,255,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FFF', fontWeight: 700, fontSize: '12px' }}>TRƯỚC</div>
+          <div style={{ position: 'absolute', width: '100px', height: '100px', background: color, filter: 'brightness(0.7)', transform: 'rotateY(180deg) translateZ(50px)', border: '1px solid rgba(255,255,255,0.3)' }} />
+          <div style={{ position: 'absolute', width: '100px', height: '100px', background: color, filter: 'brightness(0.85)', transform: 'rotateY(-90deg) translateZ(50px)', border: '1px solid rgba(255,255,255,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FFF', fontWeight: 700, fontSize: '11px' }}>TRÁI</div>
+          <div style={{ position: 'absolute', width: '100px', height: '100px', background: color, filter: 'brightness(0.75)', transform: 'rotateY(90deg) translateZ(50px)', border: '1px solid rgba(255,255,255,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FFF', fontWeight: 700, fontSize: '11px' }}>PHẢI</div>
+          <div style={{ position: 'absolute', width: '100px', height: '100px', background: color, filter: 'brightness(1.15)', transform: 'rotateX(90deg) translateZ(50px)', border: '1px solid rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FFF', fontWeight: 700, fontSize: '11px' }}>ĐỈNH</div>
+          <div style={{ position: 'absolute', width: '100px', height: '100px', background: color, filter: 'brightness(0.5)', transform: 'rotateX(-90deg) translateZ(50px)' }} />
+        </div>
+        <div style={{ position: 'absolute', bottom: '6px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(15,23,42,0.85)', color: '#FFF', fontSize: '10px', padding: '2px 8px', borderRadius: '12px', whiteSpace: 'nowrap', pointerEvents: 'none' }}>
+          🧊 Mô hình 3D (${modelType.toUpperCase()}) • Kéo chuột xoay 360°
+        </div>
+      </div>
+    );
+  }
+
+  if (el.type === 'video') {
+    const videoData = el.videoData || {
+      url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+      autoplay: true,
+      loop: true,
+      shape: 'rounded' as const,
+    };
+    const borderRadius = videoData.shape === 'oval' ? '999px' : videoData.shape === 'rounded' ? '14px' : '4px';
+
+    return (
+      <div
+        className="ppt-video-container"
+        style={{
+          width: '100%',
+          height: '100%',
+          borderRadius,
+          overflow: 'hidden',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
+          background: '#000000',
+          position: 'relative',
+        }}
+      >
+        <video
+          src={videoData.url}
+          poster={videoData.poster}
+          controls
+          autoPlay={videoData.autoplay}
+          loop={videoData.loop}
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+        />
+        <div
+          style={{
+            position: 'absolute',
+            top: '8px',
+            left: '8px',
+            background: 'rgba(15,23,42,0.8)',
+            color: '#38BDF8',
+            fontSize: '11px',
+            fontWeight: 700,
+            padding: '3px 8px',
+            borderRadius: '4px',
+            pointerEvents: 'none',
+          }}
+        >
+          🎬 Video Studio • ${videoData.trimStart ?? 0}s - ${videoData.trimEnd ?? 60}s
+        </div>
+      </div>
+    );
+  }
+
+  if (el.type === 'countdown') {
+    const cData = el.countdownData || { duration: 300, remaining: 300, running: false, title: 'Thảo luận nhóm: 05:00' };
+    const mins = Math.floor(cData.remaining / 60);
+    const secs = cData.remaining % 60;
+    const timeFormatted = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+
+    return (
+      <div
+        className="ppt-countdown-widget"
+        style={{
+          width: '100%',
+          height: '100%',
+          background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)',
+          border: '2px solid #38BDF8',
+          borderRadius: '12px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#FFFFFF',
+          padding: '12px',
+          boxShadow: '0 8px 30px rgba(56, 189, 248, 0.25)',
+          position: 'relative',
+        }}
+      >
+        <span style={{ fontSize: '13px', fontWeight: 600, color: '#94A3B8', marginBottom: '4px' }}>
+          ⏱ ${cData.title || 'Đồng hồ đếm ngược'}
+        </span>
+        <div style={{ fontSize: '38px', fontWeight: 800, fontFamily: 'Consolas, monospace', color: cData.remaining <= 30 ? '#EF4444' : '#38BDF8', letterSpacing: '2px' }}>
+          {timeFormatted}
+        </div>
+        <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+          <button
+            type="button"
+            className="ppt-secondary-action-btn"
+            style={{ padding: '2px 10px', fontSize: '11px', background: cData.running ? '#EF4444' : '#059669', color: '#FFF', border: 'none' }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onUpdateElementProps?.({
+                countdownData: {
+                  ...cData,
+                  running: !cData.running,
+                  remaining: cData.remaining > 0 ? cData.remaining : cData.duration,
+                },
+              });
+            }}
+          >
+            {cData.running ? '⏸ Tạm dừng' : '▶ Bắt đầu'}
+          </button>
+          <button
+            type="button"
+            className="ppt-secondary-action-btn"
+            style={{ padding: '2px 8px', fontSize: '11px', color: '#94A3B8', background: 'rgba(255,255,255,0.1)', border: 'none' }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onUpdateElementProps?.({
+                countdownData: { ...cData, remaining: cData.duration, running: false },
+              });
+            }}
+          >
+            🔄 Đặt lại
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (el.type === 'poll') {
+    const pData = el.pollData || {
+      question: 'Bình chọn trực tiếp: Định hướng phát triển?',
+      options: [
+        { id: '1', text: 'Tối ưu hiệu năng offline', votes: 45 },
+        { id: '2', text: 'Mở rộng tính năng thuyết trình', votes: 72 },
+        { id: '3', text: 'Bảo mật dữ liệu tối đa', votes: 31 },
+      ],
+      type: 'multiple' as const,
+      active: true,
+      qrCode: true,
+    };
+    const totalVotes = pData.options.reduce((sum, opt) => sum + opt.votes, 0) || 1;
+
+    return (
+      <div
+        className="ppt-poll-container"
+        style={{
+          width: '100%',
+          height: '100%',
+          background: '#FFFFFF',
+          border: '1px solid #E2E8F0',
+          borderRadius: '12px',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
+          padding: '16px',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+          <div>
+            <span style={{ fontSize: '11px', fontWeight: 700, color: '#D83B01', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              📊 LIVE AUDIENCE POLL
+            </span>
+            <h4 style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A', margin: '4px 0 0 0' }}>
+              {pData.question}
+            </h4>
+          </div>
+          {pData.qrCode && (
+            <div style={{ textAlign: 'center', background: '#F8FAFC', padding: '4px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+              <div style={{ width: '40px', height: '40px', background: '#0F172A', color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', fontWeight: 800 }}>
+                QR VOTE
+              </div>
+              <span style={{ fontSize: '9px', color: '#64748B' }}>Quét mã</span>
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, justifyContent: 'center' }}>
+          {pData.options.map((opt) => {
+            const pct = Math.round((opt.votes / totalVotes) * 100);
+            return (
+              <div
+                key={opt.id}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const updatedOpts = pData.options.map((o) => (o.id === opt.id ? { ...o, votes: o.votes + 1 } : o));
+                  onUpdateElementProps?.({ pollData: { ...pData, options: updatedOpts } });
+                }}
+                style={{
+                  position: 'relative',
+                  background: '#F1F5F9',
+                  borderRadius: '6px',
+                  padding: '8px 12px',
+                  overflow: 'hidden',
+                  cursor: 'pointer',
+                  border: '1px solid #E2E8F0',
+                }}
+              >
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    bottom: 0,
+                    left: 0,
+                    width: `${pct}%`,
+                    background: 'linear-gradient(90deg, #BAE6FD 0%, #38BDF8 100%)',
+                    opacity: 0.6,
+                    transition: 'width 0.4s ease',
+                  }}
+                />
+                <div style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px', fontWeight: 600, color: '#1E293B' }}>
+                  <span>{opt.text}</span>
+                  <span style={{ color: '#0284C7' }}>{pct}% ({opt.votes})</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: '#64748B', marginTop: '6px' }}>
+          <span>Tổng số phiếu: <strong>{totalVotes}</strong></span>
+          <span style={{ color: '#16A34A', fontWeight: 600 }}>🟢 Đang mở nhận bình chọn</span>
+        </div>
       </div>
     );
   }

@@ -166,7 +166,22 @@ export interface ElementAnimation {
   motionPathCoords?: { dx: number; dy: number };
 }
 
-export type ElementType = 'text' | 'shape' | 'image' | 'table' | 'chart' | 'smartart' | 'qr' | 'ink' | 'code' | 'math' | 'zoom';
+export type ElementType =
+  | 'text'
+  | 'shape'
+  | 'image'
+  | 'table'
+  | 'chart'
+  | 'smartart'
+  | 'qr'
+  | 'ink'
+  | 'code'
+  | 'math'
+  | 'zoom'
+  | '3d'
+  | 'video'
+  | 'countdown'
+  | 'poll';
 
 export interface ChartSeries {
   name: string;
@@ -274,6 +289,58 @@ export interface SlideElement {
   // Lock status
   locked?: boolean;
 
+  // Visual polish
+  imageMask?: 'none' | 'circle' | 'rounded' | 'hexagon' | 'star' | 'diamond';
+  reflection?: boolean;
+
+  // 3D Model properties
+  model3d?: {
+    type: 'cube' | 'cylinder' | 'sphere' | 'torus' | 'pyramid' | 'device';
+    rotX: number;
+    rotY: number;
+    rotZ: number;
+    zoom: number;
+    color?: string;
+    wireframe?: boolean;
+  };
+
+  // Video properties
+  videoData?: {
+    url: string;
+    trimStart?: number;
+    trimEnd?: number;
+    autoplay?: boolean;
+    loop?: boolean;
+    poster?: string;
+    shape?: 'rect' | 'rounded' | 'oval';
+  };
+
+  // Countdown timer properties
+  countdownData?: {
+    duration: number; // in seconds
+    remaining: number;
+    running: boolean;
+    title?: string;
+    theme?: 'dark' | 'neon' | 'clean';
+  };
+
+  // Live audience poll properties
+  pollData?: {
+    question: string;
+    options: { id: string; text: string; votes: number }[];
+    type?: 'multiple' | 'wordcloud';
+    active?: boolean;
+    qrCode?: boolean;
+  };
+
+  // Live Linked Data from Minh Sheets
+  sheetLink?: {
+    sheetName: string;
+    range: string;
+    lastSync?: string;
+    autoUpdate?: boolean;
+  };
+
   // Animation properties
   animation?: {
     type: AnimationType;
@@ -343,5 +410,17 @@ export interface PresentationData {
     text: string;
     enabled: boolean;
     opacity?: number;
+  };
+  customShows?: {
+    id: string;
+    name: string;
+    slideIds: string[];
+  }[];
+  slideMaster?: {
+    enabled: boolean;
+    headerText?: string;
+    footerText?: string;
+    logoUrl?: string;
+    showSlideNumber?: boolean;
   };
 }
