@@ -37,7 +37,7 @@ import {
   type AccessibilityIssue,
 } from './sheetPro';
 
-function ProDialog({
+export function ProDialog({
   title,
   subtitle,
   width = 560,

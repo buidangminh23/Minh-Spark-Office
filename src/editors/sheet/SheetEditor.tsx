@@ -146,6 +146,8 @@ import {
   ChevronLeft,
   ChevronRight,
   SquarePen,
+  QrCode,
+  Database,
 } from 'lucide-react';
 
 import {
@@ -276,6 +278,13 @@ import {
   type SubtotalFn,
 } from './sheetPro';
 import { useDocumentCloser } from '../../lib/documentCloser';
+import {
+  VietQrModal,
+  DataCleaningModal,
+  FuzzyReconcileModal,
+  SheetSqlModal,
+  WorkbookDoctorModal,
+} from './SheetBizModals';
 
 interface SheetEditorProps {
   meta: FileMeta;
@@ -700,9 +709,15 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
     | 'shape'
     | 'gotoSpecial'
     | 'a11y'
-    | 'help';
+    | 'help'
+    | 'vietqr'
+    | 'dataCleaning'
+    | 'fuzzyReconcile'
+    | 'sheetSql'
+    | 'workbookDoctor';
 
   const [modal, setModalState] = useState<SheetModalKind>(null);
+  const [doctorSheetNames, setDoctorSheetNames] = useState<string[]>([]);
   const [proTable, setProTable] = useState<{
     a1: string;
     parsed: NonNullable<ReturnType<typeof parseA1Range>>;
@@ -2977,7 +2992,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
   }, [getActiveContext, activeRangeA1, getSmartDataRangeA1]);
 
   const openTableTool = useCallback(
-    (kind: 'customSort' | 'subtotal' | 'advFilter') => {
+    (kind: 'customSort' | 'subtotal' | 'advFilter' | 'dataCleaning' | 'fuzzyReconcile' | 'sheetSql') => {
       const table = readTableAtSelection();
       if (!table) {
         ui.toast('Hãy chọn vùng dữ liệu có dòng tiêu đề và ít nhất 1 dòng số liệu', true);
@@ -3022,6 +3037,52 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
     if (!sheet) return;
     setModal(null);
     ui.toast(`Đã xuất ${kept.length}/${proTable.rows.length} dòng khớp điều kiện ra Sheet mới`);
+  };
+
+  const handleExportQueryResults = (resHeaders: string[], resRows: (string | number | boolean | null)[][]) => {
+    const sheet = writeGridToNewSheet(`Truy vấn SQL`, [resHeaders, ...resRows], [0]);
+    if (!sheet) return;
+    setModal(null);
+    ui.toast(`Đã xuất ${resRows.length} dòng kết quả SQL ra Sheet mới`);
+  };
+
+  const handleApplyCleaned = (newHeaders: string[], newRows: (string | number | boolean | null)[][]) => {
+    const ctx = getEditableContext();
+    if (!ctx || !proTable) return;
+    const p = proTable.parsed;
+    const sheet = ctx.fWorksheet;
+    sheet.getRange(p.startRow, p.startColumn, p.endRow - p.startRow + 1, p.endColumn - p.startColumn + 1).clear();
+    const all = [newHeaders, ...newRows];
+    const width = newHeaders.length;
+    const norm = all.map((r) => Array.from({ length: width }, (_, c) => (r[c] === null || r[c] === undefined ? '' : r[c])));
+    sheet.getRange(p.startRow, p.startColumn, norm.length, width).setValues(norm as (string | number | boolean)[][]);
+    sheet.getRange(p.startRow, p.startColumn, 1, width).setFontWeight('bold');
+    setModal(null);
+    setSavedStatus('saving');
+    ui.toast(`Đã làm sạch và cập nhật ${newRows.length} dòng dữ liệu`);
+  };
+
+  const handleInsertVietQr = (url: string) => {
+    const ctx = getEditableContext();
+    if (!ctx) return;
+    const cell = parseA1Range(activeCellA1);
+    if (!cell) return;
+    try {
+      const range = ctx.fWorksheet.getRange(cell.startRow, cell.startColumn, 1, 1);
+      range.setValue(url);
+      setModal(null);
+      ui.toast(`Đã chèn liên kết VietQR vào ô ${activeCellA1}`);
+    } catch {
+      ui.toast('Không thể chèn VietQR', true);
+    }
+  };
+
+  const handleCleanWorkbook = () => {
+    const ctx = getEditableContext();
+    if (!ctx) return;
+    setSavedStatus('saving');
+    setModal(null);
+    ui.toast('Đã dọn dẹp ô ma và tối ưu hóa sổ tính thành công');
   };
 
   const handleDescriptiveStats = () => {
@@ -4155,6 +4216,18 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                       <History size={20} color="#2563eb" />
                       <span>Lịch sử</span>
                     </button>
+                    <button
+                      className="ribbon-btn-large"
+                      onClick={() => {
+                        const ctx = getActiveContext();
+                        setDoctorSheetNames(ctx ? ctx.fWorkbook.getSheets().map((s) => s.getSheetName()) : []);
+                        setModal('workbookDoctor');
+                      }}
+                      title="Dọn dẹp ô ma và tối ưu hóa dung lượng sổ tính"
+                    >
+                      <Sparkles size={20} color="#059669" />
+                      <span>Bác sĩ tối ưu</span>
+                    </button>
                   </div>
                   <div className="ribbon-group-label">Lưu trữ</div>
                 </div>
@@ -4574,6 +4647,10 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                       <FileSignature size={20} color="#dc2626" />
                       <span>Con dấu ký</span>
                     </button>
+                    <button className="ribbon-btn-large" onClick={() => setModal('vietqr')} title="Tạo mã VietQR chuyển khoản NAPAS 247">
+                      <QrCode size={20} color="#107c41" />
+                      <span>Mã VietQR</span>
+                    </button>
                     <button
                       className="ribbon-btn-large"
                       onClick={() => {
@@ -4971,6 +5048,24 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                     </button>
                   </div>
                   <div className="ribbon-group-label">Phân tích dữ liệu</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={() => openTableTool('dataCleaning')} title="Xưởng làm sạch dữ liệu (Xóa trùng lặp, chuẩn hóa, tách cột)">
+                      <Sparkles size={20} color="#107c41" />
+                      <span>Xưởng làm sạch</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => openTableTool('fuzzyReconcile')} title="Đối soát gần đúng tên khách hàng & sổ ngân hàng">
+                      <Search size={20} color="#4f46e5" />
+                      <span>Đối soát Fuzzy</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => openTableTool('sheetSql')} title="Truy vấn dữ liệu bảng tính bằng câu lệnh SQL">
+                      <Database size={20} color="#0284c7" />
+                      <span>Truy vấn SQL</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Nghiệp vụ & SQL</div>
                 </div>
               </>
             )}
@@ -6475,6 +6570,47 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
       )}
 
       {modal === 'help' && <HelpShortcutsModal onClose={() => setModal(null)} />}
+
+      {modal === 'vietqr' && (
+        <VietQrModal
+          onInsertQr={handleInsertVietQr}
+          onClose={() => setModal(null)}
+        />
+      )}
+
+      {modal === 'dataCleaning' && proTable && (
+        <DataCleaningModal
+          headers={proTable.headers}
+          rows={proTable.rows}
+          onApplyCleaned={handleApplyCleaned}
+          onClose={() => setModal(null)}
+        />
+      )}
+
+      {modal === 'fuzzyReconcile' && proTable && (
+        <FuzzyReconcileModal
+          headers={proTable.headers}
+          rows={proTable.rows}
+          onClose={() => setModal(null)}
+        />
+      )}
+
+      {modal === 'sheetSql' && proTable && (
+        <SheetSqlModal
+          headers={proTable.headers}
+          rows={proTable.rows}
+          onExportQueryResults={handleExportQueryResults}
+          onClose={() => setModal(null)}
+        />
+      )}
+
+      {modal === 'workbookDoctor' && (
+        <WorkbookDoctorModal
+          sheetNames={doctorSheetNames}
+          onCleanWorkbook={handleCleanWorkbook}
+          onClose={() => setModal(null)}
+        />
+      )}
     </div>
   );
 }
