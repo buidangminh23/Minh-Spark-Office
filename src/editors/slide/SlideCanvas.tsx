@@ -1,5 +1,7 @@
 import { useRef, useState, useEffect, type ReactNode } from 'react';
+import { Lock, Sheet, Copy, ZoomIn, Cuboid, Clapperboard, Pause, Play, RotateCcw, ChartNoAxesColumn } from 'lucide-react';
 import type { SlideData, SlideElement, ShapeType } from '../../lib/slideTypes';
+import { ToneDot } from './slideIcons';
 
 interface SlideCanvasProps {
   slide: SlideData;
@@ -652,7 +654,7 @@ export function SlideCanvas({
             {/* Lock Badge */}
             {el.locked && (
               <div className="ppt-canvas-lock-badge" title="Đối tượng này đã bị khóa (Lock)">
-                🔒
+                <Lock size={12} />
               </div>
             )}
 
@@ -673,7 +675,7 @@ export function SlideCanvas({
                   pointerEvents: 'none',
                 }}
               >
-                📊 Minh Sheets: {el.sheetLink.range}
+                <Sheet size={10} /> Minh Sheets: {el.sheetLink.range}
               </div>
             )}
             {renderElementContent(el, isEditing, (newText) => onUpdateElement(el.id, { text: newText }), (updates) => onUpdateElement(el.id, updates))}
@@ -978,7 +980,7 @@ function renderElementContent(
             }}
             title="Sao chép mã nguồn"
           >
-            📋 Copy
+            <Copy size={12} /> Copy
           </button>
         </div>
         <pre className="ppt-code-pre">
@@ -1003,7 +1005,7 @@ function renderElementContent(
       <div className="ppt-zoom-container">
         <div className="ppt-zoom-thumb">
           <div className="ppt-zoom-inner">
-            <span style={{ fontSize: '24px' }}>🔍</span>
+            <ZoomIn size={24} />
             <span style={{ fontWeight: 600, fontSize: '13px', color: '#1E293B' }}>
               {el.zoomSlideTitle || 'Trang chiếu phóng to (Slide Zoom)'}
             </span>
@@ -1080,7 +1082,7 @@ function renderElementContent(
           <div style={{ position: 'absolute', width: '100px', height: '100px', background: color, filter: 'brightness(0.5)', transform: 'rotateX(-90deg) translateZ(50px)' }} />
         </div>
         <div style={{ position: 'absolute', bottom: '6px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(15,23,42,0.85)', color: '#FFF', fontSize: '10px', padding: '2px 8px', borderRadius: '12px', whiteSpace: 'nowrap', pointerEvents: 'none' }}>
-          🧊 Mô hình 3D (${modelType.toUpperCase()}) • Kéo chuột xoay 360°
+          <Cuboid size={12} /> Mô hình 3D ({modelType.toUpperCase()}) • Kéo chuột xoay 360°
         </div>
       </div>
     );
@@ -1130,7 +1132,7 @@ function renderElementContent(
             pointerEvents: 'none',
           }}
         >
-          🎬 Video Studio • ${videoData.trimStart ?? 0}s - ${videoData.trimEnd ?? 60}s
+          <Clapperboard size={12} /> Video Studio • {videoData.trimStart ?? 0}s - {videoData.trimEnd ?? 60}s
         </div>
       </div>
     );
@@ -1183,7 +1185,7 @@ function renderElementContent(
               });
             }}
           >
-            {cData.running ? '⏸ Tạm dừng' : '▶ Bắt đầu'}
+            {cData.running ? <><Pause size={12} /> Tạm dừng</> : <><Play size={12} /> Bắt đầu</>}
           </button>
           <button
             type="button"
@@ -1196,7 +1198,7 @@ function renderElementContent(
               });
             }}
           >
-            🔄 Đặt lại
+            <RotateCcw size={12} /> Đặt lại
           </button>
         </div>
       </div>
@@ -1236,7 +1238,7 @@ function renderElementContent(
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
           <div>
             <span style={{ fontSize: '11px', fontWeight: 700, color: '#D83B01', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              📊 LIVE AUDIENCE POLL
+              <ChartNoAxesColumn size={12} /> LIVE AUDIENCE POLL
             </span>
             <h4 style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A', margin: '4px 0 0 0' }}>
               {pData.question}
@@ -1296,7 +1298,7 @@ function renderElementContent(
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: '#64748B', marginTop: '6px' }}>
           <span>Tổng số phiếu: <strong>{totalVotes}</strong></span>
-          <span style={{ color: '#16A34A', fontWeight: 600 }}>🟢 Đang mở nhận bình chọn</span>
+          <span style={{ color: '#16A34A', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}><ToneDot tone="entrance" /> Đang mở nhận bình chọn</span>
         </div>
       </div>
     );

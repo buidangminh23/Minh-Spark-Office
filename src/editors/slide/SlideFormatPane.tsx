@@ -15,6 +15,7 @@ import {
   BarChart3,
   Sliders,
   Check,
+  Clapperboard,
 } from 'lucide-react';
 import type { SlideData, SlideElement, SlideBackground, AnimationType } from '../../lib/slideTypes';
 
@@ -68,7 +69,7 @@ export function SlideFormatPane({
       {/* Pane Header */}
       <div className="ppt-format-header">
         <div className="ppt-format-title-wrap">
-          <Palette size={18} color="#D83B01" />
+          <Palette size={16} color="#D83B01" />
           <span className="ppt-format-title">
             {selectedElement
               ? selectedElement.type === 'shape'
@@ -128,7 +129,7 @@ export function SlideFormatPane({
         {!selectedElement && (
           <div className="ppt-format-section">
             <div className="ppt-format-section-title">
-              <Sun size={15} /> Kiểu Nền Trang Chiếu
+              <Sun size={16} /> Kiểu Nền Trang Chiếu
             </div>
 
             <div className="ppt-format-row">
@@ -208,7 +209,7 @@ export function SlideFormatPane({
             {/* Fill group */}
             <div className="ppt-format-section">
               <div className="ppt-format-section-title">
-                <Palette size={15} /> Tô Màu Phần Tử (Fill)
+                <Palette size={16} /> Tô Màu Phần Tử (Fill)
               </div>
 
               <div className="ppt-format-row">
@@ -298,7 +299,7 @@ export function SlideFormatPane({
             {/* Outline / Stroke group */}
             <div className="ppt-format-section">
               <div className="ppt-format-section-title">
-                <Square size={15} /> Đường Viền (Line / Outline)
+                <Square size={16} /> Đường Viền (Line / Outline)
               </div>
 
               <div className="ppt-format-row">
@@ -362,7 +363,7 @@ export function SlideFormatPane({
             {/* Position, Size, Rotation */}
             <div className="ppt-format-section">
               <div className="ppt-format-section-title">
-                <Maximize2 size={15} /> Kích Thước & Góc Xoay
+                <Maximize2 size={16} /> Kích Thước & Góc Xoay
               </div>
 
               <div className="ppt-format-grid-2">
@@ -431,7 +432,7 @@ export function SlideFormatPane({
             {/* Arrange & Align */}
             <div className="ppt-format-section">
               <div className="ppt-format-section-title">
-                <Layers size={15} /> Sắp Xếp Thứ Tự Lớp (Arrange)
+                <Layers size={16} /> Sắp Xếp Thứ Tự Lớp (Arrange)
               </div>
 
               <div className="ppt-format-grid-2">
@@ -482,7 +483,7 @@ export function SlideFormatPane({
         {selectedElement && activeTab === 'text' && (
           <div className="ppt-format-section">
             <div className="ppt-format-section-title">
-              <Type size={15} /> Thuộc Tính Hộp Văn Bản
+              <Type size={16} /> Thuộc Tính Hộp Văn Bản
             </div>
 
             <div className="ppt-format-row">
@@ -590,7 +591,7 @@ export function SlideFormatPane({
         {selectedElement && activeTab === 'chart' && isChart && (
           <div className="ppt-format-section">
             <div className="ppt-format-section-title">
-              <BarChart3 size={15} /> Dữ Liệu Biểu Đồ (Spreadsheet)
+              <BarChart3 size={16} /> Dữ Liệu Biểu Đồ (Spreadsheet)
             </div>
 
             <div className="ppt-format-row">
@@ -682,7 +683,7 @@ export function SlideFormatPane({
         {selectedElement && activeTab === 'effects' && (
           <div className="ppt-format-section">
             <div className="ppt-format-section-title">
-              <Sliders size={15} /> Đổ Bóng Ngoài (Drop Shadow)
+              <Sliders size={16} /> Đổ Bóng Ngoài (Drop Shadow)
             </div>
 
             <div className="ppt-format-row">
@@ -740,7 +741,7 @@ export function SlideFormatPane({
             {/* Animation details */}
             <div style={{ marginTop: '20px', borderTop: '1px solid #E2E8F0', paddingTop: '16px' }}>
               <div className="ppt-format-section-title">
-                🎬 Hoạt Ảnh Của Đối Tượng
+                <Clapperboard size={14} /> Hoạt Ảnh Của Đối Tượng
               </div>
 
               <div className="ppt-format-row">

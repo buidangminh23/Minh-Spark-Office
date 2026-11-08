@@ -140,7 +140,7 @@ export function SlideCustomShowsModal({
                           handleDeleteShow(s.id);
                         }}
                       >
-                        <Trash2 size={13} />
+                        <Trash2 size={14} />
                       </button>
                     )}
                   </div>

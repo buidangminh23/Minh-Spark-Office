@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Users, FileSpreadsheet, X, Check, Sparkles } from 'lucide-react';
+import { Users, FileSpreadsheet, X, Check, Sparkles, Lightbulb } from 'lucide-react';
 import type { SlideData, SlideElement } from '../../lib/slideTypes';
 
 interface SlideMailMergeModalProps {
@@ -105,13 +105,13 @@ export function SlideMailMergeModal({
         {/* Content */}
         <div className="ppt-dialog-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div style={{ background: '#F8FAFC', padding: '12px 16px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '13px', color: '#334155', lineHeight: '1.6' }}>
-            <strong>💡 Cách hoạt động:</strong> Đặt các thẻ dạng <code>{`{{ten_truong}}`}</code> trong hộp chữ trên trang chiếu mẫu (ví dụ: <code>{`{{ho_ten}}`}</code>, <code>{`{{chuc_vu}}`}</code>, <code>{`{{cong_ty}}`}</code>). Khi bấm nút tạo, Minh Slides sẽ tự động nhân bản trang chiếu và điền thông tin tương ứng cho từng người trong danh sách dữ liệu.
+            <Lightbulb size={14} className="ppt-inline-icon" /> <strong>Cách hoạt động:</strong> Đặt các thẻ dạng <code>{`{{ten_truong}}`}</code> trong hộp chữ trên trang chiếu mẫu (ví dụ: <code>{`{{ho_ten}}`}</code>, <code>{`{{chuc_vu}}`}</code>, <code>{`{{cong_ty}}`}</code>). Khi bấm nút tạo, Minh Slides sẽ tự động nhân bản trang chiếu và điền thông tin tương ứng cho từng người trong danh sách dữ liệu.
           </div>
 
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
               <label style={{ fontWeight: 600, fontSize: '13px', color: '#1E293B', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <FileSpreadsheet size={15} color="#059669" /> Dữ liệu danh sách (CSV / Bảng Excel dán vào):
+                <FileSpreadsheet size={16} color="#059669" /> Dữ liệu danh sách (CSV / Bảng Excel dán vào):
               </label>
               <button
                 type="button"
@@ -151,7 +151,7 @@ export function SlideMailMergeModal({
 
           {isSuccess && (
             <div style={{ background: '#DCFCE7', color: '#15803D', padding: '10px 14px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, fontSize: '13px' }}>
-              <Check size={18} /> Đã nhân bản thành công {generatedCount} slide từ danh sách dữ liệu!
+              <Check size={16} /> Đã nhân bản thành công {generatedCount} slide từ danh sách dữ liệu!
             </div>
           )}
         </div>

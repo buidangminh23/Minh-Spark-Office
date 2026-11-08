@@ -51,7 +51,7 @@ export function SlideFindReplaceModal({
       <div className="ppt-dialog-card" onClick={(e) => e.stopPropagation()}>
         <div className="ppt-dialog-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Search size={18} color="#D83B01" />
+            <Search size={16} color="#D83B01" />
             <span style={{ fontWeight: 700, fontSize: '16px' }}>Tìm kiếm & Thay thế</span>
           </div>
           <button className="ppt-dialog-close-btn" onClick={onClose}>
@@ -63,7 +63,7 @@ export function SlideFindReplaceModal({
           <div className="ppt-dialog-field">
             <label>Tìm nội dung:</label>
             <div className="ppt-input-icon-wrap">
-              <Search size={15} color="#64748B" />
+              <Search size={16} color="#64748B" />
               <input
                 type="text"
                 autoFocus
@@ -80,7 +80,7 @@ export function SlideFindReplaceModal({
           <div className="ppt-dialog-field">
             <label>Thay thế bằng:</label>
             <div className="ppt-input-icon-wrap">
-              <Replace size={15} color="#64748B" />
+              <Replace size={16} color="#64748B" />
               <input
                 type="text"
                 placeholder="Nhập nội dung thay thế…"

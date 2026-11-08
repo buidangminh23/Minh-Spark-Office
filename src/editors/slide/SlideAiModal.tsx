@@ -10,6 +10,7 @@ import {
   ArrowRight,
   Send,
   Zap,
+  Lightbulb,
 } from 'lucide-react';
 import type { SlideData, SlideElement, SlideBackground, SlideLayout } from '../../lib/slideTypes';
 import { SLIDE_THEMES } from '../../lib/slideThemes';
@@ -558,15 +559,15 @@ export function SlideAiModal({
 
                   <div className="ppt-ai-steps">
                     <div className={`ppt-ai-step-row ${stepIndex >= 1 ? 'is-done' : ''}`}>
-                      <span className="ppt-step-bullet">{stepIndex > 1 ? '✓' : '1'}</span>
+                      <span className="ppt-step-bullet">{stepIndex > 1 ? <Check size={12} /> : '1'}</span>
                       <span>Phân tích yêu cầu và xác định mục tiêu bài thuyết trình</span>
                     </div>
                     <div className={`ppt-ai-step-row ${stepIndex >= 2 ? 'is-done' : ''}`}>
-                      <span className="ppt-step-bullet">{stepIndex > 2 ? '✓' : '2'}</span>
+                      <span className="ppt-step-bullet">{stepIndex > 2 ? <Check size={12} /> : '2'}</span>
                       <span>Xây dựng dàn ý chi tiết và các luận điểm chính</span>
                     </div>
                     <div className={`ppt-ai-step-row ${stepIndex >= 3 ? 'is-done' : ''}`}>
-                      <span className="ppt-step-bullet">{stepIndex >= 3 ? '✓' : '3'}</span>
+                      <span className="ppt-step-bullet">{stepIndex >= 3 ? <Check size={12} /> : '3'}</span>
                       <span>Thiết kế trang chiếu, biểu đồ số liệu & hiệu ứng chuẩn PowerPoint</span>
                     </div>
                   </div>
@@ -595,7 +596,7 @@ export function SlideAiModal({
               </div>
 
               <div style={{ background: '#F8FAFC', padding: '10px 14px', borderRadius: '6px', border: '1px solid #E2E8F0', fontSize: '12px', color: '#475569' }}>
-                💡 <strong>Mẹo thông minh:</strong> AI sẽ tự động tạo trang bìa, các trang nội dung, căn chỉnh tỷ lệ và thêm ghi chú diễn giả tương ứng.
+                <Lightbulb size={14} className="ppt-inline-icon" /> <strong>Mẹo thông minh:</strong> AI sẽ tự động tạo trang bìa, các trang nội dung, căn chỉnh tỷ lệ và thêm ghi chú diễn giả tương ứng.
               </div>
             </div>
           )}
@@ -630,7 +631,7 @@ export function SlideAiModal({
 
               {chatFeedback && (
                 <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', padding: '10px 14px', borderRadius: '6px', color: '#166534', fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-                  <Check size={18} color="#16A34A" />
+                  <Check size={16} color="#16A34A" />
                   <span>{chatFeedback}</span>
                 </div>
               )}
@@ -675,8 +676,8 @@ export function SlideAiModal({
                     value={transDirection}
                     onChange={(e) => setTransDirection(e.target.value as any)}
                   >
-                    <option value="vi-en">Tiếng Việt ➔ Tiếng Anh (English)</option>
-                    <option value="en-vi">English ➔ Tiếng Việt</option>
+                    <option value="vi-en">Tiếng Việt → Tiếng Anh (English)</option>
+                    <option value="en-vi">English → Tiếng Việt</option>
                   </select>
                 </div>
 
@@ -695,7 +696,7 @@ export function SlideAiModal({
 
               {transFeedback && (
                 <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', padding: '10px 14px', borderRadius: '6px', color: '#166534', fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', margin: '14px 0' }}>
-                  <Check size={18} color="#16A34A" />
+                  <Check size={16} color="#16A34A" />
                   <span>{transFeedback}</span>
                 </div>
               )}

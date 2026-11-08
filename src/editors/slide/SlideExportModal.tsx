@@ -49,9 +49,9 @@ export function SlideExportModal({
 <body>
   <div class="slide-stage" id="stage"></div>
   <div class="controls">
-    <button class="btn" id="prevBtn">◀ Trước</button>
+    <button class="btn" id="prevBtn">&lsaquo; Trước</button>
     <span id="pageIndicator" style="font-weight: 700; color: #38BDF8;">1 / \${presentation.slides.length}</span>
-    <button class="btn" id="nextBtn">Sau ▶</button>
+    <button class="btn" id="nextBtn">Sau &rsaquo;</button>
   </div>
   <script>
     const slides = \${JSON.stringify(presentation.slides)};
@@ -103,7 +103,7 @@ export function SlideExportModal({
         {/* Header */}
         <div className="ppt-dialog-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <FileText size={18} color="#D83B01" />
+            <FileText size={16} color="#D83B01" />
             <span style={{ fontWeight: 700, fontSize: '16px' }}>In & Xuất Bài Thuyết Trình</span>
           </div>
           <button className="ppt-dialog-close-btn" onClick={onClose}>
@@ -117,13 +117,13 @@ export function SlideExportModal({
             className={`ppt-dialog-tab ${activeTab === 'print' ? 'is-active' : ''}`}
             onClick={() => setActiveTab('print')}
           >
-            <Printer size={15} /> Thiết lập In ấn (Print Setup)
+            <Printer size={16} /> Thiết lập In ấn (Print Setup)
           </button>
           <button
             className={`ppt-dialog-tab ${activeTab === 'export' ? 'is-active' : ''}`}
             onClick={() => setActiveTab('export')}
           >
-            <Download size={15} /> Xuất Tệp Đa Định Dạng (Export)
+            <Download size={16} /> Xuất Tệp Đa Định Dạng (Export)
           </button>
         </div>
 

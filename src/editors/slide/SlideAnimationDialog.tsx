@@ -132,7 +132,7 @@ function SlideAnimationDialogBody({
             </span>
           </div>
           <button className="ppt-dialog-close-btn" onClick={onClose}>
-            <X size={15} />
+            <X size={16} />
           </button>
         </div>
 
@@ -447,7 +447,7 @@ function SlideAnimationDialogBody({
             onClick={handleTestSound}
             style={{ marginRight: 'auto', display: 'flex', alignItems: 'center', gap: '4px' }}
           >
-            <Play size={13} /> Xem trước
+            <Play size={14} /> Xem trước
           </button>
           <button className="ppt-dialog-btn" onClick={onClose}>
             Hủy bỏ

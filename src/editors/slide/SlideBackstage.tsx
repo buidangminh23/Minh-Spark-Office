@@ -38,7 +38,7 @@ export function SlideBackstage({
       <div className="ppt-backstage-card" onClick={(e) => e.stopPropagation()}>
         <div className="ppt-backstage-head">
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <FileText size={22} />
+            <FileText size={24} />
             <h2>Tệp · {meta.name}</h2>
           </div>
           <button

@@ -1,0 +1,154 @@
+.ppt-editor .lucide {
+  stroke-width: 1.75;
+}
+
+.ppt-effect-icon {
+  --tone: #64748B;
+  --tone-bg: #F1F5F9;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--tone);
+  background: var(--tone-bg);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone) 18%, transparent);
+  transition: background-color 0.16s ease, color 0.16s ease, transform 0.16s ease;
+}
+
+.ppt-effect-icon.is-sm {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+}
+
+.ppt-effect-icon.is-md {
+  width: 28px;
+  height: 28px;
+}
+
+.ppt-effect-icon.is-lg {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+}
+
+.ppt-effect-icon.is-subtle,
+.ppt-effect-icon.is-exciting,
+.ppt-effect-icon.is-dynamic {
+  --tone: #C2410C;
+  --tone-bg: #FFF1E8;
+}
+
+.ppt-effect-icon.is-exciting {
+  --tone: #B91C1C;
+  --tone-bg: #FEECEC;
+}
+
+.ppt-effect-icon.is-dynamic {
+  --tone: #6D28D9;
+  --tone-bg: #F3EEFF;
+}
+
+.ppt-effect-icon.is-entrance {
+  --tone: #15803D;
+  --tone-bg: #EAF7EE;
+}
+
+.ppt-effect-icon.is-emphasis {
+  --tone: #B45309;
+  --tone-bg: #FEF5E2;
+}
+
+.ppt-effect-icon.is-exit {
+  --tone: #B91C1C;
+  --tone-bg: #FEECEC;
+}
+
+.ppt-effect-icon.is-motion-path {
+  --tone: #6D28D9;
+  --tone-bg: #F3EEFF;
+}
+
+.is-active > .ppt-effect-icon,
+.ppt-gallery-card-btn:hover > .ppt-effect-icon,
+.ppt-full-card-btn:hover > .ppt-effect-icon {
+  color: #FFFFFF;
+  background: var(--tone);
+}
+
+.ppt-gallery-card-btn:hover > .ppt-effect-icon,
+.ppt-full-card-btn:hover > .ppt-effect-icon {
+  transform: translateY(-1px);
+}
+
+.ppt-tone-dot {
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #94A3B8;
+  vertical-align: middle;
+}
+
+.ppt-tone-dot.is-entrance {
+  background: #16A34A;
+}
+
+.ppt-tone-dot.is-emphasis {
+  background: #D97706;
+}
+
+.ppt-tone-dot.is-exit {
+  background: #DC2626;
+}
+
+.ppt-tone-dot.is-motion-path {
+  background: #7C3AED;
+}
+
+.ppt-gallery-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ppt-gallery-group-header::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.ppt-anim-drop-item .ppt-effect-icon {
+  margin-right: 4px;
+}
+
+.ppt-menu-check {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ppt-effect-icon {
+    transition: none;
+  }
+
+  .ppt-gallery-card-btn:hover > .ppt-effect-icon,
+  .ppt-full-card-btn:hover > .ppt-effect-icon {
+    transform: none;
+  }
+}
+
+.ppt-editor .lucide {
+  flex: none;
+  vertical-align: -0.15em;
+}
+
+.ppt-inline-icon {
+  margin-right: 4px;
+}

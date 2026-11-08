@@ -34,6 +34,10 @@ import {
   MessageSquare,
   Smartphone,
   ZoomIn,
+  Hand,
+  Bell,
+  Drum,
+  PartyPopper,
 } from 'lucide-react';
 import type { SlideData } from '../../lib/slideTypes';
 import { SlideCanvas } from './SlideCanvas';
@@ -586,7 +590,7 @@ export function SlideShow({
               className="ppt-ss-btn"
               title="Chuyển sang chiếu toàn màn hình chuẩn"
             >
-              <Maximize2 size={18} />
+              <Maximize2 size={16} />
             </button>
             <button
               onClick={onClose}
@@ -1010,7 +1014,7 @@ export function SlideShow({
             style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}
             title="Phím tắt: 1"
           >
-            <span>👏</span> <span>Vỗ tay (1)</span>
+            <Hand size={14} /> <span>Vỗ tay (1)</span>
           </button>
           <button
             onClick={() => playPresenterSound('ding')}
@@ -1018,7 +1022,7 @@ export function SlideShow({
             style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}
             title="Phím tắt: 2"
           >
-            <span>🔔</span> <span>Đing đúng (2)</span>
+            <Bell size={14} /> <span>Đing đúng (2)</span>
           </button>
           <button
             onClick={() => playPresenterSound('drum')}
@@ -1026,7 +1030,7 @@ export function SlideShow({
             style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}
             title="Phím tắt: 3"
           >
-            <span>🥁</span> <span>Trống cuộn (3)</span>
+            <Drum size={14} /> <span>Trống cuộn (3)</span>
           </button>
           <button
             onClick={() => playPresenterSound('fanfare')}
@@ -1034,7 +1038,7 @@ export function SlideShow({
             style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}
             title="Phím tắt: 4"
           >
-            <span>🎺</span> <span>Kèn mừng (4)</span>
+            <PartyPopper size={14} /> <span>Kèn mừng (4)</span>
           </button>
         </div>
       )}
@@ -1222,7 +1226,7 @@ export function SlideShow({
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
             <span style={{ fontWeight: 700, fontSize: '13px', color: '#F59E0B', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <MessageSquare size={15} /> Câu Hỏi Khán Giả (Live Q&A)
+              <MessageSquare size={16} /> Câu Hỏi Khán Giả (Live Q&A)
             </span>
             <button
               type="button"
@@ -1265,7 +1269,7 @@ export function SlideShow({
                       );
                     }}
                   >
-                    👍 {item.votes}
+                    <ThumbsUp size={12} /> {item.votes}
                   </button>
                   <button
                     type="button"
@@ -1352,7 +1356,7 @@ export function SlideShow({
                 style={{ padding: '6px 14px', fontSize: '12px' }}
                 onClick={() => handleStepBack()}
               >
-                ◀ Trang trước
+                <ChevronLeft size={14} /> Trang trước
               </button>
               <button
                 type="button"
@@ -1360,7 +1364,7 @@ export function SlideShow({
                 style={{ padding: '6px 14px', fontSize: '12px' }}
                 onClick={() => handleAdvance()}
               >
-                Trang sau ▶
+                Trang sau <ChevronRight size={14} />
               </button>
             </div>
           </div>
@@ -1375,7 +1379,7 @@ export function SlideShow({
           onClick={handleStepBack}
           title="Lùi lại (Mũi tên trái)"
         >
-          <ChevronLeft size={18} />
+          <ChevronLeft size={16} />
         </button>
 
         <span style={{ fontSize: '12px', fontWeight: 600, minWidth: '70px', textAlign: 'center' }}>
@@ -1393,7 +1397,7 @@ export function SlideShow({
           onClick={handleAdvance}
           title="Tiến tới (Mũi tên phải / Phím cách)"
         >
-          <ChevronRight size={18} />
+          <ChevronRight size={16} />
         </button>
 
         <span style={{ width: '1px', height: '16px', background: 'rgba(255,255,255,0.2)' }} />

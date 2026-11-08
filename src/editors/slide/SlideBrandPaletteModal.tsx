@@ -208,7 +208,7 @@ export function SlideBrandPaletteModal({
 
           {isSuccess && (
             <div style={{ background: '#DCFCE7', color: '#15803D', padding: '10px 14px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, fontSize: '13px' }}>
-              <Check size={18} /> Đã áp dụng bảng màu thương hiệu vào toàn bộ bài trình chiếu!
+              <Check size={16} /> Đã áp dụng bảng màu thương hiệu vào toàn bộ bài trình chiếu!
             </div>
           )}
         </div>

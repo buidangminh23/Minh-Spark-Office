@@ -10,6 +10,8 @@ import {
   Sliders,
   Ruler,
   Grid,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react';
 import type { FileMeta, SlideContent } from '../../lib/storage';
 import type {
@@ -1296,7 +1298,7 @@ export default function SlideEditor({
       <header className="ppt-titlebar">
         <div className="ppt-title-left">
           <button className="ppt-back-btn" onClick={onBack} title="Trở về Trang chủ">
-            <ArrowLeft size={18} />
+            <ArrowLeft size={16} />
           </button>
           <SuiteLogo kind="slide" size={26} />
           <div className="ppt-file-name-wrap">
@@ -1310,11 +1312,11 @@ export default function SlideEditor({
             <span className="ppt-save-badge">
               {saveStatus === 'saved' ? (
                 <>
-                  <CheckCircle2 size={13} color="#10B981" /> Đã lưu
+                  <CheckCircle2 size={14} color="#10B981" /> Đã lưu
                 </>
               ) : saveStatus === 'saving' ? (
                 <>
-                  <Clock size={13} color="#F59E0B" /> Đang lưu…
+                  <Clock size={14} color="#F59E0B" /> Đang lưu…
                 </>
               ) : (
                 'Chưa lưu'
@@ -1647,7 +1649,7 @@ export default function SlideEditor({
           <span>Chủ đề: <strong>{SLIDE_THEMES[presentation.themeId]?.name || 'Office Classic'}</strong></span>
           <span style={{ color: '#CBD5E1' }}>|</span>
           <button className="ppt-status-btn" onClick={() => setShowNotes(!showNotes)}>
-            Ghi chú {showNotes ? '▲' : '▼'}
+            Ghi chú {showNotes ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
           </button>
         </div>
 
@@ -1657,21 +1659,21 @@ export default function SlideEditor({
             onClick={() => setShowRuler(!showRuler)}
             title="Thước kẻ"
           >
-            <Ruler size={13} />
+            <Ruler size={14} />
           </button>
           <button
             className={`ppt-status-btn ${showGridlines ? 'is-active' : ''}`}
             onClick={() => setShowGridlines(!showGridlines)}
             title="Đường lưới"
           >
-            <Grid size={13} />
+            <Grid size={14} />
           </button>
           <button
             className={`ppt-status-btn ${isFormatPaneOpen ? 'is-active' : ''}`}
             onClick={() => setIsFormatPaneOpen(!isFormatPaneOpen)}
             title="Khung định dạng"
           >
-            <Sliders size={13} />
+            <Sliders size={14} />
           </button>
           <button
             className={`ppt-status-btn ${isAnimationPaneOpen ? 'is-active' : ''}`}

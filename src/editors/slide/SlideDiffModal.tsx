@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { GitCompare, X, Check, Eye, Layout } from 'lucide-react';
 import type { SlideData } from '../../lib/slideTypes';
+import { ToneDot } from './slideIcons';
 
 interface SlideDiffModalProps {
   isOpen: boolean;
@@ -153,7 +154,7 @@ export function SlideDiffModal({
             /* Overlay Diff */
             <div>
               <div style={{ color: '#94A3B8', fontSize: '12px', fontWeight: 600, marginBottom: '6px', textAlign: 'center' }}>
-                🔴 Vùng đỏ: Bản cũ • 🟢 Vùng xanh lá: Bản mới đã tối ưu
+                <ToneDot tone="exit" /> Vùng đỏ: Bản cũ • <ToneDot tone="entrance" /> Vùng xanh lá: Bản mới đã tối ưu
               </div>
               <div style={{ maxWidth: '640px', margin: '0 auto', aspectRatio: '16/9', background: '#FFFFFF', borderRadius: '6px', position: 'relative', overflow: 'hidden', border: '1px solid #334155' }}>
                 {previousElements.map((el) => (

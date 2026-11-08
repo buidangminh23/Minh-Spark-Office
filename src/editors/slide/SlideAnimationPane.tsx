@@ -12,6 +12,8 @@ import {
   Sparkles,
   Settings,
   HelpCircle,
+  Volume2,
+  Pilcrow,
 } from 'lucide-react';
 import type { SlideData, SlideElement, ElementAnimation, AnimationTrigger } from '../../lib/slideTypes';
 import { SlideAnimationDialog } from './SlideAnimationDialog';
@@ -198,7 +200,7 @@ export function SlideAnimationPane({
             <span style={{ fontWeight: 700, fontSize: '13px' }}>Ngăn Hoạt hình (Animation Pane)</span>
           </div>
           <button className="ppt-format-close-btn" onClick={onClose} title="Đóng Ngăn hoạt hình">
-            <X size={15} />
+            <X size={16} />
           </button>
         </div>
 
@@ -321,8 +323,8 @@ export function SlideAnimationPane({
                     <div className="ppt-anim-item-title">{displayName}</div>
                     <div className="ppt-anim-item-type" style={{ color: categoryColor }}>
                       {item.anim.type} ({item.anim.duration}s)
-                      {item.anim.sound && item.anim.sound !== 'none' ? ' 🔔' : ''}
-                      {item.anim.animateText === 'paragraph' ? ' 📑' : ''}
+                      {item.anim.sound && item.anim.sound !== 'none' ? <Volume2 size={12} aria-label="Có âm thanh" /> : null}
+                      {item.anim.animateText === 'paragraph' ? <Pilcrow size={12} aria-label="Theo từng đoạn" /> : null}
                     </div>
                   </div>
 
@@ -347,7 +349,7 @@ export function SlideAnimationPane({
                       }}
                       title="Tùy chọn hoạt hình"
                     >
-                      <ChevronDown size={13} />
+                      <ChevronDown size={14} />
                     </button>
 
                     {activeItemMenuId === item.anim.id && (
@@ -359,7 +361,7 @@ export function SlideAnimationPane({
                             setActiveItemMenuId(null);
                           }}
                         >
-                          <MousePointer size={13} /> Bắt đầu khi nhấp chuột
+                          <MousePointer size={14} /> Bắt đầu khi nhấp chuột
                         </button>
                         <button
                           className={`ppt-anim-drop-item ${item.anim.trigger === 'with-previous' ? 'is-active' : ''}`}
@@ -368,7 +370,7 @@ export function SlideAnimationPane({
                             setActiveItemMenuId(null);
                           }}
                         >
-                          <Clock size={13} /> Bắt đầu cùng trước đó
+                          <Clock size={14} /> Bắt đầu cùng trước đó
                         </button>
                         <button
                           className={`ppt-anim-drop-item ${item.anim.trigger === 'after-previous' ? 'is-active' : ''}`}
@@ -377,7 +379,7 @@ export function SlideAnimationPane({
                             setActiveItemMenuId(null);
                           }}
                         >
-                          <Timer size={13} /> Bắt đầu sau trước đó
+                          <Timer size={14} /> Bắt đầu sau trước đó
                         </button>
 
                         <div className="ppt-ctx-divider" />
@@ -386,13 +388,13 @@ export function SlideAnimationPane({
                           className="ppt-anim-drop-item"
                           onClick={() => handleOpenDialog(item, 'effect')}
                         >
-                          <Settings size={13} color="#0078D4" /> Tùy chọn hiệu ứng...
+                          <Settings size={14} color="#0078D4" /> Tùy chọn hiệu ứng...
                         </button>
                         <button
                           className="ppt-anim-drop-item"
                           onClick={() => handleOpenDialog(item, 'timing')}
                         >
-                          <Clock size={13} color="#7C3AED" /> Định thời gian...
+                          <Clock size={14} color="#7C3AED" /> Định thời gian...
                         </button>
 
                         <div className="ppt-ctx-divider" />
@@ -404,7 +406,7 @@ export function SlideAnimationPane({
                             setActiveItemMenuId(null);
                           }}
                         >
-                          <Trash2 size={13} /> Xóa hoạt hình này
+                          <Trash2 size={14} /> Xóa hoạt hình này
                         </button>
                       </div>
                     )}

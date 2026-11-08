@@ -116,7 +116,7 @@ export function SlideContextMenu({
               onClose();
             }}
           >
-            <Scissors size={15} /> <span>Cắt</span> <kbd>Ctrl+X</kbd>
+            <Scissors size={16} /> <span>Cắt</span> <kbd>Ctrl+X</kbd>
           </button>
           <button
             className="ppt-ctx-item"
@@ -125,7 +125,7 @@ export function SlideContextMenu({
               onClose();
             }}
           >
-            <Copy size={15} /> <span>Sao chép</span> <kbd>Ctrl+C</kbd>
+            <Copy size={16} /> <span>Sao chép</span> <kbd>Ctrl+C</kbd>
           </button>
           {canPaste && (
             <button
@@ -135,7 +135,7 @@ export function SlideContextMenu({
                 onClose();
               }}
             >
-              <Clipboard size={15} /> <span>Dán</span> <kbd>Ctrl+V</kbd>
+              <Clipboard size={16} /> <span>Dán</span> <kbd>Ctrl+V</kbd>
             </button>
           )}
           <button
@@ -145,7 +145,7 @@ export function SlideContextMenu({
               onClose();
             }}
           >
-            <CopyPlus size={15} /> <span>Nhân bản đối tượng</span> <kbd>Ctrl+D</kbd>
+            <CopyPlus size={16} /> <span>Nhân bản đối tượng</span> <kbd>Ctrl+D</kbd>
           </button>
 
           <div className="ppt-ctx-divider" />
@@ -157,7 +157,7 @@ export function SlideContextMenu({
               onClose();
             }}
           >
-            <Edit3 size={15} /> <span>Chỉnh sửa văn bản</span>
+            <Edit3 size={16} /> <span>Chỉnh sửa văn bản</span>
           </button>
 
           {/* Change shape submenu */}
@@ -192,7 +192,7 @@ export function SlideContextMenu({
               onClose();
             }}
           >
-            <ArrowUpToLine size={15} /> <span>Lên trên cùng</span>
+            <ArrowUpToLine size={16} /> <span>Lên trên cùng</span>
           </button>
           <button
             className="ppt-ctx-item"
@@ -201,7 +201,7 @@ export function SlideContextMenu({
               onClose();
             }}
           >
-            <ChevronUp size={15} /> <span>Lên một lớp</span>
+            <ChevronUp size={16} /> <span>Lên một lớp</span>
           </button>
           <button
             className="ppt-ctx-item"
@@ -210,7 +210,7 @@ export function SlideContextMenu({
               onClose();
             }}
           >
-            <ChevronDown size={15} /> <span>Xuống một lớp</span>
+            <ChevronDown size={16} /> <span>Xuống một lớp</span>
           </button>
           <button
             className="ppt-ctx-item"
@@ -219,7 +219,7 @@ export function SlideContextMenu({
               onClose();
             }}
           >
-            <ArrowDownToLine size={15} /> <span>Xuống dưới cùng</span>
+            <ArrowDownToLine size={16} /> <span>Xuống dưới cùng</span>
           </button>
 
           <div className="ppt-ctx-divider" />
@@ -231,7 +231,7 @@ export function SlideContextMenu({
               onClose();
             }}
           >
-            <Sparkles size={15} color="#107C41" /> <span>Gán hoạt hình (Animation)...</span>
+            <Sparkles size={16} color="#107C41" /> <span>Gán hoạt hình (Animation)...</span>
           </button>
           <button
             className="ppt-ctx-item"
@@ -240,7 +240,7 @@ export function SlideContextMenu({
               onClose();
             }}
           >
-            <Palette size={15} color="#D83B01" /> <span>Định dạng đối tượng…</span>
+            <Palette size={16} color="#D83B01" /> <span>Định dạng đối tượng…</span>
           </button>
 
           <button
@@ -250,7 +250,7 @@ export function SlideContextMenu({
               onClose();
             }}
           >
-            <Trash2 size={15} /> <span>Xoá</span> <kbd>Del</kbd>
+            <Trash2 size={16} /> <span>Xoá</span> <kbd>Del</kbd>
           </button>
         </>
       ) : (
@@ -264,7 +264,7 @@ export function SlideContextMenu({
                 onClose();
               }}
             >
-              <Clipboard size={15} /> <span>Dán đối tượng</span> <kbd>Ctrl+V</kbd>
+              <Clipboard size={16} /> <span>Dán đối tượng</span> <kbd>Ctrl+V</kbd>
             </button>
           )}
 
@@ -275,7 +275,7 @@ export function SlideContextMenu({
               onClose();
             }}
           >
-            <Plus size={15} color="#D83B01" /> <span>Thêm trang chiếu mới</span>
+            <Plus size={16} color="#D83B01" /> <span>Thêm trang chiếu mới</span>
           </button>
           <button
             className="ppt-ctx-item"
@@ -284,7 +284,7 @@ export function SlideContextMenu({
               onClose();
             }}
           >
-            <CopyPlus size={15} /> <span>Nhân bản trang chiếu này</span>
+            <CopyPlus size={16} /> <span>Nhân bản trang chiếu này</span>
           </button>
 
           <div className="ppt-ctx-divider" />
@@ -292,16 +292,16 @@ export function SlideContextMenu({
           <div className="ppt-ctx-group-label">Đổi bố cục trang:</div>
           <div className="ppt-ctx-layout-list">
             <button onClick={() => { onAddSlide('title'); onClose(); }}>
-              <Layout size={13} /> Trang tiêu đề
+              <Layout size={14} /> Trang tiêu đề
             </button>
             <button onClick={() => { onAddSlide('title-content'); onClose(); }}>
-              <Layout size={13} /> Tiêu đề & Nội dung
+              <Layout size={14} /> Tiêu đề & Nội dung
             </button>
             <button onClick={() => { onAddSlide('two-content'); onClose(); }}>
-              <Layout size={13} /> Hai nội dung
+              <Layout size={14} /> Hai nội dung
             </button>
             <button onClick={() => { onAddSlide('blank'); onClose(); }}>
-              <Layout size={13} /> Trang trống
+              <Layout size={14} /> Trang trống
             </button>
           </div>
 
@@ -314,7 +314,7 @@ export function SlideContextMenu({
               onClose();
             }}
           >
-            <Palette size={15} color="#D83B01" /> <span>Định dạng nền trang chiếu…</span>
+            <Palette size={16} color="#D83B01" /> <span>Định dạng nền trang chiếu…</span>
           </button>
         </>
       )}

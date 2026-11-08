@@ -138,7 +138,7 @@ export function SlideMasterModal({
 
           {isSaved && (
             <div style={{ background: '#DCFCE7', color: '#15803D', padding: '10px 14px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, fontSize: '13px' }}>
-              <Check size={18} /> Đã cập nhật Slide Master thành công!
+              <Check size={16} /> Đã cập nhật Slide Master thành công!
             </div>
           )}
         </div>

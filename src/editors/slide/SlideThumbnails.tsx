@@ -116,7 +116,7 @@ export function SlideThumbnails({
               onClick={() => onSelectSlide(idx)}
             >
               <div className="ppt-thumb-index" style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-                {slide.hidden && <span title="Trang chiếu này bị ẩn khi trình chiếu" style={{ display: 'inline-flex' }}><EyeOff size={11} color="#DC2626" /></span>}
+                {slide.hidden && <span title="Trang chiếu này bị ẩn khi trình chiếu" style={{ display: 'inline-flex' }}><EyeOff size={12} color="#DC2626" /></span>}
                 <span style={{ textDecoration: slide.hidden ? 'line-through' : 'none', color: slide.hidden ? '#94A3B8' : undefined }}>{idx + 1}</span>
               </div>
 
@@ -167,7 +167,7 @@ export function SlideThumbnails({
                     onClick={() => onDuplicateSlide(idx)}
                     title="Nhân bản trang chiếu"
                   >
-                    <Copy size={13} />
+                    <Copy size={14} />
                   </button>
                   {slides.length > 1 && (
                     <button
@@ -175,7 +175,7 @@ export function SlideThumbnails({
                       onClick={() => onDeleteSlide(idx)}
                       title="Xoá trang chiếu"
                     >
-                      <Trash2 size={13} />
+                      <Trash2 size={14} />
                     </button>
                   )}
                 </div>
