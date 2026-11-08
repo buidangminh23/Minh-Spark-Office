@@ -13,6 +13,7 @@ const bytes = (value: number) => `${(value / 1048576).toFixed(1)} MB`;
 const ringModes: Record<Phase, RingMode> = { idle: 'idle', checking: 'spinning', current: 'complete', available: 'idle', downloading: 'progress', downloaded: 'complete', installing: 'spinning', error: 'error' };
 const AUTO_CHECK_MS = 15 * 60 * 1000;
 const FIRST_CHECK_MS = 3000;
+const FOCUS_CHECK_MS = 60 * 1000;
 const INSTALL_COUNTDOWN_SECONDS = 10;
 const CheckMark = () => <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" /></svg>;
 
@@ -33,23 +34,30 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
   const mounted = useRef(true);
   const dialog = useRef<HTMLElement | null>(null);
   const checkUpdate = async (silent = false) => {
-    if (busy.current || (silent && ready.current)) return;
+    if (busy.current) return;
     busy.current = true;
-    setPhase('checking');
+    const hasDownload = ready.current;
+    if (!silent || !hasDownload) setPhase('checking');
     setError('');
     if (!silent) setOpen(true);
     try {
-      await update.current?.close();
-      update.current = null;
       const result = await check({ timeout: 20000 });
       if (!mounted.current) { await result?.close(); return; }
+      if (hasDownload && result && result.version === update.current?.version) {
+        await result.close();
+        setPhase('downloaded');
+        return;
+      }
+      await update.current?.close();
       update.current = result;
+      ready.current = false;
       setPhase(result ? 'available' : 'current');
       setNextVersion(result?.version ?? '');
       if (result && !silent) setOpen(true);
     } catch {
       if (mounted.current) {
-        if (silent) setPhase('idle');
+        if (hasDownload) setPhase('downloaded');
+        else if (silent) setPhase('idle');
         else { setPhase('error'); setError('Không kiểm tra được bản cập nhật. Kiểm tra kết nối mạng rồi thử lại.'); }
       }
     } finally { busy.current = false; }
@@ -99,6 +107,9 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
   };
   const install = async () => {
     if (!update.current || busy.current) return;
+    await checkUpdate(true);
+    if (!ready.current) await download();
+    if (!ready.current || !update.current || busy.current) return;
     busy.current = true; setError('');
     if (editing && !(await saveAndCloseActiveDocument())) {
       busy.current = false;
@@ -123,7 +134,14 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
     if (!isDesktop() || !automatic) return;
     const timer = setTimeout(() => void latestActions.current.autoUpdate(), FIRST_CHECK_MS);
     const interval = setInterval(() => void latestActions.current.autoUpdate(), AUTO_CHECK_MS);
-    return () => { clearTimeout(timer); clearInterval(interval); };
+    let lastFocusCheck = Date.now();
+    const onFocus = () => {
+      if (Date.now() - lastFocusCheck < FOCUS_CHECK_MS) return;
+      lastFocusCheck = Date.now();
+      void latestActions.current.autoUpdate();
+    };
+    window.addEventListener('focus', onFocus);
+    return () => { clearTimeout(timer); clearInterval(interval); window.removeEventListener('focus', onFocus); };
   }, [automatic]);
   useEffect(() => {
     if (phase !== 'downloaded' || !automatic || editing || postponed) { setCountdown(null); return; }
