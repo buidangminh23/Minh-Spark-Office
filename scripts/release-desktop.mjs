@@ -220,8 +220,16 @@ function deploy(version) {
     copyFileSync(source, join(site, 'public/downloads', name));
   }
   const retained = retainedUpdaterFiles(readdirSync(join(root, 'public/downloads')), version);
-  for (const name of retained) copyFileSync(join(root, 'public/downloads', name), join(site, 'public/downloads', name));
-  console.log(`Keeping ${retained.length} installers of earlier versions for apps that found them before this release`);
+  const kept = retained.filter((name) => {
+    try {
+      copyFileSync(join(root, 'public/downloads', name), join(site, 'public/downloads', name));
+      return true;
+    } catch (error) {
+      console.warn(`Skipping unreadable earlier installer ${name} (${error.code ?? error.message}); apps that miss it re-check and fetch ${version}`);
+      return false;
+    }
+  });
+  console.log(`Keeping ${kept.length} installers of earlier versions for apps that found them before this release`);
   for (const { hash, file } of parseChecksums(readFileSync(join(site, 'public/downloads/SHA256SUMS.txt'), 'utf8'))) {
     if (sha256(readFileSync(join(site, 'public/downloads', file))) !== hash) throw new Error(`${file} does not match SHA256SUMS.txt`);
   }
