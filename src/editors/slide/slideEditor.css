@@ -31,7 +31,7 @@
   height: 44px;
   background: #FFFFFF;
   border-bottom: 1px solid var(--ppt-ribbon-border);
-  padding: 0 14px;
+  padding: 0 16px;
   gap: 12px;
   flex-shrink: 0;
   z-index: 50;
@@ -40,7 +40,7 @@
 .ppt-title-left {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .ppt-back-btn {
@@ -76,7 +76,7 @@
   background: transparent;
   padding: 4px 8px;
   border-radius: 4px;
-  max-width: 340px;
+  max-width: 336px;
   outline: none;
   transition: all 0.15s;
 }
@@ -95,11 +95,11 @@
 .ppt-save-badge {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   font-size: 12px;
   color: #64748B;
   background: #F8FAFC;
-  padding: 3px 8px;
+  padding: 4px 8px;
   border-radius: 12px;
   border: 1px solid #E2E8F0;
 }
@@ -141,7 +141,7 @@
   background: var(--ppt-accent);
   color: #FFFFFF;
   border: none;
-  padding: 6px 14px;
+  padding: 6px 16px;
   border-radius: 6px;
   font-size: 13px;
   font-weight: 600;
@@ -173,7 +173,7 @@
   background: var(--ppt-accent);
   color: #FFFFFF;
   border: none;
-  padding: 0 18px;
+  padding: 0 16px;
   height: 36px;
   font-size: 13px;
   font-weight: 600;
@@ -231,8 +231,8 @@
   align-items: stretch;
   background: #FFFFFF;
   border-bottom: 1px solid var(--ppt-ribbon-border);
-  height: 94px;
-  padding: 4px 10px;
+  height: 96px;
+  padding: 4px 12px;
   overflow-x: auto;
   overflow-y: hidden;
   flex-shrink: 0;
@@ -370,7 +370,7 @@
 
 /* Left Thumbnails Pane */
 .ppt-thumbnails-pane {
-  width: 230px;
+  width: 224px;
   background: #F8FAFC;
   border-right: 1px solid #CBD5E1;
   display: flex;
@@ -384,7 +384,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 12px;
+  padding: 8px 12px;
   border-bottom: 1px solid #E2E8F0;
   background: #FFFFFF;
 }
@@ -522,7 +522,7 @@
   align-items: center;
   justify-content: center;
   overflow: auto;
-  padding: 30px;
+  padding: 32px;
   background: #CBD5E1;
   position: relative;
 }
@@ -2507,12 +2507,12 @@
   flex-direction: column;
   align-items: center;
   text-align: center;
-  padding: 30px 16px;
+  padding: 32px 16px;
   color: #64748B;
 }
 
 .ppt-anim-empty-state p {
-  margin: 10px 0 4px 0;
+  margin: 8px 0 4px 0;
   font-weight: 600;
   font-size: 13px;
   color: #334155;
@@ -2528,7 +2528,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 10px;
+  padding: 8px 12px;
   border: 1px solid #E2E8F0;
   border-radius: 6px;
   background: #F8FAFC;
@@ -3022,7 +3022,7 @@
   gap: 2px;
   padding: 2px 4px;
   overflow: hidden;
-  max-width: 330px;
+  max-width: 336px;
 }
 
 .ppt-ribbon-gallery-controls {
@@ -3130,7 +3130,7 @@
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.15s ease;
-  min-height: 52px;
+  min-height: 56px;
 }
 
 .ppt-full-card-btn:hover {
@@ -3221,7 +3221,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 16px;
+  padding: 8px 16px;
   background: #F8FAFC;
   border-bottom: 1px solid #E2E8F0;
 }
@@ -3252,7 +3252,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 14px;
+  padding: 8px 16px;
   border: none;
   background: transparent;
   font-size: 12px;
@@ -3276,7 +3276,7 @@
 }
 
 .ppt-dialog-label {
-  width: 140px;
+  width: 144px;
   font-size: 12px;
   font-weight: 600;
   color: #334155;
@@ -3287,7 +3287,7 @@
 .ppt-dialog-input {
   flex: 1;
   height: 32px;
-  padding: 0 10px;
+  padding: 0 12px;
   border: 1px solid #CBD5E1;
   border-radius: 4px;
   font-size: 12px;
