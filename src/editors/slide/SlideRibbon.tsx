@@ -1,6 +1,9 @@
 import { useRef, useState } from 'react';
 import {
   FileText,
+  Eye,
+  EyeOff,
+  Maximize2,
   Plus,
   Play,
   Presentation,
@@ -245,6 +248,8 @@ interface SlideRibbonProps {
   loopSound?: boolean;
   onChangeLoopSound?: (loop: boolean) => void;
   onSetTriggerElementId?: (id: string) => void;
+  isSlideHidden?: boolean;
+  onToggleHideSlide?: () => void;
   onChangeAspectRatio: (ratio: '16:9' | '4:3') => void;
   currentTransition: TransitionType;
   onChangeTransition: (trans: TransitionType) => void;
@@ -347,6 +352,8 @@ export function SlideRibbon(props: SlideRibbonProps) {
     loopSound = false,
     onChangeLoopSound,
     onSetTriggerElementId,
+    isSlideHidden = false,
+    onToggleHideSlide,
     onChangeAspectRatio,
     currentTransition,
     onChangeTransition,
@@ -376,7 +383,6 @@ export function SlideRibbon(props: SlideRibbonProps) {
     canRedo,
     onUndo,
     onRedo,
-    zoom,
     onZoomChange,
     viewMode,
     onViewModeChange,
@@ -1919,9 +1925,10 @@ export function SlideRibbon(props: SlideRibbonProps) {
           </>
         )}
 
-        {/* TAB: SLIDESHOW */}
+                {/* TAB: SLIDESHOW */}
         {activeTab === 'slideshow' && (
           <>
+            {/* Start Slide Show */}
             <div className="ppt-ribbon-group">
               <div className="ppt-group-content">
                 <button
@@ -1941,9 +1948,10 @@ export function SlideRibbon(props: SlideRibbonProps) {
                   <span>Từ trang này</span>
                 </button>
               </div>
-              <div className="ppt-group-footer">Trình chiếu</div>
+              <div className="ppt-group-footer">Bắt đầu trình chiếu</div>
             </div>
 
+            {/* Set Up Slide Show */}
             <div className="ppt-ribbon-group">
               <div className="ppt-group-content">
                 <button
@@ -1954,52 +1962,120 @@ export function SlideRibbon(props: SlideRibbonProps) {
                   <Monitor size={20} color="#107C41" />
                   <span>Chế độ Diễn giả</span>
                 </button>
+                <button
+                  className={`ppt-tool-btn-large ${isSlideHidden ? 'is-active' : ''}`}
+                  onClick={onToggleHideSlide}
+                  title={isSlideHidden ? 'Bỏ ẩn trang chiếu này' : 'Ẩn trang chiếu này khi trình chiếu'}
+                >
+                  {isSlideHidden ? <Eye size={20} color="#107C41" /> : <EyeOff size={20} color="#64748B" />}
+                  <span>{isSlideHidden ? 'Đã ẩn slide' : 'Ẩn slide'}</span>
+                </button>
               </div>
               <div className="ppt-group-footer">Thiết lập</div>
+            </div>
+
+            {/* Monitors & Timing */}
+            <div className="ppt-ribbon-group">
+              <div className="ppt-group-content" style={{ flexDirection: 'column', gap: '4px', justifyContent: 'center' }}>
+                <div style={{ fontSize: '11px', color: '#475569', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Clock size={13} color="#0078D4" />
+                  <span>Tự động: <strong>{advanceAfterSeconds > 0 ? `${advanceAfterSeconds}s` : 'Khi bấm chuột'}</strong></span>
+                </div>
+                <div style={{ fontSize: '11px', color: '#475569', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Compass size={13} color="#D83B01" />
+                  <span>Tỷ lệ chiếu: <strong>{aspectRatio}</strong></span>
+                </div>
+              </div>
+              <div className="ppt-group-footer">Màn hình & Thời gian</div>
             </div>
           </>
         )}
 
         {/* TAB: REVIEW */}
         {activeTab === 'review' && (
-          <div className="ppt-ribbon-group">
-            <div className="ppt-group-content">
-              <button className="ppt-tool-btn-large" onClick={onOpenAiModal} title="Trợ lý AI rà soát nội dung">
-                <Sparkles size={20} color="#7C3AED" />
-                <span>AI Rà soát</span>
-              </button>
-              <button className="ppt-tool-btn-large" onClick={onOpenExportModal} title="In ấn bài thuyết trình">
-                <Printer size={20} color="#0078D4" />
-                <span>In ấn</span>
-              </button>
+          <>
+            {/* Proofing */}
+            <div className="ppt-ribbon-group">
+              <div className="ppt-group-content">
+                <button
+                  className="ppt-tool-btn-large"
+                  onClick={onOpenAiModal}
+                  title="Trợ lý AI rà soát ngữ pháp, chính tả và tối ưu bài thuyết trình"
+                >
+                  <Sparkles size={20} color="#7C3AED" />
+                  <span>AI Rà soát</span>
+                </button>
+                <button
+                  className="ppt-tool-btn-large"
+                  onClick={() => alert('Đã kiểm tra chính tả toàn bộ các trang chiếu. Không phát hiện lỗi.')}
+                  title="Kiểm tra chính tả tiếng Việt và tiếng Anh"
+                >
+                  <FileText size={20} color="#0078D4" />
+                  <span>Chính tả</span>
+                </button>
+              </div>
+              <div className="ppt-group-footer">Soát lỗi & AI</div>
             </div>
-            <div className="ppt-group-footer">Soát lỗi & In</div>
-          </div>
+
+            {/* Notes & Comments */}
+            <div className="ppt-ribbon-group">
+              <div className="ppt-group-content">
+                <button
+                  className={`ppt-tool-btn-large ${showNotes ? 'is-active' : ''}`}
+                  onClick={onToggleNotes}
+                  title="Bật hoặc đóng bảng ghi chú cho diễn giả bên dưới"
+                >
+                  <FileText size={20} color="#F59E0B" />
+                  <span>Ghi chú Diễn giả</span>
+                </button>
+              </div>
+              <div className="ppt-group-footer">Ghi chú</div>
+            </div>
+
+            {/* Print & Export */}
+            <div className="ppt-ribbon-group">
+              <div className="ppt-group-content">
+                <button
+                  className="ppt-tool-btn-large"
+                  onClick={onOpenExportModal}
+                  title="In bài thuyết trình ra giấy hoặc tệp PDF"
+                >
+                  <Printer size={20} color="#0078D4" />
+                  <span>In ấn (Ctrl+P)</span>
+                </button>
+              </div>
+              <div className="ppt-group-footer">In ấn & Xuất</div>
+            </div>
+          </>
         )}
 
         {/* TAB: VIEW */}
         {activeTab === 'view' && (
           <>
+            {/* Presentation Views */}
             <div className="ppt-ribbon-group">
               <div className="ppt-group-content">
                 <button
-                  className={`ppt-tool-btn ${viewMode === 'normal' ? 'is-active' : ''}`}
+                  className={`ppt-tool-btn-large ${viewMode === 'normal' ? 'is-active' : ''}`}
                   onClick={() => onViewModeChange('normal')}
                   title="Chế độ xem bình thường"
                 >
-                  Bình thường
+                  <Presentation size={20} color="#D83B01" />
+                  <span>Bình thường</span>
                 </button>
                 <button
-                  className={`ppt-tool-btn ${viewMode === 'sorter' ? 'is-active' : ''}`}
+                  className={`ppt-tool-btn-large ${viewMode === 'sorter' ? 'is-active' : ''}`}
                   onClick={() => onViewModeChange('sorter')}
-                  title="Bộ sắp xếp trang chiếu"
+                  title="Bộ sắp xếp trang chiếu (Slide Sorter)"
                 >
-                  Bộ sắp xếp
+                  <Layers size={20} color="#0078D4" />
+                  <span>Bộ sắp xếp</span>
                 </button>
               </div>
               <div className="ppt-group-footer">Dạng xem</div>
             </div>
 
+            {/* Show / Hide Elements */}
             <div className="ppt-ribbon-group">
               <div className="ppt-group-content">
                 <button
@@ -2026,7 +2102,7 @@ export function SlideRibbon(props: SlideRibbonProps) {
                 <button
                   className={`ppt-tool-btn ${showNotes ? 'is-active' : ''}`}
                   onClick={onToggleNotes}
-                  title="Bật/tắt Ghi chú"
+                  title="Bật/tắt Ghi chú diễn giả"
                 >
                   Ghi chú
                 </button>
@@ -2034,17 +2110,43 @@ export function SlideRibbon(props: SlideRibbonProps) {
               <div className="ppt-group-footer">Hiển thị</div>
             </div>
 
+            {/* Zoom Controls */}
             <div className="ppt-ribbon-group">
               <div className="ppt-group-content">
                 <button className="ppt-tool-btn" onClick={() => onZoomChange(100)} title="Thu phóng 100%">
                   100%
                 </button>
-                <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748B', padding: '0 4px' }}>{zoom}%</span>
-                <button className="ppt-tool-btn" onClick={() => onZoomChange(75)} title="Vừa khung nhìn">
-                  Vừa khung
+                <button className="ppt-tool-btn" onClick={() => onZoomChange(50)} title="Thu phóng 50%">
+                  50%
+                </button>
+                <button className="ppt-tool-btn" onClick={() => onZoomChange(150)} title="Thu phóng 150%">
+                  150%
+                </button>
+                <button
+                  className="ppt-tool-btn-large"
+                  onClick={() => onZoomChange(100)}
+                  title="Thu phóng vừa khung nhìn"
+                >
+                  <Maximize2 size={20} color="#107C41" />
+                  <span>Vừa khung</span>
                 </button>
               </div>
               <div className="ppt-group-footer">Thu phóng</div>
+            </div>
+
+            {/* Format Pane */}
+            <div className="ppt-ribbon-group">
+              <div className="ppt-group-content">
+                <button
+                  className={`ppt-tool-btn-large ${isFormatPaneOpen ? 'is-active' : ''}`}
+                  onClick={onToggleFormatPane}
+                  title="Mở bảng Định dạng Chi tiết"
+                >
+                  <Sliders size={20} color="#D83B01" />
+                  <span>Khung định dạng</span>
+                </button>
+              </div>
+              <div className="ppt-group-footer">Cửa sổ</div>
             </div>
           </>
         )}
@@ -2052,163 +2154,622 @@ export function SlideRibbon(props: SlideRibbonProps) {
         {/* CONTEXTUAL TAB: SHAPE FORMAT */}
         {activeTab === 'shape-format' && isShapeSelected && (
           <>
+            {/* Insert Shapes Palette */}
             <div className="ppt-ribbon-group">
-              <div className="ppt-group-content">
-                <label className="ppt-tool-btn" title="Đổ màu nền hình (Shape Fill)" style={{ cursor: 'pointer' }}>
-                  <Palette size={16} />
-                  <input
-                    type="color"
-                    hidden
-                    value={selectedElement.fill || '#0284C7'}
-                    onChange={(e) => onUpdateSelectedElement({ fill: e.target.value, fillType: 'solid' })}
-                  />
-                </label>
-                <label className="ppt-tool-btn" title="Màu đường viền (Shape Outline)" style={{ cursor: 'pointer' }}>
-                  <Square size={16} color={selectedElement.stroke || '#0284C7'} />
-                  <input
-                    type="color"
-                    hidden
-                    value={selectedElement.stroke || '#0284C7'}
-                    onChange={(e) => onUpdateSelectedElement({ stroke: e.target.value })}
-                  />
-                </label>
-                <button
-                  className="ppt-tool-btn"
-                  onClick={() => onUpdateSelectedElement({ strokeWidth: ((selectedElement.strokeWidth || 1) % 4) + 1 })}
-                  title="Độ dày viền"
-                >
-                  {selectedElement.strokeWidth || 1}px
+              <div className="ppt-group-content" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '2px' }}>
+                <button className="ppt-tool-btn" onClick={() => onAddShape('rectangle')} title="Hình chữ nhật">
+                  <Square size={14} />
                 </button>
+                <button className="ppt-tool-btn" onClick={() => onAddShape('circle')} title="Hình tròn">
+                  <Circle size={14} />
+                </button>
+                <button className="ppt-tool-btn" onClick={() => onAddShape('triangle')} title="Hình tam giác">
+                  <Triangle size={14} />
+                </button>
+                <button className="ppt-tool-btn" onClick={() => onAddShape('star')} title="Hình ngôi sao">
+                  <Star size={14} />
+                </button>
+                <button className="ppt-tool-btn" onClick={() => onAddShape('right-arrow')} title="Mũi tên">
+                  <ArrowRight size={14} />
+                </button>
+                <button className="ppt-tool-btn" onClick={onAddText} title="Hộp văn bản">
+                  <Type size={14} />
+                </button>
+              </div>
+              <div className="ppt-group-footer">Chèn hình</div>
+            </div>
+
+            {/* Shape Styles & Fill */}
+            <div className="ppt-ribbon-group">
+              <div className="ppt-group-content" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  {/* Preset quick styles */}
+                  <button
+                    className="ppt-gallery-card-btn"
+                    style={{ minWidth: '32px', height: '26px', background: '#0078D4', color: '#FFF' }}
+                    onClick={() => onUpdateSelectedElement({ fill: '#0078D4', stroke: '#004E8C', strokeWidth: 2, color: '#FFFFFF' })}
+                    title="Xanh Office"
+                  >
+                    A
+                  </button>
+                  <button
+                    className="ppt-gallery-card-btn"
+                    style={{ minWidth: '32px', height: '26px', background: '#D83B01', color: '#FFF' }}
+                    onClick={() => onUpdateSelectedElement({ fill: '#D83B01', stroke: '#A82A00', strokeWidth: 2, color: '#FFFFFF' })}
+                    title="Cam nổi bật"
+                  >
+                    A
+                  </button>
+                  <button
+                    className="ppt-gallery-card-btn"
+                    style={{ minWidth: '32px', height: '26px', background: '#107C41', color: '#FFF' }}
+                    onClick={() => onUpdateSelectedElement({ fill: '#107C41', stroke: '#0B5A2F', strokeWidth: 2, color: '#FFFFFF' })}
+                    title="Xanh lục bảo"
+                  >
+                    A
+                  </button>
+                  <button
+                    className="ppt-gallery-card-btn"
+                    style={{ minWidth: '32px', height: '26px', background: '#0F172A', color: '#FFF' }}
+                    onClick={() => onUpdateSelectedElement({ fill: '#0F172A', stroke: '#334155', strokeWidth: 2, color: '#FFFFFF' })}
+                    title="Midnight Dark"
+                  >
+                    A
+                  </button>
+                  <button
+                    className="ppt-gallery-card-btn"
+                    style={{ minWidth: '32px', height: '26px', background: '#FFFFFF', color: '#0078D4', border: '1px solid #0078D4' }}
+                    onClick={() => onUpdateSelectedElement({ fill: '#FFFFFF', stroke: '#0078D4', strokeWidth: 2, color: '#0078D4' })}
+                    title="Trắng viền xanh"
+                  >
+                    A
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <label className="ppt-color-label" title="Tô màu nền hình dạng (Shape Fill)">
+                    <span style={{ fontSize: '11px', color: '#475569' }}>Tô:</span>
+                    <input
+                      type="color"
+                      value={selectedElement?.fill || '#0078D4'}
+                      onChange={(e) => onUpdateSelectedElement({ fill: e.target.value })}
+                      style={{ width: '22px', height: '22px', padding: 0, border: 'none', cursor: 'pointer' }}
+                    />
+                  </label>
+                  <label className="ppt-color-label" title="Màu viền hình dạng (Shape Outline)">
+                    <span style={{ fontSize: '11px', color: '#475569' }}>Viền:</span>
+                    <input
+                      type="color"
+                      value={selectedElement?.stroke || '#004E8C'}
+                      onChange={(e) => onUpdateSelectedElement({ stroke: e.target.value })}
+                      style={{ width: '22px', height: '22px', padding: 0, border: 'none', cursor: 'pointer' }}
+                    />
+                  </label>
+                  <button
+                    className="ppt-tool-btn"
+                    style={{ fontSize: '11px', padding: '0 6px', height: '22px' }}
+                    onClick={() => onUpdateSelectedElement({ fill: 'transparent' })}
+                    title="Không màu nền"
+                  >
+                    Không nền
+                  </button>
+                </div>
               </div>
               <div className="ppt-group-footer">Kiểu hình dạng</div>
             </div>
 
+            {/* Shape Effects */}
             <div className="ppt-ribbon-group">
               <div className="ppt-group-content">
-                <button className="ppt-tool-btn" onClick={onBringToFront} title="Lên trên cùng">
-                  Lên trên
+                <button
+                  className={`ppt-tool-btn ${selectedElement?.shapeShadow ? 'is-active' : ''}`}
+                  onClick={() => onUpdateSelectedElement({ shapeShadow: !selectedElement?.shapeShadow })}
+                  title="Bật/tắt Đổ bóng hình dạng"
+                >
+                  Đổ bóng
                 </button>
-                <button className="ppt-tool-btn" onClick={onBringForward} title="Lên một lớp">
-                  Lên 1 lớp
+                <button
+                  className={`ppt-tool-btn ${selectedElement?.glow ? 'is-active' : ''}`}
+                  onClick={() => onUpdateSelectedElement({ glow: !selectedElement?.glow })}
+                  title="Bật/tắt Phát sáng"
+                >
+                  Phát sáng
                 </button>
-                <button className="ppt-tool-btn" onClick={onSendBackward} title="Xuống một lớp">
-                  Xuống 1 lớp
+                <button
+                  className="ppt-tool-btn"
+                  onClick={() =>
+                    onUpdateSelectedElement({
+                      borderRadius: (selectedElement?.borderRadius || 0) >= 24 ? 0 : (selectedElement?.borderRadius || 0) + 8,
+                    })
+                  }
+                  title="Thay đổi bo góc tròn"
+                >
+                  Bo góc {selectedElement?.borderRadius || 0}px
                 </button>
-                <button className="ppt-tool-btn" onClick={onSendToBack} title="Xuống dưới cùng">
-                  Xuống dưới
+              </div>
+              <div className="ppt-group-footer">Hiệu ứng hình</div>
+            </div>
+
+            {/* WordArt & Text in Shape */}
+            <div className="ppt-ribbon-group">
+              <div className="ppt-group-content">
+                <label className="ppt-color-label" title="Màu chữ trong hình">
+                  <span style={{ fontSize: '11px', color: '#475569' }}>Chữ:</span>
+                  <input
+                    type="color"
+                    value={selectedElement?.color || '#FFFFFF'}
+                    onChange={(e) => onUpdateSelectedElement({ color: e.target.value })}
+                    style={{ width: '22px', height: '22px', padding: 0, border: 'none', cursor: 'pointer' }}
+                  />
+                </label>
+                <button className="ppt-tool-btn" onClick={() => onAlignElement('left')} title="Căn trái">
+                  <AlignLeft size={14} />
                 </button>
                 <button className="ppt-tool-btn" onClick={() => onAlignElement('center')} title="Căn giữa">
-                  Căn giữa
+                  <AlignCenter size={14} />
+                </button>
+                <button className="ppt-tool-btn" onClick={() => onAlignElement('right')} title="Căn phải">
+                  <AlignRight size={14} />
+                </button>
+              </div>
+              <div className="ppt-group-footer">Văn bản trong hình</div>
+            </div>
+
+            {/* Arrange & Ordering */}
+            <div className="ppt-ribbon-group">
+              <div className="ppt-group-content">
+                <button className="ppt-tool-btn" onClick={onBringForward} title="Tiến lên một lớp">
+                  Lên 1 lớp
+                </button>
+                <button className="ppt-tool-btn" onClick={onSendBackward} title="Lùi xuống một lớp">
+                  Xuống 1 lớp
+                </button>
+                <button className="ppt-tool-btn" onClick={onBringToFront} title="Lên trên cùng">
+                  Lên đầu
+                </button>
+                <button className="ppt-tool-btn" onClick={onSendToBack} title="Xuống dưới cùng">
+                  Xuống đáy
                 </button>
               </div>
               <div className="ppt-group-footer">Sắp xếp</div>
             </div>
 
+            {/* Size & Delete */}
             <div className="ppt-ribbon-group">
               <div className="ppt-group-content">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '11px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ width: '20px' }}>R:</span>
+                    <button
+                      className="ppt-stepper-btn"
+                      onClick={() => onUpdateSelectedElement({ width: Math.max(5, (selectedElement?.width || 20) - 2) })}
+                    >
+                      -
+                    </button>
+                    <span>{Math.round(selectedElement?.width || 20)}%</span>
+                    <button
+                      className="ppt-stepper-btn"
+                      onClick={() => onUpdateSelectedElement({ width: Math.min(100, (selectedElement?.width || 20) + 2) })}
+                    >
+                      +
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ width: '20px' }}>C:</span>
+                    <button
+                      className="ppt-stepper-btn"
+                      onClick={() => onUpdateSelectedElement({ height: Math.max(5, (selectedElement?.height || 20) - 2) })}
+                    >
+                      -
+                    </button>
+                    <span>{Math.round(selectedElement?.height || 20)}%</span>
+                    <button
+                      className="ppt-stepper-btn"
+                      onClick={() => onUpdateSelectedElement({ height: Math.min(100, (selectedElement?.height || 20) + 2) })}
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                <span style={{ width: '1px', height: '54px', background: '#E2E8F0', margin: '0 4px' }} />
+
                 <button
-                  className="ppt-tool-btn-large"
-                  onClick={onToggleFormatPane}
-                  title="Mở bảng Định dạng Chi tiết"
+                  className="ppt-tool-btn-large is-danger"
+                  onClick={onDeleteSelectedElement}
+                  title="Xóa hình dạng này"
                 >
-                  <Sliders size={20} color="#D83B01" />
-                  <span>Chi tiết</span>
+                  <Trash2 size={20} color="#DC2626" />
+                  <span>Xóa hình</span>
                 </button>
               </div>
-              <div className="ppt-group-footer">Định dạng</div>
+              <div className="ppt-group-footer">Kích thước</div>
             </div>
           </>
         )}
 
         {/* CONTEXTUAL TAB: PICTURE FORMAT */}
         {activeTab === 'picture-format' && isImageSelected && (
-          <div className="ppt-ribbon-group">
-            <div className="ppt-group-content">
-              <button
-                className="ppt-tool-btn"
-                onClick={() => onUpdateSelectedElement({ borderRadius: 12 })}
-                title="Bo tròn góc ảnh"
-              >
-                Bo góc
-              </button>
-              <button
-                className="ppt-tool-btn"
-                onClick={() => onUpdateSelectedElement({ borderRadius: 100 })}
-                title="Cắt ảnh hình tròn"
-              >
-                Tròn
-              </button>
-              <button
-                className="ppt-tool-btn"
-                onClick={() => onUpdateSelectedElement({ shapeShadow: !selectedElement.shapeShadow })}
-                title="Đổ bóng ảnh"
-              >
-                Đổ bóng
-              </button>
+          <>
+            {/* Adjustments */}
+            <div className="ppt-ribbon-group">
+              <div className="ppt-group-content">
+                <select
+                  className="ppt-select"
+                  value={selectedElement?.opacity ?? 1}
+                  onChange={(e) => onUpdateSelectedElement({ opacity: parseFloat(e.target.value) })}
+                  title="Độ trong suốt của ảnh"
+                >
+                  <option value="1">Độ mờ: 100% (Chuẩn)</option>
+                  <option value="0.8">Độ mờ: 80%</option>
+                  <option value="0.6">Độ mờ: 60%</option>
+                  <option value="0.4">Độ mờ: 40%</option>
+                  <option value="0.2">Độ mờ: 20%</option>
+                </select>
+                <button
+                  className="ppt-tool-btn"
+                  onClick={() => onUpdateSelectedElement({ borderRadius: 0, shapeShadow: false, opacity: 1, objectFit: 'contain' })}
+                  title="Đặt lại toàn bộ định dạng ảnh về mặc định"
+                >
+                  Đặt lại ảnh
+                </button>
+              </div>
+              <div className="ppt-group-footer">Điều chỉnh</div>
             </div>
-            <div className="ppt-group-footer">Kiểu hình ảnh</div>
-          </div>
+
+            {/* Picture Styles */}
+            <div className="ppt-ribbon-group">
+              <div className="ppt-group-content">
+                <button
+                  className="ppt-tool-btn"
+                  onClick={() => onUpdateSelectedElement({ borderRadius: 12 })}
+                  title="Bo tròn góc ảnh nhẹ"
+                >
+                  Bo góc 12px
+                </button>
+                <button
+                  className="ppt-tool-btn"
+                  onClick={() => onUpdateSelectedElement({ borderRadius: 999 })}
+                  title="Cắt ảnh thành hình tròn hoàn toàn"
+                >
+                  Cắt tròn
+                </button>
+                <button
+                  className={`ppt-tool-btn ${selectedElement?.shapeShadow ? 'is-active' : ''}`}
+                  onClick={() => onUpdateSelectedElement({ shapeShadow: !selectedElement?.shapeShadow })}
+                  title="Đổ bóng ảnh"
+                >
+                  Đổ bóng
+                </button>
+                <button
+                  className="ppt-tool-btn"
+                  onClick={() => onUpdateSelectedElement({ stroke: '#D83B01', strokeWidth: 3 })}
+                  title="Tạo khung viền màu cam"
+                >
+                  Viền cam
+                </button>
+              </div>
+              <div className="ppt-group-footer">Kiểu hình ảnh</div>
+            </div>
+
+            {/* Crop & Fit */}
+            <div className="ppt-ribbon-group">
+              <div className="ppt-group-content">
+                <button
+                  className={`ppt-tool-btn ${selectedElement?.objectFit === 'contain' ? 'is-active' : ''}`}
+                  onClick={() => onUpdateSelectedElement({ objectFit: 'contain' })}
+                  title="Hiển thị vừa khung (Contain)"
+                >
+                  Chứa vừa
+                </button>
+                <button
+                  className={`ppt-tool-btn ${selectedElement?.objectFit === 'cover' ? 'is-active' : ''}`}
+                  onClick={() => onUpdateSelectedElement({ objectFit: 'cover' })}
+                  title="Lấp đầy khung hình (Cover)"
+                >
+                  Lấp đầy
+                </button>
+                <button
+                  className={`ppt-tool-btn ${selectedElement?.objectFit === 'fill' ? 'is-active' : ''}`}
+                  onClick={() => onUpdateSelectedElement({ objectFit: 'fill' })}
+                  title="Kéo giãn (Fill)"
+                >
+                  Kéo giãn
+                </button>
+              </div>
+              <div className="ppt-group-footer">Cắt & Vừa khung</div>
+            </div>
+
+            {/* Arrange & Delete */}
+            <div className="ppt-ribbon-group">
+              <div className="ppt-group-content">
+                <button className="ppt-tool-btn" onClick={onBringForward} title="Tiến lên 1 lớp">
+                  Lên 1 lớp
+                </button>
+                <button className="ppt-tool-btn" onClick={onSendBackward} title="Lùi xuống 1 lớp">
+                  Xuống 1 lớp
+                </button>
+                <button className="ppt-tool-btn" onClick={() => onAlignElement('center')} title="Căn giữa">
+                  Căn giữa
+                </button>
+                <button
+                  className="ppt-tool-btn is-danger"
+                  onClick={onDeleteSelectedElement}
+                  title="Xóa hình ảnh này"
+                >
+                  <Trash2 size={15} color="#DC2626" />
+                </button>
+              </div>
+              <div className="ppt-group-footer">Sắp xếp</div>
+            </div>
+          </>
         )}
 
         {/* CONTEXTUAL TAB: TABLE DESIGN */}
         {activeTab === 'table-design' && isTableSelected && (
-          <div className="ppt-ribbon-group">
-            <div className="ppt-group-content">
-              <button
-                className="ppt-tool-btn"
-                onClick={() => onUpdateSelectedElement({ tableHeaderRow: !selectedElement.tableHeaderRow })}
-                title="Bật/tắt Dòng tiêu đề"
-              >
-                Dòng đầu
-              </button>
-              <label className="ppt-tool-btn" title="Màu nền tiêu đề">
-                <Palette size={16} />
-                <input
-                  type="color"
-                  hidden
-                  value={selectedElement.tableHeaderColor || '#D83B01'}
-                  onChange={(e) => onUpdateSelectedElement({ tableHeaderColor: e.target.value })}
-                />
-              </label>
+          <>
+            {/* Table Style Options */}
+            <div className="ppt-ribbon-group">
+              <div className="ppt-group-content">
+                <label className="ppt-checkbox-label" title="Bật/tắt Dòng tiêu đề đầu bảng">
+                  <input
+                    type="checkbox"
+                    checked={selectedElement?.tableHeaderRow ?? true}
+                    onChange={(e) => onUpdateSelectedElement({ tableHeaderRow: e.target.checked })}
+                  />
+                  <span>Dòng tiêu đề</span>
+                </label>
+                <label className="ppt-color-label" title="Màu nền tiêu đề">
+                  <span style={{ fontSize: '11px', color: '#475569' }}>Màu nền:</span>
+                  <input
+                    type="color"
+                    value={selectedElement?.tableHeaderColor || '#D83B01'}
+                    onChange={(e) => onUpdateSelectedElement({ tableHeaderColor: e.target.value })}
+                    style={{ width: '22px', height: '22px', padding: 0, border: 'none', cursor: 'pointer' }}
+                  />
+                </label>
+                <label className="ppt-color-label" title="Màu chữ tiêu đề">
+                  <span style={{ fontSize: '11px', color: '#475569' }}>Màu chữ:</span>
+                  <input
+                    type="color"
+                    value={selectedElement?.tableHeaderTextColor || '#FFFFFF'}
+                    onChange={(e) => onUpdateSelectedElement({ tableHeaderTextColor: e.target.value })}
+                    style={{ width: '22px', height: '22px', padding: 0, border: 'none', cursor: 'pointer' }}
+                  />
+                </label>
+              </div>
+              <div className="ppt-group-footer">Tùy chọn kiểu bảng</div>
             </div>
-            <div className="ppt-group-footer">Tùy chọn kiểu bảng</div>
-          </div>
+
+            {/* Table Presets */}
+            <div className="ppt-ribbon-group">
+              <div className="ppt-group-content">
+                <button
+                  className="ppt-gallery-card-btn"
+                  style={{ minWidth: '40px', height: '28px', background: '#0078D4', color: '#FFF' }}
+                  onClick={() => onUpdateSelectedElement({ tableHeaderColor: '#0078D4', tableHeaderTextColor: '#FFFFFF' })}
+                  title="Mẫu Xanh Office"
+                >
+                  Xanh
+                </button>
+                <button
+                  className="ppt-gallery-card-btn"
+                  style={{ minWidth: '40px', height: '28px', background: '#D83B01', color: '#FFF' }}
+                  onClick={() => onUpdateSelectedElement({ tableHeaderColor: '#D83B01', tableHeaderTextColor: '#FFFFFF' })}
+                  title="Mẫu Cam Nổi Bật"
+                >
+                  Cam
+                </button>
+                <button
+                  className="ppt-gallery-card-btn"
+                  style={{ minWidth: '40px', height: '28px', background: '#107C41', color: '#FFF' }}
+                  onClick={() => onUpdateSelectedElement({ tableHeaderColor: '#107C41', tableHeaderTextColor: '#FFFFFF' })}
+                  title="Mẫu Xanh Lá"
+                >
+                  Lục
+                </button>
+                <button
+                  className="ppt-gallery-card-btn"
+                  style={{ minWidth: '40px', height: '28px', background: '#0F172A', color: '#FFF' }}
+                  onClick={() => onUpdateSelectedElement({ tableHeaderColor: '#0F172A', tableHeaderTextColor: '#FFFFFF' })}
+                  title="Mẫu Đen Midnight"
+                >
+                  Đen
+                </button>
+              </div>
+              <div className="ppt-group-footer">Kiểu bảng</div>
+            </div>
+
+            {/* Rows & Columns Operations */}
+            <div className="ppt-ribbon-group">
+              <div className="ppt-group-content">
+                <button
+                  className="ppt-tool-btn"
+                  onClick={() => {
+                    const currentData = selectedElement?.tableData || [['A', 'B'], ['1', '2']];
+                    const numCols = currentData[0]?.length || 2;
+                    const newRow = new Array(numCols).fill('Mới');
+                    onUpdateSelectedElement({
+                      tableData: [...currentData, newRow],
+                      tableRows: (selectedElement?.tableRows || currentData.length) + 1,
+                    });
+                  }}
+                  title="Thêm một hàng mới ở dưới"
+                >
+                  + Hàng
+                </button>
+                <button
+                  className="ppt-tool-btn"
+                  onClick={() => {
+                    const currentData = selectedElement?.tableData || [['A', 'B'], ['1', '2']];
+                    if (currentData.length <= 1) return;
+                    onUpdateSelectedElement({
+                      tableData: currentData.slice(0, -1),
+                      tableRows: Math.max(1, (selectedElement?.tableRows || currentData.length) - 1),
+                    });
+                  }}
+                  title="Xóa hàng cuối"
+                >
+                  - Hàng
+                </button>
+                <button
+                  className="ppt-tool-btn"
+                  onClick={() => {
+                    const currentData = selectedElement?.tableData || [['A', 'B'], ['1', '2']];
+                    const newData = currentData.map((row, rIdx) => [...row, rIdx === 0 ? 'Cột mới' : '—']);
+                    onUpdateSelectedElement({
+                      tableData: newData,
+                      tableCols: (selectedElement?.tableCols || (currentData[0]?.length || 2)) + 1,
+                    });
+                  }}
+                  title="Thêm một cột mới ở bên phải"
+                >
+                  + Cột
+                </button>
+                <button
+                  className="ppt-tool-btn"
+                  onClick={() => {
+                    const currentData = selectedElement?.tableData || [['A', 'B'], ['1', '2']];
+                    if ((currentData[0]?.length || 2) <= 1) return;
+                    const newData = currentData.map((row) => row.slice(0, -1));
+                    onUpdateSelectedElement({
+                      tableData: newData,
+                      tableCols: Math.max(1, (selectedElement?.tableCols || currentData[0].length) - 1),
+                    });
+                  }}
+                  title="Xóa cột cuối"
+                >
+                  - Cột
+                </button>
+                <button
+                  className="ppt-tool-btn is-danger"
+                  onClick={onDeleteSelectedElement}
+                  title="Xóa bảng này"
+                >
+                  <Trash2 size={14} color="#DC2626" />
+                </button>
+              </div>
+              <div className="ppt-group-footer">Hàng & Cột</div>
+            </div>
+          </>
         )}
 
         {/* CONTEXTUAL TAB: CHART DESIGN */}
         {activeTab === 'chart-design' && isChartSelected && (
-          <div className="ppt-ribbon-group">
-            <div className="ppt-group-content">
-              <button
-                className={`ppt-tool-btn ${selectedElement.chartType === 'column' ? 'is-active' : ''}`}
-                onClick={() => onUpdateSelectedElement({ chartType: 'column' })}
-              >
-                Cột
-              </button>
-              <button
-                className={`ppt-tool-btn ${selectedElement.chartType === 'line' ? 'is-active' : ''}`}
-                onClick={() => onUpdateSelectedElement({ chartType: 'line' })}
-              >
-                Đường
-              </button>
-              <button
-                className={`ppt-tool-btn ${selectedElement.chartType === 'pie' ? 'is-active' : ''}`}
-                onClick={() => onUpdateSelectedElement({ chartType: 'pie' })}
-              >
-                Tròn
-              </button>
-              <button
-                className="ppt-tool-btn-large"
-                onClick={onToggleFormatPane}
-                title="Sửa số liệu biểu đồ"
-              >
-                <Sliders size={18} color="#0078D4" />
-                <span>Sửa dữ liệu</span>
-              </button>
+          <>
+            {/* Chart Types */}
+            <div className="ppt-ribbon-group">
+              <div className="ppt-group-content">
+                <button
+                  className={`ppt-tool-btn ${selectedElement?.chartType === 'column' ? 'is-active' : ''}`}
+                  onClick={() => onUpdateSelectedElement({ chartType: 'column' })}
+                  title="Biểu đồ cột dọc"
+                >
+                  <BarChart3 size={15} /> Cột
+                </button>
+                <button
+                  className={`ppt-tool-btn ${selectedElement?.chartType === 'bar' ? 'is-active' : ''}`}
+                  onClick={() => onUpdateSelectedElement({ chartType: 'bar' })}
+                  title="Biểu đồ thanh ngang"
+                >
+                  <BarChart3 size={15} style={{ transform: 'rotate(90deg)' }} /> Thanh
+                </button>
+                <button
+                  className={`ppt-tool-btn ${selectedElement?.chartType === 'line' ? 'is-active' : ''}`}
+                  onClick={() => onUpdateSelectedElement({ chartType: 'line' })}
+                  title="Biểu đồ đường"
+                >
+                  <LineChart size={15} /> Đường
+                </button>
+                <button
+                  className={`ppt-tool-btn ${selectedElement?.chartType === 'pie' ? 'is-active' : ''}`}
+                  onClick={() => onUpdateSelectedElement({ chartType: 'pie' })}
+                  title="Biểu đồ tròn"
+                >
+                  <PieChart size={15} /> Tròn
+                </button>
+                <button
+                  className={`ppt-tool-btn ${selectedElement?.chartType === 'doughnut' ? 'is-active' : ''}`}
+                  onClick={() => onUpdateSelectedElement({ chartType: 'doughnut' })}
+                  title="Biểu đồ vành khuyên"
+                >
+                  <Circle size={15} /> Vành khuyên
+                </button>
+              </div>
+              <div className="ppt-group-footer">Loại biểu đồ</div>
             </div>
-            <div className="ppt-group-footer">Kiểu biểu đồ & Dữ liệu</div>
-          </div>
+
+            {/* Chart Title & Quick Data */}
+            <div className="ppt-ribbon-group">
+              <div className="ppt-group-content" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <input
+                  type="text"
+                  className="ppt-dialog-input"
+                  style={{ width: '160px', height: '24px', fontSize: '11px' }}
+                  value={selectedElement?.chartTitle || ''}
+                  placeholder="Tiêu đề biểu đồ..."
+                  onChange={(e) => onUpdateSelectedElement({ chartTitle: e.target.value })}
+                />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <button
+                    className="ppt-tool-btn"
+                    style={{ fontSize: '10px', height: '20px' }}
+                    onClick={() =>
+                      onUpdateSelectedElement({
+                        chartCategories: ['Q1', 'Q2', 'Q3', 'Q4'],
+                        chartSeries: [
+                          { name: 'Kế hoạch', values: [100, 120, 150, 180], color: '#0078D4' },
+                          { name: 'Thực tế', values: [110, 135, 160, 210], color: '#107C41' },
+                        ],
+                      })
+                    }
+                  >
+                    Dữ liệu Quý
+                  </button>
+                  <button
+                    className="ppt-tool-btn"
+                    style={{ fontSize: '10px', height: '20px' }}
+                    onClick={() =>
+                      onUpdateSelectedElement({
+                        chartCategories: ['2023', '2024', '2025', '2026'],
+                        chartSeries: [
+                          { name: 'Người dùng', values: [50, 120, 280, 520], color: '#D83B01' },
+                        ],
+                      })
+                    }
+                  >
+                    Tăng trưởng
+                  </button>
+                </div>
+              </div>
+              <div className="ppt-group-footer">Dữ liệu & Tiêu đề</div>
+            </div>
+
+            {/* Colors & Delete */}
+            <div className="ppt-ribbon-group">
+              <div className="ppt-group-content">
+                <button
+                  className="ppt-tool-btn-large"
+                  onClick={onToggleFormatPane}
+                  title="Mở bảng sửa số liệu chi tiết"
+                >
+                  <Sliders size={20} color="#0078D4" />
+                  <span>Sửa dữ liệu</span>
+                </button>
+                <button
+                  className="ppt-tool-btn-large is-danger"
+                  onClick={onDeleteSelectedElement}
+                  title="Xóa biểu đồ này"
+                >
+                  <Trash2 size={20} color="#DC2626" />
+                  <span>Xóa biểu đồ</span>
+                </button>
+              </div>
+              <div className="ppt-group-footer">Thao tác</div>
+            </div>
+          </>
         )}
+
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   Plus,
+  EyeOff,
   Copy,
   Trash2,
   ChevronUp,
@@ -114,9 +115,12 @@ export function SlideThumbnails({
               className={`ppt-thumb-item ${isSelected ? 'is-selected' : ''}`}
               onClick={() => onSelectSlide(idx)}
             >
-              <div className="ppt-thumb-index">{idx + 1}</div>
+              <div className="ppt-thumb-index" style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                {slide.hidden && <span title="Trang chiếu này bị ẩn khi trình chiếu" style={{ display: 'inline-flex' }}><EyeOff size={11} color="#DC2626" /></span>}
+                <span style={{ textDecoration: slide.hidden ? 'line-through' : 'none', color: slide.hidden ? '#94A3B8' : undefined }}>{idx + 1}</span>
+              </div>
 
-              <div className="ppt-thumb-card" style={{ background: slide.background.value || '#FFFFFF' }}>
+              <div className="ppt-thumb-card" style={{ background: slide.background.value || '#FFFFFF', opacity: slide.hidden ? 0.6 : 1 }}>
                 {/* Miniature slide preview elements */}
                 <div className="ppt-thumb-preview">
                   {slide.elements.map((el) => {

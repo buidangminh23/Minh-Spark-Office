@@ -122,20 +122,20 @@ export default function SlideEditor({
   useEffect(() => {
     if (selectedElement) {
       if (selectedElement.type === 'shape') {
-        // Can be viewed via shape-format
+        setActiveTab('shape-format');
       } else if (selectedElement.type === 'image') {
-        // Can be viewed via picture-format
+        setActiveTab('picture-format');
       } else if (selectedElement.type === 'table') {
-        // Can be viewed via table-design
+        setActiveTab('table-design');
       } else if (selectedElement.type === 'chart') {
-        // Can be viewed via chart-design
+        setActiveTab('chart-design');
       }
     } else {
       if (['shape-format', 'picture-format', 'table-design', 'chart-design'].includes(activeTab)) {
         setActiveTab('home');
       }
     }
-  }, [selectedElement, activeTab]);
+  }, [selectedElementId]);
 
   // Record history for Undo
   const pushHistory = useCallback((currentPres: PresentationData) => {
@@ -797,6 +797,16 @@ export default function SlideEditor({
     }
   };
 
+  const handleToggleHideSlide = () => {
+    const isCurHidden = !!currentSlide?.hidden;
+    const updatedSlides = presentation.slides.map((s, idx) =>
+      idx === activeSlideIndex ? { ...s, hidden: !isCurHidden } : s
+    );
+    const newPres = { ...presentation, slides: updatedSlides };
+    setPresentation(newPres);
+    triggerAutoSave(newPres);
+  };
+
 
   const handlePreviewTransition = () => {
     const sound = currentSlide?.transition?.sound || 'none';
@@ -1112,6 +1122,8 @@ export default function SlideEditor({
         loopSound={currentSlide?.transition.loopSound || false}
         onChangeLoopSound={handleChangeTransitionLoopSound}
         onSetTriggerElementId={handleSetTriggerElementId}
+        isSlideHidden={!!currentSlide?.hidden}
+        onToggleHideSlide={handleToggleHideSlide}
         onPreviewTransition={handlePreviewTransition}
         onPreviewAnimation={handlePreviewAnimation}
         isAnimationPaneOpen={isAnimationPaneOpen}

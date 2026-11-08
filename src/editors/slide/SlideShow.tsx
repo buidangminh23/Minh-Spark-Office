@@ -84,8 +84,12 @@ export function SlideShow({
       }
       setTimeout(() => setPreviewingAnimElementId(null), 800);
     } else {
-      if (currentIndex < slides.length - 1) {
-        setCurrentIndex((i) => i + 1);
+      let nextIdx = currentIndex + 1;
+      while (nextIdx < slides.length && slides[nextIdx].hidden) {
+        nextIdx++;
+      }
+      if (nextIdx < slides.length) {
+        setCurrentIndex(nextIdx);
         setAnimStep(0);
       }
     }
@@ -96,9 +100,12 @@ export function SlideShow({
     if (animStep > 0) {
       setAnimStep((s) => s - 1);
     } else {
-      if (currentIndex > 0) {
-        const prevIdx = currentIndex - 1;
-        setCurrentIndex(prevIdx);
+      let prevIdx = currentIndex - 1;
+        while (prevIdx >= 0 && slides[prevIdx].hidden) {
+          prevIdx--;
+        }
+        if (prevIdx >= 0) {
+          setCurrentIndex(prevIdx);
         // On previous slide, reveal all its animations
         const prevSlide = slides[prevIdx];
         const prevAnimCount = prevSlide.elements.filter((el) => {
