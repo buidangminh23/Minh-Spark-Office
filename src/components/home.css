@@ -542,7 +542,9 @@
 
 .ws-app-doc { background: #eef4ff; border-color: #d8e4fb; --ws-app-tone: var(--ws-blue); --ws-app-chip: #dbe7fe; }
 .ws-app-sheet { background: #edf8f1; border-color: #d3ecdc; --ws-app-tone: #16a34a; --ws-app-chip: #d4f0de; }
+.ws-app-slide { background: #fff3ec; border-color: #fadcc9; --ws-app-tone: #ea580c; --ws-app-chip: #fde0cc; }
 .ws-app-pdf { background: #fdf1f0; border-color: #f6d9d6; --ws-app-tone: #e5484d; --ws-app-chip: #fbdcda; }
+.ws-app-image { background: #ecf6fe; border-color: #d3e8fb; --ws-app-tone: #0284c7; --ws-app-chip: #d6ebfb; }
 
 .ws-app-text {
   flex: 1;
