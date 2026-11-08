@@ -143,7 +143,7 @@ export function SlideMailMergeModal({
                 ))
               ) : (
                 <span style={{ fontSize: '12px', color: '#64748B', fontStyle: 'italic' }}>
-                  Chưa thấy thẻ dạng {`{{...}}`} trong slide này. Sếp có thể thêm {`{{ho_ten}}`} vào tiêu đề hoặc nội dung.
+                  Chưa thấy thẻ dạng {`{{...}}`} trong slide này. Bạn có thể thêm {`{{ho_ten}}`} vào tiêu đề hoặc nội dung.
                 </span>
               )}
             </div>

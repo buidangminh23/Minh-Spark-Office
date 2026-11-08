@@ -12,7 +12,7 @@ export const coverPageHtml = (title: string) => `
 <h1 style="text-align: center"><span style="font-size: 32pt">${title || 'Tiêu đề tài liệu'}</span></h1>
 <p style="text-align: center"><span style="font-size: 14pt; color: #586071">Phụ đề hoặc mô tả ngắn của tài liệu</span></p>
 <p></p><p></p><p></p><p></p>
-<p style="text-align: center"><strong>Người lập:</strong> Minh Spark</p>
+<p style="text-align: center"><strong>Người lập:</strong> Nguyễn Văn A</p>
 <p style="text-align: center">Hà Nội, ${today()}</p>
 <div data-page-break="true"></div>
 `;

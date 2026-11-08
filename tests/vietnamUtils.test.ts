@@ -2,7 +2,8 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   docSoTien,
-  generateVietQrUrl,
+  buildVietQrPayload,
+  crc16Ccitt,
   validateTaxCode,
   fuzzyMatch,
   runSheetSql,
@@ -19,18 +20,27 @@ describe('Vietnam Business & Localization Utilities', () => {
     assert.equal(docSoTien(125), 'Một trăm hai mươi lăm đồng chẵn');
     assert.equal(docSoTien(121), 'Một trăm hai mươi mốt đồng chẵn');
     assert.equal(docSoTien(115), 'Một trăm mười lăm đồng chẵn');
+    assert.equal(docSoTien(1000005), 'Một triệu không trăm lẻ năm đồng chẵn');
+    assert.equal(docSoTien('1.500.000'), 'Một triệu năm trăm nghìn đồng chẵn');
+    assert.equal(docSoTien('1.500.000,50'), 'Một triệu năm trăm nghìn đồng chẵn');
+    assert.equal(docSoTien(-2000), 'Âm hai nghìn đồng chẵn');
+    assert.equal(docSoTien(24), 'Hai mươi tư đồng chẵn');
   });
 
-  it('generateVietQrUrl produces valid NAPAS 247 image URL', () => {
-    const url = generateVietQrUrl({
-      bankBin: '970436',
-      accountNumber: '1234567890',
-      amount: 500000,
-      memo: 'Thanh toan don 102',
-    });
-    assert.ok(url.startsWith('https://img.vietqr.io/image/970436-1234567890-compact2.png'));
-    assert.ok(url.includes('amount=500000'));
-    assert.ok(url.includes('addInfo=Thanh+toan+don+102') || url.includes('addInfo=Thanh%20toan%20don%20102'));
+  it('buildVietQrPayload builds an EMVCo NAPAS 247 payload with a valid CRC', () => {
+    assert.equal(crc16Ccitt('123456789'), '29B1');
+    const payload = buildVietQrPayload({ bankBin: '970436', accountNumber: '0123 456 789', amount: 500000, memo: 'Thanh toán đơn 102' });
+    assert.ok(payload.startsWith('000201010212'));
+    assert.ok(payload.includes('0010A000000727'));
+    assert.ok(payload.includes('0006970436010101234567890208QRIBFTTA'.slice(0, 10)));
+    assert.ok(payload.includes('01100123456789'));
+    assert.ok(payload.includes('5406500000'));
+    assert.ok(payload.includes('0818Thanh toan don 102'));
+    assert.equal(payload.slice(-4), crc16Ccitt(payload.slice(0, -4)));
+    const staticQr = buildVietQrPayload({ bankBin: '970422', accountNumber: '0123456789' });
+    assert.ok(staticQr.startsWith('000201010211'));
+    assert.ok(!staticQr.includes('5406'));
+    assert.throws(() => buildVietQrPayload({ bankBin: '97', accountNumber: '1' }));
   });
 
   it('validateTaxCode validates 10-digit and 13-digit MST with Modulo 11', () => {
@@ -53,6 +63,9 @@ describe('Vietnam Business & Localization Utilities', () => {
     const r4 = validateTaxCode('0100109106-001');
     assert.equal(r4.valid, true);
     assert.equal(r4.type, 'branch');
+    assert.equal(validateTaxCode('01001091060-01').valid, false);
+    assert.equal(validateTaxCode('0100109106-000').valid, false);
+    assert.equal(validateTaxCode('0300588569').valid, true);
   });
 
   it('fuzzyMatch computes similarity and matches Vietnamese names regardless of accents', () => {
@@ -85,5 +98,21 @@ describe('Vietnam Business & Localization Utilities', () => {
 
     const resAll = runSheetSql(headers, rows, 'SELECT * WHERE DoanhThu >= 150');
     assert.equal(resAll.rows.length, 3);
+
+    const resOr = runSheetSql(headers, rows, "SELECT MaNV WHERE KhuVuc = 'HCM' AND DoanhThu > 100 OR HoTen LIKE 'Le%' ORDER BY MaNV");
+    assert.deepEqual(resOr.rows, [['NV02'], ['NV03']]);
+
+    const grouped = runSheetSql(headers, rows, 'SELECT KhuVuc, SUM(DoanhThu), COUNT(*) GROUP BY KhuVuc ORDER BY SUM(DoanhThu) DESC');
+    assert.deepEqual(grouped.headers, ['KhuVuc', 'SUM(DoanhThu)', 'COUNT(*)']);
+    assert.deepEqual(grouped.rows, [['HN', 450, 2], ['HCM', 280, 2]]);
+
+    assert.match(runSheetSql(headers, rows, 'SELECT * WHERE KhuVucX = HN').error ?? '', /Không có cột/);
+    assert.match(runSheetSql(headers, rows, 'SELECT * WHERE DoanhThu ~ 5').error ?? '', /Không hiểu điều kiện/);
+    assert.match(runSheetSql(headers, rows, 'SELECT HoTen, SUM(DoanhThu)').error ?? '', /GROUP BY/);
+
+    const spaced = runSheetSql(['Mã KH', 'Số tiền'], [['A', 5], ['B', null], ['C', 7]], 'SELECT "Mã KH" WHERE [Số tiền] IS NOT NULL ORDER BY "Số tiền" DESC');
+    assert.equal(spaced.error, undefined);
+    assert.deepEqual(spaced.rows, [['C'], ['A']]);
+    assert.equal(runSheetSql(['Số tiền'], [[null], [3]], 'SELECT * WHERE "Số tiền" > -5').rows.length, 1);
   });
 });

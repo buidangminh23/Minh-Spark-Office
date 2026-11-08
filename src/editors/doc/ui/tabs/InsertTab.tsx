@@ -8,6 +8,7 @@ import { formatDate, type FieldKind } from '../../insertFields';
 import { shapeDataUrl } from '../../insertShapes';
 import { Big, Dropdown, Group, MenuHeading, MenuItem, MenuSeparator, Rows, Small } from '../RibbonParts';
 import { CoverGallery, EquationGallery, ShapeGallery, SymbolGallery, TableGrid } from '../insert/InsertGalleries';
+import { currentAuthorName } from '../../../../lib/currentAuthor';
 
 const PROPERTY_FIELDS: { kind: FieldKind; label: string }[] = [
   { kind: 'author', label: 'Tác giả' }, { kind: 'title', label: 'Tiêu đề' }, { kind: 'subject', label: 'Chủ đề' }, { kind: 'keywords', label: 'Từ khoá' }, { kind: 'company', label: 'Đơn vị' },
@@ -38,7 +39,7 @@ export default function InsertTab() {
   };
 
   const placeCover = (id: string) => {
-    insertCover(editor, id, { title: ctx.title.replace(/\.[^/.]+$/, ''), author: page.properties?.author || 'Minh Spark', date: formatDate('long') });
+    insertCover(editor, id, { title: ctx.title.replace(/\.[^/.]+$/, ''), author: page.properties?.author || currentAuthorName(), date: formatDate('long') });
     ctx.ui.toast('Đã chèn trang bìa ở đầu tài liệu');
   };
 

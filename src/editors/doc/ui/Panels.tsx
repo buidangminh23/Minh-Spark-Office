@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Check, CheckCheck, MessageSquare, Reply, Trash2, X, XCircle, FileDiff, Navigation } from 'lucide-react';
 import { useEditorState } from '@tiptap/react';
-import { AUTHOR, newId, useDoc } from '../DocContext';
+import { currentAuthor, newId, useDoc } from '../DocContext';
 import { collectChanges } from '../trackChanges';
 import { addComment } from '../actions';
 import { jumpToPage } from '../actionsExtra';
@@ -110,7 +110,7 @@ export function CommentsPanel() {
   const reply = (id: string) => {
     const text = replies[id]?.trim();
     if (!text) return;
-    update(id, (c) => ({ ...c, replies: [...(c.replies ?? []), { id: newId('r'), author: AUTHOR, text, createdAt: Date.now() }] }));
+    update(id, (c) => ({ ...c, replies: [...(c.replies ?? []), { id: newId('r'), author: currentAuthor(), text, createdAt: Date.now() }] }));
     setReplies({ ...replies, [id]: '' });
   };
   return (

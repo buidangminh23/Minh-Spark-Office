@@ -12,9 +12,12 @@ import { useWorkspace } from '../../../lib/storage';
 import { createSlideFromLayout } from '../../../lib/slideTemplates';
 import type { PresentationData } from '../../../lib/slideTypes';
 
-// -------------------------------------------------------------
-// 1. PRINT PREFLIGHT CHECKER DIALOG
-// -------------------------------------------------------------
+const PX_PER_MM = 3.78;
+const toMm = (px: number) => Math.round(px / PX_PER_MM);
+const toPx = (mm: number) => Math.round(mm * PX_PER_MM);
+const DECREE30_RANGES = { top: [20, 25], bottom: [20, 25], left: [30, 35], right: [15, 20] } as const;
+const DECREE30_MARGINS_MM = { top: 20, bottom: 20, left: 30, right: 15 };
+
 export function PreflightDialog({ onClose }: { onClose: () => void }) {
   const { editor, page, setPage, setView } = useDoc();
   const [fixedMargins, setFixedMargins] = useState(false);
@@ -39,10 +42,17 @@ export function PreflightDialog({ onClose }: { onClose: () => void }) {
       }
     });
 
-    const margins = page.margins;
-    const isDecree30Margins =
-      margins.top === 20 && margins.bottom === 20 && margins.left === 30 && margins.right === 15;
-    const leftMarginOk = margins.left >= 25; // Good for binding
+    const margins = {
+      top: toMm(page.margins.top),
+      bottom: toMm(page.margins.bottom),
+      left: toMm(page.margins.left),
+      right: toMm(page.margins.right),
+    };
+    const isDecree30Margins = (Object.keys(DECREE30_RANGES) as (keyof typeof DECREE30_RANGES)[]).every((side) => {
+      const [min, max] = DECREE30_RANGES[side];
+      return margins[side] >= min && margins[side] <= max;
+    });
+    const leftMarginOk = margins.left >= 25;
 
     return {
       imagesCount,
@@ -58,7 +68,12 @@ export function PreflightDialog({ onClose }: { onClose: () => void }) {
   const handleApplyDecree30Margins = () => {
     setPage({
       ...page,
-      margins: { top: 20, bottom: 20, left: 30, right: 15 },
+      margins: {
+        top: toPx(DECREE30_MARGINS_MM.top),
+        bottom: toPx(DECREE30_MARGINS_MM.bottom),
+        left: toPx(DECREE30_MARGINS_MM.left),
+        right: toPx(DECREE30_MARGINS_MM.right),
+      },
     });
     setFixedMargins(true);
   };
@@ -134,14 +149,14 @@ export function PreflightDialog({ onClose }: { onClose: () => void }) {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #f1f5f9' }}>
               <span>Chuẩn lề Nghị định 30/2020/NĐ-CP:</span>
               {stats.isDecree30Margins || fixedMargins ? (
-                <span style={{ color: '#16a34a', fontWeight: 600 }}>✓ Đúng chuẩn (20-20-30-15mm)</span>
+                <span style={{ color: '#16a34a', fontWeight: 600 }}>Đúng chuẩn (trên 20-25, dưới 20-25, trái 30-35, phải 15-20 mm)</span>
               ) : (
                 <button
                   className="btn"
                   style={{ fontSize: 12, padding: '2px 8px' }}
                   onClick={handleApplyDecree30Margins}
                 >
-                  Áp dụng ngay lề chuẩn
+                  Áp dụng lề 20-20-30-15 mm
                 </button>
               )}
             </div>

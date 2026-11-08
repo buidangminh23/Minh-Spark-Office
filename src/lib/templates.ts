@@ -34,7 +34,7 @@ export const contractDocHtml = () => `
 <h2>BÊN A: BÊN YÊU CẦU DỊCH VỤ (KHÁCH HÀNG)</h2>
 <ul>
   <li><strong>Đơn vị:</strong> CÔNG TY TNHH ĐẦU TƯ & THƯƠNG MẠI MINH SPARK</li>
-  <li><strong>Đại diện:</strong> Ông Bùi Đăng Minh - Chức vụ: Giám đốc</li>
+  <li><strong>Đại diện:</strong> Ông Nguyễn Văn A - Chức vụ: Giám đốc</li>
   <li><strong>Địa chỉ:</strong> Hà Nội, Việt Nam</li>
   <li><strong>Điện thoại:</strong> (+84) 988 123 456</li>
 </ul>
@@ -69,7 +69,7 @@ export const meetingMinutesDocHtml = () => `
 <p style="text-align: center"><em>Thời gian: 09:00 - 11:30 | Ngày: ${new Date().toLocaleDateString('vi-VN')}</em></p>
 <h2>1. Thành phần tham dự</h2>
 <ul>
-  <li><strong>Chủ trì:</strong> Bùi Đăng Minh</li>
+  <li><strong>Chủ trì:</strong> Nguyễn Văn A</li>
   <li><strong>Thư ký:</strong> Ban Văn phòng</li>
   <li><strong>Thành viên:</strong> Toàn thể kỹ thuật viên và nhân sự vận hành</li>
 </ul>
@@ -154,7 +154,7 @@ export const payrollWorkbook = (): WorkbookData => {
   });
 
   const staff = [
-    ['MS01', 'Bùi Đăng Minh', 'Giám đốc', 50000000, 26, 5000000],
+    ['MS01', 'Nguyễn Văn A', 'Giám đốc', 50000000, 26, 5000000],
     ['MS02', 'Nguyễn Văn An', 'Trưởng phòng Kỹ thuật', 30000000, 25, 3000000],
     ['MS03', 'Trần Thị Bình', 'Kế toán trưởng', 25000000, 26, 2500000],
     ['MS04', 'Lê Hoàng Cường', 'Kỹ sư Fullstack', 22000000, 24, 2000000],
@@ -388,7 +388,7 @@ export const projectEstimateWorkbook = (): WorkbookData => {
   });
 
   const tasks: [string, string, string, number, number, number, number][] = [
-    ['HM-01', 'Khảo sát nghiệp vụ & kiến trúc hệ thống', 'Bùi Đăng Minh', 15, 3500000, 52500000, 1],
+    ['HM-01', 'Khảo sát nghiệp vụ & kiến trúc hệ thống', 'Nguyễn Văn A', 15, 3500000, 52500000, 1],
     ['HM-02', 'Phát triển lõi soạn thảo Minh Docs & Minh Sheets', 'Nhóm Frontend', 45, 3200000, 128000000, 0.9],
     ['HM-03', 'Tích hợp xử lý chữ ký số & bảo mật ECMA-376', 'Nhóm Bảo mật', 25, 3800000, 76000000, 0.8],
     ['HM-04', 'Kiểm thử hiệu năng, bảo mật & UAT nội bộ', 'Nhóm QA', 20, 2500000, 22000000, 0.45],

@@ -4,6 +4,9 @@ import { useEditorState } from '@tiptap/react';
 import { searchKey } from '../search';
 import { useDoc } from '../DocContext';
 import { addComment, copySelection, editLink, imageSettings, insertDateTime, insertFootnote, insertImageFromDevice, pastePlainText, pasteRich } from '../actions';
+import { insertChip } from '../actionsExtra';
+
+const STATUS_CHIP_OPTIONS = ['Bản nháp', 'Đang làm', 'Chờ ký duyệt', 'Đã duyệt'];
 
 export function FindBar() {
   const { editor, view, setView } = useDoc();
@@ -269,6 +272,7 @@ export function AtMentionMenu() {
   const { editor } = ctx;
   const ref = useRef<HTMLDivElement | null>(null);
   const [index, setIndex] = useState(0);
+  const [navigated, setNavigated] = useState(false);
 
   const query = useEditorState({
     editor,
@@ -284,57 +288,22 @@ export function AtMentionMenu() {
     equalityFn: (a, b) => JSON.stringify(a) === JSON.stringify(b),
   });
 
-  const now = new Date();
-  const todayStr = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+  const todayStr = new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const statusChip = (value: string) => () => editor.chain().focus().insertSmartChip({ kind: 'status', value, options: STATUS_CHIP_OPTIONS.join('|') }).run();
 
   const items = useMemo(() => [
-    {
-      id: 'date-today',
-      label: `Ngày hôm nay (${todayStr})`,
-      keywords: 'date ngay hom nay today',
-      icon: <Calendar size={15} color="#2563eb" />,
-      run: () => editor.chain().focus().insertContent(`<span class="smart-chip" style="display:inline-flex;align-items:center;padding:2px 8px;background:#eff6ff;color:#1e40af;border-radius:12px;font-size:12px;font-weight:500;margin:0 2px;">📅 ${todayStr}</span>`).run(),
-    },
-    {
-      id: 'status-inprogress',
-      label: 'Trạng thái: Đang làm',
-      keywords: 'status inprogress dang lam trang thai',
-      icon: <Clock size={15} color="#d97706" />,
-      run: () => editor.chain().focus().insertContent('<span class="smart-chip" style="display:inline-flex;align-items:center;padding:2px 8px;background:#fef3c7;color:#92400e;border-radius:12px;font-size:12px;font-weight:600;margin:0 2px;">⏳ ĐANG LÀM</span>').run(),
-    },
-    {
-      id: 'status-approved',
-      label: 'Trạng thái: Đã duyệt',
-      keywords: 'status approved da duyet xong ok',
-      icon: <CheckCircle2 size={15} color="#16a34a" />,
-      run: () => editor.chain().focus().insertContent('<span class="smart-chip" style="display:inline-flex;align-items:center;padding:2px 8px;background:#dcfce7;color:#166534;border-radius:12px;font-size:12px;font-weight:600;margin:0 2px;">✓ ĐÃ DUYỆT</span>').run(),
-    },
-    {
-      id: 'status-draft',
-      label: 'Trạng thái: Bản nháp',
-      keywords: 'status draft ban nhap',
-      icon: <FileText size={15} color="#64748b" />,
-      run: () => editor.chain().focus().insertContent('<span class="smart-chip" style="display:inline-flex;align-items:center;padding:2px 8px;background:#f1f5f9;color:#475569;border-radius:12px;font-size:12px;font-weight:600;margin:0 2px;">📝 BẢN NHÁP</span>').run(),
-    },
-    {
-      id: 'status-pending',
-      label: 'Trạng thái: Chờ ký duyệt',
-      keywords: 'status pending cho ky duyet',
-      icon: <AlertTriangle size={15} color="#ea580c" />,
-      run: () => editor.chain().focus().insertContent('<span class="smart-chip" style="display:inline-flex;align-items:center;padding:2px 8px;background:#ffedd5;color:#9a3412;border-radius:12px;font-size:12px;font-weight:600;margin:0 2px;">⚠️ CHỜ KÝ DUYỆT</span>').run(),
-    },
-    {
-      id: 'contact-signer',
-      label: 'Người ký: Giám đốc / Đại diện',
-      keywords: 'contact signer nguoi ky dai dien',
-      icon: <UserCheck size={15} color="#4f46e5" />,
-      run: () => editor.chain().focus().insertContent('<span class="smart-chip" style="display:inline-flex;align-items:center;padding:2px 8px;background:#e0e7ff;color:#3730a3;border-radius:12px;font-size:12px;font-weight:500;margin:0 2px;">👤 [Người đại diện pháp luật]</span>').run(),
-    },
-  ], [editor, todayStr]);
+    { id: 'date-today', label: `Ngày hôm nay (${todayStr})`, keywords: 'date ngay hom nay today', icon: <Calendar size={15} color="#2563eb" />, run: () => editor.chain().focus().insertSmartChip({ kind: 'date', value: todayStr }).run() },
+    { id: 'status-draft', label: 'Trạng thái: Bản nháp', keywords: 'status draft ban nhap trang thai', icon: <FileText size={15} color="#64748b" />, run: statusChip('Bản nháp') },
+    { id: 'status-inprogress', label: 'Trạng thái: Đang làm', keywords: 'status inprogress dang lam trang thai', icon: <Clock size={15} color="#d97706" />, run: statusChip('Đang làm') },
+    { id: 'status-pending', label: 'Trạng thái: Chờ ký duyệt', keywords: 'status pending cho ky duyet trang thai', icon: <AlertTriangle size={15} color="#ea580c" />, run: statusChip('Chờ ký duyệt') },
+    { id: 'status-approved', label: 'Trạng thái: Đã duyệt', keywords: 'status approved da duyet xong ok trang thai', icon: <CheckCircle2 size={15} color="#16a34a" />, run: statusChip('Đã duyệt') },
+    { id: 'person', label: 'Người…', keywords: 'person contact signer nguoi ky dai dien', icon: <UserCheck size={15} color="#4f46e5" />, run: () => void insertChip(ctx, 'person') },
+    { id: 'place', label: 'Địa điểm…', keywords: 'place dia diem noi', icon: <Globe size={15} color="#0284c7" />, run: () => void insertChip(ctx, 'place') },
+  ], [editor, ctx, todayStr]);
 
   const fold = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').toLowerCase();
   const filtered = query ? items.filter((item) => fold(`${item.label} ${item.keywords}`).includes(fold(query.text))) : [];
-  useEffect(() => setIndex(0), [query?.text]);
+  useEffect(() => { setIndex(0); setNavigated(false); }, [query?.text]);
   const pos = usePosition(query ? { left: query.left, top: query.top } : null, ref);
 
   const choose = (item: (typeof items)[number]) => {
@@ -346,9 +315,10 @@ export function AtMentionMenu() {
   useEffect(() => {
     if (!query || !filtered.length) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowDown') { e.preventDefault(); setIndex((i) => (i + 1) % filtered.length); }
-      else if (e.key === 'ArrowUp') { e.preventDefault(); setIndex((i) => (i - 1 + filtered.length) % filtered.length); }
-      else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); e.stopPropagation(); choose(filtered[index]); }
+      if (e.key === 'ArrowDown') { e.preventDefault(); setNavigated(true); setIndex((i) => (i + 1) % filtered.length); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); setNavigated(true); setIndex((i) => (i - 1 + filtered.length) % filtered.length); }
+      else if ((e.key === 'Enter' || e.key === 'Tab') && (navigated || query.text.length > 0)) { e.preventDefault(); e.stopPropagation(); choose(filtered[index]); }
+      else if (e.key === 'Escape') { e.preventDefault(); setNavigated(false); }
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);

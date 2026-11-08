@@ -5,6 +5,15 @@ import { useWorkspace } from '../../lib/storage';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AddinPanel, AddinRibbonButtons } from '../../addins/AddinPane';
 import { sheetHost } from '../../addins/hosts';
+import { currentAuthorName } from '../../lib/currentAuthor';
+import type { VietQrCard } from '../../lib/vietQrCard';
+import { snapshotWorkbook } from '../../lib/sheetDiff';
+import { WorkbookDiffModal, type DiffVersion } from './biz/WorkbookDiffModal';
+import { VietnamMapModal } from './biz/VietnamMapModal';
+import { MarketQuotesModal } from './biz/MarketQuotesModal';
+import { WorkbookDoctorModal } from './biz/WorkbookDoctorModal';
+import { PythonSandboxModal } from './biz/PythonSandboxModal';
+import { diagnoseWorkbook } from '../../lib/workbookDoctor';
 
 const ADDIN_MAX_ROWS = 300;
 const ADDIN_MAX_COLS = 40;
@@ -287,12 +296,8 @@ import {
   DataCleaningModal,
   FuzzyReconcileModal,
   SheetSqlModal,
-  WorkbookDoctorModal,
-  MarketQuotesModal,
-  VietnamChoroplethModal,
-  WorkbookDiffModal,
-  PythonSheetModal,
   TableSlicerModal,
+  slicerKey,
 } from './SheetBizModals';
 
 interface SheetEditorProps {
@@ -600,19 +605,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
     updateSavedStatus(status);
   }, []);
 
-  const [comments, setComments] = useState<CommentItem[]>(
-    () =>
-      content.comments ?? [
-        {
-          id: 'cmt-init',
-          author: 'Bùi Đăng Minh',
-          quote: 'E8',
-          text: 'Kiểm tra đối chiếu tổng hợp số liệu và tỷ trọng trước khi ký phát hành.',
-          createdAt: Date.now() - 3600000,
-          resolved: false,
-        },
-      ]
-  );
+  const [comments, setComments] = useState<CommentItem[]>(() => content.comments ?? []);
   const [showComments, setShowComments] = useState(false);
   const [newCommentText, setNewCommentText] = useState('');
   const [newCommentCell, setNewCommentCell] = useState('A1');
@@ -731,7 +724,8 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
     | 'slicer';
 
   const [modal, setModalState] = useState<SheetModalKind>(null);
-  const [doctorSheetNames, setDoctorSheetNames] = useState<string[]>([]);
+  const [doctorData, setDoctorData] = useState<ReturnType<typeof diagnoseWorkbook> | null>(null);
+  const [diffData, setDiffData] = useState<{ sheets: ReturnType<typeof snapshotWorkbook>; versions: DiffVersion[] } | null>(null);
   const [proTable, setProTable] = useState<{
     a1: string;
     parsed: NonNullable<ReturnType<typeof parseA1Range>>;
@@ -3006,7 +3000,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
   }, [getActiveContext, activeRangeA1, getSmartDataRangeA1]);
 
   const openTableTool = useCallback(
-    (kind: 'customSort' | 'subtotal' | 'advFilter' | 'dataCleaning' | 'fuzzyReconcile' | 'sheetSql' | 'slicer' | 'pythonSandbox') => {
+    (kind: 'customSort' | 'subtotal' | 'advFilter' | 'dataCleaning' | 'fuzzyReconcile' | 'sheetSql' | 'slicer' | 'pythonSandbox' | 'choropleth') => {
       const table = readTableAtSelection();
       if (!table) {
         ui.toast('Hãy chọn vùng dữ liệu có dòng tiêu đề và ít nhất 1 dòng số liệu', true);
@@ -3060,57 +3054,112 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
     ui.toast(`Đã xuất ${resRows.length} dòng kết quả SQL ra Sheet mới`);
   };
 
-  const handleApplyCleaned = (newHeaders: string[], newRows: (string | number | boolean | null)[][]) => {
+  const handleApplyCleaned = (newHeaders: string[], newRows: GridValue[][], columnSources: number[]) => {
     const ctx = getEditableContext();
     if (!ctx || !proTable) return;
     const p = proTable.parsed;
     const sheet = ctx.fWorksheet;
-    sheet.getRange(p.startRow, p.startColumn, p.endRow - p.startRow + 1, p.endColumn - p.startColumn + 1).clear();
-    const all = [newHeaders, ...newRows];
+    const oldHeight = p.endRow - p.startRow + 1;
+    const oldWidth = p.endColumn - p.startColumn + 1;
     const width = newHeaders.length;
-    const norm = all.map((r) => Array.from({ length: width }, (_, c) => (r[c] === null || r[c] === undefined ? '' : r[c])));
+    const newFormats = columnSources.map((src) => (src >= 0 ? proTable.formats[src] ?? null : null));
+    const toNewSheet = (reason: string) => {
+      const target = writeGridToNewSheet(`Làm sạch ${activeSheetName}`, [newHeaders, ...newRows], [0], newFormats);
+      if (!target) return;
+      setModal(null);
+      ui.toast(`${reason}, nên kết quả ${newRows.length} dòng được ghi ra Sheet mới, bảng gốc giữ nguyên`);
+    };
+    const formulas = sheet.getRange(p.startRow, p.startColumn, oldHeight, oldWidth).getFormulas();
+    if (formulas.some((row) => row.some((f) => typeof f === 'string' && f.trim() !== ''))) {
+      toNewSheet('Bảng có công thức');
+      return;
+    }
+    if (width > oldWidth) {
+      const spill = sheet.getRange(p.startRow, p.endColumn + 1, Math.max(oldHeight, newRows.length + 1), width - oldWidth).getRawValues();
+      if (spill.some((row) => row.some((v) => v !== null && v !== undefined && v !== ''))) {
+        toNewSheet('Các cột bên phải bảng đang có dữ liệu');
+        return;
+      }
+    }
+    sheet.getRange(p.startRow, p.startColumn, oldHeight, oldWidth).clearContent();
+    const norm = [newHeaders, ...newRows].map((r) => Array.from({ length: width }, (_, c) => (r[c] === null || r[c] === undefined ? '' : r[c])));
     sheet.getRange(p.startRow, p.startColumn, norm.length, width).setValues(norm as (string | number | boolean)[][]);
     sheet.getRange(p.startRow, p.startColumn, 1, width).setFontWeight('bold');
+    if (newRows.length) {
+      columnSources.forEach((src, c) => {
+        if (src === c) return;
+        sheet.getRange(p.startRow + 1, p.startColumn + c, newRows.length, 1).setNumberFormat(newFormats[c] ?? 'General');
+      });
+    }
     setModal(null);
     setSavedStatus('saving');
     ui.toast(`Đã làm sạch và cập nhật ${newRows.length} dòng dữ liệu`);
   };
 
-  const handleInsertVietQr = (url: string) => {
-    const ctx = getEditableContext();
-    if (!ctx) return;
-    const cell = parseA1Range(activeCellA1);
-    if (!cell) return;
+  const handleInsertVietQr = async (card: VietQrCard) => {
     try {
-      const range = ctx.fWorksheet.getRange(cell.startRow, cell.startColumn, 1, 1);
-      range.setValue(url);
+      await embedBase64ImageAtSelection(card.dataUrl, Math.round(card.width / 2.5), Math.round(card.height / 2.5));
       setModal(null);
-      ui.toast(`Đã chèn liên kết VietQR vào ô ${activeCellA1}`);
+      ui.toast(`Đã chèn mã VietQR tại ô ${activeCellA1}`);
     } catch {
-      ui.toast('Không thể chèn VietQR', true);
+      ui.toast('Không chèn được mã VietQR', true);
     }
   };
 
-  const handleCleanWorkbook = () => {
+  const openWorkbookDoctor = () => {
+    setDoctorData(diagnoseWorkbook(captureHydratedWorkbook()));
+    setModal('workbookDoctor');
+  };
+
+  const handleCleanWorkbook = async () => {
     const ctx = getEditableContext();
-    if (!ctx) return;
+    if (!ctx || !doctorData) throw new Error('Không có sổ tính để dọn');
+    const draft: SheetContent = { kind: 'sheet', workbook: captureHydratedWorkbook(), comments, printSettings };
+    try {
+      const saved = await sourceStorage.saveVersion(meta.id, draft, 'Trước khi tối ưu');
+      setVersions((prev) => [saved, ...prev]);
+    } catch {
+      ui.toast('Chưa lưu được mốc an toàn nên chưa dọn dẹp. Hãy thử lại.', true);
+      throw new Error('snapshot failed');
+    }
+    const activeName = activeSheetName;
+    const { cleaned } = diagnoseWorkbook(draft.workbook);
+    ctx.fWorkbook.dispose();
+    ctx.api.createWorkbook(cleaned as never);
+    recalculateAndBindWorkbook(ctx.api);
+    const restored = ctx.api.getActiveWorkbook()?.getSheetByName(activeName);
+    if (restored) ctx.api.getActiveWorkbook()?.setActiveSheet(restored);
     setSavedStatus('saving');
-    setModal(null);
-    ui.toast('Đã dọn dẹp ô ma và tối ưu hóa sổ tính thành công');
+    setTimeout(() => syncUiFromSelection(), 90);
+    ui.toast('Đã tối ưu sổ tính, mốc "Trước khi tối ưu" nằm trong Lịch sử');
   };
 
   const handleExportQuotes = (resHeaders: string[], resRows: (string | number)[][]) => {
-    const sheet = writeGridToNewSheet('Giá thị trường', [resHeaders, ...resRows], [0]);
+    const sheet = writeGridToNewSheet('Giá thị trường', [resHeaders, ...resRows], [0], [null, null, null, '#,##0.##', '#,##0.##', '0.00%']);
     if (!sheet) return;
     setModal(null);
     ui.toast(`Đã chèn ${resRows.length} mã giá thị trường vào Sheet mới`);
   };
 
   const handleExportChoropleth = (resHeaders: string[], resRows: (string | number)[][]) => {
-    const sheet = writeGridToNewSheet('Phân bổ vùng VN', [resHeaders, ...resRows], [0]);
+    const sheet = writeGridToNewSheet('Phân bổ tỉnh thành', [resHeaders, ...resRows], [0, resRows.length - 3, resRows.length - 2, resRows.length - 1, resRows.length], [null, null, null, '0.0%', '#,##0']);
     if (!sheet) return;
     setModal(null);
-    ui.toast(`Đã xuất báo cáo phân bổ 3 miền vào Sheet mới`);
+    ui.toast(`Đã xuất báo cáo ${resRows.length - 4} tỉnh thành và 3 miền vào Sheet mới`);
+  };
+
+  const openWorkbookDiff = async () => {
+    const sheets = snapshotWorkbook(captureHydratedWorkbook());
+    let versions: DiffVersion[] = [];
+    try {
+      versions = (await listVersions(meta.id))
+        .filter((v) => v.content && 'workbook' in v.content && v.content.workbook)
+        .map((v) => ({ id: v.id, label: v.label, timestamp: v.timestamp, sheets: snapshotWorkbook((v.content as SheetContent).workbook) }));
+    } catch {
+      ui.toast('Không đọc được các bản lưu, chỉ so sánh giữa các trang tính hiện tại', true);
+    }
+    setDiffData({ sheets, versions });
+    setModal('workbookDiff');
   };
 
   const handleExportDiffReport = (resHeaders: string[], resRows: (string | number | boolean | null)[][]) => {
@@ -3131,8 +3180,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
     if (!proTable) return;
     const setVals = new Set(selectedValues);
     const filtered = proTable.rows.filter((r) => {
-      const val = r[colIndex] !== null && r[colIndex] !== undefined ? String(r[colIndex]).trim() : '(Trống)';
-      return setVals.has(val);
+      return setVals.has(slicerKey(r[colIndex]));
     });
     const colName = proTable.headers[colIndex] || `Cột ${colIndex + 1}`;
     const sheet = writeGridToNewSheet(`Lọc ${colName}`, [proTable.headers, ...filtered], [0], proTable.formats);
@@ -4050,7 +4098,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
     if (!newCommentText.trim()) return;
     const cmt: CommentItem = {
       id: `cmt-${Date.now()}`,
-      author: 'Bùi Đăng Minh',
+      author: currentAuthorName(),
       quote: newCommentCell.trim() || activeRangeA1,
       text: newCommentText.trim(),
       createdAt: Date.now(),
@@ -4073,7 +4121,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                 ...(c.replies ?? []),
                 {
                   id: `rep-${Date.now()}`,
-                  author: 'Bùi Đăng Minh',
+                  author: currentAuthorName(),
                   text: replyText.trim(),
                   createdAt: Date.now(),
                 },
@@ -4274,11 +4322,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                     </button>
                     <button
                       className="ribbon-btn-large"
-                      onClick={() => {
-                        const ctx = getActiveContext();
-                        setDoctorSheetNames(ctx ? ctx.fWorkbook.getSheets().map((s) => s.getSheetName()) : []);
-                        setModal('workbookDoctor');
-                      }}
+                      onClick={openWorkbookDoctor}
                       title="Dọn dẹp ô ma và tối ưu hóa dung lượng sổ tính"
                     >
                       <Sparkles size={20} color="#059669" />
@@ -4711,7 +4755,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                       <QrCode size={20} color="#107c41" />
                       <span>Mã VietQR</span>
                     </button>
-                    <button className="ribbon-btn-large" onClick={() => setModal('choropleth')} title="Trực quan hoá bản đồ nhiệt 3 miền Bắc - Trung - Nam">
+                    <button className="ribbon-btn-large" onClick={() => openTableTool('choropleth')} title="Cộng số liệu của bảng đang chọn theo tỉnh thành và 3 miền">
                       <Globe size={20} color="#0284c7" />
                       <span>Bản đồ VN</span>
                     </button>
@@ -5134,12 +5178,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                     </button>
                     <button
                       className="ribbon-btn-large"
-                      onClick={() => {
-                        const ctx = getActiveContext();
-                        const names = ctx ? ctx.fWorkbook.getSheets().map((s) => s.getSheetName()) : [];
-                        setDoctorSheetNames(names);
-                        setModal('workbookDiff');
-                      }}
+                      onClick={() => void openWorkbookDiff()}
                       title="So sánh sự khác biệt giữa hai trang tính hoặc bản lưu"
                     >
                       <GitCompare size={20} color="#ea580c" />
@@ -6459,8 +6498,8 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
 
       {modal === 'signature' && (
         <SignatureStampModal
-          defaultSigner={printSettings.signedBy ?? 'Bùi Đăng Minh'}
-          defaultRole={printSettings.signedRole ?? 'Giám đốc · Công ty Minh Spark'}
+          defaultSigner={printSettings.signedBy ?? currentAuthorName()}
+          defaultRole={printSettings.signedRole ?? 'Giám đốc'}
           onEmbedSignature={handleEmbedSignature}
           onSignAndSavePdf={handleSignAndSavePdf}
           onClose={() => setModal(null)}
@@ -6658,7 +6697,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
 
       {modal === 'vietqr' && (
         <VietQrModal
-          onInsertQr={handleInsertVietQr}
+          onInsertQr={(card) => void handleInsertVietQr(card)}
           onClose={() => setModal(null)}
         />
       )}
@@ -6689,10 +6728,10 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
         />
       )}
 
-      {modal === 'workbookDoctor' && (
+      {modal === 'workbookDoctor' && doctorData && (
         <WorkbookDoctorModal
-          sheetNames={doctorSheetNames}
-          onCleanWorkbook={handleCleanWorkbook}
+          health={doctorData.health}
+          onClean={handleCleanWorkbook}
           onClose={() => setModal(null)}
         />
       )}
@@ -6704,25 +6743,28 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
         />
       )}
 
-      {modal === 'choropleth' && (
-        <VietnamChoroplethModal
+      {modal === 'choropleth' && proTable && (
+        <VietnamMapModal
+          headers={proTable.headers}
+          rows={proTable.rows}
+          numericColumns={proTable.numericColumns}
           onExportReport={handleExportChoropleth}
           onClose={() => setModal(null)}
         />
       )}
 
-      {modal === 'workbookDiff' && (
+      {modal === 'workbookDiff' && diffData && (
         <WorkbookDiffModal
-          sheetNames={doctorSheetNames.length ? doctorSheetNames : [activeSheetName]}
+          sheets={diffData.sheets}
+          versions={diffData.versions}
           activeSheetName={activeSheetName}
-          rows={proTable?.rows ?? []}
           onExportDiffReport={handleExportDiffReport}
           onClose={() => setModal(null)}
         />
       )}
 
       {modal === 'pythonSandbox' && proTable && (
-        <PythonSheetModal
+        <PythonSandboxModal
           headers={proTable.headers}
           rows={proTable.rows}
           onExportPythonResult={handleExportPythonResult}

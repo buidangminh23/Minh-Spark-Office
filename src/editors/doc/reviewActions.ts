@@ -1,6 +1,6 @@
 import type { Editor } from '@tiptap/core';
 import type { DocCtx, ViewState } from './DocContext';
-import { AUTHOR } from './DocContext';
+import { currentAuthor } from './DocContext';
 import { sha256 } from './docTools';
 import { LOCK_META } from './extReview';
 import { collectChanges, type TrackedChange } from './trackChanges';
@@ -152,7 +152,7 @@ export function setLocked(ctx: DocCtx, locked: boolean, wholeDoc = false) {
   const visit = (node: import('@tiptap/pm/model').Node, pos: number) => {
     if (!BLOCKS.includes(node.type.name)) return true;
     if (Boolean(node.attrs.locked) !== locked) {
-      tr.setNodeMarkup(pos, undefined, { ...node.attrs, locked: locked ? AUTHOR : null });
+      tr.setNodeMarkup(pos, undefined, { ...node.attrs, locked: locked ? currentAuthor() : null });
       count += 1;
     }
     return false;

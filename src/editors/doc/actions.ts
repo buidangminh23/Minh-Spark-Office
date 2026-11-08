@@ -5,7 +5,7 @@ import { importDocxFull } from '../../lib/docxImport';
 import { flattenForExport } from './docFlatten';
 import { downloadBlob, pickFile, readAsDataUrl } from '../../lib/download';
 import { type FileMeta, type PageSettings } from '../../lib/storage';
-import { AUTHOR, newId, type DocCtx } from './DocContext';
+import { currentAuthor, newId, type DocCtx } from './DocContext';
 import { jsonText, sha256, splitByHeading, transformCase, type CaseMode } from './docTools';
 
 const baseName = (ctx: DocCtx) => ctx.title.replace(/\.[^/.]+$/, '') || 'Tai-lieu';
@@ -105,7 +105,7 @@ export const addComment = async (ctx: DocCtx) => {
   if (!text) return;
   const id = newId('c');
   if (!empty) editor.chain().focus().setTextSelection({ from, to }).setComment(id).run();
-  ctx.setComments((items) => [{ id, author: AUTHOR, text, createdAt: Date.now(), resolved: false, quote: empty ? undefined : editor.state.doc.textBetween(from, to, ' ').slice(0, 200), replies: [] }, ...items]);
+  ctx.setComments((items) => [{ id, author: currentAuthor(), text, createdAt: Date.now(), resolved: false, quote: empty ? undefined : editor.state.doc.textBetween(from, to, ' ').slice(0, 200), replies: [] }, ...items]);
   ctx.setView({ sidePanel: 'comments' });
   ctx.setActiveCommentId(id);
   ctx.markDirty();

@@ -1,10 +1,11 @@
-import { AlignCenter, AlignLeft, AlignRight, ArrowDownAZ, ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, ArrowUpToLine, ChevronDown, Columns2, Crop, FileText, Frame, Image as ImageIcon, Merge, PaintBucket, Replace, Rows2, Settings2, Sigma, SplitSquareHorizontal, Table as TableIcon, Trash2, Type, UnfoldHorizontal } from 'lucide-react';
+import { AlignCenter, AlignLeft, AlignRight, ArrowDownAZ, ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, ArrowUpToLine, ChevronDown, Columns2, Crop, FileText, Frame, Image as ImageIcon, Merge, PaintBucket, Replace, Rows2, Settings2, Sigma, SplitSquareHorizontal, Table as TableIcon, Trash2, Type, UnfoldHorizontal, WrapText } from 'lucide-react';
 import { useDoc } from '../../DocContext';
 import type { FormatState } from '../../useFormatState';
 import { imageSettings } from '../../actions';
 import { distributeColumns, insertTableFormula, sortTable, tableToText } from '../../actionsExtra';
 import { pickFile, readAsDataUrl } from '../../../../lib/download';
 import { Big, ColorPicker, Dropdown, Group, MenuItem, Rows, Small } from '../RibbonParts';
+import { setWrap, WRAP_LABELS, wrapOf, type WrapKind } from '../../layoutObjects';
 
 const TABLE_STYLES = [
   { id: 'grid', label: 'Lưới' }, { id: 'plain', label: 'Không viền' }, { id: 'lines', label: 'Chỉ kẻ ngang' }, { id: 'striped', label: 'Sọc hàng' },
@@ -71,8 +72,15 @@ export function TableTab({ fmt }: { fmt: FormatState }) {
 export function ImageTab() {
   const ctx = useDoc();
   const chain = () => ctx.editor.chain().focus();
-  const align = String(ctx.editor.getAttributes('image').align ?? 'inline');
-  const frame = String(ctx.editor.getAttributes('image').frame ?? '');
+  const imageAttrs = ctx.editor.getAttributes('image');
+  const align = String(imageAttrs.align ?? 'inline');
+  const frame = String(imageAttrs.frame ?? '');
+  const wrap = wrapOf(imageAttrs);
+  const floating = wrap === 'front' || wrap === 'behind';
+  const placeInFlow = (next: 'left' | 'center' | 'right') => {
+    if (floating) setWrap(ctx, 'inline');
+    chain().setImageLayout({ align: next }).run();
+  };
   const replaceImage = async () => {
     const file = await pickFile('image/*');
     if (!file) return;
@@ -90,10 +98,18 @@ export function ImageTab() {
   return (
     <>
       <Group label="Sắp xếp">
-        <Small icon={<Type size={14} />} label="Cùng dòng" title="Ảnh nằm cùng dòng chữ" active={align === 'inline'} onClick={() => chain().setImageLayout({ align: 'inline' }).run()} />
-        <Small icon={<AlignLeft size={14} />} label="Trái" title="Ảnh bên trái, chữ bao quanh" active={align === 'left'} onClick={() => chain().setImageLayout({ align: 'left' }).run()} />
-        <Small icon={<AlignCenter size={14} />} label="Giữa" title="Ảnh giữa trang" active={align === 'center'} onClick={() => chain().setImageLayout({ align: 'center' }).run()} />
-        <Small icon={<AlignRight size={14} />} label="Phải" title="Ảnh bên phải, chữ bao quanh" active={align === 'right'} onClick={() => chain().setImageLayout({ align: 'right' }).run()} />
+        <Small icon={<Type size={14} />} label="Cùng dòng" title="Ảnh nằm cùng dòng chữ, kéo để đổi chỗ trong dòng" active={wrap === 'inline'} onClick={() => setWrap(ctx, 'inline')} />
+        <Small icon={<AlignLeft size={14} />} label="Trái" title="Ảnh bên trái, chữ bao quanh" active={!floating && align === 'left'} onClick={() => placeInFlow('left')} />
+        <Small icon={<AlignCenter size={14} />} label="Giữa" title="Ảnh giữa trang" active={!floating && align === 'center'} onClick={() => placeInFlow('center')} />
+        <Small icon={<AlignRight size={14} />} label="Phải" title="Ảnh bên phải, chữ bao quanh" active={!floating && align === 'right'} onClick={() => placeInFlow('right')} />
+      </Group>
+      <Group label="Bố cục">
+        <Big icon={<WrapText size={22} color="#7c3aed" />} label="Kéo tự do" title="Đặt ảnh trước chữ để kéo tới bất kỳ chỗ nào trên trang" active={wrap === 'front'} onClick={() => setWrap(ctx, 'front')} />
+        <Dropdown large title="Cách chữ bao quanh ảnh. Chọn Trước chữ hoặc Sau chữ để kéo ảnh tự do trên trang" trigger={<><WrapText size={22} color="#2b579a" /><span>Bao chữ</span></>} width={250}>
+          {(close) => (Object.keys(WRAP_LABELS) as WrapKind[]).map((kind) => (
+            <MenuItem key={kind} label={kind === 'front' || kind === 'behind' ? `${WRAP_LABELS[kind]} (kéo tự do)` : WRAP_LABELS[kind]} active={wrap === kind} onClick={() => { close(); setWrap(ctx, kind); }} />
+          ))}
+        </Dropdown>
       </Group>
       <Group label="Kích thước">
         {['25%', '50%', '75%', '100%'].map((w) => <Small key={w} icon={<ImageIcon size={14} />} label={w} title={`Rộng ${w} khổ trang`} onClick={() => chain().setImageLayout({ width: w }).run()} />)}

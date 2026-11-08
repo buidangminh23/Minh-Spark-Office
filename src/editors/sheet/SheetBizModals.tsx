@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useCallback, useState, useMemo } from 'react';
 import {
   QrCode,
   Sparkles,
@@ -12,13 +12,12 @@ import {
   Filter,
   RefreshCw,
   MapPin,
-  Play,
   FileSpreadsheet,
 } from 'lucide-react';
 import { ProDialog } from './SheetProModals';
+import { VietQrPanel } from '../../components/VietQrPanel';
+import type { VietQrCard } from '../../lib/vietQrCard';
 import {
-  VIETNAMESE_BANKS,
-  generateVietQrUrl,
   fuzzyMatch,
   runSheetSql,
   type SheetSqlResult,
@@ -28,151 +27,33 @@ import {
 // 1. VIETQR MODAL
 // -------------------------------------------------------------
 export function VietQrModal({
-  initialAmount,
   onInsertQr,
   onClose,
 }: {
-  initialAmount?: number;
-  onInsertQr: (url: string, altText: string) => void;
+  onInsertQr: (card: VietQrCard) => void;
   onClose: () => void;
 }) {
-  const [bankBin, setBankBin] = useState('970436'); // Vietcombank default
-  const [accountNumber, setAccountNumber] = useState('');
-  const [accountName, setAccountName] = useState('');
-  const [amount, setAmount] = useState<string>(initialAmount ? String(initialAmount) : '');
-  const [memo, setMemo] = useState('');
-  const [template, setTemplate] = useState<'compact2' | 'compact' | 'qr_only' | 'print'>('compact2');
-
-  const previewUrl = useMemo(() => {
-    if (!accountNumber.trim()) return '';
-    return generateVietQrUrl({
-      bankBin,
-      accountNumber,
-      accountName,
-      amount: amount ? Number(amount) : undefined,
-      memo,
-      template,
-    });
-  }, [bankBin, accountNumber, accountName, amount, memo, template]);
-
-  const handleApply = () => {
-    if (!previewUrl) return;
-    const bankObj = VIETNAMESE_BANKS.find((b) => b.bin === bankBin);
-    const alt = `VietQR - ${bankObj?.shortName ?? ''} ${accountNumber} ${amount ? `${Number(amount).toLocaleString('vi-VN')} VND` : ''}`.trim();
-    onInsertQr(previewUrl, alt);
-    onClose();
-  };
+  const [card, setCard] = useState<VietQrCard | null>(null);
+  const keepCard = useCallback((next: VietQrCard | null) => setCard(next), []);
 
   return (
     <ProDialog
       title="Tạo mã VietQR chuyển khoản (NAPAS 247)"
-      subtitle="Tự động sinh mã QR thanh toán chuẩn ngân hàng chèn vào bảng tính hoặc phiếu in"
-      width={600}
+      subtitle="Mã QR thanh toán chuẩn ngân hàng, chèn thành ảnh vào ô đang chọn"
+      width={620}
       onClose={onClose}
       actions={
         <>
           <button className="btn" onClick={onClose}>
             Hủy
           </button>
-          <button className="btn btn-primary" onClick={handleApply} disabled={!previewUrl}>
-            <QrCode size={16} /> Chèn VietQR vào ô
+          <button className="btn btn-primary" onClick={() => card && onInsertQr(card)} disabled={!card}>
+            <QrCode size={16} /> Chèn mã QR vào trang tính
           </button>
         </>
       }
     >
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 220px', gap: 16 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <label className="input-group">
-            <span className="input-label">Ngân hàng thụ hưởng</span>
-            <select
-              value={bankBin}
-              onChange={(e) => setBankBin(e.target.value)}
-              className="select-input"
-              style={{ width: '100%', padding: '6px 8px' }}
-            >
-              {VIETNAMESE_BANKS.map((b) => (
-                <option key={b.bin} value={b.bin}>
-                  {b.shortName} - {b.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="input-group">
-            <span className="input-label">Số tài khoản nhận</span>
-            <input
-              type="text"
-              placeholder="Ví dụ: 0011002233445"
-              value={accountNumber}
-              onChange={(e) => setAccountNumber(e.target.value)}
-              style={{ width: '100%', padding: '6px 8px' }}
-            />
-          </label>
-
-          <label className="input-group">
-            <span className="input-label">Tên chủ tài khoản (không dấu)</span>
-            <input
-              type="text"
-              placeholder="Ví dụ: NGUYEN VAN A"
-              value={accountName}
-              onChange={(e) => setAccountName(e.target.value)}
-              style={{ width: '100%', padding: '6px 8px' }}
-            />
-          </label>
-
-          <label className="input-group">
-            <span className="input-label">Số tiền (VND)</span>
-            <input
-              type="number"
-              placeholder="Để trống nếu không cố định số tiền"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              style={{ width: '100%', padding: '6px 8px' }}
-            />
-          </label>
-
-          <label className="input-group">
-            <span className="input-label">Nội dung chuyển khoản (Memo)</span>
-            <input
-              type="text"
-              placeholder="Ví dụ: Thanh toan HD 102"
-              value={memo}
-              onChange={(e) => setMemo(e.target.value)}
-              style={{ width: '100%', padding: '6px 8px' }}
-            />
-          </label>
-
-          <label className="input-group">
-            <span className="input-label">Kiểu khung QR</span>
-            <select
-              value={template}
-              onChange={(e) => setTemplate(e.target.value as any)}
-              className="select-input"
-              style={{ width: '100%', padding: '6px 8px' }}
-            >
-              <option value="compact2">Khung hiện đại (Compact 2 - Có logo & số TK)</option>
-              <option value="compact">Khung tiêu chuẩn (Compact)</option>
-              <option value="qr_only">Chỉ mã QR (Không viền)</option>
-              <option value="print">Bản in hóa đơn (Print)</option>
-            </select>
-          </label>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', padding: 8 }}>
-          {previewUrl ? (
-            <img
-              src={previewUrl}
-              alt="VietQR Preview"
-              style={{ maxWidth: '100%', maxHeight: 240, objectFit: 'contain', borderRadius: 4 }}
-            />
-          ) : (
-            <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, padding: 20 }}>
-              <QrCode size={40} style={{ opacity: 0.3, marginBottom: 8 }} />
-              <div>Nhập số tài khoản để xem trước mã QR</div>
-            </div>
-          )}
-        </div>
-      </div>
+      <VietQrPanel onCard={keepCard} />
     </ProDialog>
   );
 }
@@ -188,7 +69,7 @@ export function DataCleaningModal({
 }: {
   headers: string[];
   rows: (string | number | boolean | null)[][];
-  onApplyCleaned: (cleanedHeaders: string[], cleanedRows: (string | number | boolean | null)[][]) => void;
+  onApplyCleaned: (cleanedHeaders: string[], cleanedRows: (string | number | boolean | null)[][], columnSources: number[]) => void;
   onClose: () => void;
 }) {
   const [activeTab, setActiveTab] = useState<'dedup' | 'normalize' | 'split'>('dedup');
@@ -230,8 +111,7 @@ export function DataCleaningModal({
       seen.add(key);
       return true;
     });
-    onApplyCleaned(headers, newRows);
-    onClose();
+    onApplyCleaned(headers, newRows, headers.map((_, i) => i));
   };
 
   const handleApplyNormalize = () => {
@@ -255,8 +135,7 @@ export function DataCleaningModal({
         return s;
       })
     );
-    onApplyCleaned(headers, newRows);
-    onClose();
+    onApplyCleaned(headers, newRows, headers.map((_, i) => i));
   };
 
   const handleApplySplit = () => {
@@ -286,8 +165,12 @@ export function DataCleaningModal({
       return copy;
     });
 
-    onApplyCleaned(newHeaders, newRows);
-    onClose();
+    const sources = [
+      ...headers.slice(0, splitColIdx).map((_, i) => i),
+      ...insertHeaders.map(() => -1),
+      ...headers.slice(splitColIdx + 1).map((_, i) => splitColIdx + 1 + i),
+    ];
+    onApplyCleaned(newHeaders, newRows, sources);
   };
 
   return (
@@ -302,7 +185,7 @@ export function DataCleaningModal({
             Hủy
           </button>
           {activeTab === 'dedup' && (
-            <button className="btn btn-primary" onClick={handleApplyDedup}>
+            <button className="btn btn-primary" onClick={handleApplyDedup} disabled={!selectedCols.some(Boolean) || duplicateInfo.dupCount === 0} title={selectedCols.some(Boolean) ? undefined : 'Hãy chọn ít nhất một cột để so trùng'}>
               Xóa {duplicateInfo.dupCount} dòng trùng lặp
             </button>
           )}
@@ -603,7 +486,7 @@ export function SheetSqlModal({
   onExportQueryResults: (resHeaders: string[], resRows: (string | number | boolean | null)[][]) => void;
   onClose: () => void;
 }) {
-  const [query, setQuery] = useState(`SELECT * WHERE ${headers[0] ?? 'Col'} IS NOT NULL LIMIT 20`);
+  const [query, setQuery] = useState(`SELECT * WHERE "${headers[0] ?? 'Col'}" IS NOT NULL LIMIT 20`);
   const [result, setResult] = useState<SheetSqlResult | null>(null);
 
   const handleRun = () => {
@@ -620,7 +503,7 @@ export function SheetSqlModal({
   return (
     <ProDialog
       title="Truy vấn dữ liệu bằng SQL (In-Sheet SQL Engine)"
-      subtitle="Chạy câu lệnh SELECT, WHERE, ORDER BY, LIMIT trực tiếp trên bảng tính"
+      subtitle="SELECT, WHERE (AND/OR, LIKE, IS NULL), GROUP BY với SUM/COUNT/AVG/MIN/MAX, ORDER BY, LIMIT"
       width={680}
       onClose={onClose}
       actions={
@@ -649,9 +532,18 @@ export function SheetSqlModal({
           ))}
         </div>
 
+        <div style={{ fontSize: 12, color: '#64748b' }}>
+          Tên cột có dấu cách thì đặt trong ngoặc kép, ví dụ <code>"Số tiền"</code>. Chuỗi đặt trong nháy đơn, ví dụ <code>'Hà Nội'</code>. Ctrl+Enter để chạy.
+        </div>
         <textarea
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+              e.preventDefault();
+              handleRun();
+            }
+          }}
           rows={3}
           style={{ width: '100%', fontFamily: 'Consolas, monospace', fontSize: 13, padding: 8, borderRadius: 6, border: '1px solid #cbd5e1' }}
         />
@@ -1421,241 +1313,13 @@ export function WorkbookDiffModal({
 }
 
 // -------------------------------------------------------------
-// 9. PYTHON SHEET MODAL (Python in Sheet Sandbox)
-// -------------------------------------------------------------
-export function PythonSheetModal({
-  headers,
-  rows,
-  onExportPythonResult,
-  onClose,
-}: {
-  headers: string[];
-  rows: (string | number | boolean | null)[][];
-  onExportPythonResult: (headers: string[], rows: (string | number | boolean | null)[][]) => void;
-  onClose: () => void;
-}) {
-  const [code, setCode] = useState<string>(
-    `# Python in Sheet Sandbox\n# Biến 'df' chứa dữ liệu bảng hiện tại (${rows.length} hàng, ${headers.length} cột)\n\n# Thống kê mô tả các cột số\nresult = df.describe()`
-  );
-  const [logs, setLogs] = useState<string[]>([
-    `[Pyodide Ready] Môi trường Python 3.11 Sandbox đã nạp sẵn`,
-    `[Data Loaded] Đã nạp DataFrame 'df' (${rows.length} dòng x ${headers.length} cột)`,
-  ]);
-  const [outputTable, setOutputTable] = useState<{
-    headers: string[];
-    rows: (string | number)[][];
-  } | null>(null);
-
-  const setSnippet = (type: 'describe' | 'groupby' | 'sort' | 'filter') => {
-    const numCol = headers.find((_, i) => rows.some((r) => typeof r[i] === 'number')) || headers[1] || 'DoanhThu';
-    const catCol = headers[0] || 'Nhom';
-
-    if (type === 'describe') {
-      setCode(`# Thống kê mô tả số liệu\nresult = df.describe()`);
-    } else if (type === 'groupby') {
-      setCode(`# Gom nhóm theo cột '${catCol}' và tính tổng\nresult = df.groupby('${catCol}').sum()`);
-    } else if (type === 'sort') {
-      setCode(`# Sắp xếp giảm dần theo cột '${numCol}'\nresult = df.sort_values(by='${numCol}', ascending=False)`);
-    } else if (type === 'filter') {
-      setCode(`# Lọc các dòng có '${numCol}' > 0\nresult = df[df['${numCol}'] > 0]`);
-    }
-  };
-
-  const handleRun = () => {
-    const newLogs = [...logs, `>>> Chạy script Python: ${new Date().toLocaleTimeString('vi-VN')}`];
-
-    if (code.includes('describe')) {
-      const numCols = headers.filter((_, i) => rows.some((r) => typeof r[i] === 'number'));
-      const targetCols = numCols.length > 0 ? numCols : headers.slice(1, 4);
-
-      const resHeaders = ['Chỉ số (Stat)', ...targetCols];
-      const stats = ['count', 'mean', 'std', 'min', '25%', '50%', '75%', 'max'];
-      const resRows: (string | number)[][] = stats.map((st) => {
-        const rowVals: (string | number)[] = [st];
-        targetCols.forEach((col) => {
-          const cIdx = headers.indexOf(col);
-          const vals = rows.map((r) => r[cIdx]).filter((v): v is number => typeof v === 'number');
-          if (vals.length === 0) {
-            rowVals.push(0);
-            return;
-          }
-          if (st === 'count') rowVals.push(vals.length);
-          else if (st === 'mean') rowVals.push(Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 100) / 100);
-          else if (st === 'min') rowVals.push(Math.min(...vals));
-          else if (st === 'max') rowVals.push(Math.max(...vals));
-          else rowVals.push(Math.round(vals[0] * 0.95));
-        });
-        return rowVals;
-      });
-
-      setOutputTable({ headers: resHeaders, rows: resRows });
-      newLogs.push(`>>> Thành công: DataFrame kết quả gồm ${resRows.length} dòng x ${resHeaders.length} cột.`);
-    } else if (code.includes('groupby')) {
-      const groupCol = headers[0];
-      const map = new Map<string, number>();
-      rows.forEach((r) => {
-        const key = String(r[0] ?? 'Khác');
-        const num = typeof r[1] === 'number' ? r[1] : 1;
-        map.set(key, (map.get(key) || 0) + num);
-      });
-      const resHeaders = [groupCol, 'Tổng cộng (Sum)'];
-      const resRows: (string | number)[][] = Array.from(map.entries()).map(([k, v]) => [k, v]);
-      setOutputTable({ headers: resHeaders, rows: resRows });
-      newLogs.push(`>>> Gom nhóm theo '${groupCol}': ${resRows.length} nhóm được tổng hợp.`);
-    } else {
-      // Default / Filter / Sort
-      setOutputTable({
-        headers: headers,
-        rows: rows.slice(0, 8).map((r) => r.map((c) => (c === null ? '' : typeof c === 'boolean' ? String(c) : c))),
-      });
-      newLogs.push(`>>> Đã thực thi biến đổi DataFrame: ${Math.min(rows.length, 8)} dòng kết quả.`);
-    }
-
-    setLogs(newLogs);
-  };
-
-  const handleExport = () => {
-    if (!outputTable) return;
-    onExportPythonResult(outputTable.headers, outputTable.rows);
-    onClose();
-  };
-
-  return (
-    <ProDialog
-      title="Python Sandbox trong Sheet (Python in Spreadsheet)"
-      subtitle="Viết và chạy mã Python (pandas, numpy) xử lý trực tiếp bảng tính trong môi trường WebAssembly"
-      width={760}
-      onClose={onClose}
-      actions={
-        <>
-          <button className="btn" onClick={onClose}>
-            Đóng
-          </button>
-          <button className="btn btn-primary" onClick={handleExport} disabled={!outputTable}>
-            <FileSpreadsheet size={15} /> Xuất DataFrame kết quả ra Sheet mới
-          </button>
-        </>
-      }
-    >
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-        {/* Cột soạn thảo code */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>Mẫu lệnh nhanh:</span>
-            <div style={{ display: 'flex', gap: 4 }}>
-              <button className="btn btn-sm" onClick={() => setSnippet('describe')}>describe()</button>
-              <button className="btn btn-sm" onClick={() => setSnippet('groupby')}>groupby()</button>
-              <button className="btn btn-sm" onClick={() => setSnippet('sort')}>sort()</button>
-              <button className="btn btn-sm" onClick={() => setSnippet('filter')}>filter()</button>
-            </div>
-          </div>
-
-          <textarea
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            style={{
-              width: '100%',
-              height: 200,
-              fontFamily: 'Consolas, Monaco, monospace',
-              fontSize: 12,
-              background: '#0f172a',
-              color: '#38bdf8',
-              padding: 10,
-              borderRadius: 6,
-              border: '1px solid #1e293b',
-              lineHeight: 1.5,
-              resize: 'none',
-            }}
-          />
-
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={handleRun}
-            style={{ alignSelf: 'flex-start' }}
-          >
-            <Play size={14} /> Chạy mã Python (Execute)
-          </button>
-
-          {/* Console logs */}
-          <div
-            style={{
-              background: '#1e293b',
-              color: '#94a3b8',
-              fontFamily: 'monospace',
-              fontSize: 11,
-              padding: 8,
-              borderRadius: 6,
-              height: 90,
-              overflowY: 'auto',
-            }}
-          >
-            {logs.map((l, i) => (
-              <div key={i} style={{ color: l.includes('Thành công') ? '#4ade80' : l.includes('>>>') ? '#facc15' : '#94a3b8' }}>
-                {l}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Cột xem trước kết quả */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>
-            Kết quả DataFrame {outputTable ? `(${outputTable.rows.length} dòng)` : ''}
-          </div>
-
-          {outputTable ? (
-            <div style={{ maxHeight: 330, overflow: 'auto', border: '1px solid #e2e8f0', borderRadius: 6 }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-                <thead>
-                  <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                    {outputTable.headers.map((h, i) => (
-                      <th key={i} style={{ padding: '6px 8px', textAlign: i === 0 ? 'left' : 'right', fontWeight: 600 }}>
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {outputTable.rows.map((row, rIdx) => (
-                    <tr key={rIdx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                      {row.map((cell, cIdx) => (
-                        <td key={cIdx} style={{ padding: '6px 8px', textAlign: cIdx === 0 ? 'left' : 'right' }}>
-                          {typeof cell === 'number' ? cell.toLocaleString('vi-VN') : String(cell)}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div
-              style={{
-                height: 330,
-                border: '2px dashed #cbd5e1',
-                borderRadius: 6,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#94a3b8',
-                fontSize: 13,
-                textAlign: 'center',
-                padding: 16,
-              }}
-            >
-              Bấm nút "Chạy mã Python" để xem cấu trúc DataFrame kết quả
-            </div>
-          )}
-        </div>
-      </div>
-    </ProDialog>
-  );
-}
-
-// -------------------------------------------------------------
 // 10. TABLE SLICER MODAL (Slicer lọc bảng trực quan)
 // -------------------------------------------------------------
+export const slicerKey = (value: unknown) => {
+  const text = value === null || value === undefined ? '' : String(value).trim();
+  return text || '(Trống)';
+};
+
 export function TableSlicerModal({
   headers,
   rows,
@@ -1673,8 +1337,8 @@ export function TableSlicerModal({
   const uniqueItems = useMemo(() => {
     const counts = new Map<string, number>();
     rows.forEach((r) => {
-      const val = r[selectedCol] !== null && r[selectedCol] !== undefined ? String(r[selectedCol]).trim() : '(Trống)';
-      if (val) counts.set(val, (counts.get(val) || 0) + 1);
+      const val = slicerKey(r[selectedCol]);
+      counts.set(val, (counts.get(val) || 0) + 1);
     });
     return Array.from(counts.entries()).map(([value, count]) => ({ value, count }));
   }, [rows, selectedCol]);
@@ -1693,7 +1357,7 @@ export function TableSlicerModal({
 
   const matchedCount = useMemo(() => {
     return rows.filter((r) => {
-      const val = r[selectedCol] !== null && r[selectedCol] !== undefined ? String(r[selectedCol]).trim() : '(Trống)';
+      const val = slicerKey(r[selectedCol]);
       return selectedValues.has(val);
     }).length;
   }, [rows, selectedCol, selectedValues]);
@@ -1731,8 +1395,8 @@ export function TableSlicerModal({
               // Tự chọn tất cả giá trị mới
               const counts = new Map<string, number>();
               rows.forEach((r) => {
-                const val = r[col] !== null && r[col] !== undefined ? String(r[col]).trim() : '(Trống)';
-                if (val) counts.set(val, 1);
+                const val = slicerKey(r[col]);
+                counts.set(val, 1);
               });
               setSelectedValues(new Set(counts.keys()));
             }}

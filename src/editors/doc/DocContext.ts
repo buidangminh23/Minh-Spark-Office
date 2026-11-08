@@ -1,3 +1,4 @@
+import { currentAuthorName } from '../../lib/currentAuthor';
 import { createContext, useContext } from 'react';
 import type { Editor } from '@tiptap/react';
 import type { CommentItem, FileMeta, PageSettings, WorkspaceStorage } from '../../lib/storage';
@@ -102,5 +103,5 @@ export const useDoc = () => {
   return value;
 };
 
-export const AUTHOR = 'Minh Spark';
+export const currentAuthor = () => currentAuthorName();
 export const newId = (prefix: string) => `${prefix}_${Math.random().toString(36).slice(2, 9)}`;

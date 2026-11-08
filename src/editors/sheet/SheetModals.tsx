@@ -38,6 +38,7 @@ import {
   type PivotAggFn,
   type SheetAnalysisResult,
 } from './sheetUtils';
+import { currentAuthorName } from '../../lib/currentAuthor';
 
 export interface DefinedNameEntry {
   id: string;
@@ -1010,8 +1011,8 @@ export function SignatureStampModal({
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const drawingRef = useRef(false);
-  const [signer, setSigner] = useState(defaultSigner || 'Bùi Đăng Minh');
-  const [role, setRole] = useState(defaultRole || 'Giám đốc · Công ty Minh Spark');
+  const [signer, setSigner] = useState(defaultSigner || currentAuthorName());
+  const [role, setRole] = useState(defaultRole || 'Giám đốc');
   const [inkColor, setInkColor] = useState('#b91c1c');
   const [includeStampBox, setIncludeStampBox] = useState(true);
   const [hasStrokes, setHasStrokes] = useState(false);
@@ -1172,7 +1173,7 @@ export function SignatureStampModal({
 
         <label className="check-field">
           <input type="checkbox" checked={includeStampBox} onChange={(e) => setIncludeStampBox(e.target.checked)} />
-          <span>Đóng khung mộc đỏ xác thực chữ ký số Minh Spark</span>
+          <span>Đóng khung mộc đỏ quanh chữ ký</span>
         </label>
 
         <div className="dialog-actions">

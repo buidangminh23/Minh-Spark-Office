@@ -23,7 +23,7 @@ import { editNodeAt } from './actionsExtra';
 import { EQUATION_OPEN_DIALOG } from './equationInline';
 import { SearchAndReplace } from './search';
 import { DeletionMark, InsertionMark, TrackChanges } from './trackChanges';
-import { DocContext, AUTHOR, type DialogId, type DocCtx, type EditingNode, type MergeData, type ViewState } from './DocContext';
+import { DocContext, currentAuthor, type DialogId, type DocCtx, type EditingNode, type MergeData, type ViewState } from './DocContext';
 import { useFormatState } from './useFormatState';
 import { ensureFont, ensureFontsInJson } from './fonts';
 import { useDictation, useReadAloud } from './useSpeech';
@@ -206,7 +206,7 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
       SearchAndReplace,
       InsertionMark,
       DeletionMark,
-      TrackChanges.configure({ author: AUTHOR }),
+      TrackChanges.configure({ author: currentAuthor() }),
       ...INSERT_EXTENSIONS,
       ...LAYOUT_EXTENSIONS,
       ...REVIEW_EXTENSIONS,

@@ -100,7 +100,7 @@ export function SlideShow({
   const [isQaDrawerOpen, setIsQaDrawerOpen] = useState(false);
   const [pinnedQuestion, setPinnedQuestion] = useState<string | null>(null);
   const [qaList, setQaList] = useState<Array<{ id: string; text: string; votes: number }>>([
-    { id: 'qa_1', text: 'Sếp cho hỏi lộ trình tích hợp AI offline trong các tháng tới?', votes: 14 },
+    { id: 'qa_1', text: 'Cho hỏi lộ trình tích hợp AI offline trong các tháng tới?', votes: 14 },
     { id: 'qa_2', text: 'Hệ sinh thái Minh Spark Office có hỗ trợ đồng bộ đa thiết bị không?', votes: 9 },
     { id: 'qa_3', text: 'Chính sách bảo mật dữ liệu doanh nghiệp hoạt động thế nào?', votes: 6 },
   ]);

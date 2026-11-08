@@ -53,6 +53,7 @@ import {
 import { downloadBlob } from '../../lib/download';
 import { useUi } from '../../components/ui';
 import { useDocumentCloser } from '../../lib/documentCloser';
+import { currentAuthorName } from '../../lib/currentAuthor';
 
 interface PdfEditorProps {
   meta: FileMeta;
@@ -99,15 +100,7 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showComments, setShowComments] = useState(false);
 
-  const [comments, setComments] = useState<CommentItem[]>(content.comments || [
-    {
-      id: 'cmt-pdf-1',
-      author: 'Sếp Bùi Đăng Minh',
-      text: 'Văn bản PDF đã được kiểm duyệt chữ ký số. Cần chuẩn hoá định dạng trang trước khi ban hành.',
-      createdAt: Date.now() - 3600000,
-      resolved: false,
-    },
-  ]);
+  const [comments, setComments] = useState<CommentItem[]>(content.comments || []);
   const [newCommentText, setNewCommentText] = useState('');
 
   const signCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -193,7 +186,7 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
     if (!newCommentText.trim()) return;
     const newCmt: CommentItem = {
       id: `cmt-${Date.now()}`,
-      author: 'Sếp Bùi Đăng Minh',
+      author: currentAuthorName(),
       text: newCommentText.trim(),
       createdAt: Date.now(),
       resolved: false,
@@ -307,7 +300,7 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
         </div>
       </header>
 
-      {/* Ribbon Bar (Authentic WPS PDF Style - 1:1 theo ảnh của sếp) */}
+      {/* Ribbon Bar */}
       <div className="ribbon" style={{ borderBottom: '1px solid #dce1e8' }}>
         {/* Top Tabs */}
         <div className="ribbon-tabs-bar">
@@ -361,7 +354,7 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
           </div>
         </div>
 
-        {/* Ribbon Body: 5 Groups 1:1 theo ảnh của sếp */}
+        {/* Ribbon Body */}
         <div className="ribbon-body">
           {activeTab === 'minh_pdf' && (
             <>
@@ -736,7 +729,7 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
               >
                 ✔ ĐÃ KÝ SỐ
               </div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#0f172a' }}>Bùi Đăng Minh</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#0f172a' }}>{currentAuthorName()}</div>
             </div>
           </div>
         </div>
@@ -1115,7 +1108,7 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
                 marginBottom: 16,
               }}
             >
-              {`CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM\nĐộc lập – Tự do – Hạnh phúc\n\n${title.replace(/\.[^/.]+$/, '')}\n\nKính gửi: Ban Giám đốc và các đơn vị phòng ban liên quan.\nCăn cứ theo kế hoạch phát triển giải pháp văn phòng số nội bộ Minh Spark Office, văn bản PDF này đã được biên soạn, kiểm duyệt và đóng dấu chữ ký điện tử an toàn tuyệt đối.\n\nNgười ký: Bùi Đăng Minh`}
+              {`CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM\nĐộc lập – Tự do – Hạnh phúc\n\n${title.replace(/\.[^/.]+$/, '')}\n\nKính gửi: Ban Giám đốc và các đơn vị phòng ban liên quan.\nCăn cứ theo kế hoạch phát triển giải pháp văn phòng số nội bộ Minh Spark Office, văn bản PDF này đã được biên soạn, kiểm duyệt và đóng dấu chữ ký điện tử an toàn tuyệt đối.\n\nNgười ký: ${currentAuthorName()}`}
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <button

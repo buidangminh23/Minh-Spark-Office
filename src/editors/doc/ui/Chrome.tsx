@@ -14,6 +14,7 @@ import { EXPORT_GROUPS, exportAllFormats, exportFormat, type ExportFormat } from
 import { makeCopy } from '../actionsExtra';
 import { DOC_TEMPLATES } from '../docTemplates';
 import { ZOOM_STEPS } from './tabs/ViewTabs';
+import { currentAuthorName } from '../../../lib/currentAuthor';
 
 type Section = 'info' | 'new' | 'open' | 'export' | 'share';
 
@@ -87,7 +88,7 @@ export function Backstage({ onClose }: { onClose: () => void }) {
               <div className="info-card">
                 <h3>Thông tin mô tả</h3>
                 {([['author', 'Tác giả'], ['subject', 'Chủ đề'], ['keywords', 'Từ khoá'], ['company', 'Đơn vị']] as const).map(([key, label]) => (
-                  <label key={key} className="field"><span className="field-label">{label}</span><input className="text-field" value={ctx.page.properties?.[key] ?? (key === 'author' ? 'Minh Spark' : '')} onChange={(e) => ctx.setPage({ properties: { ...ctx.page.properties, [key]: e.target.value } })} /></label>
+                  <label key={key} className="field"><span className="field-label">{label}</span><input className="text-field" value={ctx.page.properties?.[key] ?? (key === 'author' ? currentAuthorName() : '')} onChange={(e) => ctx.setPage({ properties: { ...ctx.page.properties, [key]: e.target.value } })} /></label>
                 ))}
               </div>
               <div className="info-card">

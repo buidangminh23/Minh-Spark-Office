@@ -8,6 +8,7 @@ import { FLATTEN_EXTRA } from './docFlattenExtra';
 import { NODE_EDITORS } from './nodeEditors';
 import { defaultFormat, formatDate, type FieldKind } from './insertFields';
 import { attachWidthHandles, isObjectHandleEvent } from './resizeObjects';
+import { currentAuthorName } from '../../lib/currentAuthor';
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -61,7 +62,7 @@ export function fieldText(editor: Editor, attrs: Record<string, unknown>, pos: n
     case 'time': return formatDate(String(attrs.format || defaultFormat(kind)));
     case 'filename': return info.title;
     case 'title': return info.title.replace(/\.[^/.]+$/, '');
-    case 'author': return info.properties.author || 'Minh Spark';
+    case 'author': return info.properties.author || currentAuthorName();
     default: return info.properties[kind as 'subject' | 'keywords' | 'company'] || PLACEHOLDERS[kind] || '';
   }
 }

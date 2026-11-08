@@ -2,6 +2,7 @@ import { Extension, Mark, mergeAttributes } from '@tiptap/core';
 import type { Mark as PMMark, MarkType, Node as PMNode } from '@tiptap/pm/model';
 import { Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state';
 import { AddMarkStep, RemoveMarkStep, ReplaceStep } from '@tiptap/pm/transform';
+import { ANONYMOUS_AUTHOR } from '../../lib/currentAuthor';
 
 export type TrackedChange = { id: string; kind: 'insertion' | 'deletion' | 'format'; from: number; to: number; text: string; author: string; date: number; label?: string };
 
@@ -209,7 +210,7 @@ export function collectChanges(doc: PMNode): TrackedChange[] {
 export const TrackChanges = Extension.create<{ author: string }, { enabled: boolean }>({
   name: 'trackChanges',
   addOptions() {
-    return { author: 'Minh Spark' };
+    return { author: ANONYMOUS_AUTHOR };
   },
   addStorage() {
     return { enabled: false };

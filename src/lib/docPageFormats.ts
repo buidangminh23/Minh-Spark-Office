@@ -2,6 +2,7 @@ import JSZip from 'jszip';
 import fontUrl from 'dejavu-fonts-ttf/ttf/DejaVuSans.ttf?url';
 import type { LinkRun, PageImage, TextRun } from '../editors/doc/pageRender';
 import type { PageSettings } from './storage';
+import { currentAuthorName } from './currentAuthor';
 
 const PT_PER_PX = 0.75;
 const BASELINE_RATIO = 0.8;
@@ -18,7 +19,7 @@ export async function buildPdf(input: { pages: PageImage[]; runs: TextRun[]; lin
   const font = input.runs.length ? await pdf.embedFont(await (await fetch(fontUrl)).arrayBuffer(), { subset: true }) : null;
   const properties = input.page.properties;
   pdf.setTitle(input.title);
-  pdf.setAuthor(properties?.author || 'Minh Spark');
+  pdf.setAuthor(properties?.author || currentAuthorName());
   pdf.setCreator('Minh Docs');
   pdf.setProducer('Minh Docs');
   pdf.setLanguage(input.page.language ?? 'vi');

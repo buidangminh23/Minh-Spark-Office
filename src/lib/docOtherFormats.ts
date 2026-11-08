@@ -1,6 +1,7 @@
 import JSZip from 'jszip';
 import type { JSONContent } from '@tiptap/react';
 import { PAGE_SIZES, type PageSettings } from './storage';
+import { currentAuthorName } from './currentAuthor';
 
 type Mark = { type: string; attrs?: Record<string, unknown> };
 
@@ -293,7 +294,7 @@ export async function exportPptx(json: JSONContent, page: PageSettings, title: s
   const font = page.fontFamily ?? 'Arial';
   deck.layout = 'LAYOUT_WIDE';
   deck.title = title;
-  deck.author = page.properties?.author || 'Minh Spark';
+  deck.author = page.properties?.author || currentAuthorName();
   deck.company = page.properties?.company || '';
   deck.subject = page.properties?.subject || '';
   deck.defineSlideMaster({ title: 'MINH', background: { color: 'FFFFFF' }, slideNumber: { x: SLIDE_WIDTH - 1.2, y: SLIDE_HEIGHT - 0.5, w: 0.8, h: 0.3, fontFace: font, fontSize: 11, color: '798394', align: 'right' } });

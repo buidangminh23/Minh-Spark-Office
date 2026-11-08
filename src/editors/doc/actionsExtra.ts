@@ -1,7 +1,7 @@
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { getPagination } from './pagination';
 import { strokesSize, strokesToPng } from './inkRender';
-import { AUTHOR, newId, type DocCtx } from './DocContext';
+import { currentAuthor, newId, type DocCtx } from './DocContext';
 import { type FileMeta } from '../../lib/storage';
 
 type TableContext = { table: PMNode; pos: number; rowIndex: number; colIndex: number };
@@ -175,7 +175,7 @@ export async function insertChip(ctx: DocCtx, kind: 'date' | 'person' | 'status'
     return;
   }
   const label = { date: 'Ngày', person: 'Người', place: 'Địa điểm', file: 'Tên tệp' }[kind];
-  const res = await ctx.ui.ask({ title: `Chip ${label.toLowerCase()}`, fields: [{ name: 'value', label, value: kind === 'date' ? new Date().toLocaleDateString('vi-VN') : kind === 'person' ? AUTHOR : '' }], confirmText: 'Chèn' });
+  const res = await ctx.ui.ask({ title: `Chip ${label.toLowerCase()}`, fields: [{ name: 'value', label, value: kind === 'date' ? new Date().toLocaleDateString('vi-VN') : kind === 'person' ? currentAuthor() : '' }], confirmText: 'Chèn' });
   const value = String(res?.value ?? '').trim();
   if (value) ctx.editor.chain().focus().insertSmartChip({ kind, value }).run();
 }
