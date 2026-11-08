@@ -45,6 +45,12 @@ import {
   setPresentationBgmDucking,
 } from '../../lib/slideAudio';
 
+const COACH_MIN_MINUTES = 0.25;
+const FILLER_PATTERN = /(?<!\p{L})(ờm|ờ|ừm|kiểu như|thì là mà|như là)(?!\p{L})/giu;
+
+const countWords = (text: string) => text.trim().split(/\s+/).filter(Boolean).length;
+const countFillers = (text: string) => text.match(FILLER_PATTERN)?.length ?? 0;
+
 interface SlideShowProps {
   slides: SlideData[];
   initialIndex?: number;
@@ -80,6 +86,10 @@ export function SlideShow({
 
   // Background Music & Smart Audio Ducking
   const [isBgmActive, setIsBgmActive] = useState(false);
+  const isBgmActiveRef = useRef(isBgmActive);
+  useEffect(() => {
+    isBgmActiveRef.current = isBgmActive;
+  }, [isBgmActive]);
   const duckingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Audience Anonymous Q&A Queue
@@ -320,66 +330,73 @@ export function SlideShow({
     const SpeechRecognition =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
-    if (isSubtitlesActive && SpeechRecognition) {
-      try {
-        const recognition = new SpeechRecognition();
-        recognition.lang = 'vi-VN';
-        recognition.continuous = true;
-        recognition.interimResults = true;
-
-        recognition.onresult = (event: any) => {
-          let currentText = '';
-          for (let i = event.resultIndex; i < event.results.length; ++i) {
-            currentText += event.results[i][0].transcript;
-          }
-          setLiveTranscript(currentText);
-
-          // Smart Audio Ducking: lowers BGM volume when speaker talks
-          if (isBgmActive) {
-            setPresentationBgmDucking(true);
-            if (duckingTimeoutRef.current) clearTimeout(duckingTimeoutRef.current);
-            duckingTimeoutRef.current = setTimeout(() => {
-              setPresentationBgmDucking(false);
-            }, 1400);
-          }
-
-          // AI Speaker Coach analysis
-          const words = currentText.trim().split(/\s+/).filter(Boolean);
-          if (words.length > 2) {
-            const minutes = Math.max(0.1, secondsElapsed / 60);
-            setCoachWpm(Math.round(words.length / minutes) || 140);
-            const fillers = (currentText.match(/\b(ờ|ừm|kiểu như|thì là mà|như là|ờm)\b/gi) || []).length;
-            setFillerCount(fillers);
-          }
-        };
-
-        recognition.onerror = () => {
-          // Re-listen on error
-        };
-
-        recognition.onend = () => {
-          if (isSubtitlesActive) {
-            try { recognition.start(); } catch {}
-          }
-        };
-
-        recognition.start();
-        recognitionRef.current = recognition;
-      } catch {
-        // Speech API not supported
-      }
-    } else {
-      if (recognitionRef.current) {
-        try { recognitionRef.current.stop(); } catch {}
-        recognitionRef.current = null;
-      }
+    if (!isSubtitlesActive || !SpeechRecognition) {
       setLiveTranscript('');
+      return;
+    }
+
+    let stopped = false;
+    let recognition: any = null;
+    const startedAt = Date.now();
+    let finalWords = 0;
+    let finalFillers = 0;
+
+    try {
+      recognition = new SpeechRecognition();
+      recognition.lang = 'vi-VN';
+      recognition.continuous = true;
+      recognition.interimResults = true;
+
+      recognition.onresult = (event: any) => {
+        let interimText = '';
+        let currentText = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          const chunk: string = event.results[i][0].transcript;
+          currentText += chunk;
+          if (event.results[i].isFinal) {
+            finalWords += countWords(chunk);
+            finalFillers += countFillers(chunk);
+          } else {
+            interimText += chunk;
+          }
+        }
+        setLiveTranscript(currentText);
+
+        if (isBgmActiveRef.current) {
+          setPresentationBgmDucking(true);
+          if (duckingTimeoutRef.current) clearTimeout(duckingTimeoutRef.current);
+          duckingTimeoutRef.current = setTimeout(() => {
+            setPresentationBgmDucking(false);
+          }, 1400);
+        }
+
+        const spokenWords = finalWords + countWords(interimText);
+        const minutes = (Date.now() - startedAt) / 60000;
+        if (spokenWords > 2 && minutes >= COACH_MIN_MINUTES) {
+          setCoachWpm(Math.round(spokenWords / minutes));
+        }
+        setFillerCount(finalFillers + countFillers(interimText));
+      };
+
+      recognition.onend = () => {
+        if (stopped) return;
+        try { recognition.start(); } catch {}
+      };
+
+      recognition.start();
+      recognitionRef.current = recognition;
+    } catch {
+      recognition = null;
     }
 
     return () => {
-      if (recognitionRef.current) {
-        try { recognitionRef.current.stop(); } catch {}
+      stopped = true;
+      if (recognition) {
+        recognition.onend = null;
+        recognition.onresult = null;
+        try { recognition.stop(); } catch {}
       }
+      if (recognitionRef.current === recognition) recognitionRef.current = null;
     };
   }, [isSubtitlesActive]);
 
