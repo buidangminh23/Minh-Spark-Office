@@ -325,21 +325,23 @@ export function SlideCanvas({
       : 'default';
 
   // Map all animated elements to sequential 1-based order
-  const animBadgeMap: Record<string, { num: number; category: 'entrance' | 'emphasis' | 'exit' }> = {};
+  const animBadgeMap: Record<string, { num: number; category: 'entrance' | 'emphasis' | 'exit' | 'motion-path'; animType?: string }> = {};
   let animCount = 1;
   slide.elements.forEach((el) => {
     if ((el.animations && el.animations.length > 0) || (el.animation && el.animation.type !== 'none')) {
       const firstAnim = el.animations?.[0];
-      let cat: 'entrance' | 'emphasis' | 'exit' = 'entrance';
+      let cat: 'entrance' | 'emphasis' | 'exit' | 'motion-path' = 'entrance';
       if (firstAnim?.category) {
+        cat = firstAnim.category;
         cat = firstAnim.category;
       } else if (el.animation?.type) {
         const t = el.animation.type;
-        if (t.includes('out') || t.includes('disappear')) cat = 'exit';
+        if (t.includes('path-')) cat = 'motion-path';
+        else if (t.includes('out') || t.includes('disappear')) cat = 'exit';
         else if (t.includes('pulse') || t.includes('spin') || t.includes('teeter') || t.includes('grow-shrink') || t.includes('wave') || t.includes('darken') || t.includes('lighten')) cat = 'emphasis';
         else cat = 'entrance';
       }
-      animBadgeMap[el.id] = { num: animCount++, category: cat };
+      animBadgeMap[el.id] = { num: animCount++, category: cat, animType: firstAnim?.type || el.animation?.type };
     }
   });
 
@@ -422,6 +424,51 @@ export function SlideCanvas({
               onContextMenu?.(e, el.id);
             }}
           >
+            {/* Motion Path Trajectory Indicator (Microsoft PowerPoint authentic vector) */}
+            {showAnimBadges && animBadge?.category === 'motion-path' && (
+              <div className="ppt-canvas-motion-path-vector" style={{ pointerEvents: 'none' }}>
+                <svg
+                  style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    overflow: 'visible',
+                    pointerEvents: 'none',
+                    zIndex: 25,
+                  }}
+                >
+                  <defs>
+                    <marker
+                      id={`arrowhead-${el.id}`}
+                      markerWidth="6"
+                      markerHeight="6"
+                      refX="5"
+                      refY="3"
+                      orient="auto"
+                    >
+                      <polygon points="0 0, 6 3, 0 6" fill="#DC2626" />
+                    </marker>
+                  </defs>
+                  {/* Origin green dot */}
+                  <circle cx="0" cy="0" r="4" fill="#16A34A" stroke="#FFFFFF" strokeWidth="1.5" />
+                  {/* Trajectory vector */}
+                  {animBadge.animType === 'path-line-up' ? (
+                    <line x1="0" y1="0" x2="0" y2="-60" stroke="#7C3AED" strokeWidth="2" strokeDasharray="4 3" markerEnd={`url(#arrowhead-${el.id})`} />
+                  ) : animBadge.animType === 'path-line-left' ? (
+                    <line x1="0" y1="0" x2="-60" y2="0" stroke="#7C3AED" strokeWidth="2" strokeDasharray="4 3" markerEnd={`url(#arrowhead-${el.id})`} />
+                  ) : animBadge.animType === 'path-line-right' ? (
+                    <line x1="0" y1="0" x2="60" y2="0" stroke="#7C3AED" strokeWidth="2" strokeDasharray="4 3" markerEnd={`url(#arrowhead-${el.id})`} />
+                  ) : animBadge.animType === 'path-arc' ? (
+                    <path d="M 0 0 Q 35 -40 70 0" fill="none" stroke="#7C3AED" strokeWidth="2" strokeDasharray="4 3" markerEnd={`url(#arrowhead-${el.id})`} />
+                  ) : animBadge.animType === 'path-circle' ? (
+                    <circle cx="25" cy="0" r="25" fill="none" stroke="#7C3AED" strokeWidth="2" strokeDasharray="4 3" />
+                  ) : (
+                    <line x1="0" y1="0" x2="0" y2="60" stroke="#7C3AED" strokeWidth="2" strokeDasharray="4 3" markerEnd={`url(#arrowhead-${el.id})`} />
+                  )}
+                </svg>
+              </div>
+            )}
+
             {/* Numbered Animation Badge */}
             {showAnimBadges && animBadge && (
               <div

@@ -61,6 +61,7 @@ import type {
   AnimationTrigger,
 } from '../../lib/slideTypes';
 import { SLIDE_THEMES } from '../../lib/slideThemes';
+import { playTransitionSound } from '../../lib/slideAudio';
 
 export interface TransitionItem {
   type: TransitionType;
@@ -142,6 +143,17 @@ export const ANIMATIONS_CATALOGUE: AnimationItem[] = [
   { type: 'zoom-out', label: 'Thu nhỏ thoát', icon: '🔍', category: 'exit' },
   { type: 'bounce-out', label: 'Nảy ra ngoài', icon: '⚡', category: 'exit' },
   { type: 'swivel-out', label: 'Xoay thoát', icon: '🌪️', category: 'exit' },
+
+  // Motion Paths (Đường chuyển động - 🟣)
+  { type: 'path-line-down', label: 'Thẳng xuống', icon: '⬇️', category: 'motion-path' },
+  { type: 'path-line-up', label: 'Thẳng lên', icon: '⬆️', category: 'motion-path' },
+  { type: 'path-line-left', label: 'Sang trái', icon: '⬅️', category: 'motion-path' },
+  { type: 'path-line-right', label: 'Sang phải', icon: '➡️', category: 'motion-path' },
+  { type: 'path-arc', label: 'Đường cong', icon: '⌒', category: 'motion-path' },
+  { type: 'path-turn', label: 'Khúc quanh', icon: '⤵️', category: 'motion-path' },
+  { type: 'path-circle', label: 'Vòng tròn', icon: '⭕', category: 'motion-path' },
+  { type: 'path-loop', label: 'Vòng lặp số 8', icon: '♾️', category: 'motion-path' },
+  { type: 'path-custom', label: 'Tùy chỉnh', icon: '✍️', category: 'motion-path' },
 ];
 
 export const TRANSITION_SOUNDS: { id: TransitionSound; label: string }[] = [
@@ -155,6 +167,9 @@ export const TRANSITION_SOUNDS: { id: TransitionSound; label: string }[] = [
   { id: 'laser', label: 'Tia Laser (Laser)' },
   { id: 'whoosh', label: 'Tiếng vụt qua (Whoosh)' },
   { id: 'wind', label: 'Gió thổi (Wind)' },
+  { id: 'bomb', label: 'Tiếng bom nổ (Bomb)' },
+  { id: 'typewriter', label: 'Máy đánh chữ (Typewriter)' },
+  { id: 'voltage', label: 'Xung điện (Voltage)' },
 ];
 
 export const TRANSITION_DIRECTIONS: { id: TransitionDirection; label: string }[] = [
@@ -177,6 +192,18 @@ export const ANIMATION_DIRECTIONS: { id: AnimationDirection; label: string }[] =
   { id: 'bottom-right', label: 'Từ góc dưới phải' },
   { id: 'top-left', label: 'Từ góc trên trái' },
   { id: 'top-right', label: 'Từ góc trên phải' },
+];
+
+export const MORPH_MODES: { id: 'objects' | 'words' | 'characters'; label: string; desc: string }[] = [
+  { id: 'objects', label: 'Đối tượng (Objects)', desc: 'Khớp nối các hình dạng và đối tượng cùng tên' },
+  { id: 'words', label: 'Từ ngữ (Words)', desc: 'Di chuyển và chuyển đổi từng từ ngữ trùng lặp' },
+  { id: 'characters', label: 'Ký tự (Characters)', desc: 'Chuyển đổi từng chữ cái và ký tự tương ứng' },
+];
+
+export const ANIMATION_SEQUENCES: { id: 'all' | 'paragraph' | 'word'; label: string }[] = [
+  { id: 'all', label: 'Như một đối tượng / Cùng lúc' },
+  { id: 'paragraph', label: 'Theo từng đoạn / Gạch đầu dòng' },
+  { id: 'word', label: 'Theo từng từ ngữ' },
 ];
 
 export type RibbonTab =
@@ -212,6 +239,12 @@ interface SlideRibbonProps {
   currentThemeId: string;
   onApplyTheme: (themeId: string) => void;
   aspectRatio: '16:9' | '4:3';
+  slideElements?: SlideElement[];
+  morphMode?: 'objects' | 'words' | 'characters';
+  onChangeMorphMode?: (mode: 'objects' | 'words' | 'characters') => void;
+  loopSound?: boolean;
+  onChangeLoopSound?: (loop: boolean) => void;
+  onSetTriggerElementId?: (id: string) => void;
   onChangeAspectRatio: (ratio: '16:9' | '4:3') => void;
   currentTransition: TransitionType;
   onChangeTransition: (trans: TransitionType) => void;
@@ -308,6 +341,12 @@ export function SlideRibbon(props: SlideRibbonProps) {
     currentThemeId,
     onApplyTheme,
     aspectRatio,
+    slideElements,
+    morphMode = 'objects',
+    onChangeMorphMode,
+    loopSound = false,
+    onChangeLoopSound,
+    onSetTriggerElementId,
     onChangeAspectRatio,
     currentTransition,
     onChangeTransition,
@@ -369,11 +408,14 @@ export function SlideRibbon(props: SlideRibbonProps) {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showLayoutDropdown, setShowLayoutDropdown] = useState(false);
-  const [transitionCategory, setTransitionCategory] = useState<'all' | 'subtle' | 'exciting' | 'dynamic'>('all');
   const [showTransOptionsDropdown, setShowTransOptionsDropdown] = useState(false);
-  const [animationCategory, setAnimationCategory] = useState<'all' | 'entrance' | 'emphasis' | 'exit'>('all');
   const [showAnimOptionsDropdown, setShowAnimOptionsDropdown] = useState(false);
   const [showAddAnimDropdown, setShowAddAnimDropdown] = useState(false);
+  const [showFullTransGallery, setShowFullTransGallery] = useState(false);
+  const [showFullAnimGallery, setShowFullAnimGallery] = useState(false);
+  const [showTriggerDropdown, setShowTriggerDropdown] = useState(false);
+  const [transGalleryScrollPos, setTransGalleryScrollPos] = useState(0);
+  const [animGalleryScrollPos, setAnimGalleryScrollPos] = useState(0);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1031,7 +1073,7 @@ export function SlideRibbon(props: SlideRibbonProps) {
                   onClick={onPreviewTransition}
                   title="Xem trước hiệu ứng chuyển tiếp của trang chiếu này"
                 >
-                  <Play size={20} color="#D83B01" fill="#D83B01" />
+                  <Play size={20} color="#0078D4" fill="#0078D4" />
                   <span>Xem trước</span>
                 </button>
               </div>
@@ -1039,34 +1081,12 @@ export function SlideRibbon(props: SlideRibbonProps) {
             </div>
 
             {/* 2. Transition Gallery & Effect Options */}
-            <div className="ppt-ribbon-group">
-              <div className="ppt-group-content" style={{ alignItems: 'flex-start' }}>
-                <div className="ppt-ribbon-gallery-group">
-                  {/* Category Pills */}
-                  <div className="ppt-gallery-tabs">
-                    {(
-                      [
-                        { id: 'all', label: 'Tất cả' },
-                        { id: 'subtle', label: 'Tinh tế' },
-                        { id: 'exciting', label: 'Hào nhoáng' },
-                        { id: 'dynamic', label: 'Nội dung động' },
-                      ] as const
-                    ).map((cat) => (
-                      <button
-                        key={cat.id}
-                        className={`ppt-gallery-tab-chip ${transitionCategory === cat.id ? 'is-active' : ''}`}
-                        onClick={() => setTransitionCategory(cat.id)}
-                      >
-                        {cat.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Horizontal Scroll Gallery */}
-                  <div className="ppt-ribbon-gallery-scroll">
-                    {TRANSITIONS_CATALOGUE.filter((t) =>
-                      transitionCategory === 'all' ? true : t.category === transitionCategory
-                    ).map((t) => (
+            <div className="ppt-ribbon-group" style={{ position: 'relative' }}>
+              <div className="ppt-group-content" style={{ alignItems: 'center' }}>
+                {/* Office Ribbon Gallery Container with Navigation Strip */}
+                <div className="ppt-ribbon-gallery-shell">
+                  <div className="ppt-ribbon-gallery-cards">
+                    {TRANSITIONS_CATALOGUE.slice(transGalleryScrollPos, transGalleryScrollPos + 5).map((t) => (
                       <button
                         key={t.type}
                         className={`ppt-gallery-card-btn ${currentTransition === t.type ? 'is-active' : ''}`}
@@ -1078,16 +1098,106 @@ export function SlideRibbon(props: SlideRibbonProps) {
                       </button>
                     ))}
                   </div>
+
+                  {/* 3-Button Ribbon Expander Strip (Up, Down, More) */}
+                  <div className="ppt-ribbon-gallery-controls">
+                    <button
+                      className="ppt-gallery-scroll-btn"
+                      disabled={transGalleryScrollPos === 0}
+                      onClick={() => setTransGalleryScrollPos((p) => Math.max(0, p - 2))}
+                      title="Cuộn lên"
+                    >
+                      ▲
+                    </button>
+                    <button
+                      className="ppt-gallery-scroll-btn"
+                      disabled={transGalleryScrollPos + 5 >= TRANSITIONS_CATALOGUE.length}
+                      onClick={() => setTransGalleryScrollPos((p) => Math.min(TRANSITIONS_CATALOGUE.length - 5, p + 2))}
+                      title="Cuộn xuống"
+                    >
+                      ▼
+                    </button>
+                    <button
+                      className={`ppt-gallery-scroll-btn is-more ${showFullTransGallery ? 'is-open' : ''}`}
+                      onClick={() => setShowFullTransGallery(!showFullTransGallery)}
+                      title="Mở toàn bộ thư viện chuyển tiếp"
+                    >
+                      <ChevronDown size={12} />
+                    </button>
+                  </div>
                 </div>
+
+                {/* Full Gallery Popover Dropdown */}
+                {showFullTransGallery && (
+                  <div className="ppt-full-gallery-popover" onMouseLeave={() => setShowFullTransGallery(false)}>
+                    <div className="ppt-full-gallery-section">
+                      <div className="ppt-full-gallery-title">TẤT CẢ HIỆU ỨNG CHUYỂN TIẾP TRANG CHIẾU</div>
+
+                      {/* Subtle group */}
+                      <div className="ppt-gallery-group-header">Nhẹ nhàng (Subtle)</div>
+                      <div className="ppt-full-gallery-grid">
+                        {TRANSITIONS_CATALOGUE.filter((t) => t.category === 'subtle').map((t) => (
+                          <button
+                            key={t.type}
+                            className={`ppt-full-card-btn ${currentTransition === t.type ? 'is-active' : ''}`}
+                            onClick={() => {
+                              onChangeTransition(t.type);
+                              setShowFullTransGallery(false);
+                            }}
+                          >
+                            <span className="ppt-full-card-icon">{t.icon}</span>
+                            <span className="ppt-full-card-label">{t.label}</span>
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Exciting group */}
+                      <div className="ppt-gallery-group-header">Hào nhoáng & Thú vị (Exciting)</div>
+                      <div className="ppt-full-gallery-grid">
+                        {TRANSITIONS_CATALOGUE.filter((t) => t.category === 'exciting').map((t) => (
+                          <button
+                            key={t.type}
+                            className={`ppt-full-card-btn ${currentTransition === t.type ? 'is-active' : ''}`}
+                            onClick={() => {
+                              onChangeTransition(t.type);
+                              setShowFullTransGallery(false);
+                            }}
+                          >
+                            <span className="ppt-full-card-icon">{t.icon}</span>
+                            <span className="ppt-full-card-label">{t.label}</span>
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Dynamic Content group */}
+                      <div className="ppt-gallery-group-header">Nội dung Động (Dynamic Content)</div>
+                      <div className="ppt-full-gallery-grid">
+                        {TRANSITIONS_CATALOGUE.filter((t) => t.category === 'dynamic').map((t) => (
+                          <button
+                            key={t.type}
+                            className={`ppt-full-card-btn ${currentTransition === t.type ? 'is-active' : ''}`}
+                            onClick={() => {
+                              onChangeTransition(t.type);
+                              setShowFullTransGallery(false);
+                            }}
+                          >
+                            <span className="ppt-full-card-icon">{t.icon}</span>
+                            <span className="ppt-full-card-label">{t.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <span style={{ width: '1px', height: '54px', background: '#E2E8F0', margin: '0 4px' }} />
 
-                {/* Effect Options Dropdown */}
+                {/* Effect Options Button */}
                 <div style={{ position: 'relative' }}>
                   <button
                     className={`ppt-tool-btn-large ${showTransOptionsDropdown ? 'is-active' : ''}`}
                     onClick={() => setShowTransOptionsDropdown(!showTransOptionsDropdown)}
-                    title="Tùy chọn hiệu ứng chuyển tiếp (Hướng di chuyển, Kiểu mở)"
+                    title="Tùy chọn hiệu ứng chuyển tiếp"
                   >
                     <Compass size={20} color="#0078D4" />
                     <span style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
@@ -1098,25 +1208,51 @@ export function SlideRibbon(props: SlideRibbonProps) {
                   {showTransOptionsDropdown && (
                     <div
                       className="ppt-anim-dropdown-menu"
-                      style={{ minWidth: '180px' }}
+                      style={{ minWidth: '220px' }}
                       onMouseLeave={() => setShowTransOptionsDropdown(false)}
                     >
-                      <div style={{ padding: '4px 10px', fontSize: '11px', fontWeight: 700, color: '#64748B' }}>
-                        HƯỚNG HIỆU ỨNG
-                      </div>
-                      {TRANSITION_DIRECTIONS.map((dir) => (
-                        <button
-                          key={dir.id}
-                          className={`ppt-anim-drop-item ${transitionDirection === dir.id ? 'is-active' : ''}`}
-                          onClick={() => {
-                            onChangeTransitionDirection?.(dir.id);
-                            setShowTransOptionsDropdown(false);
-                          }}
-                        >
-                          <span>{transitionDirection === dir.id ? '✓' : '•'}</span>
-                          <span>{dir.label}</span>
-                        </button>
-                      ))}
+                      {currentTransition === 'morph' ? (
+                        <>
+                          <div style={{ padding: '4px 10px', fontSize: '11px', fontWeight: 700, color: '#0078D4' }}>
+                            TÙY CHỌN BIẾN ĐỔI (MORPH)
+                          </div>
+                          {MORPH_MODES.map((m) => (
+                            <button
+                              key={m.id}
+                              className={`ppt-anim-drop-item ${morphMode === m.id ? 'is-active' : ''}`}
+                              onClick={() => {
+                                onChangeMorphMode?.(m.id);
+                                setShowTransOptionsDropdown(false);
+                              }}
+                            >
+                              <span>{morphMode === m.id ? '✓' : '•'}</span>
+                              <div style={{ textAlign: 'left' }}>
+                                <div>{m.label}</div>
+                                <div style={{ fontSize: '10px', color: '#64748B' }}>{m.desc}</div>
+                              </div>
+                            </button>
+                          ))}
+                        </>
+                      ) : (
+                        <>
+                          <div style={{ padding: '4px 10px', fontSize: '11px', fontWeight: 700, color: '#64748B' }}>
+                            HƯỚNG HIỆU ỨNG
+                          </div>
+                          {TRANSITION_DIRECTIONS.map((dir) => (
+                            <button
+                              key={dir.id}
+                              className={`ppt-anim-drop-item ${transitionDirection === dir.id ? 'is-active' : ''}`}
+                              onClick={() => {
+                                onChangeTransitionDirection?.(dir.id);
+                                setShowTransOptionsDropdown(false);
+                              }}
+                            >
+                              <span>{transitionDirection === dir.id ? '✓' : '•'}</span>
+                              <span>{dir.label}</span>
+                            </button>
+                          ))}
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1133,18 +1269,28 @@ export function SlideRibbon(props: SlideRibbonProps) {
                     <span className="ppt-timing-label">
                       <Volume2 size={13} color="#64748B" /> Âm thanh:
                     </span>
-                    <select
-                      className="ppt-select-control"
-                      value={transitionSound}
-                      onChange={(e) => onChangeTransitionSound?.(e.target.value as TransitionSound)}
-                      title="Âm thanh khi chuyển trang chiếu"
-                    >
-                      {TRANSITION_SOUNDS.map((snd) => (
-                        <option key={snd.id} value={snd.id}>
-                          {snd.label}
-                        </option>
-                      ))}
-                    </select>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <select
+                        className="ppt-select-control"
+                        value={transitionSound}
+                        onChange={(e) => onChangeTransitionSound?.(e.target.value as TransitionSound)}
+                        title="Âm thanh khi chuyển trang chiếu"
+                      >
+                        {TRANSITION_SOUNDS.map((snd) => (
+                          <option key={snd.id} value={snd.id}>
+                            {snd.label}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        className="ppt-stepper-btn"
+                        disabled={transitionSound === 'none'}
+                        onClick={() => playTransitionSound(transitionSound || 'none')}
+                        title="Nghe thử âm thanh chuyển tiếp"
+                      >
+                        ▶
+                      </button>
+                    </div>
                   </div>
 
                   {/* Duration stepper */}
@@ -1170,6 +1316,16 @@ export function SlideRibbon(props: SlideRibbonProps) {
                       </button>
                     </div>
                   </div>
+
+                  {/* Loop sound */}
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#475569', cursor: 'pointer', marginTop: '2px' }}>
+                    <input
+                      type="checkbox"
+                      checked={loopSound}
+                      onChange={(e) => onChangeLoopSound?.(e.target.checked)}
+                    />
+                    <span>Lặp lại cho đến âm thanh sau</span>
+                  </label>
                 </div>
 
                 <span style={{ width: '1px', height: '54px', background: '#E2E8F0', margin: '0 4px' }} />
@@ -1250,35 +1406,13 @@ export function SlideRibbon(props: SlideRibbonProps) {
               <div className="ppt-group-footer">Xem trước</div>
             </div>
 
-            {/* 2. Animation Gallery & Effect Options */}
-            <div className="ppt-ribbon-group">
-              <div className="ppt-group-content" style={{ alignItems: 'flex-start' }}>
-                <div className="ppt-ribbon-gallery-group">
-                  {/* Category Pills */}
-                  <div className="ppt-gallery-tabs">
-                    {(
-                      [
-                        { id: 'all', label: 'Tất cả', chipClass: '' },
-                        { id: 'entrance', label: '🟢 Xuất hiện', chipClass: 'chip-entrance' },
-                        { id: 'emphasis', label: '🟡 Nhấn mạnh', chipClass: 'chip-emphasis' },
-                        { id: 'exit', label: '🔴 Thoát', chipClass: 'chip-exit' },
-                      ] as const
-                    ).map((cat) => (
-                      <button
-                        key={cat.id}
-                        className={`ppt-gallery-tab-chip ${cat.chipClass || ''} ${animationCategory === cat.id ? 'is-active' : ''}`}
-                        onClick={() => setAnimationCategory(cat.id)}
-                      >
-                        {cat.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Horizontal Scroll Gallery */}
-                  <div className="ppt-ribbon-gallery-scroll">
-                    {ANIMATIONS_CATALOGUE.filter((a) =>
-                      animationCategory === 'all' ? true : a.category === animationCategory
-                    ).map((a) => {
+            {/* 2. Animation Gallery with Up/Down/More & Effect Options */}
+            <div className="ppt-ribbon-group" style={{ position: 'relative' }}>
+              <div className="ppt-group-content" style={{ alignItems: 'center' }}>
+                {/* Ribbon Gallery Container */}
+                <div className="ppt-ribbon-gallery-shell">
+                  <div className="ppt-ribbon-gallery-cards">
+                    {ANIMATIONS_CATALOGUE.slice(animGalleryScrollPos, animGalleryScrollPos + 5).map((a) => {
                       const isCurrent =
                         selectedElement?.animation?.type === a.type ||
                         selectedElement?.animations?.some((anim) => anim.type === a.type);
@@ -1309,7 +1443,115 @@ export function SlideRibbon(props: SlideRibbonProps) {
                       );
                     })}
                   </div>
+
+                  {/* 3-Button Ribbon Expander Strip (Up, Down, More) */}
+                  <div className="ppt-ribbon-gallery-controls">
+                    <button
+                      className="ppt-gallery-scroll-btn"
+                      disabled={animGalleryScrollPos === 0}
+                      onClick={() => setAnimGalleryScrollPos((p) => Math.max(0, p - 2))}
+                      title="Cuộn lên"
+                    >
+                      ▲
+                    </button>
+                    <button
+                      className="ppt-gallery-scroll-btn"
+                      disabled={animGalleryScrollPos + 5 >= ANIMATIONS_CATALOGUE.length}
+                      onClick={() => setAnimGalleryScrollPos((p) => Math.min(ANIMATIONS_CATALOGUE.length - 5, p + 2))}
+                      title="Cuộn xuống"
+                    >
+                      ▼
+                    </button>
+                    <button
+                      className={`ppt-gallery-scroll-btn is-more ${showFullAnimGallery ? 'is-open' : ''}`}
+                      onClick={() => setShowFullAnimGallery(!showFullAnimGallery)}
+                      title="Mở toàn bộ thư viện hoạt hình 4 nhóm"
+                    >
+                      <ChevronDown size={12} />
+                    </button>
+                  </div>
                 </div>
+
+                {/* Full Categorized Animation Popover Menu */}
+                {showFullAnimGallery && (
+                  <div className="ppt-full-gallery-popover" onMouseLeave={() => setShowFullAnimGallery(false)}>
+                    <div className="ppt-full-gallery-section">
+                      <div className="ppt-full-gallery-title">THƯ VIỆN HOẠT HÌNH MICROSOFT POWERPOINT</div>
+
+                      {/* Entrance 🟢 */}
+                      <div className="ppt-gallery-group-header is-entrance">🟢 Lối vào (Entrance)</div>
+                      <div className="ppt-full-gallery-grid">
+                        {ANIMATIONS_CATALOGUE.filter((a) => a.category === 'entrance').map((a) => (
+                          <button
+                            key={a.type}
+                            className="ppt-full-card-btn is-entrance"
+                            onClick={() => {
+                              onAddAnimation?.(a.type, 'entrance');
+                              setShowFullAnimGallery(false);
+                            }}
+                          >
+                            <span className="ppt-full-card-icon">{a.icon}</span>
+                            <span className="ppt-full-card-label">{a.label}</span>
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Emphasis 🟡 */}
+                      <div className="ppt-gallery-group-header is-emphasis">🟡 Nhấn mạnh (Emphasis)</div>
+                      <div className="ppt-full-gallery-grid">
+                        {ANIMATIONS_CATALOGUE.filter((a) => a.category === 'emphasis').map((a) => (
+                          <button
+                            key={a.type}
+                            className="ppt-full-card-btn is-emphasis"
+                            onClick={() => {
+                              onAddAnimation?.(a.type, 'emphasis');
+                              setShowFullAnimGallery(false);
+                            }}
+                          >
+                            <span className="ppt-full-card-icon">{a.icon}</span>
+                            <span className="ppt-full-card-label">{a.label}</span>
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Exit 🔴 */}
+                      <div className="ppt-gallery-group-header is-exit">🔴 Lối thoát (Exit)</div>
+                      <div className="ppt-full-gallery-grid">
+                        {ANIMATIONS_CATALOGUE.filter((a) => a.category === 'exit').map((a) => (
+                          <button
+                            key={a.type}
+                            className="ppt-full-card-btn is-exit"
+                            onClick={() => {
+                              onAddAnimation?.(a.type, 'exit');
+                              setShowFullAnimGallery(false);
+                            }}
+                          >
+                            <span className="ppt-full-card-icon">{a.icon}</span>
+                            <span className="ppt-full-card-label">{a.label}</span>
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Motion Paths 🟣 */}
+                      <div className="ppt-gallery-group-header is-motion-path">🟣 Đường chuyển động (Motion Paths)</div>
+                      <div className="ppt-full-gallery-grid">
+                        {ANIMATIONS_CATALOGUE.filter((a) => a.category === 'motion-path').map((a) => (
+                          <button
+                            key={a.type}
+                            className="ppt-full-card-btn is-motion-path"
+                            onClick={() => {
+                              onAddAnimation?.(a.type, 'motion-path');
+                              setShowFullAnimGallery(false);
+                            }}
+                          >
+                            <span className="ppt-full-card-icon">{a.icon}</span>
+                            <span className="ppt-full-card-label">{a.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <span style={{ width: '1px', height: '54px', background: '#E2E8F0', margin: '0 4px' }} />
 
@@ -1319,7 +1561,7 @@ export function SlideRibbon(props: SlideRibbonProps) {
                     className={`ppt-tool-btn-large ${showAnimOptionsDropdown ? 'is-active' : ''}`}
                     disabled={!selectedElement}
                     onClick={() => setShowAnimOptionsDropdown(!showAnimOptionsDropdown)}
-                    title="Tùy chọn hướng hiệu ứng hoạt hình"
+                    title="Tùy chọn hướng và trình tự hoạt hình"
                   >
                     <Compass size={20} color="#D83B01" />
                     <span style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
@@ -1330,7 +1572,7 @@ export function SlideRibbon(props: SlideRibbonProps) {
                   {showAnimOptionsDropdown && (
                     <div
                       className="ppt-anim-dropdown-menu"
-                      style={{ minWidth: '180px' }}
+                      style={{ minWidth: '220px' }}
                       onMouseLeave={() => setShowAnimOptionsDropdown(false)}
                     >
                       <div style={{ padding: '4px 10px', fontSize: '11px', fontWeight: 700, color: '#64748B' }}>
@@ -1351,6 +1593,33 @@ export function SlideRibbon(props: SlideRibbonProps) {
                           <span>{dir.label}</span>
                         </button>
                       ))}
+
+                      {selectedElement?.text && (
+                        <>
+                          <div className="ppt-ctx-divider" />
+                          <div style={{ padding: '4px 10px', fontSize: '11px', fontWeight: 700, color: '#64748B' }}>
+                            TRÌNH TỰ VĂN BẢN
+                          </div>
+                          {ANIMATION_SEQUENCES.map((seq) => (
+                            <button
+                              key={seq.id}
+                              className="ppt-anim-drop-item"
+                              onClick={() => {
+                                onUpdateSelectedElement({
+                                  animation: {
+                                    ...(selectedElement.animation || { type: 'fade-in', duration: 0.5, delay: 0 }),
+                                    direction: selectedElement.animation?.direction || 'bottom',
+                                  },
+                                });
+                                setShowAnimOptionsDropdown(false);
+                              }}
+                            >
+                              <span>•</span>
+                              <span>{seq.label}</span>
+                            </button>
+                          ))}
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1358,16 +1627,16 @@ export function SlideRibbon(props: SlideRibbonProps) {
               <div className="ppt-group-footer">Hoạt hình đối tượng</div>
             </div>
 
-            {/* 3. Advanced Animation */}
+            {/* 3. Advanced Animation Group */}
             <div className="ppt-ribbon-group">
               <div className="ppt-group-content">
-                {/* Add Animation Button & Menu */}
+                {/* Add Animation */}
                 <div style={{ position: 'relative' }}>
                   <button
                     className="ppt-tool-btn-large"
                     disabled={!selectedElement}
                     onClick={() => setShowAddAnimDropdown(!showAddAnimDropdown)}
-                    title="Thêm thêm hoạt hình cho phần tử đã chọn"
+                    title="Thêm thêm hoạt hình cho phần tử đã chọn mà không ghi đè"
                   >
                     <Plus size={20} color="#107C41" />
                     <span>Thêm hoạt hình</span>
@@ -1376,11 +1645,11 @@ export function SlideRibbon(props: SlideRibbonProps) {
                   {showAddAnimDropdown && (
                     <div
                       className="ppt-anim-dropdown-menu"
-                      style={{ minWidth: '220px', maxHeight: '280px', overflowY: 'auto' }}
+                      style={{ minWidth: '240px', maxHeight: '320px', overflowY: 'auto' }}
                       onMouseLeave={() => setShowAddAnimDropdown(false)}
                     >
                       <div style={{ padding: '4px 10px', fontSize: '11px', fontWeight: 700, color: '#107C41' }}>
-                        🟢 XUẤT HIỆN
+                        🟢 XUẤT HIỆN (ENTRANCE)
                       </div>
                       {ANIMATIONS_CATALOGUE.filter((a) => a.category === 'entrance' && a.type !== 'none').map((a) => (
                         <button
@@ -1394,8 +1663,9 @@ export function SlideRibbon(props: SlideRibbonProps) {
                           <span>{a.icon}</span> <span>{a.label}</span>
                         </button>
                       ))}
+
                       <div style={{ padding: '4px 10px', fontSize: '11px', fontWeight: 700, color: '#D97706' }}>
-                        🟡 NHẤN MẠNH
+                        🟡 NHẤN MẠNH (EMPHASIS)
                       </div>
                       {ANIMATIONS_CATALOGUE.filter((a) => a.category === 'emphasis').map((a) => (
                         <button
@@ -1409,8 +1679,9 @@ export function SlideRibbon(props: SlideRibbonProps) {
                           <span>{a.icon}</span> <span>{a.label}</span>
                         </button>
                       ))}
+
                       <div style={{ padding: '4px 10px', fontSize: '11px', fontWeight: 700, color: '#DC2626' }}>
-                        🔴 THOÁT
+                        🔴 THOÁT (EXIT)
                       </div>
                       {ANIMATIONS_CATALOGUE.filter((a) => a.category === 'exit').map((a) => (
                         <button
@@ -1418,6 +1689,22 @@ export function SlideRibbon(props: SlideRibbonProps) {
                           className="ppt-anim-drop-item"
                           onClick={() => {
                             onAddAnimation?.(a.type, 'exit');
+                            setShowAddAnimDropdown(false);
+                          }}
+                        >
+                          <span>{a.icon}</span> <span>{a.label}</span>
+                        </button>
+                      ))}
+
+                      <div style={{ padding: '4px 10px', fontSize: '11px', fontWeight: 700, color: '#7C3AED' }}>
+                        🟣 ĐƯỜNG CHUYỂN ĐỘNG (MOTION PATHS)
+                      </div>
+                      {ANIMATIONS_CATALOGUE.filter((a) => a.category === 'motion-path').map((a) => (
+                        <button
+                          key={a.type}
+                          className="ppt-anim-drop-item"
+                          onClick={() => {
+                            onAddAnimation?.(a.type, 'motion-path');
                             setShowAddAnimDropdown(false);
                           }}
                         >
@@ -1438,6 +1725,71 @@ export function SlideRibbon(props: SlideRibbonProps) {
                   <span>Ngăn Hoạt hình</span>
                 </button>
 
+                {/* Trigger (Bộ kích hoạt) */}
+                <div style={{ position: 'relative' }}>
+                  <button
+                    className={`ppt-tool-btn-large ${showTriggerDropdown ? 'is-active' : ''}`}
+                    disabled={!selectedElement}
+                    onClick={() => setShowTriggerDropdown(!showTriggerDropdown)}
+                    title="Thiết lập bộ kích hoạt: Khi bấm chuột hoặc khi nhấp vào đối tượng cụ thể"
+                  >
+                    <MousePointer size={20} color="#0078D4" />
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                      Bộ kích hoạt <ChevronDown size={11} />
+                    </span>
+                  </button>
+
+                  {showTriggerDropdown && (
+                    <div
+                      className="ppt-anim-dropdown-menu"
+                      style={{ minWidth: '220px' }}
+                      onMouseLeave={() => setShowTriggerDropdown(false)}
+                    >
+                      <div style={{ padding: '4px 10px', fontSize: '11px', fontWeight: 700, color: '#64748B' }}>
+                        ĐIỀU KIỆN KÍCH HOẠT
+                      </div>
+                      <button
+                        className="ppt-anim-drop-item is-active"
+                        onClick={() => {
+                          onSetTriggerElementId?.('');
+                          setShowTriggerDropdown(false);
+                        }}
+                      >
+                        <span>✓</span> <span>Khi bấm chuột (Chuẩn)</span>
+                      </button>
+                      {slideElements && slideElements.length > 0 && (
+                        <>
+                          <div className="ppt-ctx-divider" />
+                          <div style={{ padding: '4px 10px', fontSize: '11px', fontWeight: 700, color: '#0078D4' }}>
+                            KHI BẤM VÀO ĐỐI TƯỢNG...
+                          </div>
+                          {slideElements.map((el, i) => {
+                            const name = el.text
+                              ? `"${el.text.slice(0, 18)}…"`
+                              : el.type === 'shape'
+                              ? `Hình: ${el.shapeType || 'khối'}`
+                              : el.type === 'image'
+                              ? `Hình ảnh [${i + 1}]`
+                              : `Phần tử [${i + 1}]`;
+                            return (
+                              <button
+                                key={el.id}
+                                className="ppt-anim-drop-item"
+                                onClick={() => {
+                                  onSetTriggerElementId?.(el.id);
+                                  setShowTriggerDropdown(false);
+                                }}
+                              >
+                                <span>•</span> <span>{name}</span>
+                              </button>
+                            );
+                          })}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 {/* Animation Painter */}
                 <button
                   className={`ppt-tool-btn-large ${animationPainterActive ? 'is-active' : ''}`}
@@ -1456,7 +1808,7 @@ export function SlideRibbon(props: SlideRibbonProps) {
             <div className="ppt-ribbon-group">
               <div className="ppt-group-content">
                 <div className="ppt-timing-grid">
-                  {/* Trigger / Start */}
+                  {/* Start Trigger */}
                   <div className="ppt-timing-row">
                     <span className="ppt-timing-label">
                       <MousePointer size={13} color="#64748B" /> Bắt đầu:

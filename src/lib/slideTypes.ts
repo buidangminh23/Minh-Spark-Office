@@ -77,9 +77,12 @@ export type TransitionSound =
   | 'drum'
   | 'laser'
   | 'whoosh'
-  | 'wind';
+  | 'wind'
+  | 'bomb'
+  | 'typewriter'
+  | 'voltage';
 
-export type AnimationCategory = 'entrance' | 'emphasis' | 'exit';
+export type AnimationCategory = 'entrance' | 'emphasis' | 'exit' | 'motion-path';
 
 export type AnimationType =
   | 'none'
@@ -113,7 +116,17 @@ export type AnimationType =
   | 'wipe-out'
   | 'zoom-out'
   | 'bounce-out'
-  | 'swivel-out';
+  | 'swivel-out'
+  // Motion Paths (Đường chuyển động - 🟣)
+  | 'path-line-down'
+  | 'path-line-up'
+  | 'path-line-left'
+  | 'path-line-right'
+  | 'path-arc'
+  | 'path-turn'
+  | 'path-circle'
+  | 'path-loop'
+  | 'path-custom';
 
 export type AnimationTrigger = 'on-click' | 'with-previous' | 'after-previous';
 
@@ -140,6 +153,17 @@ export interface ElementAnimation {
   trigger: AnimationTrigger;
   direction?: AnimationDirection;
   order: number;
+  sound?: TransitionSound;
+  repeat?: number | 'until-next-click' | 'until-end-of-slide';
+  autoReverse?: boolean;
+  smoothStart?: boolean;
+  smoothEnd?: boolean;
+  bounceEnd?: boolean;
+  animateText?: 'all' | 'word' | 'letter' | 'paragraph';
+  triggerElementId?: string;
+  afterAnimation?: 'dont-dim' | 'dim' | 'hide' | 'hide-on-next-click';
+  dimColor?: string;
+  motionPathCoords?: { dx: number; dy: number };
 }
 
 export type ElementType = 'text' | 'shape' | 'image' | 'table' | 'chart' | 'smartart' | 'qr' | 'ink';
@@ -259,6 +283,8 @@ export interface SlideTransition {
   sound?: TransitionSound;
   advanceOnClick?: boolean;
   advanceAfterSeconds?: number;
+  loopSound?: boolean;
+  morphMode?: 'objects' | 'words' | 'characters';
 }
 
 export interface SlideData {

@@ -760,6 +760,44 @@ export default function SlideEditor({
     triggerAutoSave(newPres);
   };
 
+  const handleChangeTransitionMorphMode = (morphMode: 'objects' | 'words' | 'characters') => {
+    const prevTrans = currentSlide?.transition || { type: 'none', duration: 0.5 };
+    const updatedSlides = presentation.slides.map((s, idx) =>
+      idx === activeSlideIndex ? { ...s, transition: { ...prevTrans, morphMode } } : s
+    );
+    const newPres = { ...presentation, slides: updatedSlides };
+    setPresentation(newPres);
+    triggerAutoSave(newPres);
+  };
+
+  const handleChangeTransitionLoopSound = (loopSound: boolean) => {
+    const prevTrans = currentSlide?.transition || { type: 'none', duration: 0.5 };
+    const updatedSlides = presentation.slides.map((s, idx) =>
+      idx === activeSlideIndex ? { ...s, transition: { ...prevTrans, loopSound } } : s
+    );
+    const newPres = { ...presentation, slides: updatedSlides };
+    setPresentation(newPres);
+    triggerAutoSave(newPres);
+  };
+
+  const handleSetTriggerElementId = (triggerElementId: string) => {
+    if (!selectedElement) return;
+    const curAnim = selectedElement.animation;
+    if (curAnim) {
+      updateSlideElement(selectedElement.id, {
+        animation: { ...curAnim, trigger: 'on-click' },
+      });
+    }
+    if (selectedElement.animations && selectedElement.animations.length > 0) {
+      const updatedAnims = selectedElement.animations.map((a) => ({
+        ...a,
+        triggerElementId: triggerElementId || undefined,
+      }));
+      updateSlideElement(selectedElement.id, { animations: updatedAnims });
+    }
+  };
+
+
   const handlePreviewTransition = () => {
     const sound = currentSlide?.transition?.sound || 'none';
     playTransitionSound(sound);
@@ -1068,6 +1106,12 @@ export default function SlideEditor({
         advanceAfterSeconds={currentSlide?.transition.advanceAfterSeconds ?? 0}
         onChangeAdvanceAfterSeconds={handleChangeAdvanceAfterSeconds}
         onApplyTransitionToAll={handleApplyTransitionToAll}
+        slideElements={currentSlide?.elements || []}
+        morphMode={currentSlide?.transition.morphMode || 'objects'}
+        onChangeMorphMode={handleChangeTransitionMorphMode}
+        loopSound={currentSlide?.transition.loopSound || false}
+        onChangeLoopSound={handleChangeTransitionLoopSound}
+        onSetTriggerElementId={handleSetTriggerElementId}
         onPreviewTransition={handlePreviewTransition}
         onPreviewAnimation={handlePreviewAnimation}
         isAnimationPaneOpen={isAnimationPaneOpen}

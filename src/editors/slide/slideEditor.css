@@ -3002,3 +3002,592 @@
   background: #DC2626;
   border: 1px solid #B91C1C;
 }
+
+
+/* --- OFFICE FLUENT RIBBON GALLERY SHELL & POPOVER --- */
+.ppt-ribbon-gallery-shell {
+  display: flex;
+  align-items: stretch;
+  background: #FFFFFF;
+  border: 1px solid #CBD5E1;
+  border-radius: 4px;
+  overflow: hidden;
+  height: 56px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.ppt-ribbon-gallery-cards {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px;
+  overflow: hidden;
+  max-width: 330px;
+}
+
+.ppt-ribbon-gallery-controls {
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid #E2E8F0;
+  background: #F8FAFC;
+  width: 20px;
+}
+
+.ppt-gallery-scroll-btn {
+  flex: 1;
+  border: none;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  color: #475569;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.1s, color 0.1s;
+}
+
+.ppt-gallery-scroll-btn:hover:not(:disabled) {
+  background: #E2E8F0;
+  color: #0F172A;
+}
+
+.ppt-gallery-scroll-btn:disabled {
+  color: #CBD5E1;
+  cursor: not-allowed;
+}
+
+.ppt-gallery-scroll-btn.is-more {
+  border-top: 1px solid #E2E8F0;
+  background: #F1F5F9;
+}
+
+.ppt-gallery-scroll-btn.is-more.is-open {
+  background: #D83B01;
+  color: #FFFFFF;
+}
+
+/* Full Gallery Popover Dropdown */
+.ppt-full-gallery-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 1200;
+  background: #FFFFFF;
+  border: 1px solid #CBD5E1;
+  border-radius: 6px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  padding: 12px;
+  min-width: 480px;
+  max-width: 600px;
+  max-height: 440px;
+  overflow-y: auto;
+  animation: pptFadeIn 0.15s ease-out;
+}
+
+.ppt-full-gallery-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ppt-full-gallery-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #64748B;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #E2E8F0;
+}
+
+.ppt-gallery-group-header {
+  font-size: 11px;
+  font-weight: 600;
+  color: #334155;
+  margin-top: 4px;
+}
+
+.ppt-gallery-group-header.is-entrance { color: #16A34A; }
+.ppt-gallery-group-header.is-emphasis { color: #D97706; }
+.ppt-gallery-group-header.is-exit { color: #DC2626; }
+.ppt-gallery-group-header.is-motion-path { color: #7C3AED; }
+
+.ppt-full-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: 6px;
+}
+
+.ppt-full-card-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 4px;
+  border: 1px solid #E2E8F0;
+  background: #F8FAFC;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-height: 52px;
+}
+
+.ppt-full-card-btn:hover {
+  background: #EFF6FF;
+  border-color: #93C5FD;
+  transform: translateY(-1px);
+}
+
+.ppt-full-card-btn.is-active {
+  background: #EFF6FF;
+  border-color: #0078D4;
+  outline: 2px solid #0078D4;
+}
+
+.ppt-full-card-btn.is-entrance:hover { background: #F0FDF4; border-color: #86EFAC; }
+.ppt-full-card-btn.is-emphasis:hover { background: #FFFBEB; border-color: #FDE68A; }
+.ppt-full-card-btn.is-exit:hover { background: #FEF2F2; border-color: #FECACA; }
+.ppt-full-card-btn.is-motion-path:hover { background: #FAF5FF; border-color: #DDD6FE; }
+
+.ppt-full-card-icon {
+  font-size: 18px;
+  margin-bottom: 4px;
+}
+
+.ppt-full-card-label {
+  font-size: 10px;
+  font-weight: 500;
+  color: #1E293B;
+  text-align: center;
+  line-height: 1.2;
+}
+
+/* Badge colors for Canvas and Animation Pane */
+.ppt-canvas-anim-badge.is-motion-path {
+  background: #7C3AED;
+  color: #FFFFFF;
+}
+
+/* Animation Pane Timeline Header & Footer */
+.ppt-anim-timeline-header {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 12px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #64748B;
+  background: #F1F5F9;
+  border-bottom: 1px solid #E2E8F0;
+  text-transform: uppercase;
+}
+
+.ppt-anim-pane-footer-tip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 11px;
+  color: #64748B;
+  background: #F8FAFC;
+  border-top: 1px solid #E2E8F0;
+  margin-top: auto;
+}
+
+/* Modal Dialog Window */
+.ppt-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(2px);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: pptFadeIn 0.15s ease-out;
+}
+
+.ppt-dialog-window {
+  background: #FFFFFF;
+  border-radius: 8px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.25), 0 10px 10px -5px rgba(0, 0, 0, 0.1);
+  border: 1px solid #CBD5E1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ppt-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: #F8FAFC;
+  border-bottom: 1px solid #E2E8F0;
+}
+
+.ppt-dialog-close-btn {
+  border: none;
+  background: transparent;
+  color: #64748B;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+}
+
+.ppt-dialog-close-btn:hover {
+  background: #E2E8F0;
+  color: #0F172A;
+}
+
+.ppt-dialog-tabs {
+  display: flex;
+  background: #F1F5F9;
+  border-bottom: 1px solid #CBD5E1;
+  padding: 0 12px;
+  gap: 4px;
+}
+
+.ppt-dialog-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 500;
+  color: #475569;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+
+.ppt-dialog-tab.is-active {
+  color: #D83B01;
+  font-weight: 600;
+  border-bottom-color: #D83B01;
+  background: #FFFFFF;
+}
+
+.ppt-dialog-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ppt-dialog-label {
+  width: 140px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+  flex-shrink: 0;
+}
+
+.ppt-dialog-select,
+.ppt-dialog-input {
+  flex: 1;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid #CBD5E1;
+  border-radius: 4px;
+  font-size: 12px;
+  background: #FFFFFF;
+  color: #1E293B;
+}
+
+.ppt-dialog-select:focus,
+.ppt-dialog-input:focus {
+  outline: none;
+  border-color: #0078D4;
+  box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.15);
+}
+
+.ppt-dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  background: #F8FAFC;
+  border-top: 1px solid #E2E8F0;
+}
+
+.ppt-dialog-btn {
+  padding: 6px 16px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid #CBD5E1;
+  border-radius: 4px;
+  background: #FFFFFF;
+  color: #334155;
+  cursor: pointer;
+}
+
+.ppt-dialog-btn:hover {
+  background: #F1F5F9;
+}
+
+.ppt-dialog-btn.is-primary {
+  background: #D83B01;
+  color: #FFFFFF;
+  border-color: #D83B01;
+}
+
+.ppt-dialog-btn.is-primary:hover {
+  background: #C43E1C;
+}
+
+/* --- ANIMATION KEYFRAMES FOR ENTRANCE, EMPHASIS, EXIT & MOTION PATHS --- */
+.ppt-element.is-previewing-anim.anim-appear {
+  animation: pptAppear 0.1s forwards;
+}
+
+.ppt-element.is-previewing-anim.anim-float-in {
+  animation: pptFloatIn 0.8s ease-out forwards;
+}
+
+.ppt-element.is-previewing-anim.anim-split-in {
+  animation: pptSplitIn 0.6s ease-out forwards;
+}
+
+.ppt-element.is-previewing-anim.anim-wipe-in {
+  animation: pptWipeIn 0.6s ease-out forwards;
+}
+
+.ppt-element.is-previewing-anim.anim-swivel-in {
+  animation: pptSwivelIn 0.8s ease-out forwards;
+}
+
+.ppt-element.is-previewing-anim.anim-wheel-in {
+  animation: pptWheelIn 0.8s ease-out forwards;
+}
+
+.ppt-element.is-previewing-anim.anim-grow-turn {
+  animation: pptGrowTurn 0.7s ease-out forwards;
+}
+
+.ppt-element.is-previewing-anim.anim-grow-shrink {
+  animation: pptGrowShrink 0.8s ease-in-out infinite alternate;
+}
+
+.ppt-element.is-previewing-anim.anim-color-pulse {
+  animation: pptColorPulse 0.7s ease-in-out infinite alternate;
+}
+
+.ppt-element.is-previewing-anim.anim-wave {
+  animation: pptWave 0.8s ease-in-out;
+}
+
+.ppt-element.is-previewing-anim.anim-darken {
+  filter: brightness(0.5);
+  transition: filter 0.5s ease;
+}
+
+.ppt-element.is-previewing-anim.anim-lighten {
+  filter: brightness(1.6);
+  transition: filter 0.5s ease;
+}
+
+/* Exit Animations */
+.ppt-element.is-previewing-anim.anim-disappear {
+  animation: pptDisappear 0.1s forwards;
+}
+
+.ppt-element.is-previewing-anim.anim-fade-out {
+  animation: pptFadeOut 0.6s ease-out forwards;
+}
+
+.ppt-element.is-previewing-anim.anim-fly-out {
+  animation: pptFlyOut 0.6s ease-in forwards;
+}
+
+.ppt-element.is-previewing-anim.anim-float-out {
+  animation: pptFloatOut 0.8s ease-in forwards;
+}
+
+.ppt-element.is-previewing-anim.anim-split-out {
+  animation: pptSplitOut 0.6s ease-in forwards;
+}
+
+.ppt-element.is-previewing-anim.anim-wipe-out {
+  animation: pptWipeOut 0.6s ease-in forwards;
+}
+
+.ppt-element.is-previewing-anim.anim-zoom-out {
+  animation: pptZoomOut 0.5s ease-in forwards;
+}
+
+.ppt-element.is-previewing-anim.anim-bounce-out {
+  animation: pptBounceOut 0.7s ease-in forwards;
+}
+
+.ppt-element.is-previewing-anim.anim-swivel-out {
+  animation: pptSwivelOut 0.8s ease-in forwards;
+}
+
+/* Motion Paths */
+.ppt-element.is-previewing-anim.anim-path-line-down {
+  animation: pptMotionDown 1s ease-in-out forwards;
+}
+
+.ppt-element.is-previewing-anim.anim-path-line-up {
+  animation: pptMotionUp 1s ease-in-out forwards;
+}
+
+.ppt-element.is-previewing-anim.anim-path-line-left {
+  animation: pptMotionLeft 1s ease-in-out forwards;
+}
+
+.ppt-element.is-previewing-anim.anim-path-line-right {
+  animation: pptMotionRight 1s ease-in-out forwards;
+}
+
+.ppt-element.is-previewing-anim.anim-path-arc {
+  animation: pptMotionArc 1.2s ease-in-out forwards;
+}
+
+.ppt-element.is-previewing-anim.anim-path-circle {
+  animation: pptMotionCircle 1.5s linear forwards;
+}
+
+.ppt-element.is-previewing-anim.anim-path-loop {
+  animation: pptMotionLoop 1.8s ease-in-out forwards;
+}
+
+/* KEYFRAMES */
+@keyframes pptAppear {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes pptFloatIn {
+  from { transform: translateY(40px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes pptSplitIn {
+  from { transform: scaleX(0); opacity: 0; }
+  to { transform: scaleX(1); opacity: 1; }
+}
+
+@keyframes pptWipeIn {
+  from { clip-path: inset(0 100% 0 0); opacity: 0; }
+  to { clip-path: inset(0 0 0 0); opacity: 1; }
+}
+
+@keyframes pptSwivelIn {
+  from { transform: rotateY(90deg); opacity: 0; }
+  to { transform: rotateY(0deg); opacity: 1; }
+}
+
+@keyframes pptWheelIn {
+  from { transform: rotate(-180deg) scale(0.5); opacity: 0; }
+  to { transform: rotate(0deg) scale(1); opacity: 1; }
+}
+
+@keyframes pptGrowTurn {
+  from { transform: scale(0.2) rotate(-90deg); opacity: 0; }
+  to { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+@keyframes pptGrowShrink {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(0.85); }
+}
+
+@keyframes pptColorPulse {
+  0% { filter: hue-rotate(0deg); }
+  100% { filter: hue-rotate(180deg); }
+}
+
+@keyframes pptWave {
+  0%, 100% { transform: translateY(0); }
+  25% { transform: translateY(-10px) rotate(-3deg); }
+  75% { transform: translateY(10px) rotate(3deg); }
+}
+
+@keyframes pptDisappear {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes pptFadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes pptFlyOut {
+  from { transform: translateY(0); opacity: 1; }
+  to { transform: translateY(80px); opacity: 0; }
+}
+
+@keyframes pptFloatOut {
+  from { transform: translateY(0); opacity: 1; }
+  to { transform: translateY(-40px); opacity: 0; }
+}
+
+@keyframes pptSplitOut {
+  from { transform: scaleX(1); opacity: 1; }
+  to { transform: scaleX(0); opacity: 0; }
+}
+
+@keyframes pptWipeOut {
+  from { clip-path: inset(0 0 0 0); opacity: 1; }
+  to { clip-path: inset(0 0 0 100%); opacity: 0; }
+}
+
+@keyframes pptZoomOut {
+  from { transform: scale(1); opacity: 1; }
+  to { transform: scale(0.2); opacity: 0; }
+}
+
+@keyframes pptBounceOut {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.1); }
+  100% { transform: scale(0); opacity: 0; }
+}
+
+@keyframes pptSwivelOut {
+  from { transform: rotateY(0deg); opacity: 1; }
+  to { transform: rotateY(90deg); opacity: 0; }
+}
+
+@keyframes pptMotionDown {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(60px); }
+}
+
+@keyframes pptMotionUp {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-60px); }
+}
+
+@keyframes pptMotionLeft {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-60px); }
+}
+
+@keyframes pptMotionRight {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(60px); }
+}
+
+@keyframes pptMotionArc {
+  0% { transform: translate(0, 0); }
+  50% { transform: translate(35px, -30px); }
+  100% { transform: translate(70px, 0); }
+}
+
+@keyframes pptMotionCircle {
+  0% { transform: rotate(0deg) translate(25px) rotate(0deg); }
+  100% { transform: rotate(360deg) translate(25px) rotate(-360deg); }
+}
+
+@keyframes pptMotionLoop {
+  0% { transform: translate(0, 0); }
+  25% { transform: translate(25px, -20px); }
+  50% { transform: translate(0, 0); }
+  75% { transform: translate(-25px, 20px); }
+  100% { transform: translate(0, 0); }
+}

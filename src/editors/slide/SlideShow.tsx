@@ -78,6 +78,10 @@ export function SlideShow({
       const nextEl = entranceElements[animStep];
       setAnimStep((s) => s + 1);
       setPreviewingAnimElementId(nextEl.id);
+      const animSound = nextEl.animations?.[0]?.sound || (nextEl.animation as any)?.sound;
+      if (animSound && animSound !== 'none') {
+        playTransitionSound(animSound);
+      }
       setTimeout(() => setPreviewingAnimElementId(null), 800);
     } else {
       if (currentIndex < slides.length - 1) {
