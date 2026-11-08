@@ -11,7 +11,7 @@ export type DialogId = 'history' | 'mailmerge' | 'shortcuts' | 'signature' | 'ai
   | 'inkmath' | 'inkhelp'
   | 'pagesetup' | 'columns' | 'watermark' | 'pageborders' | 'themecolors' | 'themefonts' | 'linenumbers' | 'wrapoptions'
   | 'footnotes' | 'toc' | 'tableoffigures' | 'insertindex' | 'toa' | 'markcitation' | 'sources' | 'trackoptions' | 'markupfilter' | 'readability' | 'combine'
-  | 'zoom' | 'macros' | 'sidebyside' | 'autocorrect' | 'immersive' | 'commandpalette';
+  | 'zoom' | 'macros' | 'sidebyside' | 'autocorrect' | 'immersive' | 'commandpalette' | 'diagram' | 'preflight' | 'docToSlide';
 
 export type InkTool = 'pen' | 'highlighter' | 'eraser' | 'select' | 'lasso';
 export type MarkupMode = 'all' | 'simple' | 'none' | 'original';

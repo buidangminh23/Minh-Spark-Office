@@ -59,7 +59,7 @@ import { HelpTab, OutlineTab, PdfTab, ViewTab, ZOOM_STEPS } from './ui/tabs/View
 import { ImageTab, TableTab } from './ui/tabs/ContextTabs';
 import { Backstage, StatusBar, TabBar, type TabId } from './ui/Chrome';
 import { ChangesPanel, CommentsPanel, OutlinePanel } from './ui/Panels';
-import { ContextMenu, FindBar, SelectionBubble, SlashMenu } from './ui/Floating';
+import { ContextMenu, FindBar, SelectionBubble, SlashMenu, AtMentionMenu } from './ui/Floating';
 import { Paper, PrintStyles, pageDimensions } from './ui/Paper';
 import { ChartDialog } from './ui/insert/ChartDialog';
 import { ShortcutsDialog, SignatureDialog, TemplatesDialog, WordCountDialog } from './ui/Dialogs';
@@ -70,6 +70,7 @@ import { MailMergeDialog } from './ui/MailMerge';
 import { FontDialog, HeaderFooterDialog, ParagraphDialog, StyleDialog } from './ui/FormatDialogs';
 import { CitationDialog, CrossRefDialog, DrawingDialog, EquationDialog, ImageEditDialog, QrDialog } from './ui/InsertDialogs';
 import { AccessibilityDialog, CompareDialog, GoToDialog } from './ui/CheckDialogs';
+import { PreflightDialog, DiagramDialog, DocToSlideDialog } from './ui/DocSuperDialogs';
 import SafeBoundary from './ui/SafeBoundary';
 import { AUTO_TITLE_SCAN_BLOCKS, deriveDocTitle, isDefaultDocName, type TitleBlock } from './autoTitle';
 import { useDocumentCloser } from '../../lib/documentCloser';
@@ -578,6 +579,7 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
 
         {!view.showFind && !dialog && <SafeBoundary name="selection-bubble"><SelectionBubble /></SafeBoundary>}
         <SafeBoundary name="slash-menu"><SlashMenu /></SafeBoundary>
+        <SafeBoundary name="at-menu"><AtMentionMenu /></SafeBoundary>
         {contextMenu && <SafeBoundary name="context-menu"><ContextMenu at={contextMenu} onClose={() => setContextMenu(null)} /></SafeBoundary>}
 
         <SafeBoundary key={dialog ?? 'none'} name={`dialog-${dialog}`}>
@@ -606,6 +608,9 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
         {dialog === 'accessibility' && <AccessibilityDialog onClose={closeDialog} />}
         {dialog === 'goto' && <GoToDialog onClose={closeDialog} />}
         {dialog === 'compare' && <CompareDialog onClose={closeDialog} />}
+        {dialog === 'preflight' && <PreflightDialog onClose={closeDialog} />}
+        {dialog === 'diagram' && <DiagramDialog onClose={closeDialog} />}
+        {dialog === 'docToSlide' && <DocToSlideDialog onClose={closeDialog} />}
         <InsertExtras dialog={dialog} onClose={closeDialog} />
         <DrawExtras dialog={dialog} onClose={closeDialog} />
         <LayoutExtras dialog={dialog} onClose={closeDialog} />

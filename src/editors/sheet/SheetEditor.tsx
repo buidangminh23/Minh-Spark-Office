@@ -138,6 +138,10 @@ import {
   Omega,
   Crosshair,
   Accessibility,
+  Globe,
+  GitCompare,
+  Terminal,
+  SlidersHorizontal,
   Sigma,
   TextCursorInput,
   ArrowDownUp,
@@ -284,6 +288,11 @@ import {
   FuzzyReconcileModal,
   SheetSqlModal,
   WorkbookDoctorModal,
+  MarketQuotesModal,
+  VietnamChoroplethModal,
+  WorkbookDiffModal,
+  PythonSheetModal,
+  TableSlicerModal,
 } from './SheetBizModals';
 
 interface SheetEditorProps {
@@ -714,7 +723,12 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
     | 'dataCleaning'
     | 'fuzzyReconcile'
     | 'sheetSql'
-    | 'workbookDoctor';
+    | 'workbookDoctor'
+    | 'marketQuotes'
+    | 'choropleth'
+    | 'workbookDiff'
+    | 'pythonSandbox'
+    | 'slicer';
 
   const [modal, setModalState] = useState<SheetModalKind>(null);
   const [doctorSheetNames, setDoctorSheetNames] = useState<string[]>([]);
@@ -2992,7 +3006,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
   }, [getActiveContext, activeRangeA1, getSmartDataRangeA1]);
 
   const openTableTool = useCallback(
-    (kind: 'customSort' | 'subtotal' | 'advFilter' | 'dataCleaning' | 'fuzzyReconcile' | 'sheetSql') => {
+    (kind: 'customSort' | 'subtotal' | 'advFilter' | 'dataCleaning' | 'fuzzyReconcile' | 'sheetSql' | 'slicer' | 'pythonSandbox') => {
       const table = readTableAtSelection();
       if (!table) {
         ui.toast('Hãy chọn vùng dữ liệu có dòng tiêu đề và ít nhất 1 dòng số liệu', true);
@@ -3083,6 +3097,48 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
     setSavedStatus('saving');
     setModal(null);
     ui.toast('Đã dọn dẹp ô ma và tối ưu hóa sổ tính thành công');
+  };
+
+  const handleExportQuotes = (resHeaders: string[], resRows: (string | number)[][]) => {
+    const sheet = writeGridToNewSheet('Giá thị trường', [resHeaders, ...resRows], [0]);
+    if (!sheet) return;
+    setModal(null);
+    ui.toast(`Đã chèn ${resRows.length} mã giá thị trường vào Sheet mới`);
+  };
+
+  const handleExportChoropleth = (resHeaders: string[], resRows: (string | number)[][]) => {
+    const sheet = writeGridToNewSheet('Phân bổ vùng VN', [resHeaders, ...resRows], [0]);
+    if (!sheet) return;
+    setModal(null);
+    ui.toast(`Đã xuất báo cáo phân bổ 3 miền vào Sheet mới`);
+  };
+
+  const handleExportDiffReport = (resHeaders: string[], resRows: (string | number | boolean | null)[][]) => {
+    const sheet = writeGridToNewSheet('Đối chiếu Diff', [resHeaders, ...resRows], [0]);
+    if (!sheet) return;
+    setModal(null);
+    ui.toast(`Đã xuất ${resRows.length} biến động đối chiếu vào Sheet mới`);
+  };
+
+  const handleExportPythonResult = (resHeaders: string[], resRows: (string | number | boolean | null)[][]) => {
+    const sheet = writeGridToNewSheet('Python DataFrame', [resHeaders, ...resRows], [0]);
+    if (!sheet) return;
+    setModal(null);
+    ui.toast(`Đã xuất ${resRows.length} dòng kết quả Python ra Sheet mới`);
+  };
+
+  const handleApplySlicerFilter = (colIndex: number, selectedValues: string[]) => {
+    if (!proTable) return;
+    const setVals = new Set(selectedValues);
+    const filtered = proTable.rows.filter((r) => {
+      const val = r[colIndex] !== null && r[colIndex] !== undefined ? String(r[colIndex]).trim() : '(Trống)';
+      return setVals.has(val);
+    });
+    const colName = proTable.headers[colIndex] || `Cột ${colIndex + 1}`;
+    const sheet = writeGridToNewSheet(`Lọc ${colName}`, [proTable.headers, ...filtered], [0], proTable.formats);
+    if (!sheet) return;
+    setModal(null);
+    ui.toast(`Đã lọc ${filtered.length}/${proTable.rows.length} dòng theo Slicer ra Sheet mới`);
   };
 
   const handleDescriptiveStats = () => {
@@ -4633,6 +4689,10 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                       <Grid size={20} color="#0284c7" />
                       <span>Bảng dữ liệu</span>
                     </button>
+                    <button className="ribbon-btn-large" onClick={() => openTableTool('slicer')} title="Tạo thẻ nút bấm lọc nhanh dữ liệu theo danh mục">
+                      <SlidersHorizontal size={20} color="#7c3aed" />
+                      <span>Slicer lọc</span>
+                    </button>
                   </div>
                   <div className="ribbon-group-label">Bảng tổng hợp</div>
                 </div>
@@ -4650,6 +4710,10 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                     <button className="ribbon-btn-large" onClick={() => setModal('vietqr')} title="Tạo mã VietQR chuyển khoản NAPAS 247">
                       <QrCode size={20} color="#107c41" />
                       <span>Mã VietQR</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => setModal('choropleth')} title="Trực quan hoá bản đồ nhiệt 3 miền Bắc - Trung - Nam">
+                      <Globe size={20} color="#0284c7" />
+                      <span>Bản đồ VN</span>
                     </button>
                     <button
                       className="ribbon-btn-large"
@@ -5064,8 +5128,25 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                       <Database size={20} color="#0284c7" />
                       <span>Truy vấn SQL</span>
                     </button>
+                    <button className="ribbon-btn-large" onClick={() => setModal('marketQuotes')} title="Bảng giá trực tiếp Cổ phiếu VN, Crypto, Ngoại tệ, Vàng SJC">
+                      <TrendingUp size={20} color="#16a34a" />
+                      <span>Dữ liệu sống</span>
+                    </button>
+                    <button
+                      className="ribbon-btn-large"
+                      onClick={() => {
+                        const ctx = getActiveContext();
+                        const names = ctx ? ctx.fWorkbook.getSheets().map((s) => s.getSheetName()) : [];
+                        setDoctorSheetNames(names);
+                        setModal('workbookDiff');
+                      }}
+                      title="So sánh sự khác biệt giữa hai trang tính hoặc bản lưu"
+                    >
+                      <GitCompare size={20} color="#ea580c" />
+                      <span>So sánh sổ tính</span>
+                    </button>
                   </div>
-                  <div className="ribbon-group-label">Nghiệp vụ & SQL</div>
+                  <div className="ribbon-group-label">Thị trường & So sánh</div>
                 </div>
               </>
             )}
@@ -5249,6 +5330,10 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                     <button className="ribbon-btn-large" onClick={() => setModal('aiAssistant')}>
                       <Bot size={20} color="#4f46e5" />
                       <span>Trợ lý Công thức</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => openTableTool('pythonSandbox')} title="Chạy script Python (pandas, numpy) trực tiếp trong ô và bảng tính">
+                      <Terminal size={20} color="#0284c7" />
+                      <span>Python Sandbox</span>
                     </button>
                   </div>
                   <div className="ribbon-group-label">Tự động hoá AI</div>
@@ -6608,6 +6693,48 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
         <WorkbookDoctorModal
           sheetNames={doctorSheetNames}
           onCleanWorkbook={handleCleanWorkbook}
+          onClose={() => setModal(null)}
+        />
+      )}
+
+      {modal === 'marketQuotes' && (
+        <MarketQuotesModal
+          onExportQuotes={handleExportQuotes}
+          onClose={() => setModal(null)}
+        />
+      )}
+
+      {modal === 'choropleth' && (
+        <VietnamChoroplethModal
+          onExportReport={handleExportChoropleth}
+          onClose={() => setModal(null)}
+        />
+      )}
+
+      {modal === 'workbookDiff' && (
+        <WorkbookDiffModal
+          sheetNames={doctorSheetNames.length ? doctorSheetNames : [activeSheetName]}
+          activeSheetName={activeSheetName}
+          rows={proTable?.rows ?? []}
+          onExportDiffReport={handleExportDiffReport}
+          onClose={() => setModal(null)}
+        />
+      )}
+
+      {modal === 'pythonSandbox' && proTable && (
+        <PythonSheetModal
+          headers={proTable.headers}
+          rows={proTable.rows}
+          onExportPythonResult={handleExportPythonResult}
+          onClose={() => setModal(null)}
+        />
+      )}
+
+      {modal === 'slicer' && proTable && (
+        <TableSlicerModal
+          headers={proTable.headers}
+          rows={proTable.rows}
+          onApplyFilter={handleApplySlicerFilter}
           onClose={() => setModal(null)}
         />
       )}

@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Bookmark, BookText, Download, Globe, ListX, RotateCw, Search, Bold, ChevronDown, ChevronUp, ClipboardPaste, Code, Copy, Heading1, Heading2, Heading3, Highlighter, Image as ImageIcon, Italic, Link2, List, ListOrdered, ListTodo, ListTree, MessageSquarePlus, Minus, Quote, Scissors, Sigma, Sparkles, Strikethrough, Table, Type, Underline, X, Calendar, ScissorsLineDashed, BarChart3, Languages, Settings2, Trash2, FileText, Info, AlertTriangle, EyeOff, QrCode } from 'lucide-react';
+import { Bookmark, BookText, Download, Globe, ListX, RotateCw, Search, Bold, ChevronDown, ChevronUp, ClipboardPaste, Code, Copy, Heading1, Heading2, Heading3, Highlighter, Image as ImageIcon, Italic, Link2, List, ListOrdered, ListTodo, ListTree, MessageSquarePlus, Minus, Quote, Scissors, Sigma, Sparkles, Strikethrough, Table, Type, Underline, X, Calendar, ScissorsLineDashed, BarChart3, Languages, Settings2, Trash2, FileText, Info, AlertTriangle, EyeOff, QrCode, Clock, CheckCircle2, UserCheck, GitBranch, Printer, Presentation } from 'lucide-react';
 import { useEditorState } from '@tiptap/react';
 import { searchKey } from '../search';
 import { useDoc } from '../DocContext';
@@ -226,6 +226,9 @@ export function SlashMenu() {
     { id: 'decree30', label: 'Tiêu ngữ Nghị định 30 (Hành chính)', keywords: 'decree nghi dinh 30 hanh chinh quoc hieu tieu ngu cong van hop dong', icon: <FileText size={15} />, run: () => editor.chain().focus().insertContent('<table style="width: 100%; border: none; border-collapse: collapse; margin-bottom: 20px;"><tr><td style="width: 45%; vertical-align: top; text-align: center; border: none; font-family: \'Times New Roman\', serif;"><div style="font-size: 13pt; text-transform: uppercase;">CƠ QUAN CHỦ QUẢN</div><div style="font-size: 13pt; font-weight: bold; text-transform: uppercase;">TÊN ĐƠN VỊ SOẠN THẢO</div><div style="font-size: 13pt;">Số: ...../QĐ-....</div></td><td style="width: 55%; vertical-align: top; text-align: center; border: none; font-family: \'Times New Roman\', serif;"><div style="font-size: 13pt; font-weight: bold;">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div><div style="font-size: 14pt; font-weight: bold; text-decoration: underline;">Độc lập - Tự do - Hạnh phúc</div><div style="font-size: 13pt; font-style: italic; margin-top: 6px;">......., ngày ... tháng ... năm 20...</div></td></tr></table><p style="text-align: center; font-size: 14pt; font-weight: bold; font-family: \'Times New Roman\', serif; text-transform: uppercase; margin-top: 14px;">TÊN VĂN BẢN</p><p style="text-align: center; font-size: 13pt; font-style: italic; font-family: \'Times New Roman\', serif;">(Về việc: .....................................................)</p>').run() },
     { id: 'redact', label: 'Che thông tin mật (Redact)', keywords: 'redact che thong tin mat bao mat giau', icon: <EyeOff size={15} />, run: () => editor.chain().focus().insertContent('<span style="background-color: #000000; color: #000000; user-select: none; padding: 2px 6px; border-radius: 2px;" title="Thông tin bảo mật">████████</span>').run() },
     { id: 'vietqr', label: 'Mã VietQR thanh toán', keywords: 'vietqr qr chuyen khoan ngan hang napas', icon: <QrCode size={15} />, run: () => { const bank = prompt('Nhập số tài khoản ngân hàng (Vietcombank):'); if (bank) { const url = 'https://img.vietqr.io/image/970436-' + encodeURIComponent(bank.trim()) + '-compact2.png'; editor.chain().focus().insertContent('<div style="text-align: center; margin: 14px 0;"><img src="' + url + '" alt="VietQR" style="max-width: 220px; border-radius: 8px; border: 1px solid #e2e8f0;" /><p style="font-size: 12px; color: #64748b; margin-top: 4px;">Quét mã VietQR chuyển khoản</p></div>').run(); } } },
+    { id: 'diagram', label: 'Sơ đồ Vector & Lưu trình', keywords: 'diagram so do mermaid flow sequence', icon: <GitBranch size={15} />, run: () => ctx.openDialog('diagram') },
+    { id: 'preflight', label: 'Tiền kỳ in ấn (Preflight)', keywords: 'preflight in an check print margin', icon: <Printer size={15} />, run: () => ctx.openDialog('preflight') },
+    { id: 'docToSlide', label: 'Chuyển sang Slide trình chiếu', keywords: 'slide presentation thuyet trinh', icon: <Presentation size={15} />, run: () => ctx.openDialog('docToSlide') },
     { id: 'ai', label: 'Minh AI', keywords: 'ai tri tue viet', icon: <Sparkles size={15} />, run: () => ctx.openDialog('ai') },
   ], [editor, ctx]);
   const fold = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').toLowerCase();
@@ -251,6 +254,110 @@ export function SlashMenu() {
   return (
     <div ref={ref} className="slash-menu ribbon-menu" role="listbox" style={{ left: pos.left, top: pos.top }} onMouseDown={(e) => e.preventDefault()}>
       <div className="ribbon-menu-heading">Chèn nhanh</div>
+      {filtered.map((item, i) => (
+        <button key={item.id} type="button" role="option" aria-selected={i === index} className={`ribbon-menu-item ${i === index ? 'active' : ''}`} onMouseEnter={() => setIndex(i)} onClick={() => choose(item)}>
+          <span className="menu-icon">{item.icon}</span><span className="menu-label">{item.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+
+export function AtMentionMenu() {
+  const ctx = useDoc();
+  const { editor } = ctx;
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [index, setIndex] = useState(0);
+
+  const query = useEditorState({
+    editor,
+    selector: ({ editor: e }) => {
+      const { $from, empty } = e.state.selection;
+      if (!empty || !e.isEditable || !$from.parent.isTextblock || e.isActive('codeBlock')) return null;
+      const before = $from.parent.textBetween(0, $from.parentOffset, undefined, '￼');
+      const match = /(?:^|\s)@([\p{L}\p{N}]{0,20})$/u.exec(before);
+      if (!match) return null;
+      const coords = e.view.coordsAtPos($from.pos);
+      return { text: match[1], from: $from.pos - match[1].length - 1, to: $from.pos, left: coords.left, top: coords.bottom + 6 };
+    },
+    equalityFn: (a, b) => JSON.stringify(a) === JSON.stringify(b),
+  });
+
+  const now = new Date();
+  const todayStr = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+
+  const items = useMemo(() => [
+    {
+      id: 'date-today',
+      label: `Ngày hôm nay (${todayStr})`,
+      keywords: 'date ngay hom nay today',
+      icon: <Calendar size={15} color="#2563eb" />,
+      run: () => editor.chain().focus().insertContent(`<span class="smart-chip" style="display:inline-flex;align-items:center;padding:2px 8px;background:#eff6ff;color:#1e40af;border-radius:12px;font-size:12px;font-weight:500;margin:0 2px;">📅 ${todayStr}</span>`).run(),
+    },
+    {
+      id: 'status-inprogress',
+      label: 'Trạng thái: Đang làm',
+      keywords: 'status inprogress dang lam trang thai',
+      icon: <Clock size={15} color="#d97706" />,
+      run: () => editor.chain().focus().insertContent('<span class="smart-chip" style="display:inline-flex;align-items:center;padding:2px 8px;background:#fef3c7;color:#92400e;border-radius:12px;font-size:12px;font-weight:600;margin:0 2px;">⏳ ĐANG LÀM</span>').run(),
+    },
+    {
+      id: 'status-approved',
+      label: 'Trạng thái: Đã duyệt',
+      keywords: 'status approved da duyet xong ok',
+      icon: <CheckCircle2 size={15} color="#16a34a" />,
+      run: () => editor.chain().focus().insertContent('<span class="smart-chip" style="display:inline-flex;align-items:center;padding:2px 8px;background:#dcfce7;color:#166534;border-radius:12px;font-size:12px;font-weight:600;margin:0 2px;">✓ ĐÃ DUYỆT</span>').run(),
+    },
+    {
+      id: 'status-draft',
+      label: 'Trạng thái: Bản nháp',
+      keywords: 'status draft ban nhap',
+      icon: <FileText size={15} color="#64748b" />,
+      run: () => editor.chain().focus().insertContent('<span class="smart-chip" style="display:inline-flex;align-items:center;padding:2px 8px;background:#f1f5f9;color:#475569;border-radius:12px;font-size:12px;font-weight:600;margin:0 2px;">📝 BẢN NHÁP</span>').run(),
+    },
+    {
+      id: 'status-pending',
+      label: 'Trạng thái: Chờ ký duyệt',
+      keywords: 'status pending cho ky duyet',
+      icon: <AlertTriangle size={15} color="#ea580c" />,
+      run: () => editor.chain().focus().insertContent('<span class="smart-chip" style="display:inline-flex;align-items:center;padding:2px 8px;background:#ffedd5;color:#9a3412;border-radius:12px;font-size:12px;font-weight:600;margin:0 2px;">⚠️ CHỜ KÝ DUYỆT</span>').run(),
+    },
+    {
+      id: 'contact-signer',
+      label: 'Người ký: Giám đốc / Đại diện',
+      keywords: 'contact signer nguoi ky dai dien',
+      icon: <UserCheck size={15} color="#4f46e5" />,
+      run: () => editor.chain().focus().insertContent('<span class="smart-chip" style="display:inline-flex;align-items:center;padding:2px 8px;background:#e0e7ff;color:#3730a3;border-radius:12px;font-size:12px;font-weight:500;margin:0 2px;">👤 [Người đại diện pháp luật]</span>').run(),
+    },
+  ], [editor, todayStr]);
+
+  const fold = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').toLowerCase();
+  const filtered = query ? items.filter((item) => fold(`${item.label} ${item.keywords}`).includes(fold(query.text))) : [];
+  useEffect(() => setIndex(0), [query?.text]);
+  const pos = usePosition(query ? { left: query.left, top: query.top } : null, ref);
+
+  const choose = (item: (typeof items)[number]) => {
+    if (!query) return;
+    editor.chain().focus().deleteRange({ from: query.from, to: query.to }).run();
+    item.run();
+  };
+
+  useEffect(() => {
+    if (!query || !filtered.length) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setIndex((i) => (i + 1) % filtered.length); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); setIndex((i) => (i - 1 + filtered.length) % filtered.length); }
+      else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); e.stopPropagation(); choose(filtered[index]); }
+    };
+    window.addEventListener('keydown', handler, true);
+    return () => window.removeEventListener('keydown', handler, true);
+  });
+
+  if (!query || !filtered.length || !pos) return null;
+  return (
+    <div ref={ref} className="slash-menu ribbon-menu" role="listbox" style={{ left: pos.left, top: pos.top }} onMouseDown={(e) => e.preventDefault()}>
+      <div className="ribbon-menu-heading">Thẻ thông minh (@ Smart Chips)</div>
       {filtered.map((item, i) => (
         <button key={item.id} type="button" role="option" aria-selected={i === index} className={`ribbon-menu-item ${i === index ? 'active' : ''}`} onMouseEnter={() => setIndex(i)} onClick={() => choose(item)}>
           <span className="menu-icon">{item.icon}</span><span className="menu-label">{item.label}</span>
