@@ -3,6 +3,7 @@
 use tauri::webview::{Color, NewWindowResponse};
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 mod desktop_auth;
+mod native_print;
 mod open_files;
 
 #[tauri::command]
@@ -28,6 +29,8 @@ fn main() {
         .manage(open_files::OpenFiles::default())
         .invoke_handler(tauri::generate_handler![
             open_web_app,
+            native_print::print_window,
+            native_print::default_printer,
             desktop_auth::desktop_google_sign_in,
             desktop_auth::cancel_desktop_sign_in,
             open_files::drain_open_files,

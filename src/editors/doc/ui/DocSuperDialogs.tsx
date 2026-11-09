@@ -19,7 +19,7 @@ const DECREE30_RANGES = { top: [20, 25], bottom: [20, 25], left: [30, 35], right
 const DECREE30_MARGINS_MM = { top: 20, bottom: 20, left: 30, right: 15 };
 
 export function PreflightDialog({ onClose }: { onClose: () => void }) {
-  const { editor, page, setPage, setView } = useDoc();
+  const { editor, page, setPage, print } = useDoc();
   const [fixedMargins, setFixedMargins] = useState(false);
 
   const docText = editor.getText();
@@ -80,8 +80,7 @@ export function PreflightDialog({ onClose }: { onClose: () => void }) {
 
   const handlePrint = () => {
     onClose();
-    setView({ viewMode: 'print' });
-    setTimeout(() => window.print(), 200);
+    print();
   };
 
   return (

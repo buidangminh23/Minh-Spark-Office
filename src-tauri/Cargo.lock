@@ -2109,6 +2109,7 @@ dependencies = [
  "hyper-util",
  "libc",
  "minisign-verify",
+ "objc2",
  "open",
  "serde",
  "serde_json",

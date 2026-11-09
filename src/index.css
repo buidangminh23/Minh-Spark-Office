@@ -1595,10 +1595,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   font-weight: 700;
 }
 
-.sheet-print-host {
-  display: none;
-}
-
 /* Dialogs and Modals */
 .dialog-backdrop {
   position: fixed;
@@ -1888,20 +1884,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   }
   .sidebar, .topbar, .editor-top, .ribbon, .sheet-formula-bar, .doc-outline, .doc-comments, .editor-status, .sheet-status-bar, .toasts, .dialog-backdrop {
     display: none !important;
-  }
-  body.printing-sheet .editor-shell {
-    height: auto !important;
-    width: auto !important;
-    overflow: visible !important;
-  }
-  body.printing-sheet .sheet-workspace {
-    display: none !important;
-  }
-  body.printing-sheet .sheet-print-host {
-    display: block !important;
-    width: 100% !important;
-    background: #ffffff !important;
-    padding: 0 !important;
   }
   .doc-workspace, .doc-canvas {
     padding: 0 !important;

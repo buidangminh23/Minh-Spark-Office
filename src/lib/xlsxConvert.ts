@@ -566,7 +566,7 @@ export function exportSheetToStyledHtml(workbook: WorkbookData, sheet: SheetData
   const escape = (text: string) =>
     text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
   const area = parsePrintArea(options.printArea);
-  const detected = getSheetBounds(sheet, 500, 60);
+  const detected = getSheetBounds(sheet, MAX_IMPORT_ROWS, MAX_IMPORT_COLS);
   const startRow = area ? area.startRow : 0;
   const endRow = area ? area.endRow : Math.max(detected.maxRow, 0);
   const startCol = area ? area.startCol : 0;

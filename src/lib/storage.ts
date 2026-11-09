@@ -3,6 +3,7 @@ import { createContext, useContext } from 'react';
 import type { JSONContent } from '@tiptap/react';
 import type { WorkbookData } from './sheetTypes';
 import type { PresentationData } from './slideTypes';
+import { PAPER_KEYS, paperLabel, paperPx, type PaperKey } from './paperSizes';
 
 export type FileKind = 'doc' | 'sheet' | 'pdf' | 'slide' | 'image';
 
@@ -52,7 +53,7 @@ export type InkStroke = { id: string; color: string; width: number; opacity: num
 export type DocProperties = { author?: string; subject?: string; keywords?: string; company?: string };
 
 export type PageSettings = {
-  size: 'A4' | 'A5' | 'Letter' | 'Legal' | 'A3' | 'A6' | 'B5' | 'Executive' | 'Tabloid';
+  size: PaperKey;
   orientation: 'portrait' | 'landscape';
   margins: { top: number; right: number; bottom: number; left: number };
   header: string;
@@ -186,17 +187,9 @@ const INDEX_KEY = 'files-index';
 const contentKey = (id: string) => `content:${id}`;
 const versionsKey = (fileId: string) => `versions:${fileId}`;
 
-export const PAGE_SIZES: Record<PageSettings['size'], { width: number; height: number; label: string }> = {
-  A4: { width: 794, height: 1123, label: 'A4 (21 × 29,7 cm)' },
-  A5: { width: 559, height: 794, label: 'A5 (14,8 × 21 cm)' },
-  Letter: { width: 816, height: 1056, label: 'Letter (8,5 × 11 in)' },
-  Legal: { width: 816, height: 1344, label: 'Legal (8,5 × 14 in)' },
-  A3: { width: 1123, height: 1587, label: 'A3 (29,7 × 42 cm)' },
-  A6: { width: 397, height: 559, label: 'A6 (10,5 × 14,8 cm)' },
-  B5: { width: 665, height: 945, label: 'B5 (17,6 × 25 cm)' },
-  Executive: { width: 696, height: 1008, label: 'Executive (7,25 × 10,5 in)' },
-  Tabloid: { width: 1056, height: 1632, label: 'Tabloid (11 × 17 in)' },
-};
+export const PAGE_SIZES = Object.fromEntries(
+  PAPER_KEYS.map((key) => [key, { ...paperPx(key), label: paperLabel(key) }]),
+) as Record<PageSettings['size'], { width: number; height: number; label: string }>;
 
 export const DEFAULT_PAGE_KEY = 'minh-docs-default-page';
 

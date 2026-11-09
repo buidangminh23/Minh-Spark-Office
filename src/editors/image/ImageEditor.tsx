@@ -47,6 +47,7 @@ import { useWorkspace } from '../../lib/storage';
 import { saveAccountSnapshot } from '../../lib/accountSnapshots';
 import { useDocumentCloser } from '../../lib/documentCloser';
 import { useUi } from '../../components/ui';
+import { ImagePrintDialog } from './ImagePrintDialog';
 import { downloadBlob } from '../../lib/download';
 import {
   formatFileSize,
@@ -120,6 +121,7 @@ export default function ImageEditor({
 
   const [activeTab, setActiveTab] = useState<RibbonTab>('view');
   const [title, setTitle] = useState(meta.name);
+  const [printJob, setPrintJob] = useState<{ src: string; width: number; height: number } | null>(null);
   const [savedStatus, setSavedStatus] = useState<'saved' | 'saving'>('saved');
   const [currentDataUrl, setCurrentDataUrl] = useState(content.imageDataUrl);
   const [dimensions, setDimensions] = useState({
@@ -677,6 +679,34 @@ export default function ImageEditor({
     }
   };
 
+  const handleOpenPrint = async () => {
+    try {
+      ui.showBusy('Đang chuẩn bị ảnh để in…');
+      const bakedUrl = await handleBakeAllToDataUrl();
+      const img = new Image();
+      img.src = bakedUrl;
+      await img.decode();
+      setPrintJob({ src: bakedUrl, width: img.naturalWidth || dimensions.width, height: img.naturalHeight || dimensions.height });
+    } catch {
+      ui.toast('Không chuẩn bị được ảnh để in', true);
+    } finally {
+      ui.showBusy(null);
+    }
+  };
+
+  const openPrintRef = useRef(handleOpenPrint);
+  openPrintRef.current = handleOpenPrint;
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === 'p') {
+        event.preventDefault();
+        void openPrintRef.current();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   const handleCopyToClipboard = async () => {
     try {
       const bakedUrl = await handleBakeAllToDataUrl();
@@ -728,6 +758,7 @@ export default function ImageEditor({
 
   return (
     <div className="image-editor-shell">
+      {printJob && <ImagePrintDialog src={printJob.src} width={printJob.width} height={printJob.height} title={title.replace(/\.[^/.]+$/, '')} onClose={() => setPrintJob(null)} />}
       {/* Top Bar */}
       <header className="image-editor-top">
         <div className="image-title-group">
@@ -821,8 +852,8 @@ export default function ImageEditor({
           </button>
           <button
             className="image-tool-btn"
-            onClick={() => window.print()}
-            title="In hình ảnh"
+            onClick={() => void handleOpenPrint()}
+            title="In hình ảnh (Ctrl+P)"
           >
             <Printer size={14} />
           </button>

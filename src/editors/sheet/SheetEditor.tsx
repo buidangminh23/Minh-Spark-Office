@@ -1,4 +1,5 @@
 import { SuiteLogo } from '../../components/SuiteLogo';
+import { SheetPrintDialog } from './SheetPrintDialog';
 import { saveAccountSnapshot } from '../../lib/accountSnapshots';
 import { useAccount } from '../../components/Authentication';
 import { useWorkspace } from '../../lib/storage';
@@ -237,7 +238,6 @@ import {
   DataValidationModal,
   FindReplaceGoToModal,
   SignatureStampModal,
-  PageSetupPreviewModal,
   NameManagerModal,
   GoalSeekModal,
   AiAuditModal,
@@ -607,7 +607,6 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
   const [printSettings, setPrintSettings] = useState<SheetPrintSettings>(
     () => content.printSettings ?? DEFAULT_PRINT_SETTINGS
   );
-  const [printHostHtml, setPrintHostHtml] = useState('');
 
   const [popover, setPopover] = useState<PopoverState | null>(null);
   const [clipboardBuf, setClipboardBuf] = useState<ClipboardBuffer | null>(null);
@@ -3481,39 +3480,6 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
     ui.toast(`Đã tạo báo cáo Pivot "${uniqueName}" (${rowGroupCount} nhóm tổng hợp)`);
   };
 
-  const handleTriggerVectorPrint = useCallback(
-    (overrideSettings?: SheetPrintSettings) => {
-      const nextSettings = overrideSettings ?? printSettings;
-      if (overrideSettings) setPrintSettings(overrideSettings);
-      const wb = captureHydratedWorkbook();
-      const ctx = getActiveContext();
-      const activeId = ctx?.fWorksheet.getSheetId() ?? wb.sheetOrder[0];
-      const sh = wb.sheets[activeId] ?? wb.sheets[wb.sheetOrder[0]];
-      if (!sh) return;
-      const html = exportSheetToStyledHtml(wb, sh, {
-        title: stripSpreadsheetExt(title),
-        showGridlines: nextSettings.showGridlines,
-        printArea: nextSettings.printArea,
-        orientation: nextSettings.orientation,
-        paperSize: nextSettings.paperSize,
-        fitToPage: nextSettings.fitToPage,
-        signedBy: nextSettings.signedBy,
-        signedRole: nextSettings.signedRole,
-        signedAt: nextSettings.signedAt,
-        standalone: false,
-      });
-      setPrintHostHtml(html);
-      document.body.classList.add('printing-sheet');
-      setTimeout(() => {
-        window.print();
-        setTimeout(() => {
-          document.body.classList.remove('printing-sheet');
-        }, 400);
-      }, 120);
-    },
-    [printSettings, captureHydratedWorkbook, getActiveContext, title]
-  );
-
   const handleDownloadPrintHtml = (settingsToUse: SheetPrintSettings) => {
     const wb = captureHydratedWorkbook();
     const ctx = getActiveContext();
@@ -4070,7 +4036,8 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
       }
     );
     ui.toast(`Đã lưu "${pdfName}" vào kho Minh PDF và mở hộp thoại xuất PDF`);
-    handleTriggerVectorPrint(nextPrint);
+    setPrintSettings(nextPrint);
+    setModal('pageSetup');
   };
 
   const handleCopySummaryTsv = async () => {
@@ -6288,8 +6255,6 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
         </footer>
       )}
 
-      <div className="sheet-print-host" dangerouslySetInnerHTML={{ __html: printHostHtml }} />
-
       {modal === 'formulas' && (
         <FormulaLibraryModal
           activeCellA1={activeCellA1}
@@ -6370,21 +6335,16 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
       )}
 
       {modal === 'pageSetup' && (
-        <PageSetupPreviewModal
+        <SheetPrintDialog
           workbook={liveSnapshotForModal}
-          sheet={
-            liveSnapshotForModal.sheets[modalActiveSheetId] ??
-            liveSnapshotForModal.sheets[liveSnapshotForModal.sheetOrder[0]]
-          }
+          activeSheetId={modalActiveSheetId}
           title={stripSpreadsheetExt(title)}
           activeRangeA1={activeRangeA1}
           settings={printSettings}
           onSaveSettings={(next) => {
             setPrintSettings(next);
             setSavedStatus('saving');
-            ui.toast('Đã lưu thiết lập trang in');
           }}
-          onPrintNow={handleTriggerVectorPrint}
           onDownloadHtml={handleDownloadPrintHtml}
           onClose={() => setModal(null)}
         />

@@ -40,6 +40,7 @@ import { createSlideFromLayout } from '../../lib/slideTemplates';
 import { exportToPptx } from '../../lib/pptxExport';
 import { playTransitionSound } from '../../lib/slideAudio';
 import { SlideCanvas } from './SlideCanvas';
+import { SlidePrintDialog } from './SlidePrintDialog';
 import { SlideThumbnails } from './SlideThumbnails';
 import { SlideRibbon, type RibbonTab } from './SlideRibbon';
 import { SlideShow } from './SlideShow';
@@ -138,6 +139,7 @@ export default function SlideEditor({
   // Modals state
   const [isFindReplaceOpen, setIsFindReplaceOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isPrintOpen, setIsPrintOpen] = useState(false);
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [isSlideShowActive, setIsSlideShowActive] = useState(false);
   const [isPresenterMode, setIsPresenterMode] = useState(false);
@@ -256,6 +258,9 @@ export default function SlideEditor({
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
         void handleExplicitSave();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p' && !e.shiftKey) {
+        e.preventDefault();
+        setIsPrintOpen(true);
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
         e.preventDefault();
         handleUndo();
@@ -1813,10 +1818,19 @@ export default function SlideEditor({
         presentation={presentation}
         onExportPptx={() => exportToPptx(presentation, meta.name)}
         onExportPdf={() => {
-          ui.toast('Đang chuẩn bị tệp PDF xuất ra...');
-          window.print();
+          setIsExportModalOpen(false);
+          setIsPrintOpen(true);
         }}
       />
+
+      {isPrintOpen && (
+        <SlidePrintDialog
+          presentation={presentation}
+          title={meta.name.replace(/\.[^/.]+$/, '')}
+          activeIndex={activeSlideIndex}
+          onClose={() => setIsPrintOpen(false)}
+        />
+      )}
 
       {/* AI Presentation Copilot Modal */}
       <SlideAiModal
@@ -1981,7 +1995,7 @@ export default function SlideEditor({
           onClose={() => setIsBackstageOpen(false)}
           onSave={handleExplicitSave}
           onExportPptx={() => exportToPptx(presentation, meta.name)}
-          onPrint={() => setIsExportModalOpen(true)}
+          onPrint={() => { setIsBackstageOpen(false); setIsPrintOpen(true); }}
           onNew={() => {
             setIsBackstageOpen(false);
             onBack();

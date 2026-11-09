@@ -18,7 +18,7 @@ import { ArrowLeft, BookOpen, CheckCircle2, Clock, History, MessageSquare, Redo2
 import { CommentMark, Footnote, FontSizeStep, LayoutImage, MergeField, PageBreak, ParagraphFormat, ShadedTableCell, ShadedTableHeader } from './extensions';
 import { AutoCorrect, Bibliography, Bookmark, Citation, ColumnSection, CrossRef, DocIndex, DocRefs, EndnoteList, Equation, FigureList, IndexEntry, ListStyles, SmartChip, TableExtras, TableOfContents, TextBox, TextStyleExtras, setRefs } from './extensionsExtra';
 import { ALL_DIRECTIONS, TableTools } from './resizeObjects';
-import { Pagination, getPagination } from './pagination';
+import { Pagination } from './pagination';
 import { editNodeAt } from './actionsExtra';
 import { EQUATION_OPEN_DIALOG } from './equationInline';
 import { SearchAndReplace } from './search';
@@ -71,6 +71,7 @@ import { FontDialog, HeaderFooterDialog, ParagraphDialog, StyleDialog } from './
 import { CitationDialog, CrossRefDialog, DrawingDialog, EquationDialog, ImageEditDialog, QrDialog } from './ui/InsertDialogs';
 import { AccessibilityDialog, CompareDialog, GoToDialog } from './ui/CheckDialogs';
 import { PreflightDialog, DiagramDialog, DocToSlideDialog } from './ui/DocSuperDialogs';
+import { DocPrintDialog } from './ui/DocPrintDialog';
 import SafeBoundary from './ui/SafeBoundary';
 import { AUTO_TITLE_SCAN_BLOCKS, deriveDocTitle, isDefaultDocName, type TitleBlock } from './autoTitle';
 import { useDocumentCloser } from '../../lib/documentCloser';
@@ -143,8 +144,6 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
   const changeRevision = useRef(0);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [pages, setPages] = useState({ count: 1, current: 1 });
-  const latestZoom = useRef(view.zoom);
-  latestZoom.current = view.zoom;
   const [canvasEl, setCanvasEl] = useState<HTMLDivElement | null>(null);
   const preferredZoom = useRef(view.zoom);
   const autoZoom = useRef<number | null>(null);
@@ -411,17 +410,7 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
     },
   }), [painter, editor, ui]);
 
-  const print = useCallback(() => {
-    const previous = latestZoom.current;
-    setViewState((v) => ({ ...v, zoom: 100 }));
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      getPagination(editor).runNow();
-      requestAnimationFrame(() => {
-        window.print();
-        setViewState((v) => ({ ...v, zoom: previous }));
-      });
-    }));
-  }, [editor]);
+  const print = useCallback(() => setDialog('print'), []);
 
   const ctx: DocCtx = {
     storage,
@@ -638,6 +627,7 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
         {dialog === 'goto' && <GoToDialog onClose={closeDialog} />}
         {dialog === 'compare' && <CompareDialog onClose={closeDialog} />}
         {dialog === 'preflight' && <PreflightDialog onClose={closeDialog} />}
+        {dialog === 'print' && <DocPrintDialog onClose={closeDialog} />}
         {dialog === 'diagram' && <DiagramDialog onClose={closeDialog} />}
         {dialog === 'docToSlide' && <DocToSlideDialog onClose={closeDialog} />}
         <InsertExtras dialog={dialog} onClose={closeDialog} />

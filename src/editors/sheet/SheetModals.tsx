@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   AlertTriangle,
   Sparkles,
-  Printer,
   Upload,
   Layers,
   Split,
@@ -24,9 +23,8 @@ import {
   Calculator,
   ShieldCheck,
 } from 'lucide-react';
-import type { FileMeta, FileVersion, SheetPrintSettings } from '../../lib/storage';
-import type { SheetData, WorkbookData } from '../../lib/sheetTypes';
-import { exportSheetToStyledHtml } from '../../lib/xlsxConvert';
+import type { FileMeta, FileVersion } from '../../lib/storage';
+import type { WorkbookData } from '../../lib/sheetTypes';
 import {
   FORMULA_CATALOG,
   CHART_PALETTES,
@@ -1200,189 +1198,6 @@ export function SignatureStampModal({
             }}
           >
             <span>Ký & Xuất sang Minh PDF</span>
-          </button>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-export function PageSetupPreviewModal({
-  workbook,
-  sheet,
-  title,
-  activeRangeA1,
-  settings,
-  onSaveSettings,
-  onPrintNow,
-  onDownloadHtml,
-  onClose,
-}: {
-  workbook: WorkbookData;
-  sheet: SheetData;
-  title: string;
-  activeRangeA1: string;
-  settings: SheetPrintSettings;
-  onSaveSettings: (next: SheetPrintSettings) => void;
-  onPrintNow: (next: SheetPrintSettings) => void;
-  onDownloadHtml: (next: SheetPrintSettings) => void;
-  onClose: () => void;
-}) {
-  const [draft, setDraft] = useState<SheetPrintSettings>(settings);
-
-  const previewHtml = useMemo(
-    () =>
-      exportSheetToStyledHtml(workbook, sheet, {
-        title,
-        showGridlines: draft.showGridlines,
-        printArea: draft.printArea,
-        orientation: draft.orientation,
-        paperSize: draft.paperSize,
-        fitToPage: draft.fitToPage,
-        signedBy: draft.signedBy,
-        signedRole: draft.signedRole,
-        signedAt: draft.signedAt,
-        standalone: false,
-      }),
-    [workbook, sheet, title, draft]
-  );
-
-  return (
-    <div className="dialog-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <section className="dialog wide" style={{ width: 820, maxHeight: '88vh', display: 'flex', flexDirection: 'column' }}>
-        <button className="dialog-close icon-btn" onClick={onClose} aria-label="Đóng">
-          <X size={18} />
-        </button>
-        <h2>Thiết lập trang in & Xuất PDF Vector chuẩn xác</h2>
-        <div className="dialog-subtitle">
-          Kết xuất bảng biểu vector sắc nét giữ nguyên gộp ô, đường viền, màu sắc và dấu xác thực.
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 10 }}>
-          <label className="field" style={{ marginBottom: 0 }}>
-            <span className="field-label">Khổ giấy</span>
-            <select
-              className="text-field"
-              value={draft.paperSize}
-              onChange={(e) => setDraft({ ...draft, paperSize: e.target.value as SheetPrintSettings['paperSize'] })}
-            >
-              <option value="A4">A4 (210 × 297 mm)</option>
-              <option value="A3">A3 (297 × 420 mm)</option>
-              <option value="Letter">Letter (8.5 × 11 in)</option>
-            </select>
-          </label>
-
-          <label className="field" style={{ marginBottom: 0 }}>
-            <span className="field-label">Hướng trang</span>
-            <select
-              className="text-field"
-              value={draft.orientation}
-              onChange={(e) => setDraft({ ...draft, orientation: e.target.value as SheetPrintSettings['orientation'] })}
-            >
-              <option value="landscape">Khổ ngang (Landscape)</option>
-              <option value="portrait">Khổ dọc (Portrait)</option>
-            </select>
-          </label>
-
-          <label className="field" style={{ marginBottom: 0 }}>
-            <span className="field-label">Căn lề</span>
-            <select
-              className="text-field"
-              value={draft.margins}
-              onChange={(e) => setDraft({ ...draft, margins: e.target.value as SheetPrintSettings['margins'] })}
-            >
-              <option value="normal">Tiêu chuẩn (Normal)</option>
-              <option value="narrow">Lề hẹp (Narrow)</option>
-              <option value="wide">Lề rộng (Wide)</option>
-            </select>
-          </label>
-
-          <label className="field" style={{ marginBottom: 0 }}>
-            <span className="field-label">Vùng in (Print Area)</span>
-            <div style={{ display: 'flex', gap: 4 }}>
-              <input
-                className="text-field"
-                value={draft.printArea ?? ''}
-                onChange={(e) => setDraft({ ...draft, printArea: e.target.value })}
-                placeholder="Toàn bộ dữ liệu"
-              />
-              <button
-                className="btn"
-                style={{ padding: '4px 8px', minHeight: 34 }}
-                title="Đặt bằng vùng đang chọn"
-                onClick={() => setDraft({ ...draft, printArea: activeRangeA1 })}
-              >
-                Chọn
-              </button>
-            </div>
-          </label>
-        </div>
-
-        <div style={{ display: 'flex', gap: 18, marginBottom: 10 }}>
-          <label className="check-field" style={{ marginBottom: 0 }}>
-            <input
-              type="checkbox"
-              checked={draft.fitToPage}
-              onChange={(e) => setDraft({ ...draft, fitToPage: e.target.checked })}
-            />
-            <span>Co giãn vừa khít bề ngang trang in (Fit to Page)</span>
-          </label>
-          <label className="check-field" style={{ marginBottom: 0 }}>
-            <input
-              type="checkbox"
-              checked={draft.showGridlines}
-              onChange={(e) => setDraft({ ...draft, showGridlines: e.target.checked })}
-            />
-            <span>Hiển thị đường kẻ ô khi in</span>
-          </label>
-        </div>
-
-        <div
-          style={{
-            flex: 1,
-            overflow: 'auto',
-            border: '1px solid #cbd5e1',
-            borderRadius: 8,
-            background: '#e2e8f0',
-            padding: 16,
-            minHeight: 240,
-          }}
-        >
-          <div
-            style={{
-              background: '#ffffff',
-              padding: draft.margins === 'narrow' ? 14 : draft.margins === 'wide' ? 36 : 24,
-              borderRadius: 4,
-              boxShadow: '0 4px 14px rgba(15,23,42,0.1)',
-              overflowX: 'auto',
-            }}
-            dangerouslySetInnerHTML={{ __html: previewHtml }}
-          />
-        </div>
-
-        <div className="dialog-actions">
-          <button
-            className="btn"
-            onClick={() => {
-              onSaveSettings(draft);
-              onClose();
-            }}
-          >
-            Lưu thiết lập
-          </button>
-          <button className="btn" onClick={() => onDownloadHtml(draft)}>
-            <Download size={14} />
-            <span>Tải bản in HTML</span>
-          </button>
-          <button
-            className="btn btn-sheet"
-            onClick={() => {
-              onPrintNow(draft);
-              onClose();
-            }}
-          >
-            <Printer size={15} />
-            <span>In / Xuất PDF ngay</span>
           </button>
         </div>
       </section>

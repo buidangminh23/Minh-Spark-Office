@@ -57,6 +57,7 @@ import { useDocumentCloser } from '../../lib/documentCloser';
 import { currentAuthorName } from '../../lib/currentAuthor';
 import { looksLikePdf, pdfBytesToDataUrl, pdfDataUrlToBytes } from './pdfBytes';
 import { usePdfDocument, usePdfPageText } from './usePdfDocument';
+import { PdfPrintDialog } from './PdfPrintDialog';
 import { PdfPageScroller, PdfThumb, typicalWidth } from './PdfPageScroller';
 import { usePageNavigation } from './usePageNavigation';
 
@@ -110,6 +111,7 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
   }, [pdfState, storedPageCount, markDirty, setCurrentPage]);
 
   const [rotation, setRotation] = useState(0);
+  const [printOpen, setPrintOpen] = useState(false);
   const pageBaseWidth = pdfState.status === 'ready' ? typicalWidth(pdfState.sizes, rotation) : PDF_PAGE_WIDTH;
   const [zoomSetting, setZoomSetting] = useState<number | null>(null);
   const [fitZoom, setFitZoom] = useState(100);
@@ -315,8 +317,30 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
     }
   };
 
+  const openPrint = useCallback(() => {
+    if (pdfState.status !== 'ready') {
+      ui.toast(pdfState.status === 'loading' ? 'Tệp PDF đang mở, thử lại sau giây lát' : 'Chưa có tệp PDF để in', true);
+      return;
+    }
+    setPrintOpen(true);
+  }, [pdfState.status, ui]);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === 'p') {
+        event.preventDefault();
+        openPrint();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [openPrint]);
+
   return (
     <div className="editor-shell">
+      {printOpen && pdfState.status === 'ready' && (
+        <PdfPrintDialog doc={pdfState.doc} sizes={pdfState.sizes} rotation={rotation} title={title.replace(/\.pdf$/i, '')} currentPage={currentPage} onClose={() => setPrintOpen(false)} />
+      )}
       {/* Top Header */}
       <header className="editor-top">
         <div className="editor-title-group">
@@ -375,7 +399,7 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
             <Download size={15} />
             <span>Tải xuống PDF</span>
           </button>
-          <button className="btn" onClick={() => window.print()} title="In tài liệu PDF">
+          <button className="btn" onClick={openPrint} title="In tài liệu PDF (Ctrl+P)">
             <Printer size={15} />
             <span>In</span>
           </button>
