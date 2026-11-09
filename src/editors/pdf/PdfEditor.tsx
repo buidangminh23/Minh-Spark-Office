@@ -56,7 +56,9 @@ import { useUi } from '../../components/ui';
 import { useDocumentCloser } from '../../lib/documentCloser';
 import { currentAuthorName } from '../../lib/currentAuthor';
 import { looksLikePdf, pdfBytesToDataUrl, pdfDataUrlToBytes } from './pdfBytes';
-import { usePdfDocument, usePdfPageCanvas, usePdfPageText, usePdfThumbnails } from './usePdfDocument';
+import { usePdfDocument, usePdfPageText } from './usePdfDocument';
+import { PdfPageScroller, PdfThumb, typicalWidth } from './PdfPageScroller';
+import { usePageNavigation } from './usePageNavigation';
 
 interface PdfEditorProps {
   meta: FileMeta;
@@ -95,7 +97,7 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
   const [pdfDataUrl, setPdfDataUrl] = useState(content.pdfDataUrl);
   const hasRealPdf = Boolean(pdfDataUrl);
   const pdfState = usePdfDocument(pdfDataUrl);
-  const pdfThumbs = usePdfThumbnails(pdfState);
+  const thumbCache = useMemo(() => new Map<string, string>(), [pdfState]);
   const [totalPages, setTotalPages] = useState(content.pageCount || (content.pdfDataUrl ? 1 : 3));
   const storedPageCount = content.pageCount;
 
@@ -107,18 +109,28 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
     if (storedPageCount !== count) markDirty();
   }, [pdfState, storedPageCount, markDirty, setCurrentPage]);
 
-  const realPageSize = pdfState.status === 'ready' ? pdfState.sizes[currentPage - 1] ?? pdfState.sizes[0] : undefined;
-  const pageBaseWidth = realPageSize?.width ?? PDF_PAGE_WIDTH;
-  const pageBaseHeight = realPageSize?.height ?? PDF_PAGE_HEIGHT;
+  const [rotation, setRotation] = useState(0);
+  const pageBaseWidth = pdfState.status === 'ready' ? typicalWidth(pdfState.sizes, rotation) : PDF_PAGE_WIDTH;
   const [zoomSetting, setZoomSetting] = useState<number | null>(null);
   const [fitZoom, setFitZoom] = useState(100);
   const zoom = zoomSetting ?? fitZoom;
   const setZoom = (update: (value: number) => number) => setZoomSetting(update(zoom));
   const [pdfCanvas, setPdfCanvas] = useState<HTMLDivElement | null>(null);
-  const pageCssWidth = pageBaseWidth * (zoom / 100);
-  const pageCssHeight = pageBaseHeight * (zoom / 100);
-  const { canvasRef: realCanvasRef, failed: realPageFailed } = usePdfPageCanvas(pdfState, currentPage, pageCssWidth);
   const realPageText = usePdfPageText(pdfState, currentPage);
+  const pageNav = usePageNavigation({
+    root: pdfCanvas,
+    enabled: pdfState.status === 'ready',
+    pageCount: totalPages,
+    currentPage,
+    setCurrentPage,
+    layoutKey: `${pdfState.status}:${zoom}:${rotation}`,
+  });
+  const navigateToPage = pageNav.goToPage;
+  const goToPage = useCallback((page: number) => {
+    if (hasRealPdf) navigateToPage(page);
+    else setCurrentPage(Math.min(Math.max(1, page), totalPages));
+  }, [hasRealPdf, navigateToPage, setCurrentPage, totalPages]);
+  const [thumbStrip, setThumbStrip] = useState<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!pdfCanvas || typeof ResizeObserver === 'undefined') return;
@@ -134,7 +146,6 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
     observer.observe(pdfCanvas);
     return () => observer.disconnect();
   }, [pdfCanvas, pageBaseWidth, hasRealPdf]);
-  const [rotation, setRotation] = useState(0);
 
   const [showSignModal, setShowSignModal] = useState(false);
   const [showSplitModal, setShowSplitModal] = useState(false);
@@ -677,8 +688,19 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
       {/* Main Workspace: PDF Canvas Viewer */}
       <div className="pdf-workspace">
         {/* Left Thumbnails Strip */}
-        <div className="pdf-thumbs">
-          {Array.from({ length: totalPages }).map((_, idx) => (
+        <div className="pdf-thumbs" ref={setThumbStrip}>
+          {pdfState.status === 'ready' ? pdfState.sizes.map((_, idx) => (
+            <PdfThumb
+              key={idx}
+              doc={pdfState.doc}
+              pageNumber={idx + 1}
+              rotation={rotation}
+              root={thumbStrip}
+              active={currentPage === idx + 1}
+              cache={thumbCache}
+              onSelect={goToPage}
+            />
+          )) : !hasRealPdf && Array.from({ length: totalPages }).map((_, idx) => (
             <div
               key={idx}
               style={{
@@ -696,22 +718,13 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
                 padding: 6,
                 transition: 'all 0.15s ease',
               }}
-              onClick={() => setCurrentPage(idx + 1)}
+              onClick={() => goToPage(idx + 1)}
             >
-              {hasRealPdf ? (
-                <>
-                  {pdfThumbs[idx]
-                    ? <img className="pdf-thumb-image" src={pdfThumbs[idx]} alt={`Trang ${idx + 1}`} />
-                    : <div className="pdf-thumb-image" />}
-                  <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>Trang {idx + 1}</div>
-                </>
-              ) : (
-                <>
-                  <div style={{ width: '100%', height: 4, background: '#e2e8f0', borderRadius: 2 }} />
-                  <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>Trang {idx + 1}</div>
-                  <div style={{ width: '80%', height: 4, background: '#e2e8f0', borderRadius: 2 }} />
-                </>
-              )}
+              <>
+                <div style={{ width: '100%', height: 4, background: '#e2e8f0', borderRadius: 2 }} />
+                <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>Trang {idx + 1}</div>
+                <div style={{ width: '80%', height: 4, background: '#e2e8f0', borderRadius: 2 }} />
+              </>
             </div>
           ))}
         </div>
@@ -719,21 +732,27 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
         {/* Center Canvas */}
         <div className="pdf-canvas" ref={setPdfCanvas}>
           {hasRealPdf ? (
-            <div
-              ref={pageRef}
-              className="pdf-page pdf-page-real"
-              style={{ width: pageCssWidth, height: pageCssHeight, transform: `rotate(${rotation}deg)` }}
-            >
-              {pdfState.status === 'ready' && !realPageFailed && (
-                <canvas ref={realCanvasRef} className="pdf-page-image" role="img" aria-label={`${title} – trang ${currentPage}`} />
-              )}
-              {pdfState.status === 'loading' && <div className="pdf-page-status">Đang mở tệp PDF…</div>}
-              {(pdfState.status === 'error' || realPageFailed) && (
-                <div className="pdf-page-status pdf-page-status-error">
-                  Không đọc được nội dung tệp PDF này. Tệp gốc vẫn được giữ nguyên; bấm "Tải xuống PDF" để mở bằng ứng dụng khác.
-                </div>
-              )}
-            </div>
+            pdfState.status === 'ready' ? (
+              <PdfPageScroller
+                doc={pdfState.doc}
+                sizes={pdfState.sizes}
+                zoom={zoom}
+                rotation={rotation}
+                root={pdfCanvas}
+                title={title}
+                register={pageNav.register}
+              />
+            ) : (
+              <div className="pdf-page pdf-page-real" style={{ width: PDF_PAGE_WIDTH * (zoom / 100), height: PDF_PAGE_HEIGHT * (zoom / 100) }}>
+                {pdfState.status === 'error' ? (
+                  <div className="pdf-page-status pdf-page-status-error">
+                    Không đọc được nội dung tệp PDF này. Tệp gốc vẫn được giữ nguyên; bấm "Tải xuống PDF" để mở bằng ứng dụng khác.
+                  </div>
+                ) : (
+                  <div className="pdf-page-status">Đang mở tệp PDF…</div>
+                )}
+              </div>
+            )
           ) : (
           <div
             ref={pageRef}
@@ -828,7 +847,7 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
             className="icon-btn"
             style={{ color: '#fff' }}
             disabled={currentPage <= 1}
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            onClick={() => goToPage(currentPage - 1)}
             title="Trang trước"
           >
             <ChevronLeft size={16} />
@@ -840,7 +859,7 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
             className="icon-btn"
             style={{ color: '#fff' }}
             disabled={currentPage >= totalPages}
-            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            onClick={() => goToPage(currentPage + 1)}
             title="Trang sau"
           >
             <ChevronRight size={16} />
@@ -1266,11 +1285,11 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
               Trình chiếu tài liệu PDF toàn màn hình phục vụ hội nghị và thuyết trình nội bộ doanh nghiệp.
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <button className="btn" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}>
+              <button className="btn" onClick={() => goToPage(currentPage - 1)}>
                 Trang trước
               </button>
               <span>Trang {currentPage} / {totalPages}</span>
-              <button className="btn" onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}>
+              <button className="btn" onClick={() => goToPage(currentPage + 1)}>
                 Trang tiếp theo
               </button>
             </div>

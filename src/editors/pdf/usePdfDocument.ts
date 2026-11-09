@@ -1,12 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import type { PdfPageSize } from './pdfRender';
 
-const THUMBNAIL_WIDTH = 100;
-const THUMBNAIL_LIMIT = 60;
 const RENDER_DEBOUNCE_MS = 60;
 
-const loadRenderer = () => import('./pdfRender');
+export const loadRenderer = () => import('./pdfRender');
 
 export type PdfDocumentState =
   | { status: 'none' }
@@ -47,50 +45,44 @@ export function usePdfDocument(dataUrl: string | undefined): PdfDocumentState {
   return state;
 }
 
-export function usePdfThumbnails(state: PdfDocumentState): string[] {
-  const [thumbs, setThumbs] = useState<string[]>([]);
+export function useNearViewport(target: RefObject<Element | null>, root: Element | null, margin: string): boolean {
+  const [near, setNear] = useState(false);
 
   useEffect(() => {
-    setThumbs([]);
-    if (state.status !== 'ready') return;
-    let cancelled = false;
-    const count = Math.min(state.doc.numPages, THUMBNAIL_LIMIT);
-    void (async () => {
-      const renderer = await loadRenderer();
-      for (let n = 1; n <= count && !cancelled; n++) {
-        try {
-          const url = await renderer.renderPageThumbnail(state.doc, n, THUMBNAIL_WIDTH);
-          if (!cancelled) setThumbs((prev) => { const next = [...prev]; next[n - 1] = url; return next; });
-        } catch {
-          return;
-        }
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [state]);
+    const element = target.current;
+    if (!element || !root || typeof IntersectionObserver === 'undefined') {
+      setNear(true);
+      return;
+    }
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) setNear(entry.isIntersecting);
+    }, { root, rootMargin: margin });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [target, root, margin]);
 
-  return thumbs;
+  return near;
 }
 
-export function usePdfPageCanvas(state: PdfDocumentState, pageNumber: number, cssWidth: number) {
+export function usePageCanvas(doc: PDFDocumentProxy, pageNumber: number, cssWidth: number, rotation: number, active: boolean) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (state.status !== 'ready' || !canvas || cssWidth <= 0) return;
+    if (!active || !canvas || cssWidth <= 0) return;
     let cancelled = false;
-    setFailed(false);
     const timer = window.setTimeout(() => {
       void loadRenderer()
-        .then((renderer) => renderer.renderPageToCanvas(state.doc, pageNumber, canvas, cssWidth, window.devicePixelRatio || 1, () => cancelled))
+        .then((renderer) => renderer.renderPageToCanvas(doc, pageNumber, canvas, cssWidth, window.devicePixelRatio || 1, () => cancelled, rotation))
+        .then(() => { if (!cancelled) setFailed(false); })
         .catch(() => { if (!cancelled) setFailed(true); });
     }, RENDER_DEBOUNCE_MS);
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [state, pageNumber, cssWidth]);
+  }, [doc, pageNumber, cssWidth, rotation, active]);
 
   return { canvasRef, failed };
 }
@@ -102,11 +94,16 @@ export function usePdfPageText(state: PdfDocumentState, pageNumber: number): str
     setText(null);
     if (state.status !== 'ready') return;
     let cancelled = false;
-    void loadRenderer()
-      .then((renderer) => renderer.readPageText(state.doc, pageNumber))
-      .then((value) => { if (!cancelled) setText(value); })
-      .catch(() => { if (!cancelled) setText(''); });
-    return () => { cancelled = true; };
+    const timer = window.setTimeout(() => {
+      void loadRenderer()
+        .then((renderer) => renderer.readPageText(state.doc, pageNumber))
+        .then((value) => { if (!cancelled) setText(value); })
+        .catch(() => { if (!cancelled) setText(''); });
+    }, 250);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [state, pageNumber]);
 
   return text;
