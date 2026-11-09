@@ -705,7 +705,6 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
         };
         const content: PdfContent = {
           kind: 'pdf',
-          pageCount: 3,
           pdfDataUrl: await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => resolve(String(reader.result));

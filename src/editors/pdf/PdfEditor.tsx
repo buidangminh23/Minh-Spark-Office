@@ -55,6 +55,8 @@ import { downloadBlob } from '../../lib/download';
 import { useUi } from '../../components/ui';
 import { useDocumentCloser } from '../../lib/documentCloser';
 import { currentAuthorName } from '../../lib/currentAuthor';
+import { looksLikePdf, pdfBytesToDataUrl, pdfDataUrlToBytes } from './pdfBytes';
+import { usePdfDocument, usePdfPageCanvas, usePdfPageText, usePdfThumbnails } from './usePdfDocument';
 
 interface PdfEditorProps {
   meta: FileMeta;
@@ -69,6 +71,7 @@ type PdfRibbonTab = 'file' | 'home' | 'minh_pdf' | 'insert' | 'view' | 'tools' |
 const PDF_PAGE_WIDTH = 595;
 const PDF_PAGE_HEIGHT = 842;
 const PDF_MIN_FIT_ZOOM = 30;
+const PDF_MIN_REAL_FIT_ZOOM = 5;
 
 export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorProps) {
   const ui = useUi();
@@ -89,26 +92,48 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
 
   const currentPageState = useState(1);
   const [currentPage, setCurrentPage] = currentPageState;
-  const [totalPages, setTotalPages] = useState(content.pageCount || 3);
+  const [pdfDataUrl, setPdfDataUrl] = useState(content.pdfDataUrl);
+  const hasRealPdf = Boolean(pdfDataUrl);
+  const pdfState = usePdfDocument(pdfDataUrl);
+  const pdfThumbs = usePdfThumbnails(pdfState);
+  const [totalPages, setTotalPages] = useState(content.pageCount || (content.pdfDataUrl ? 1 : 3));
+  const storedPageCount = content.pageCount;
+
+  useEffect(() => {
+    if (pdfState.status !== 'ready') return;
+    const count = pdfState.doc.numPages;
+    setTotalPages(count);
+    setCurrentPage((page) => Math.min(Math.max(1, page), count));
+    if (storedPageCount !== count) markDirty();
+  }, [pdfState, storedPageCount, markDirty, setCurrentPage]);
+
+  const realPageSize = pdfState.status === 'ready' ? pdfState.sizes[currentPage - 1] ?? pdfState.sizes[0] : undefined;
+  const pageBaseWidth = realPageSize?.width ?? PDF_PAGE_WIDTH;
+  const pageBaseHeight = realPageSize?.height ?? PDF_PAGE_HEIGHT;
   const [zoomSetting, setZoomSetting] = useState<number | null>(null);
   const [fitZoom, setFitZoom] = useState(100);
   const zoom = zoomSetting ?? fitZoom;
   const setZoom = (update: (value: number) => number) => setZoomSetting(update(zoom));
   const [pdfCanvas, setPdfCanvas] = useState<HTMLDivElement | null>(null);
+  const pageCssWidth = pageBaseWidth * (zoom / 100);
+  const pageCssHeight = pageBaseHeight * (zoom / 100);
+  const { canvasRef: realCanvasRef, failed: realPageFailed } = usePdfPageCanvas(pdfState, currentPage, pageCssWidth);
+  const realPageText = usePdfPageText(pdfState, currentPage);
 
   useEffect(() => {
     if (!pdfCanvas || typeof ResizeObserver === 'undefined') return;
+    const minZoom = hasRealPdf ? PDF_MIN_REAL_FIT_ZOOM : PDF_MIN_FIT_ZOOM;
     const measure = () => {
       const style = getComputedStyle(pdfCanvas);
       const width = pdfCanvas.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
       if (width <= 0) return;
-      setFitZoom(Math.max(PDF_MIN_FIT_ZOOM, Math.min(100, Math.floor((width / PDF_PAGE_WIDTH) * 100))));
+      setFitZoom(Math.max(minZoom, Math.min(100, Math.floor((width / pageBaseWidth) * 100))));
     };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(pdfCanvas);
     return () => observer.disconnect();
-  }, [pdfCanvas]);
+  }, [pdfCanvas, pageBaseWidth, hasRealPdf]);
   const [rotation, setRotation] = useState(0);
 
   const [showSignModal, setShowSignModal] = useState(false);
@@ -138,7 +163,7 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
   };
 
   const handleCreateSnapshot = async () => {
-    const draft: PdfContent = { ...content, comments };
+    const draft: PdfContent = { ...content, pdfDataUrl, pageCount: totalPages, comments };
     const currentMeta = { ...meta, name: title, updatedAt: Date.now() };
     try {
       if (!user) await sourceStorage.saveFile(currentMeta, draft);
@@ -161,10 +186,10 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
   const persistPdf = useCallback(async (explicit = false) => {
     const savedRevision = changeRevision.current;
     const updatedMeta: FileMeta = { ...meta, name: title.trim() || meta.name, updatedAt: Date.now() };
-    const saved = await onSave(updatedMeta, { ...content, pageCount: totalPages, comments }, explicit);
+    const saved = await onSave(updatedMeta, { ...content, pdfDataUrl, pageCount: totalPages, comments }, explicit);
     if (saved && changeRevision.current === savedRevision) setSavedStatus('saved');
     return saved;
-  }, [meta, title, onSave, content, totalPages, comments]);
+  }, [meta, title, onSave, content, pdfDataUrl, totalPages, comments]);
 
   useDocumentCloser(() => persistPdf(false).then((saved) => { if (saved) onBack(); return saved; }));
 
@@ -223,13 +248,17 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
   const pageRef = useRef<HTMLDivElement>(null);
   const currentPageRef = useRef(currentPage);
   const commentsRef = useRef(comments);
+  const pdfDataUrlRef = useRef(pdfDataUrl);
+  const realPageTextRef = useRef(realPageText);
   useEffect(() => {
     currentPageRef.current = currentPage;
     commentsRef.current = comments;
-  }, [currentPage, comments]);
+    pdfDataUrlRef.current = pdfDataUrl;
+    realPageTextRef.current = realPageText;
+  }, [currentPage, comments, pdfDataUrl, realPageText]);
   const addinHost = useMemo(() => pdfHost({
-    dataUrl: () => content.pdfDataUrl,
-    pageText: () => pageRef.current?.innerText.trim() ?? '',
+    dataUrl: () => pdfDataUrlRef.current,
+    pageText: () => (pdfDataUrlRef.current ? realPageTextRef.current ?? '' : pageRef.current?.innerText.trim() ?? ''),
     page: () => currentPageRef.current,
     notes: () => commentsRef.current.filter((item) => !item.resolved).map((item) => `- ${item.text}`).join('\n'),
     addNote: (text, author) => {
@@ -237,22 +266,41 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
       markDirty();
       setShowComments(true);
     },
-  }, title, getOpenAddin), [content.pdfDataUrl, markDirty, title]);
+  }, title, getOpenAddin), [markDirty, title]);
+
+  const ocrText = hasRealPdf
+    ? realPageText ?? ''
+    : `CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM\nĐộc lập – Tự do – Hạnh phúc\n\n${title.replace(/\.[^/.]+$/, '')}\n\nKính gửi: Ban Giám đốc và các đơn vị phòng ban liên quan.\nCăn cứ theo kế hoạch phát triển giải pháp văn phòng số nội bộ Minh Spark Office, văn bản PDF này đã được biên soạn, kiểm duyệt và đóng dấu chữ ký điện tử an toàn tuyệt đối.\n\nNgười ký: ${currentAuthorName()}`;
 
   const handleExportPdf = () => {
-    const contentText = `%PDF-1.4\n1 0 obj\n<< /Title (${title}) /Author (Minh Spark Office) >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF`;
-    const blob = new Blob([contentText], { type: 'application/pdf' });
+    if (!pdfDataUrl) {
+      ui.toast('Tài liệu này chưa có tệp PDF. Bấm "Mở tệp PDF" để nạp tệp trước khi tải xuống.', true);
+      return;
+    }
+    const blob = new Blob([pdfDataUrlToBytes(pdfDataUrl) as BlobPart], { type: 'application/pdf' });
     downloadBlob(blob, `${title.replace(/\.[^/.]+$/, '')}.pdf`);
-    ui.toast('Đã tải xuống tệp PDF thành công!');
+    ui.toast('Đã tải xuống tệp PDF');
   };
 
-  const handleUploadLocalPdf = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
+  const handleUploadLocalPdf = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.currentTarget;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      if (!looksLikePdf(bytes)) {
+        ui.toast(`"${file.name}" không phải tệp PDF hợp lệ`, true);
+        return;
+      }
+      setPdfDataUrl(await pdfBytesToDataUrl(bytes));
       setTitle(file.name);
+      setCurrentPage(1);
+      setZoomSetting(null);
       markDirty();
-      setTotalPages(5);
       ui.toast(`Đã nạp tệp PDF: ${file.name}`);
+    } catch {
+      ui.toast(`Không đọc được tệp "${file.name}"`, true);
     }
   };
 
@@ -297,7 +345,7 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
           <label className="btn" style={{ cursor: 'pointer' }}>
             <Upload size={14} />
             <span>Mở tệp PDF</span>
-            <input type="file" accept=".pdf" hidden onChange={handleUploadLocalPdf} />
+            <input type="file" accept=".pdf,application/pdf" hidden onChange={(e) => void handleUploadLocalPdf(e)} />
           </label>
           <button className="btn" onClick={handleOpenHistory} title="Lịch sử phiên bản">
             <History size={15} />
@@ -650,16 +698,43 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
               }}
               onClick={() => setCurrentPage(idx + 1)}
             >
-              <div style={{ width: '100%', height: 4, background: '#e2e8f0', borderRadius: 2 }} />
-              <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>Trang {idx + 1}</div>
-              <div style={{ width: '80%', height: 4, background: '#e2e8f0', borderRadius: 2 }} />
+              {hasRealPdf ? (
+                <>
+                  {pdfThumbs[idx]
+                    ? <img className="pdf-thumb-image" src={pdfThumbs[idx]} alt={`Trang ${idx + 1}`} />
+                    : <div className="pdf-thumb-image" />}
+                  <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>Trang {idx + 1}</div>
+                </>
+              ) : (
+                <>
+                  <div style={{ width: '100%', height: 4, background: '#e2e8f0', borderRadius: 2 }} />
+                  <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>Trang {idx + 1}</div>
+                  <div style={{ width: '80%', height: 4, background: '#e2e8f0', borderRadius: 2 }} />
+                </>
+              )}
             </div>
           ))}
         </div>
 
         {/* Center Canvas */}
         <div className="pdf-canvas" ref={setPdfCanvas}>
-          {/* Simulated High-Res PDF Page */}
+          {hasRealPdf ? (
+            <div
+              ref={pageRef}
+              className="pdf-page pdf-page-real"
+              style={{ width: pageCssWidth, height: pageCssHeight, transform: `rotate(${rotation}deg)` }}
+            >
+              {pdfState.status === 'ready' && !realPageFailed && (
+                <canvas ref={realCanvasRef} className="pdf-page-image" role="img" aria-label={`${title} – trang ${currentPage}`} />
+              )}
+              {pdfState.status === 'loading' && <div className="pdf-page-status">Đang mở tệp PDF…</div>}
+              {(pdfState.status === 'error' || realPageFailed) && (
+                <div className="pdf-page-status pdf-page-status-error">
+                  Không đọc được nội dung tệp PDF này. Tệp gốc vẫn được giữ nguyên; bấm "Tải xuống PDF" để mở bằng ứng dụng khác.
+                </div>
+              )}
+            </div>
+          ) : (
           <div
             ref={pageRef}
             className="pdf-page"
@@ -727,6 +802,7 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
               <div style={{ fontSize: 11, fontWeight: 700, color: '#0f172a' }}>{currentAuthorName()}</div>
             </div>
           </div>
+          )}
         </div>
 
         {/* Floating Bottom Toolbar for Zoom and Page Nav */}
@@ -1103,14 +1179,17 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
                 marginBottom: 16,
               }}
             >
-              {`CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM\nĐộc lập – Tự do – Hạnh phúc\n\n${title.replace(/\.[^/.]+$/, '')}\n\nKính gửi: Ban Giám đốc và các đơn vị phòng ban liên quan.\nCăn cứ theo kế hoạch phát triển giải pháp văn phòng số nội bộ Minh Spark Office, văn bản PDF này đã được biên soạn, kiểm duyệt và đóng dấu chữ ký điện tử an toàn tuyệt đối.\n\nNgười ký: ${currentAuthorName()}`}
+              {ocrText || (hasRealPdf && realPageText === null
+                ? 'Đang đọc chữ trên trang…'
+                : 'Trang này là ảnh chụp hoặc bản quét, chưa có lớp chữ để trích xuất.')}
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <button
                 className="btn"
+                disabled={!ocrText}
                 onClick={() => {
-                  navigator.clipboard.writeText(`CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM\nĐộc lập – Tự do – Hạnh phúc\n\n${title.replace(/\.[^/.]+$/, '')}`);
-                  ui.toast('Đã sao chép nội dung OCR vào clipboard!');
+                  void navigator.clipboard.writeText(ocrText);
+                  ui.toast('Đã sao chép văn bản vào clipboard');
                 }}
               >
                 Sao chép văn bản
