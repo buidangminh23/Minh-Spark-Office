@@ -5,6 +5,7 @@ export const VERSION_FILES = [
   { path: 'src-tauri/Cargo.toml', pattern: (v) => new RegExp(`^version = "${escape(v)}"`, 'm'), count: 1 },
   { path: 'src-tauri/Cargo.lock', pattern: (v) => new RegExp(`name = "minh-spark-office"\\r?\\nversion = "${escape(v)}"`), count: 1 },
   { path: 'public/tai-ung-dung.html', pattern: (v) => new RegExp(escape(v), 'g'), count: 'all' },
+  { path: 'public/gioi-thieu.html', pattern: (v) => new RegExp(escape(v), 'g'), count: 'all' },
 ];
 
 function escape(value) {

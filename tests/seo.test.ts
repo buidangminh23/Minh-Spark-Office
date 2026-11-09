@@ -51,7 +51,7 @@ test('public pages link to existing assets and pages, and remain mutually discov
     const links = [...page.html.matchAll(/(?:href|src)="(\/[^"]*)"/g)].map((match) => match[1]);
     for (const link of links) {
       const path = link.split(/[?#]/)[0];
-      const relativePath = path === '/' ? 'index.html' : path.startsWith('/src/') ? path.slice(1) : `public${path}`;
+      const relativePath = path === '/' ? 'index.html' : path.startsWith('/src/') ? path.slice(1) : path.startsWith('/api/') ? `${path.slice(1)}.ts` : `public${path}`;
       assert.ok(existsSync(fileURLToPath(new URL(relativePath, root))), `${page.path} references missing ${link}`);
     }
     for (const other of pages.filter((candidate) => candidate.path !== '/')) {

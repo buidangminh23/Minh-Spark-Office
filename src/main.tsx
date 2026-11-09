@@ -3,9 +3,11 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import { DismissDesktopSplash } from './components/DismissDesktopSplash'
+import { countThisDeviceOnce } from './lib/usageStats'
 
 const MirrorWindow = lazy(() => import('./editors/doc/ui/MirrorWindow'))
 const mirrorChannel = new URLSearchParams(window.location.search).get('mirror')
+if (!mirrorChannel) countThisDeviceOnce()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -3,52 +3,499 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Minh Spark Office — Bộ văn phòng online miễn phí</title>
-  <meta name="description" content="Khám phá Minh Spark Office: soạn văn bản và làm bảng tính miễn phí trên trình duyệt. Không cần cài bộ Office, bản nháp lưu ngay trên thiết bị." />
+  <title>Minh Spark Office — Bộ văn phòng miễn phí cho người Việt</title>
+  <meta name="description" content="Minh Spark Office gồm Minh Docs, Minh Sheets, Minh Slides và Minh PDF. Mở tệp Word, Excel, PowerPoint ngay trên trình duyệt hoặc cài ứng dụng cho Windows và macOS, miễn phí." />
   <meta name="robots" content="index, follow, max-image-preview:large" />
-  <meta name="theme-color" content="#d7473c" />
+  <meta name="theme-color" content="#2563eb" />
   <link rel="canonical" href="https://office.minhspark.com/gioi-thieu.html" />
   <link rel="icon" type="image/png" href="/logo-icon.png" />
-  <link rel="stylesheet" href="/seo.css" />
+  <link rel="preload" as="image" href="/gioi-thieu/home.webp" type="image/webp" />
   <meta property="og:type" content="website" />
   <meta property="og:locale" content="vi_VN" />
   <meta property="og:site_name" content="Minh Spark Office" />
-  <meta property="og:title" content="Minh Spark Office — Bộ văn phòng online miễn phí" />
-  <meta property="og:description" content="Khám phá Minh Spark Office: soạn văn bản và làm bảng tính miễn phí trên trình duyệt. Không cần cài bộ Office, bản nháp lưu ngay trên thiết bị." />
+  <meta property="og:title" content="Minh Spark Office — Bộ văn phòng miễn phí cho người Việt" />
+  <meta property="og:description" content="Văn bản, bảng tính, trình chiếu và PDF trong một không gian. Dùng trên web hoặc cài cho Windows và macOS." />
   <meta property="og:url" content="https://office.minhspark.com/gioi-thieu.html" />
   <meta property="og:image" content="https://office.minhspark.com/logo.jpg" />
   <meta property="og:image:alt" content="Logo Minh Spark Office" />
   <meta name="twitter:card" content="summary" />
-  <meta name="twitter:title" content="Minh Spark Office — Bộ văn phòng online miễn phí" />
-  <meta name="twitter:description" content="Khám phá Minh Spark Office: soạn văn bản và làm bảng tính miễn phí trên trình duyệt. Không cần cài bộ Office, bản nháp lưu ngay trên thiết bị." />
+  <meta name="twitter:title" content="Minh Spark Office — Bộ văn phòng miễn phí cho người Việt" />
+  <meta name="twitter:description" content="Văn bản, bảng tính, trình chiếu và PDF trong một không gian. Dùng trên web hoặc cài cho Windows và macOS." />
   <meta name="twitter:image" content="https://office.minhspark.com/logo.jpg" />
   <meta name="twitter:image:alt" content="Logo Minh Spark Office" />
-  <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","@id":"https://office.minhspark.com/gioi-thieu.html#webpage","url":"https://office.minhspark.com/gioi-thieu.html","name":"Minh Spark Office — Bộ văn phòng online miễn phí","description":"Khám phá Minh Spark Office: soạn văn bản và làm bảng tính miễn phí trên trình duyệt. Không cần cài bộ Office, bản nháp lưu ngay trên thiết bị.","inLanguage":"vi","isPartOf":{"@id":"https://office.minhspark.com/#website"}}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","@id":"https://office.minhspark.com/gioi-thieu.html#webpage","url":"https://office.minhspark.com/gioi-thieu.html","name":"Minh Spark Office — Bộ văn phòng miễn phí cho người Việt","description":"Minh Spark Office gồm Minh Docs, Minh Sheets, Minh Slides và Minh PDF. Dùng trên trình duyệt hoặc cài cho Windows và macOS.","inLanguage":"vi","isPartOf":{"@id":"https://office.minhspark.com/#website"}}</script>
+  <style>
+    :root {
+      --ink: #121826; --ink-2: #566074; --line: #e3e7ee; --paper: #fff; --bg: #f6f7fb;
+      --blue: #2563eb; --blue-ink: #1d4ed8; --blue-soft: #eef3fe;
+      --s1: 8px; --s2: 16px; --s3: 24px; --s4: 32px; --s6: 48px; --s8: 64px; --s12: 96px;
+      --section: clamp(4rem, 2.67rem + 5.93vw, 8rem);
+      --gutter: clamp(1rem, 0.5rem + 2.5vw, 2rem);
+      --radius: 16px;
+      --ease: cubic-bezier(0.23, 1, 0.32, 1);
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-padding-block-start: 88px; scroll-behavior: smooth; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.7 'Segoe UI', -apple-system, BlinkMacSystemFont, Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+    img { max-width: 100%; height: auto; }
+    a { color: var(--blue-ink); text-underline-offset: 4px; }
+    a:focus-visible, button:focus-visible, summary:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; border-radius: 8px; }
+    h1, h2, h3 { margin: 0; line-height: 1.2; letter-spacing: -.02em; }
+    p { margin: 0; }
+    .lp-wrap { width: 100%; max-width: 1180px; margin-inline: auto; padding-inline: var(--gutter); }
+    .lp-skip { position: absolute; left: -9999px; }
+    .lp-skip:focus { left: var(--s2); top: var(--s2); z-index: 10; padding: var(--s1) var(--s2); background: var(--paper); }
+
+    .lp-header { position: sticky; top: 0; z-index: 5; background: rgba(246, 247, 251, 0.86); backdrop-filter: saturate(1.4) blur(12px); border-bottom: 1px solid var(--line); }
+    .lp-header .lp-wrap { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); min-height: 72px; }
+    .lp-brand { display: inline-flex; align-items: center; gap: 12px; color: var(--ink); font-size: 17px; font-weight: 750; text-decoration: none; white-space: nowrap; }
+    .lp-brand img { width: 36px; height: 36px; object-fit: contain; }
+    .lp-nav { display: flex; align-items: center; gap: var(--s1); }
+    .lp-nav { flex: none; }
+    .lp-nav a { display: inline-flex; align-items: center; min-height: 44px; white-space: nowrap; padding-inline: 12px; border-radius: 8px; color: var(--ink-2); font-size: 15px; font-weight: 600; text-decoration: none; }
+    .lp-nav a:hover { color: var(--ink); background: rgba(18, 24, 38, 0.05); }
+    .lp-nav .lp-nav-cta { margin-left: var(--s1); background: var(--ink); color: #fff; }
+    .lp-nav .lp-nav-cta:hover { background: #262f42; color: #fff; }
+
+    .lp-btn { display: inline-flex; align-items: center; justify-content: center; gap: 12px; min-height: 52px; padding: 12px 24px; border-radius: 12px; font-weight: 650; line-height: 1.3; text-decoration: none; transition: transform 160ms var(--ease), box-shadow 160ms var(--ease), background-color 160ms var(--ease); }
+    .lp-btn:active { transform: scale(0.98); }
+    .lp-btn svg { flex: none; width: 20px; height: 20px; }
+    .lp-btn-primary { background: var(--blue); color: #fff; box-shadow: 0 10px 24px rgba(37, 99, 235, 0.28); }
+    .lp-btn-primary:hover { background: var(--blue-ink); color: #fff; }
+    .lp-btn-ghost { border: 1px solid var(--line); background: var(--paper); color: var(--ink); }
+    .lp-btn-ghost:hover { border-color: #cfd5e1; color: var(--ink); }
+
+    .lp-hero { padding-block: var(--s8) 0; text-align: center; }
+    .lp-pill { display: inline-flex; align-items: center; gap: var(--s1); padding: 4px 12px; border-radius: 999px; background: var(--blue-soft); color: var(--blue-ink); font-size: 13px; font-weight: 650; }
+    .lp-pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--blue); }
+    .lp-hero h1 { max-width: 19ch; margin: var(--s3) auto var(--s3); font-size: clamp(2.25rem, 1.4rem + 3.8vw, 4.25rem); line-height: 1.12; letter-spacing: -.035em; text-wrap: balance; }
+    .lp-hero h1 span { color: var(--blue); }
+    .lp-lead { max-width: 640px; margin-inline: auto; color: var(--ink-2); font-size: clamp(1.0625rem, 1rem + 0.3vw, 1.25rem); text-wrap: pretty; }
+    .lp-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: var(--s4); }
+    .lp-hero-note { margin-top: var(--s2); color: var(--ink-2); font-size: 14px; }
+
+    .lp-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); max-width: 840px; margin: var(--s6) auto 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); box-shadow: 0 8px 24px rgba(18, 24, 38, 0.06); }
+    .lp-stat { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; padding: var(--s3) var(--s2); text-align: center; }
+    .lp-stat + .lp-stat { border-left: 1px solid var(--line); }
+    .lp-stat-value { font-size: clamp(1.625rem, 1.2rem + 1.8vw, 2.5rem); font-weight: 750; line-height: 1.15; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+    .lp-stat-label { display: inline-flex; align-items: center; gap: var(--s1); color: var(--ink-2); font-size: 14px; font-weight: 600; line-height: 1.4; }
+    .lp-stat-label svg { flex: none; width: 16px; height: 16px; }
+    .lp-live { display: flex; align-items: center; justify-content: center; gap: var(--s1); margin-top: 12px; color: var(--ink-2); font-size: 13px; }
+    .lp-live-dot { width: 8px; height: 8px; border-radius: 50%; background: #16a34a; box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.45); animation: lp-pulse 2s var(--ease) infinite; }
+    .lp-live[data-state="off"] .lp-live-dot { background: #9aa3b2; animation: none; }
+    @keyframes lp-pulse { 70% { box-shadow: 0 0 0 8px rgba(22, 163, 74, 0); } 100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); } }
+
+    .lp-shot { margin: var(--s6) auto 0; max-width: 1080px; }
+    .lp-window { overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); box-shadow: 0 32px 72px rgba(18, 24, 38, 0.16); }
+    .lp-window-bar { display: flex; align-items: center; gap: var(--s1); padding: 12px var(--s2); border-bottom: 1px solid var(--line); background: #f3f5f9; }
+    .lp-window-bar span { width: 12px; height: 12px; border-radius: 50%; background: #dde1e8; }
+    .lp-window-bar b { flex: 1; margin-right: 52px; color: var(--ink-2); font-size: 12px; font-weight: 600; text-align: center; }
+    .lp-window img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; object-position: top left; }
+
+    .lp-section { padding-block: var(--section) 0; }
+    .lp-head { max-width: 680px; margin: 0 auto var(--s6); text-align: center; }
+    .lp-kicker { color: var(--blue-ink); font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .lp-head h2 { margin: 12px 0 var(--s2); font-size: clamp(1.75rem, 1.3rem + 2vw, 2.75rem); text-wrap: balance; }
+    .lp-head p { color: var(--ink-2); font-size: 17px; text-wrap: pretty; }
+
+    .lp-tabs { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--s1); margin-bottom: var(--s4); }
+    .lp-tab { display: inline-flex; align-items: center; gap: 12px; min-height: 52px; padding: 8px 20px 8px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--paper); color: var(--ink); font: inherit; font-weight: 650; cursor: pointer; transition: border-color 160ms var(--ease), box-shadow 160ms var(--ease); }
+    .lp-tab img { width: 32px; height: 32px; object-fit: contain; }
+    .lp-tab:hover { border-color: #cfd5e1; }
+    .lp-tab[aria-selected="true"] { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-soft); }
+    .lp-panel { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.6fr); gap: var(--s6); align-items: center; }
+    .lp-panel[hidden] { display: none; }
+    .lp-panel h3 { font-size: clamp(1.5rem, 1.2rem + 1vw, 2rem); }
+    .lp-panel-text > p { margin-top: 12px; color: var(--ink-2); }
+    .lp-checks { display: grid; gap: 12px; margin: var(--s3) 0 0; padding: 0; list-style: none; }
+    .lp-checks li { display: flex; gap: 12px; }
+    .lp-checks li::before { content: ""; flex: none; width: 20px; height: 20px; margin-top: 4px; border-radius: 50%; background: var(--blue-soft) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M6 10.5l2.5 2.5L14 7.5' fill='none' stroke='%231d4ed8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 20px no-repeat; }
+    .lp-panel-link { display: inline-block; margin-top: var(--s3); font-weight: 650; }
+
+    .lp-features { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s3); }
+    .lp-feature { display: flex; flex-direction: column; gap: 12px; padding: var(--s4); border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); }
+    .lp-feature-icon { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 12px; background: var(--blue-soft); color: var(--blue-ink); }
+    .lp-feature-icon svg { width: 24px; height: 24px; }
+    .lp-feature h3 { margin-top: 4px; font-size: 18px; }
+    .lp-feature p { color: var(--ink-2); }
+
+    .lp-flow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s3); margin: 0; padding: 0; list-style: none; counter-reset: flow; }
+    .lp-flow li { position: relative; padding: var(--s4); border-radius: var(--radius); background: var(--paper); border: 1px solid var(--line); counter-increment: flow; }
+    .lp-flow li::before { content: counter(flow); display: grid; place-items: center; width: 40px; height: 40px; margin-bottom: var(--s2); border-radius: 50%; background: var(--ink); color: #fff; font-weight: 700; }
+    .lp-flow h3 { margin-bottom: var(--s1); font-size: 18px; }
+    .lp-flow p { color: var(--ink-2); }
+
+    .lp-downloads { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s3); max-width: 920px; margin-inline: auto; }
+    .lp-dl { display: flex; flex-direction: column; align-items: center; gap: var(--s3); padding: var(--s6) var(--s4) var(--s4); border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); text-align: center; }
+    .lp-os { display: grid; place-items: center; width: 72px; height: 72px; border-radius: 20px; background: var(--bg); }
+    .lp-os svg { width: 36px; height: 36px; }
+    .lp-os-apple svg { transform: translateY(-1px); }
+    .lp-dl h3 { font-size: 22px; }
+    .lp-dl-sub { margin-top: 4px; color: var(--ink-2); font-size: 14px; }
+    .lp-dl-count { display: inline-flex; align-items: baseline; gap: 6px; padding: 4px 12px; border-radius: 999px; background: var(--bg); color: var(--ink-2); font-size: 14px; }
+    .lp-dl-count strong { color: var(--ink); font-size: 15px; font-variant-numeric: tabular-nums; }
+    .lp-dl .lp-btn { width: 100%; }
+    .lp-dl-more { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 16px; font-size: 14px; }
+    .lp-dl-foot { max-width: 920px; margin: var(--s3) auto 0; color: var(--ink-2); font-size: 14px; text-align: center; }
+
+    .lp-faq { display: grid; gap: 12px; max-width: 820px; margin-inline: auto; }
+    .lp-faq details { border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }
+    .lp-faq summary { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); min-height: 56px; padding: var(--s2) var(--s3); font-weight: 650; cursor: pointer; list-style: none; }
+    .lp-faq summary::-webkit-details-marker { display: none; }
+    .lp-faq summary::after { content: "+"; flex: none; color: var(--ink-2); font-size: 22px; font-weight: 400; line-height: 1; transition: transform 200ms var(--ease); }
+    .lp-faq details[open] summary::after { transform: rotate(45deg); }
+    .lp-faq details p { padding: 0 var(--s3) var(--s3); color: var(--ink-2); }
+
+    .lp-band { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s3); margin-top: var(--section); padding: var(--s6); border-radius: 20px; background: var(--ink); color: #fff; }
+    .lp-band h2 { font-size: clamp(1.5rem, 1.2rem + 1.2vw, 2.25rem); }
+    .lp-band p { margin-top: var(--s1); color: #c4cad6; }
+    .lp-band .lp-actions { margin-top: 0; }
+    .lp-band .lp-btn-ghost { border-color: rgba(255, 255, 255, 0.24); background: transparent; color: #fff; }
+    .lp-band .lp-btn-ghost:hover { border-color: rgba(255, 255, 255, 0.5); color: #fff; }
+
+    .lp-footer { margin-top: var(--s8); padding-block: var(--s4) var(--s6); border-top: 1px solid var(--line); color: var(--ink-2); font-size: 14px; }
+    .lp-footer .lp-wrap { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s2); }
+    .lp-footer nav { display: flex; flex-wrap: wrap; gap: 4px var(--s3); }
+    .lp-footer a { display: inline-flex; align-items: center; min-height: 44px; color: var(--ink-2); }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      .lp-live-dot { animation: none; }
+      .lp-btn, .lp-tab, .lp-faq summary::after { transition: none; }
+    }
+    @media (max-width: 960px) {
+      .lp-panel { grid-template-columns: 1fr; gap: var(--s4); }
+      .lp-features { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .lp-flow { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 760px) {
+      .lp-nav a:not(.lp-nav-cta) { display: none; }
+      .lp-downloads { grid-template-columns: 1fr; }
+      .lp-features { grid-template-columns: 1fr; }
+      .lp-band { padding: var(--s4); }
+    }
+    @media (max-width: 520px) {
+      .lp-hero { padding-top: var(--s6); }
+      .lp-actions .lp-btn { width: 100%; }
+      .lp-stat { padding: var(--s2) var(--s1); }
+      .lp-stat-label svg { display: none; }
+      .lp-tab { padding-right: var(--s2); font-size: 15px; }
+      .lp-tab img { width: 28px; height: 28px; }
+      .lp-feature, .lp-flow li { padding: var(--s3); }
+      .lp-dl { padding: var(--s4) var(--s3) var(--s3); }
+      .lp-window-bar b { display: none; }
+      .lp-faq summary { padding: var(--s2); }
+      .lp-faq details p { padding: 0 var(--s2) var(--s2); }
+    }
+    @media (max-width: 340px) {
+      .lp-brand span { display: none; }
+    }
+  </style>
 </head>
-<body class="seo-document">
-<div class="seo-page">
-  <header class="seo-header">
-    <a class="seo-brand" href="/"><img src="/logo-icon.png" width="40" height="40" alt="" />Minh Spark Office</a>
-    <nav class="seo-links" aria-label="Sản phẩm"><a href="/gioi-thieu.html">Giới thiệu</a><a href="/minh-docs.html">Minh Docs</a><a href="/minh-sheets.html">Minh Sheets</a></nav>
-  </header>
-  <main>
-    <div class="seo-hero">
-      <p class="seo-eyebrow">Minh Spark Office</p>
-      <h1>Bộ văn phòng online miễn phí cho công việc hằng ngày</h1>
-      <p class="seo-lead">Từ một bản báo cáo đến một bảng chi phí, Minh Spark Office giúp bắt đầu công việc ngay trong trình duyệt. Soạn tài liệu với Minh Docs và xử lý bảng tính với Minh Sheets, không cần cài một bộ ứng dụng văn phòng riêng.</p>
-      <a class="seo-button" href="/">Mở không gian làm việc miễn phí</a>
+<body>
+  <a class="lp-skip" href="#noi-dung">Bỏ qua đến nội dung</a>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-windows" viewBox="0 0 128 128"><path fill="#0078d4" d="M67.328 67.331h60.669V128H67.328zm-67.325 0h60.669V128H.003zM67.328 0h60.669v60.669H67.328zM.003 0h60.669v60.669H.003z"/></symbol>
+    <symbol id="i-windows-white" viewBox="0 0 128 128"><path fill="currentColor" d="M67.328 67.331h60.669V128H67.328zm-67.325 0h60.669V128H.003zM67.328 0h60.669v60.669H67.328zM.003 0h60.669v60.669H.003z"/></symbol>
+    <symbol id="i-apple" viewBox="0 0 128 128"><path fill="currentColor" d="M97.905 67.885c.174 18.8 16.494 25.057 16.674 25.137-.138.44-2.607 8.916-8.597 17.669-5.178 7.568-10.553 15.108-19.018 15.266-8.318.152-10.993-4.934-20.504-4.934-9.508 0-12.479 4.776-20.354 5.086-8.172.31-14.395-8.185-19.616-15.724C15.822 94.961 7.669 66.8 18.616 47.791c5.438-9.44 15.158-15.417 25.707-15.571 8.024-.153 15.598 5.398 20.503 5.398 4.902 0 14.106-6.676 23.782-5.696 4.051.169 15.421 1.636 22.722 12.324-.587.365-13.566 7.921-13.425 23.639M82.272 21.719c4.338-5.251 7.258-12.563 6.462-19.836-6.254.251-13.816 4.167-18.301 9.416-4.02 4.647-7.54 12.087-6.591 19.216 6.971.54 14.091-3.542 18.43-8.796"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></g></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></g></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 15l2 2 4-4"/></g></symbol>
+    <symbol id="i-type" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></g></symbol>
+    <symbol id="i-cloud" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9z"/><path d="M12 12v6M9 15l3 3 3-3"/></g></symbol>
+    <symbol id="i-wifi-off" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 2l20 20M8.5 16.5a5 5 0 0 1 7 0M2 8.82a15 15 0 0 1 4.17-2.65M10.66 5c4.01-.36 8.14.9 11.34 3.76M16.85 11.25a10 10 0 0 1 2.22 1.68M5 13a10 10 0 0 1 5.24-2.76M12 20h.01"/></g></symbol>
+    <symbol id="i-monitor" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></g></symbol>
+    <symbol id="i-gift" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7M7.5 8a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 0 1 0 5"/></g></symbol>
+  </svg>
+
+  <header class="lp-header">
+    <div class="lp-wrap">
+      <a class="lp-brand" href="/gioi-thieu.html"><img src="/logo-icon.png" width="36" height="36" alt="" /><span>Minh Spark Office</span></a>
+      <nav class="lp-nav" aria-label="Mục trên trang">
+        <a href="#ung-dung">Ứng dụng</a>
+        <a href="#tinh-nang">Tính năng</a>
+        <a href="#tai-ve">Tải về</a>
+        <a href="#cau-hoi">Hỏi đáp</a>
+        <a class="lp-nav-cta" href="/">Dùng bản web</a>
+      </nav>
     </div>
-    <div class="seo-grid">
-<section class="seo-card"><h2>Minh Docs: từ ý tưởng đến tài liệu</h2><p>Viết nội dung, định dạng tiêu đề, chèn bảng và hình ảnh. Mở tài liệu DOCX đang có hoặc tạo văn bản mới để chuẩn bị báo cáo, kế hoạch và ghi chú học tập.</p><a href="/minh-docs.html">Tìm hiểu trình soạn thảo văn bản miễn phí</a></section>
-<section class="seo-card"><h2>Minh Sheets: làm việc với số liệu</h2><p>Tạo bảng theo dõi, nhập dữ liệu và sử dụng công thức. Mở bảng tính Excel hoặc CSV trên trình duyệt, chỉnh sửa rồi xuất tệp để tiếp tục sử dụng.</p><a href="/minh-sheets.html">Tìm hiểu bảng tính online miễn phí</a></section>
-</div>
-<section class="seo-section"><h2>Dùng miễn phí, bắt đầu trước khi đăng nhập</h2><p>Các tính năng soạn thảo văn bản và bảng tính có thể sử dụng miễn phí. Mở không gian làm việc, chọn loại tài liệu và bắt đầu nhập nội dung. Khi lưu vào kho riêng của tài khoản, ứng dụng yêu cầu đăng nhập bằng Google.</p><p lang="en">A free online office for documents and spreadsheets, right in your browser.</p></section>
-<section class="seo-section seo-note"><h2>Tài liệu được lưu ở đâu?</h2><p>Bản nháp được lưu trên thiết bị đang dùng. Tài liệu trong tài khoản Google được đồng bộ giữa web và ứng dụng máy tính. Khi mất mạng, thay đổi chờ trên máy và được gửi khi kết nối lại.</p><p>Xuất tệp hoặc sao lưu dữ liệu để giữ một bản riêng trước khi xoá dữ liệu trình duyệt hay đổi máy.</p></section>
-<section class="seo-section"><h2>Chọn công cụ phù hợp</h2><p>Minh Docs phù hợp cho nội dung văn bản; Minh Sheets phù hợp cho dữ liệu dạng hàng, cột và công thức. Bộ ứng dụng cũng có không gian Minh PDF đang được hoàn thiện. Các khả năng PDF cần được kiểm tra với tệp thực tế trước khi dùng cho công việc chính thức.</p></section>
-<section class="seo-section"><h2>Câu hỏi thường gặp</h2><h3>Có cần cài Microsoft Office không?</h3><p>Không cần cài Microsoft Office để dùng Minh Docs và Minh Sheets trên trình duyệt. Minh Spark Office là một sản phẩm riêng, không phải Microsoft Office.</p><h3>Có thể làm việc trên nhiều thiết bị không?</h3><p>Có. Đăng nhập cùng tài khoản Google trên các thiết bị để thấy cùng kho tài liệu. Chờ trạng thái “Đã đồng bộ với tài khoản” trước khi chuyển máy.</p><h3>Có cần bật JavaScript không?</h3><p>Các trình soạn thảo cần JavaScript. Những trang giới thiệu này vẫn đọc được khi JavaScript bị tắt.</p></section>
-    <section class="seo-section"><h2>Bắt đầu công việc ngay trên trình duyệt</h2><p>Chọn tài liệu hoặc bảng tính trong không gian làm việc để bắt đầu.</p><a class="seo-button" href="/">Dùng Minh Spark Office</a></section>
+  </header>
+
+  <main id="noi-dung">
+    <section class="lp-hero lp-wrap" aria-labelledby="hero-title">
+      <p class="lp-pill">Miễn phí · Web, Windows và macOS</p>
+      <h1 id="hero-title">Bộ văn phòng <span>cho người Việt</span>, mở là dùng</h1>
+      <p class="lp-lead">Soạn văn bản, làm bảng tính, dựng trình chiếu và sửa PDF trong một không gian. Mở thẳng tệp Word, Excel, PowerPoint đang có, không cần cài bộ Office.</p>
+      <div class="lp-actions">
+        <a class="lp-btn lp-btn-primary" id="hero-download" href="#tai-ve"><svg aria-hidden="true"><use href="#i-windows-white" /></svg><span>Tải ứng dụng miễn phí</span></a>
+        <a class="lp-btn lp-btn-ghost" href="/"><svg aria-hidden="true"><use href="#i-globe" /></svg><span>Dùng ngay trên web</span></a>
+      </div>
+      <p class="lp-hero-note">Bản web không cần đăng nhập. Đăng nhập Google khi muốn đồng bộ giữa các máy.</p>
+
+      <div class="lp-stats" aria-labelledby="stats-title">
+        <h2 id="stats-title" hidden>Số liệu sử dụng</h2>
+        <div class="lp-stat">
+          <span class="lp-stat-value" data-stat="users">—</span>
+          <span class="lp-stat-label"><svg aria-hidden="true"><use href="#i-users" /></svg>Người dùng</span>
+        </div>
+        <div class="lp-stat">
+          <span class="lp-stat-value" data-stat="downloadsWindows">—</span>
+          <span class="lp-stat-label"><svg aria-hidden="true"><use href="#i-windows" /></svg>Lượt tải Windows</span>
+        </div>
+        <div class="lp-stat">
+          <span class="lp-stat-value" data-stat="downloadsMac">—</span>
+          <span class="lp-stat-label"><svg aria-hidden="true"><use href="#i-apple" /></svg>Lượt tải macOS</span>
+        </div>
+      </div>
+      <p class="lp-live" id="stats-live" data-state="off" aria-live="polite"><span class="lp-live-dot" aria-hidden="true"></span><span id="stats-status">Đang tải số liệu…</span></p>
+
+      <figure class="lp-shot">
+        <div class="lp-window">
+          <div class="lp-window-bar" aria-hidden="true"><span></span><span></span><span></span><b>office.minhspark.com</b></div>
+          <img src="/gioi-thieu/home.webp" width="1440" height="900" alt="Không gian làm việc Minh Spark Office với Minh Docs, Sheets, Slides, PDF và danh sách tài liệu gần đây" fetchpriority="high" />
+        </div>
+      </figure>
+    </section>
+
+    <section class="lp-section lp-wrap" id="ung-dung" aria-labelledby="apps-title">
+      <div class="lp-head">
+        <p class="lp-kicker">Ứng dụng</p>
+        <h2 id="apps-title">Bốn công cụ cho công việc hằng ngày</h2>
+        <p>Cùng một thanh công cụ dạng ribbon quen thuộc, cùng một kho tài liệu. Chọn công cụ để xem giao diện thật.</p>
+      </div>
+      <div class="lp-tabs" role="tablist" aria-label="Chọn ứng dụng">
+        <button class="lp-tab" role="tab" id="tab-docs" aria-controls="panel-docs" aria-selected="true"><img src="/logos/minh-docs.png" width="32" height="32" alt="" />Minh Docs</button>
+        <button class="lp-tab" role="tab" id="tab-sheets" aria-controls="panel-sheets" aria-selected="false" tabindex="-1"><img src="/logos/minh-sheets.png" width="32" height="32" alt="" />Minh Sheets</button>
+        <button class="lp-tab" role="tab" id="tab-slides" aria-controls="panel-slides" aria-selected="false" tabindex="-1"><img src="/logos/minh-slides.png" width="32" height="32" alt="" />Minh Slides</button>
+        <button class="lp-tab" role="tab" id="tab-pdf" aria-controls="panel-pdf" aria-selected="false" tabindex="-1"><img src="/logos/minh-pdf.png" width="32" height="32" alt="" />Minh PDF</button>
+      </div>
+
+      <div class="lp-panel" role="tabpanel" id="panel-docs" aria-labelledby="tab-docs">
+        <div class="lp-panel-text">
+          <h3>Minh Docs</h3>
+          <p>Soạn báo cáo, công văn, kế hoạch với tiêu đề, mục lục và bảng biểu.</p>
+          <ul class="lp-checks">
+            <li>Mở và lưu tệp DOCX, giữ định dạng khi gửi cho người dùng Word</li>
+            <li>Ngăn điều hướng theo tiêu đề, kiểu chữ dựng sẵn, chèn bảng và hình</li>
+            <li>Đọc to văn bản và nhập chữ bằng giọng nói</li>
+          </ul>
+          <a class="lp-panel-link" href="/minh-docs.html">Tìm hiểu Minh Docs</a>
+        </div>
+        <div class="lp-window"><img src="/gioi-thieu/docs.webp" width="1440" height="900" loading="lazy" alt="Minh Docs đang mở tệp Kế hoạch hoạt động quý IV với ribbon và ngăn điều hướng" /></div>
+      </div>
+      <div class="lp-panel" role="tabpanel" id="panel-sheets" aria-labelledby="tab-sheets" hidden>
+        <div class="lp-panel-text">
+          <h3>Minh Sheets</h3>
+          <p>Theo dõi ngân sách, chấm công, báo cáo số liệu bằng công thức quen thuộc.</p>
+          <ul class="lp-checks">
+            <li>Mở tệp Excel và CSV, chỉnh sửa rồi xuất lại XLSX</li>
+            <li>Hàm tính như SUM, VLOOKUP, IF và định dạng số kiểu Việt Nam</li>
+            <li>Gõ xong bấm Tab hoặc Enter, cột tự giãn cho đủ nội dung</li>
+          </ul>
+          <a class="lp-panel-link" href="/minh-sheets.html">Tìm hiểu Minh Sheets</a>
+        </div>
+        <div class="lp-window"><img src="/gioi-thieu/sheets.webp" width="1440" height="900" loading="lazy" alt="Minh Sheets đang mở bảng Ngân sách hoạt động quý IV" /></div>
+      </div>
+      <div class="lp-panel" role="tabpanel" id="panel-slides" aria-labelledby="tab-slides" hidden>
+        <div class="lp-panel-text">
+          <h3>Minh Slides</h3>
+          <p>Dựng bài thuyết trình, ghi chú cho người nói và trình chiếu toàn màn hình.</p>
+          <ul class="lp-checks">
+            <li>Mở và lưu tệp PPTX</li>
+            <li>Danh sách trang chiếu, ghi chú diễn giả và chế độ trình chiếu</li>
+            <li>Hình khối, biểu tượng, hiệu ứng chuyển trang</li>
+          </ul>
+        </div>
+        <div class="lp-window"><img src="/gioi-thieu/slides.webp" width="1440" height="900" loading="lazy" alt="Minh Slides đang mở bài Chiến lược kinh doanh và tăng trưởng 2026" /></div>
+      </div>
+      <div class="lp-panel" role="tabpanel" id="panel-pdf" aria-labelledby="tab-pdf" hidden>
+        <div class="lp-panel-text">
+          <h3>Minh PDF</h3>
+          <p>Xem, đánh dấu, ký và chuyển đổi PDF ngay trong trình duyệt.</p>
+          <ul class="lp-checks">
+            <li>Gộp, tách, nén và sắp xếp lại trang</li>
+            <li>Chuyển PDF sang Word, Excel, ảnh</li>
+            <li>Ký tên, vẽ và chèn hình lên trang</li>
+          </ul>
+        </div>
+        <div class="lp-window"><img src="/gioi-thieu/pdf.webp" width="1440" height="900" loading="lazy" alt="Minh PDF đang mở văn bản Quy chuẩn văn phòng số" /></div>
+      </div>
+    </section>
+
+    <section class="lp-section lp-wrap" id="tinh-nang" aria-labelledby="features-title">
+      <div class="lp-head">
+        <p class="lp-kicker">Tính năng</p>
+        <h2 id="features-title">Quen tay từ ngày đầu</h2>
+        <p>Không phải học lại cách làm việc. Những thứ hay dùng nằm đúng chỗ bạn tìm.</p>
+      </div>
+      <div class="lp-features">
+        <article class="lp-feature"><span class="lp-feature-icon"><svg aria-hidden="true"><use href="#i-file" /></svg></span><h3>Tệp quen, làm tiếp ngay</h3><p>Mở DOCX, XLSX, PPTX, PDF và CSV đang có. Xuất lại đúng định dạng để gửi cho người khác.</p></article>
+        <article class="lp-feature"><span class="lp-feature-icon"><svg aria-hidden="true"><use href="#i-type" /></svg></span><h3>Tiếng Việt từ gốc</h3><p>Giao diện, định dạng số và ngày tháng theo tiếng Việt. Gõ có dấu bằng bộ gõ quen dùng, không lỗi bảng mã.</p></article>
+        <article class="lp-feature"><span class="lp-feature-icon"><svg aria-hidden="true"><use href="#i-cloud" /></svg></span><h3>Đồng bộ qua tài khoản Google</h3><p>Đăng nhập cùng tài khoản trên web và ứng dụng máy tính để thấy cùng một kho tài liệu.</p></article>
+        <article class="lp-feature"><span class="lp-feature-icon"><svg aria-hidden="true"><use href="#i-wifi-off" /></svg></span><h3>Vẫn làm khi mất mạng</h3><p>Bản nháp lưu ngay trên máy. Thay đổi chờ sẵn và tự gửi khi có mạng trở lại.</p></article>
+        <article class="lp-feature"><span class="lp-feature-icon"><svg aria-hidden="true"><use href="#i-monitor" /></svg></span><h3>Web, Windows, macOS</h3><p>Dùng trên trình duyệt hoặc cài ứng dụng. Ứng dụng tự cập nhật lên bản mới.</p></article>
+        <article class="lp-feature"><span class="lp-feature-icon"><svg aria-hidden="true"><use href="#i-gift" /></svg></span><h3>Miễn phí</h3><p>Soạn văn bản, bảng tính và trình chiếu và xử lý PDF không mất phí.</p></article>
+      </div>
+    </section>
+
+    <section class="lp-section lp-wrap" aria-labelledby="flow-title">
+      <div class="lp-head">
+        <p class="lp-kicker">Cách dùng</p>
+        <h2 id="flow-title">Một kho tài liệu, mọi thiết bị</h2>
+      </div>
+      <ol class="lp-flow">
+        <li><h3>Mở trên trình duyệt</h3><p>Vào office.minhspark.com, tạo tài liệu mới hoặc kéo tệp có sẵn vào.</p></li>
+        <li><h3>Đăng nhập Google</h3><p>Lưu tài liệu vào kho riêng của tài khoản để mở lại từ máy khác.</p></li>
+        <li><h3>Cài ứng dụng khi cần</h3><p>Ứng dụng cho Windows và macOS mở cùng kho, chạy như phần mềm trên máy.</p></li>
+      </ol>
+    </section>
+
+    <section class="lp-section lp-wrap" id="tai-ve" aria-labelledby="downloads-title">
+      <div class="lp-head">
+        <p class="lp-kicker">Tải về</p>
+        <h2 id="downloads-title">Cài một lần, tự cập nhật</h2>
+        <p>Phiên bản 0.2.31. Ứng dụng kiểm tra bản mới khi mở và tự cài khi bạn không dùng tài liệu nào.</p>
+      </div>
+      <div class="lp-downloads">
+        <article class="lp-dl" id="windows">
+          <span class="lp-os"><svg aria-hidden="true"><use href="#i-windows" /></svg></span>
+          <div><h3>Windows</h3><p class="lp-dl-sub">Windows 10 và 11, 64-bit</p></div>
+          <p class="lp-dl-count"><strong data-stat="downloadsWindows">—</strong> lượt tải</p>
+          <a class="lp-btn lp-btn-primary" href="/api/download?file=MinhSparkOffice-0.2.31-windows-x64-vi-Setup.exe" download><svg aria-hidden="true"><use href="#i-windows-white" /></svg>Tải bộ cài cho Windows</a>
+          <p class="lp-dl-more"><a href="/api/download?file=MinhSparkOffice-0.2.31-windows-x64-en-US.msi" download>Bộ cài MSI (tiếng Anh)</a><a href="/tai-ung-dung.html#win-setup">Hướng dẫn cài từng bước</a></p>
+        </article>
+        <article class="lp-dl" id="macos">
+          <span class="lp-os lp-os-apple"><svg aria-hidden="true"><use href="#i-apple" /></svg></span>
+          <div><h3>macOS</h3><p class="lp-dl-sub">Chip Apple (M1 trở lên), macOS 13.3+</p></div>
+          <p class="lp-dl-count"><strong data-stat="downloadsMac">—</strong> lượt tải</p>
+          <a class="lp-btn lp-btn-primary" href="/api/download?file=MinhSparkOffice-0.2.31-macos-arm64.dmg" download><svg aria-hidden="true"><use href="#i-apple" /></svg>Tải file DMG</a>
+          <p class="lp-dl-more"><a href="/tai-ung-dung.html#mac-dmg">Cách mở lần đầu trên Mac</a></p>
+        </article>
+      </div>
+      <p class="lp-dl-foot">Không muốn cài? <a href="/">Dùng bản web</a> với đầy đủ công cụ trên trình duyệt.</p>
+    </section>
+
+    <section class="lp-section lp-wrap" id="cau-hoi" aria-labelledby="faq-title">
+      <div class="lp-head">
+        <p class="lp-kicker">Hỏi đáp</p>
+        <h2 id="faq-title">Câu hỏi thường gặp</h2>
+      </div>
+      <div class="lp-faq">
+        <details><summary>Minh Spark Office có phải Microsoft Office không?</summary><p>Không. Đây là sản phẩm riêng, không liên quan đến Microsoft. Minh Spark Office mở và lưu được tệp DOCX, XLSX, PPTX nên vẫn trao đổi được với người dùng Word, Excel, PowerPoint.</p></details>
+        <details><summary>Có mất phí không?</summary><p>Soạn văn bản, làm bảng tính, trình chiếu và lưu tài liệu đều miễn phí trên web lẫn ứng dụng máy tính.</p></details>
+        <details><summary>Tài liệu của tôi được lưu ở đâu?</summary><p>Khi chưa đăng nhập, bản nháp lưu trên chính thiết bị đang dùng. Khi đăng nhập Google, tài liệu lưu vào kho riêng của tài khoản và đồng bộ giữa web với ứng dụng. Nên xuất tệp hoặc sao lưu trước khi xoá dữ liệu trình duyệt hay đổi máy.</p></details>
+        <details><summary>Bản web và ứng dụng khác nhau thế nào?</summary><p>Cùng công cụ, cùng kho tài liệu. Ứng dụng chạy trong cửa sổ riêng, mở tệp trên máy bằng nhấp đúp và tự cập nhật lên bản mới.</p></details>
+        <details><summary>Windows báo “Windows protected your PC” khi cài?</summary><p>Bấm “More info” rồi “Run anyway”. Hướng dẫn có ảnh từng bước nằm ở <a href="/tai-ung-dung.html#win-setup">trang tải ứng dụng</a>.</p></details>
+      </div>
+    </section>
+
+    <div class="lp-wrap">
+      <section class="lp-band" aria-labelledby="band-title">
+        <div>
+          <h2 id="band-title">Bắt đầu tài liệu đầu tiên</h2>
+          <p>Mở trình duyệt là dùng được, không cần tài khoản.</p>
+        </div>
+        <div class="lp-actions">
+          <a class="lp-btn lp-btn-primary" href="/">Dùng bản web</a>
+          <a class="lp-btn lp-btn-ghost" href="#tai-ve">Tải ứng dụng</a>
+        </div>
+      </section>
+    </div>
   </main>
-  <footer class="seo-footer"><p>Minh Spark Office · Công cụ văn phòng trên trình duyệt</p><nav class="seo-links" aria-label="Liên kết cuối trang"><a href="/">Không gian làm việc</a><a href="/gioi-thieu.html">Giới thiệu và lưu trữ dữ liệu</a><a href="/minh-docs.html">Soạn thảo văn bản miễn phí</a><a href="/minh-sheets.html">Bảng tính online miễn phí</a></nav></footer>
-</div>
+
+  <footer class="lp-footer">
+    <div class="lp-wrap">
+      <p>© 2026 Minh Spark · Bộ văn phòng trên trình duyệt và máy tính</p>
+      <nav aria-label="Liên kết cuối trang">
+        <a href="/">Không gian làm việc</a>
+        <a href="/tai-ung-dung.html">Tải ứng dụng</a>
+        <a href="/minh-docs.html">Minh Docs</a>
+        <a href="/minh-sheets.html">Minh Sheets</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script>
+    (() => {
+      const STATS_URL = '/api/stats';
+      const REFRESH_MS = 15000;
+      const format = new Intl.NumberFormat('vi-VN');
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const shown = {};
+      const live = document.getElementById('stats-live');
+      const status = document.getElementById('stats-status');
+
+      const animate = (key, target) => {
+        const from = shown[key] ?? 0;
+        shown[key] = target;
+        const nodes = document.querySelectorAll(`[data-stat="${key}"]`);
+        if (reduceMotion || from === target) {
+          nodes.forEach((node) => { node.textContent = format.format(target); });
+          return;
+        }
+        const start = performance.now();
+        const duration = 700;
+        const step = (now) => {
+          const t = Math.min(1, (now - start) / duration);
+          const value = Math.round(from + (target - from) * (1 - Math.pow(1 - t, 3)));
+          nodes.forEach((node) => { node.textContent = format.format(value); });
+          if (t < 1) requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+      };
+
+      const refresh = async () => {
+        try {
+          const response = await fetch(STATS_URL, { cache: 'no-store' });
+          if (!response.ok) throw new Error(String(response.status));
+          const stats = await response.json();
+          for (const key of ['users', 'downloadsWindows', 'downloadsMac']) {
+            if (Number.isFinite(stats[key])) animate(key, stats[key]);
+          }
+          live.dataset.state = 'on';
+          status.textContent = `Cập nhật trực tiếp · ${new Date().toLocaleTimeString('vi-VN')}`;
+        } catch {
+          live.dataset.state = 'off';
+          status.textContent = 'Chưa lấy được số liệu, đang thử lại';
+        }
+      };
+
+      refresh();
+      let timer = setInterval(refresh, REFRESH_MS);
+      document.addEventListener('visibilitychange', () => {
+        clearInterval(timer);
+        if (document.visibilityState === 'visible') {
+          refresh();
+          timer = setInterval(refresh, REFRESH_MS);
+        }
+      });
+
+      const tabs = [...document.querySelectorAll('.lp-tab')];
+      const select = (tab) => {
+        tabs.forEach((other) => {
+          const active = other === tab;
+          other.setAttribute('aria-selected', String(active));
+          other.tabIndex = active ? 0 : -1;
+          document.getElementById(other.getAttribute('aria-controls')).hidden = !active;
+        });
+      };
+      tabs.forEach((tab, index) => {
+        tab.addEventListener('click', () => select(tab));
+        tab.addEventListener('keydown', (event) => {
+          const move = { ArrowRight: 1, ArrowLeft: -1 }[event.key];
+          if (!move) return;
+          const next = tabs[(index + move + tabs.length) % tabs.length];
+          next.focus();
+          select(next);
+        });
+      });
+
+      if (/Mac/.test(navigator.platform) && !/iPhone|iPad/.test(navigator.userAgent)) {
+        const hero = document.getElementById('hero-download');
+        hero.href = '#macos';
+        hero.querySelector('use').setAttribute('href', '#i-apple');
+      }
+    })();
+  </script>
 </body>
 </html>

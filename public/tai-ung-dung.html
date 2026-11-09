@@ -168,13 +168,14 @@
             </div>
             <div class="dl-card-body">
               <p>Bộ cài có giao diện tiếng Việt, tạo lối tắt trên desktop và menu Start.</p>
-              <a class="dl-btn dl-btn-primary" href="/downloads/MinhSparkOffice-0.2.31-windows-x64-vi-Setup.exe" download><svg aria-hidden="true"><use href="#i-windows-white" /></svg>Tải bộ cài EXE</a>
-              <div class="dl-alt"><a href="#win-setup">Hướng dẫn cài đặt từ đầu</a><a href="/downloads/MinhSparkOffice-0.2.31-windows-x64-en-US.msi" download>Tải gói MSI (tiếng Anh)</a></div>
+              <a class="dl-btn dl-btn-primary" href="/api/download?file=MinhSparkOffice-0.2.31-windows-x64-vi-Setup.exe" download><svg aria-hidden="true"><use href="#i-windows-white" /></svg>Tải bộ cài EXE</a>
+              <div class="dl-alt"><a href="#win-setup">Hướng dẫn cài đặt từ đầu</a><a href="/api/download?file=MinhSparkOffice-0.2.31-windows-x64-en-US.msi" download>Tải gói MSI (tiếng Anh)</a></div>
             </div>
             <dl class="dl-specs">
               <div><dt>Phiên bản</dt><dd>0.2.31</dd></div>
               <div><dt>Định dạng</dt><dd>EXE x64 · MSI x64</dd></div>
               <div><dt>Yêu cầu</dt><dd>Windows 10 / 11</dd></div>
+              <div><dt>Lượt tải</dt><dd data-stat="downloadsWindows">—</dd></div>
             </dl>
           </article>
 
@@ -185,13 +186,14 @@
             </div>
             <div class="dl-card-body">
               <p>Mở file DMG rồi kéo Minh Spark Office vào thư mục Applications.</p>
-              <a class="dl-btn dl-btn-primary" href="/downloads/MinhSparkOffice-0.2.31-macos-arm64.dmg" download><svg aria-hidden="true"><use href="#i-apple" /></svg>Tải file DMG</a>
+              <a class="dl-btn dl-btn-primary" href="/api/download?file=MinhSparkOffice-0.2.31-macos-arm64.dmg" download><svg aria-hidden="true"><use href="#i-apple" /></svg>Tải file DMG</a>
               <div class="dl-alt"><a href="#mac-dmg">Hướng dẫn mở lần đầu</a><span>macOS hỏi xác nhận ở lần mở đầu tiên</span></div>
             </div>
             <dl class="dl-specs">
               <div><dt>Phiên bản</dt><dd>0.2.31</dd></div>
               <div><dt>Định dạng</dt><dd>DMG arm64</dd></div>
               <div><dt>Yêu cầu</dt><dd>macOS 13.3 trở lên</dd></div>
+              <div><dt>Lượt tải</dt><dd data-stat="downloadsMac">—</dd></div>
             </dl>
           </article>
         </div>
@@ -306,6 +308,22 @@
       secondary.href = '#windows';
       secondary.querySelector('use').setAttribute('href', '#i-windows');
       secondary.querySelector('span').textContent = 'Tải cho Windows';
+    })();
+    (() => {
+      const format = new Intl.NumberFormat('vi-VN');
+      const refresh = async () => {
+        try {
+          const response = await fetch('/api/stats', { cache: 'no-store' });
+          if (!response.ok) return;
+          const stats = await response.json();
+          document.querySelectorAll('[data-stat]').forEach((node) => {
+            const value = stats[node.dataset.stat];
+            if (Number.isFinite(value)) node.textContent = format.format(value);
+          });
+        } catch {}
+      };
+      refresh();
+      setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, 15000);
     })();
   </script>
 </body>

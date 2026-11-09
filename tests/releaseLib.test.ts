@@ -38,6 +38,11 @@ test('bumpVersionText replaces every mention on the download page and fails when
   assert.throws(() => bumpVersionText('nothing here', file('package.json'), '0.2.12', '0.2.13'));
 });
 
+test('the intro page is bumped with every release so its download links never go stale', () => {
+  const page = '/api/download?file=MinhSparkOffice-0.2.12-macos-arm64.dmg · Phiên bản 0.2.12';
+  assert.equal(bumpVersionText(page, file('public/gioi-thieu.html'), '0.2.12', '0.2.13'), '/api/download?file=MinhSparkOffice-0.2.13-macos-arm64.dmg · Phiên bản 0.2.13');
+});
+
 test('parseChecksums accepts CRLF and binary markers', () => {
   const rows = parseChecksums('AB'.repeat(32) + '  a.exe\r\n' + 'cd'.repeat(32) + ' *b.dmg\r\n');
   assert.deepEqual(rows, [

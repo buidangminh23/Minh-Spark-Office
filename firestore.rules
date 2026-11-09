@@ -50,6 +50,15 @@ service cloud.firestore {
           || (resource.data.day != usageDay() && request.resource.data.count == 1));
       allow delete: if false;
     }
+    function publicCounter(counter) {
+      return counter in ['downloadsWindows', 'downloadsMac', 'users'];
+    }
+    match /publicStats/{counter} {
+      allow read: if publicCounter(counter);
+      allow create: if publicCounter(counter) && request.resource.data.keys().hasOnly(['count']) && request.resource.data.count == 1;
+      allow update: if publicCounter(counter) && request.resource.data.keys().hasOnly(['count']) && request.resource.data.count == resource.data.count + 1;
+      allow delete: if false;
+    }
     match /users/{uid}/files/{fileId} {
       allow read: if owner(uid);
       allow create: if owner(uid) && validManifest(request.resource.data, fileId);
