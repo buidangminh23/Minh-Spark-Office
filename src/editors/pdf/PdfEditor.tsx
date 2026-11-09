@@ -1,4 +1,5 @@
 import { SuiteLogo } from '../../components/SuiteLogo';
+import './pdfEditor.css';
 import { saveAccountSnapshot } from '../../lib/accountSnapshots';
 import { useAccount } from '../../components/Authentication';
 import { useWorkspace } from '../../lib/storage';
@@ -65,6 +66,10 @@ interface PdfEditorProps {
 
 type PdfRibbonTab = 'file' | 'home' | 'minh_pdf' | 'insert' | 'view' | 'tools' | 'help';
 
+const PDF_PAGE_WIDTH = 595;
+const PDF_PAGE_HEIGHT = 842;
+const PDF_MIN_FIT_ZOOM = 30;
+
 export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorProps) {
   const ui = useUi();
   const { user, login } = useAccount();
@@ -85,7 +90,25 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
   const currentPageState = useState(1);
   const [currentPage, setCurrentPage] = currentPageState;
   const [totalPages, setTotalPages] = useState(content.pageCount || 3);
-  const [zoom, setZoom] = useState(100);
+  const [zoomSetting, setZoomSetting] = useState<number | null>(null);
+  const [fitZoom, setFitZoom] = useState(100);
+  const zoom = zoomSetting ?? fitZoom;
+  const setZoom = (update: (value: number) => number) => setZoomSetting(update(zoom));
+  const [pdfCanvas, setPdfCanvas] = useState<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!pdfCanvas || typeof ResizeObserver === 'undefined') return;
+    const measure = () => {
+      const style = getComputedStyle(pdfCanvas);
+      const width = pdfCanvas.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+      if (width <= 0) return;
+      setFitZoom(Math.max(PDF_MIN_FIT_ZOOM, Math.min(100, Math.floor((width / PDF_PAGE_WIDTH) * 100))));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(pdfCanvas);
+    return () => observer.disconnect();
+  }, [pdfCanvas]);
   const [rotation, setRotation] = useState(0);
 
   const [showSignModal, setShowSignModal] = useState(false);
@@ -604,21 +627,9 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
       </div>
 
       {/* Main Workspace: PDF Canvas Viewer */}
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative', background: '#e2e8f0' }}>
+      <div className="pdf-workspace">
         {/* Left Thumbnails Strip */}
-        <div
-          style={{
-            width: 140,
-            background: '#ffffff',
-            borderRight: '1px solid var(--line)',
-            overflowY: 'auto',
-            padding: '12px 8px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 12,
-            alignItems: 'center',
-          }}
-        >
+        <div className="pdf-thumbs">
           {Array.from({ length: totalPages }).map((_, idx) => (
             <div
               key={idx}
@@ -647,31 +658,15 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
         </div>
 
         {/* Center Canvas */}
-        <div
-          style={{
-            flex: 1,
-            overflowY: 'auto',
-            padding: 24,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 20,
-          }}
-        >
+        <div className="pdf-canvas" ref={setPdfCanvas}>
           {/* Simulated High-Res PDF Page */}
           <div
             ref={pageRef}
+            className="pdf-page"
             style={{
-              width: 595 * (zoom / 100),
-              minHeight: 842 * (zoom / 100),
-              background: '#ffffff',
-              boxShadow: '0 8px 30px rgba(0,0,0,0.15)',
-              borderRadius: 2,
-              padding: '48px 56px',
-              boxSizing: 'border-box',
-              position: 'relative',
+              width: PDF_PAGE_WIDTH * (zoom / 100),
+              minHeight: PDF_PAGE_HEIGHT * (zoom / 100),
               transform: `rotate(${rotation}deg)`,
-              transition: 'transform 0.2s ease',
             }}
           >
             {/* Header of PDF */}
@@ -762,7 +757,7 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
           >
             <ChevronLeft size={16} />
           </button>
-          <span style={{ fontSize: 12, fontWeight: 600 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>
             {currentPage} / {totalPages}
           </span>
           <button

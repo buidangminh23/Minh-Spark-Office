@@ -119,6 +119,8 @@ const applyFormat = (editor: Editor, format: CopiedFormat) => {
   chain.run();
 };
 
+const MIN_AUTO_ZOOM = 25;
+
 export default function DocEditor({ meta, content, onSave, onBack, onNewDocument, onOpenFile }: DocEditorProps) {
   const ui = useUi();
   const { user } = useAccount();
@@ -143,6 +145,9 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
   const [pages, setPages] = useState({ count: 1, current: 1 });
   const latestZoom = useRef(view.zoom);
   latestZoom.current = view.zoom;
+  const [canvasEl, setCanvasEl] = useState<HTMLDivElement | null>(null);
+  const preferredZoom = useRef(view.zoom);
+  const autoZoom = useRef<number | null>(null);
   const ctxRef = useRef<DocCtx | null>(null);
   const [painter, setPainter] = useState<CopiedFormat | null>(null);
   const painterRef = useRef<CopiedFormat | null>(null);
@@ -357,7 +362,7 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
 
   useEffect(() => {
     try {
-      localStorage.setItem(VIEW_KEY, JSON.stringify({ zoom: view.zoom, viewMode: view.viewMode, showRuler: view.showRuler, showNav: view.showNav, spellcheck: view.spellcheck, dark: view.dark, ribbonCollapsed: view.ribbonCollapsed }));
+      localStorage.setItem(VIEW_KEY, JSON.stringify({ zoom: preferredZoom.current, viewMode: view.viewMode, showRuler: view.showRuler, showNav: view.showNav, spellcheck: view.spellcheck, dark: view.dark, ribbonCollapsed: view.ribbonCollapsed }));
     } catch {
       return;
     }
@@ -482,6 +487,31 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
   };
 
   const dims = pageDimensions(page.size, page.orientation);
+
+  useEffect(() => {
+    if (view.zoom !== autoZoom.current) preferredZoom.current = view.zoom;
+  }, [view.zoom]);
+
+  const autoFit = view.viewMode === 'print' && view.pageMove === 'vertical' && !view.sideBySide;
+  useEffect(() => {
+    const canvas = canvasEl;
+    if (!canvas || !autoFit || typeof ResizeObserver === 'undefined') return;
+    const fit = () => {
+      const style = getComputedStyle(canvas);
+      const available = canvas.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+      if (available <= 0) return;
+      const target = Math.min(preferredZoom.current, Math.max(MIN_AUTO_ZOOM, Math.floor((available / dims.width) * 100)));
+      setViewState((current) => {
+        if (current.zoom === target) return current;
+        autoZoom.current = target;
+        return { ...current, zoom: target };
+      });
+    };
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, [autoFit, canvasEl, dims.width]);
   const onPages = useCallback((count: number, current: number) => setPages((p) => (p.count === count && p.current === current ? p : { count, current })), []);
   const reading = view.viewMode === 'read';
   const addinHost = useMemo(() => docHost(editor, title), [editor, title]);
@@ -555,7 +585,7 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
           {view.showFind && <FindBar />}
           {view.showNav && !reading && !view.focusMode && <OutlinePanel />}
           <div className="doc-center">
-          <div className="doc-canvas" onContextMenu={(e) => {
+          <div className="doc-canvas" ref={setCanvasEl} onContextMenu={(e) => {
             if (!(e.target as HTMLElement).closest('.ProseMirror')) return;
             e.preventDefault();
             const pos = editor.view.posAtCoords({ left: e.clientX, top: e.clientY });

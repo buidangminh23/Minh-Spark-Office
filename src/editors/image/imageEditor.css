@@ -1,8 +1,8 @@
 .image-editor-shell {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  width: 100vw;
+  height: 100%;
+  width: 100%;
   overflow: hidden;
   background: #0f172a;
   color: #f1f5f9;
@@ -445,4 +445,69 @@
 
 .image-comment-input:focus {
   border-color: #38bdf8;
+}
+
+.image-ribbon-tabs {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.image-ribbon-tab {
+  flex: none;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .image-editor-top {
+    padding: 8px;
+    gap: 8px;
+  }
+
+  .image-title-group {
+    flex: 1 1 auto;
+    min-width: min-content;
+    gap: 6px;
+  }
+
+  .image-title-input {
+    flex: 1 1 96px;
+    width: 96px;
+    min-width: 96px;
+  }
+
+  .image-title-group > :not(.image-title-input) {
+    flex: none;
+  }
+
+  .image-top-actions {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .image-top-actions > * {
+    flex: none;
+    white-space: nowrap;
+  }
+
+  .image-top-actions > * > span,
+  .image-title-group .save-pill > span {
+    display: none;
+  }
+
+  .image-ribbon-tabs {
+    padding: 0 8px;
+  }
+
+  .image-ribbon-content {
+    padding: 6px 8px;
+    gap: 8px;
+  }
+
+  .image-floating-hud {
+    bottom: 12px;
+    max-width: calc(100% - 24px);
+    overflow-x: auto;
+  }
 }

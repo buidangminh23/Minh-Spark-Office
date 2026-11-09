@@ -2568,3 +2568,71 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+@media (max-width: 900px) {
+  .editor-top .topbar-right .btn > span,
+  .editor-top .command-search > span {
+    display: none;
+  }
+
+  .editor-top .topbar-right {
+    gap: 4px;
+  }
+}
+
+@media (max-width: 600px) {
+  .editor-top.editor-top {
+    gap: 8px;
+    padding-inline: 8px;
+  }
+
+  .editor-top .editor-title-group.editor-title-group {
+    gap: 4px;
+  }
+
+  .editor-top .editor-title-group .editor-title-input {
+    flex: 1 1 96px;
+    width: 96px;
+    min-width: 96px;
+  }
+
+  .editor-top .editor-title-group.editor-title-group {
+    flex: 1 1 auto;
+    min-width: min-content;
+  }
+
+  .editor-top .topbar-right.topbar-right {
+    flex: 0 1 auto;
+    flex-wrap: nowrap;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .editor-top .topbar-right > * {
+    flex: none;
+  }
+
+  .editor-top .save-pill > span {
+    display: none;
+  }
+
+  .editor-top .save-pill {
+    padding: 4px 6px;
+  }
+}
+
+.ribbon-tabs-bar {
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.ribbon-tabs-list,
+.ribbon-top-actions,
+.ribbon-tabs-list > *,
+.ribbon-top-actions > * {
+  flex: none;
+  white-space: nowrap;
+}

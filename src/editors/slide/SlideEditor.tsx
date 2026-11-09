@@ -78,6 +78,10 @@ const CONTEXTUAL_TAB_BY_TYPE: Partial<Record<SlideElement['type'], RibbonTab>> =
 };
 const CONTEXTUAL_TABS = new Set<RibbonTab>(Object.values(CONTEXTUAL_TAB_BY_TYPE));
 
+const SLIDE_BASE_HEIGHT = 540;
+const MIN_FIT_ZOOM = 15;
+const MAX_FIT_ZOOM = 200;
+
 export default function SlideEditor({
   meta,
   content,
@@ -90,8 +94,30 @@ export default function SlideEditor({
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<RibbonTab>('home');
-  const [zoom, setZoom] = useState(100);
+  const [zoomSetting, setZoomSetting] = useState<number | null>(null);
+  const [fitZoom, setFitZoom] = useState(100);
+  const zoom = zoomSetting ?? fitZoom;
+  const setZoom = setZoomSetting;
+  const [canvasContainer, setCanvasContainer] = useState<HTMLDivElement | null>(null);
   const [viewMode, setViewMode] = useState<'normal' | 'sorter'>('normal');
+  const slideBaseWidth = presentation.aspectRatio === '4:3' ? 720 : 960;
+
+  useEffect(() => {
+    const container = canvasContainer;
+    if (!container || typeof ResizeObserver === 'undefined') return;
+    const measure = () => {
+      const style = getComputedStyle(container);
+      const width = container.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+      const height = container.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+      if (container.clientWidth <= 0 || container.clientHeight <= 0) return;
+      const fit = Math.floor(Math.min(Math.max(width, 0) / slideBaseWidth, Math.max(height, 0) / SLIDE_BASE_HEIGHT) * 100);
+      setFitZoom(Math.max(MIN_FIT_ZOOM, Math.min(MAX_FIT_ZOOM, fit)));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [canvasContainer, slideBaseWidth]);
   const [showNotes, setShowNotes] = useState(true);
 
   // Advanced features state
@@ -1513,7 +1539,8 @@ export default function SlideEditor({
                   </div>
                 )}
 
-                <div className="ppt-canvas-container">
+                <div className="ppt-canvas-container" ref={setCanvasContainer}>
+                  <div className="ppt-canvas-fit" style={{ width: (slideBaseWidth * zoom) / 100, height: (SLIDE_BASE_HEIGHT * zoom) / 100, '--slide-offset-x': `${(slideBaseWidth * (zoom / 100 - 1)) / 2}px`, '--slide-offset-y': `${(SLIDE_BASE_HEIGHT * (zoom / 100 - 1)) / 2}px` } as React.CSSProperties}>
                   <SlideCanvas
                     slide={currentSlide}
                     aspectRatio={presentation.aspectRatio}
@@ -1539,6 +1566,7 @@ export default function SlideEditor({
                     showAnimBadges={activeTab === 'animations' || isAnimationPaneOpen}
                     watermark={presentation.watermark}
                   />
+                  </div>
                 </div>
               </div>
 
@@ -1733,7 +1761,7 @@ export default function SlideEditor({
             +
           </button>
           <span style={{ minWidth: '36px', textAlign: 'right' }}>{zoom}%</span>
-          <button className="ppt-status-btn" onClick={() => setZoom(100)} title="Vừa màn hình">
+          <button className="ppt-status-btn" onClick={() => setZoomSetting(null)} title="Vừa màn hình">
             Vừa khung
           </button>
         </div>

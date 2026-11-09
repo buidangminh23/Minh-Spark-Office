@@ -128,6 +128,8 @@ export default function ImageEditor({
   });
 
   const [zoom, setZoom] = useState(content.zoom || 100);
+  const [autoFit, setAutoFit] = useState(true);
+  const fitZoomRef = useRef<number | null>(content.zoom || 100);
   const [rotation, setRotation] = useState(content.rotation || 0);
   const [flipX, setFlipX] = useState(content.flipX || false);
   const [flipY, setFlipY] = useState(content.flipY || false);
@@ -328,18 +330,38 @@ export default function ImageEditor({
     setZoom(100);
     setPan({ x: 0, y: 0 });
   };
-  const handleFitScreen = () => {
-    if (!stageRef.current) return;
-    const stageW = stageRef.current.clientWidth - 80;
-    const stageH = stageRef.current.clientHeight - 80;
+  const fitToStage = useCallback(() => {
+    const stage = stageRef.current;
+    if (!stage || !dimensions.width || !dimensions.height) return;
+    const margin = stage.clientWidth < 600 ? 32 : 80;
     const scale = Math.min(
-      stageW / dimensions.width,
-      stageH / dimensions.height,
+      (stage.clientWidth - margin) / dimensions.width,
+      (stage.clientHeight - margin) / dimensions.height,
       1
     );
-    setZoom(Math.max(10, Math.round(scale * 100)));
+    const next = Math.max(10, Math.round(scale * 100));
+    fitZoomRef.current = next;
+    setZoom(next);
     setPan({ x: 0, y: 0 });
+  }, [dimensions.width, dimensions.height]);
+
+  const handleFitScreen = () => {
+    setAutoFit(true);
+    fitToStage();
   };
+
+  useEffect(() => {
+    if (zoom !== fitZoomRef.current) setAutoFit(false);
+  }, [zoom]);
+
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!autoFit || !stage || typeof ResizeObserver === 'undefined') return;
+    fitToStage();
+    const observer = new ResizeObserver(() => fitToStage());
+    observer.observe(stage);
+    return () => observer.disconnect();
+  }, [autoFit, fitToStage]);
 
   const handleWheel = (e: React.WheelEvent) => {
     if (e.ctrlKey || e.metaKey) {
