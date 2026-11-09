@@ -2111,6 +2111,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .suite-logo {
   position: relative;
   display: inline-block;
+  width: var(--suite-logo-override, var(--suite-logo-size, 28px));
+  height: var(--suite-logo-override, var(--suite-logo-size, 28px));
   overflow: hidden;
   flex-shrink: 0;
   vertical-align: middle;

@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { suiteLogos } from '../lib/suiteBranding';
 import type { FileKind } from '../lib/storage';
 
@@ -11,7 +12,7 @@ const suiteNames: Record<FileKind, string> = {
 
 export function SuiteLogo({ kind, size = 28, decorative = true }: { kind: FileKind; size?: number; decorative?: boolean }) {
   return (
-    <span className="suite-logo" style={{ width: size, height: size }} aria-hidden={decorative || undefined}>
+    <span className="suite-logo" style={{ '--suite-logo-size': `${size}px` } as CSSProperties} aria-hidden={decorative || undefined}>
       <img
         src={suiteLogos[kind]}
         alt={decorative ? '' : suiteNames[kind]}

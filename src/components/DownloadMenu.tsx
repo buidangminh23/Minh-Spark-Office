@@ -44,7 +44,7 @@ export function DownloadMenu() {
   };
 
   return <div className="download-menu" ref={container} onKeyDown={handleKeys}>
-    <button className="btn download-menu-trigger" type="button" ref={trigger} id={`${id}-trigger`} aria-haspopup="menu" aria-expanded={open} aria-controls={open ? id : undefined}
+    <button className="btn download-menu-trigger" type="button" ref={trigger} id={`${id}-trigger`} aria-haspopup="menu" aria-expanded={open} aria-controls={open ? id : undefined} aria-label="Tải ứng dụng"
       onClick={() => { initialFocus.current = 0; setOpen((current) => !current); }}
       onKeyDown={(event) => {
         if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
@@ -52,7 +52,7 @@ export function DownloadMenu() {
         initialFocus.current = event.key === 'ArrowUp' ? platforms.length - 1 : 0;
         setOpen(true);
       }}>
-      <Download size={20} aria-hidden="true" />Tải ứng dụng
+      <Download size={20} aria-hidden="true" /><span className="download-menu-label">Tải ứng dụng</span>
     </button>
     {open && <div className="download-menu-options" role="menu" id={id} aria-labelledby={`${id}-trigger`}>
       {platforms.map((platform, index) => <a key={platform.anchor} role="menuitem" tabIndex={-1} ref={(element) => { links.current[index] = element; }}
