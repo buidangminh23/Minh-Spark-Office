@@ -7,7 +7,8 @@ import { collection, deleteDoc, disableNetwork, doc, enableNetwork, getDoc, getD
 import type { Auth } from 'firebase/auth';
 import { createFirestoreWorkspace } from '../src/lib/cloudWorkspace.ts';
 import { RemoteConflictError, type RemoteRecord } from '../src/lib/syncTypes.ts';
-import { MAX_COMPRESSED_BYTES, CHUNK_CHARACTERS } from '../src/lib/cloudCodec.ts';
+import { MAX_COMPRESSED_BYTES, MAX_UNCOMPRESSED_BYTES, CHUNK_CHARACTERS, LEGACY_MAX_CHUNKS, LEGACY_MAX_COMPRESSED_BYTES, encodeCloudPayload } from '../src/lib/cloudCodec.ts';
+import { revisionChunkId } from '../src/lib/cloudWorkspace.ts';
 
 const record = (id: string, text = 'Tài liệu'): RemoteRecord => ({ id, revision: '', deleted: false, meta: { id, name: 'Tài liệu', kind: 'doc', createdAt: 1, updatedAt: 1, openedAt: 1, starred: false, deletedAt: null, size: 1, preview: '' }, content: { kind: 'doc', json: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] }, page: { size: 'A4', orientation: 'portrait', margins: { top: 1, right: 1, bottom: 1, left: 1 }, header: '', footer: '', pageNumbers: false } }, versions: [] });
 
@@ -67,31 +68,62 @@ describe('Firestore workspace and adversarial rules', { skip: !process.env.FIRES
     await assertFails(setDoc(doc(owner, 'arbitrary/unprotected'), { value: 1 }));
   });
 
-  test('rejects malformed metadata, oversize manifests, standalone chunk edits and invalid atomic chunks', async () => {
+  test('rejects malformed metadata, oversize manifests and edits to committed chunks', async () => {
     const db = database('validator');
     const cloud = adapter('validator', db);
-    await cloud.write(record('valid'), null);
+    const revision = await cloud.write(record('valid'), null);
     const parent = doc(db, 'users/validator/files/valid');
-    const chunk = doc(parent, 'chunks', '0');
+    const chunk = doc(parent, 'chunks', revisionChunkId(revision, 0));
     const original = (await getDoc(parent)).data()!;
     const originalChunk = (await getDoc(chunk)).data()!;
-    for (const patch of [{ extra: true }, { chunkCount: 15 }, { compressedBytes: MAX_COMPRESSED_BYTES + 1 }, { uncompressedBytes: 33554433 }, { meta: { ...original.meta, id: 'wrong' } }, { meta: { ...original.meta, starred: 'yes' } }, { updatedAt: 123 }, { sha256: 'wrong' }]) {
+    assert.equal(original.schema, 2);
+    for (const patch of [{ extra: true }, { schema: 3 }, { chunkCount: 601 }, { compressedBytes: MAX_COMPRESSED_BYTES + 1 }, { uncompressedBytes: MAX_UNCOMPRESSED_BYTES + 1 }, { meta: { ...original.meta, id: 'wrong' } }, { meta: { ...original.meta, starred: 'yes' } }, { updatedAt: 123 }, { sha256: 'wrong' }]) {
       await assertFails(setDoc(parent, { ...original, revision: randomUUID(), updatedAt: serverTimestamp(), ...patch }));
     }
+    await assertFails(setDoc(parent, { ...original, schema: 1, chunkCount: 15, revision: randomUUID(), updatedAt: serverTimestamp() }));
     await assertFails(setDoc(chunk, { ...originalChunk, data: originalChunk.data.replace(/^./, 'A') }));
     await assertFails(deleteDoc(chunk));
     await assertFails(deleteDoc(parent));
-    for (const patch of [{ revision: randomUUID() }, { index: 14 }, { data: 'x'.repeat(CHUNK_CHARACTERS + 1) }, { extra: true }]) {
-      const revision = randomUUID();
-      const batch = writeBatch(db);
-      batch.set(parent, { ...original, revision, updatedAt: serverTimestamp() });
-      batch.set(chunk, { ...originalChunk, revision, ...patch });
-      await assertFails(batch.commit());
+    const other = randomUUID();
+    for (const [id, data] of [[revisionChunkId(other, 1), { revision: other, index: 0, data: 'AAAA' }], [revisionChunkId(other, 600), { revision: other, index: 600, data: 'AAAA' }], [revisionChunkId(other, 0), { revision: other, index: 0, data: 'x'.repeat(CHUNK_CHARACTERS + 1) }], [revisionChunkId(other, 0), { revision: other, index: 0, data: 'AAAA', extra: true }], [revisionChunkId(revision, 5), { revision, index: 5, data: 'AAAA' }], ['other_0', { revision: other, index: 0, data: 'AAAA' }]] as const) {
+      await assertFails(setDoc(doc(parent, 'chunks', id), data));
     }
-    const deletion = writeBatch(db);
-    deletion.set(parent, { ...original, revision: randomUUID(), updatedAt: serverTimestamp() });
-    deletion.delete(chunk);
-    await assertFails(deletion.commit());
+    const staged = doc(parent, 'chunks', revisionChunkId(other, 0));
+    await setDoc(staged, { revision: other, index: 0, data: 'AAAA' });
+    await assertFails(setDoc(staged, { revision: other, index: 0, data: 'BBBB' }));
+    await deleteDoc(staged);
+  });
+
+  test('syncs records far beyond the former 6 MiB limit and removes replaced revisions', async () => {
+    const cloud = adapter('large');
+    const db = database('large');
+    const big = record('big', randomBytes(LEGACY_MAX_COMPRESSED_BYTES + 1024 * 1024).toString('base64'));
+    const first = await cloud.write(big, null);
+    const chunks = collection(db, 'users/large/files/big/chunks');
+    const firstCount = (await getDocs(chunks)).size;
+    assert.ok(firstCount > LEGACY_MAX_CHUNKS);
+    assert.deepEqual(await cloud.read('big'), { ...big, revision: first });
+    const second = await cloud.write(record('big', 'small again'), first);
+    const remaining = (await getDocs(chunks)).docs.map((entry) => entry.id);
+    assert.deepEqual(remaining, [revisionChunkId(second, 0)]);
+  });
+
+  test('reads legacy schema 1 records and upgrades them on the next write', async () => {
+    const db = database('legacy');
+    const parent = doc(db, 'users/legacy/files/old');
+    const revision = randomUUID();
+    const old = record('old', 'written by an older app');
+    const encoded = await encodeCloudPayload(old.content, old.versions, old.meta!);
+    const batch = writeBatch(db);
+    batch.set(parent, { schema: 1, revision, deleted: false, meta: old.meta, chunkCount: encoded.chunks.length, encoding: 'gzip-base64', compressedBytes: encoded.compressedBytes, uncompressedBytes: encoded.uncompressedBytes, sha256: encoded.sha256, updatedAt: serverTimestamp() });
+    encoded.chunks.forEach((data, index) => batch.set(doc(parent, 'chunks', String(index)), { revision, index, data }));
+    await batch.commit();
+    const cloud = adapter('legacy', db);
+    assert.deepEqual(await cloud.read('old'), { ...old, revision });
+    const next = await cloud.write(record('old', 'upgraded'), revision);
+    assert.equal((await getDoc(parent)).data()!.schema, 2);
+    assert.deepEqual((await getDocs(collection(parent, 'chunks'))).docs.map((entry) => entry.id), [revisionChunkId(next, 0)]);
+    assert.deepEqual(await cloud.read('old'), { ...record('old', 'upgraded'), revision: next });
   });
 
   test('validates account binding before every operation and after an asynchronous encode', async () => {
@@ -146,13 +178,13 @@ describe('Firestore workspace and adversarial rules', { skip: !process.env.FIRES
     } finally { stop(); }
   });
 
-  test('accepts the maximum 14-slot atomic write within the rules access-call budget', async () => {
+  test('accepts the maximum legacy 14-slot atomic write within the rules access-call budget', async () => {
     const db = database('maximum');
     const parent = doc(db, 'users/maximum/files/maximum');
     const revision = randomUUID();
-    const total = Math.ceil(MAX_COMPRESSED_BYTES / 3) * 4;
+    const total = Math.ceil(LEGACY_MAX_COMPRESSED_BYTES / 3) * 4;
     const batch = writeBatch(db);
-    batch.set(parent, { schema: 1, revision, deleted: false, meta: record('maximum').meta, chunkCount: 14, encoding: 'gzip-base64', compressedBytes: MAX_COMPRESSED_BYTES, uncompressedBytes: 33554432, sha256: '0'.repeat(64), updatedAt: serverTimestamp() });
+    batch.set(parent, { schema: 1, revision, deleted: false, meta: record('maximum').meta, chunkCount: 14, encoding: 'gzip-base64', compressedBytes: LEGACY_MAX_COMPRESSED_BYTES, uncompressedBytes: 33554432, sha256: '0'.repeat(64), updatedAt: serverTimestamp() });
     for (let index = 0; index < 14; index++) batch.set(doc(parent, 'chunks', String(index)), { revision, index, data: 'A'.repeat(Math.min(CHUNK_CHARACTERS, total - index * CHUNK_CHARACTERS)) });
     await batch.commit();
     assert.equal((await getDocs(collection(parent, 'chunks'))).size, 14);

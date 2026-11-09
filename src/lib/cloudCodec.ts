@@ -1,10 +1,18 @@
 import type { FileContent, FileMeta, FileVersion } from './storage';
 
-export const MAX_COMPRESSED_BYTES = 6 * 1024 * 1024;
-export const MAX_UNCOMPRESSED_BYTES = 32 * 1024 * 1024;
+export const MAX_COMPRESSED_BYTES = 256 * 1024 * 1024;
+export const MAX_UNCOMPRESSED_BYTES = 512 * 1024 * 1024;
 export const CHUNK_CHARACTERS = 600000;
-export const MAX_CHUNKS = 14;
+export const MAX_CHUNKS = 600;
+export const LEGACY_MAX_CHUNKS = 14;
+export const LEGACY_MAX_COMPRESSED_BYTES = 6 * 1024 * 1024;
+export const LEGACY_MAX_UNCOMPRESSED_BYTES = 32 * 1024 * 1024;
 export const CLOUD_ENCODING = 'gzip-base64';
+
+export type PayloadLimits = { compressed: number; uncompressed: number };
+const DEFAULT_LIMITS: PayloadLimits = { compressed: MAX_COMPRESSED_BYTES, uncompressed: MAX_UNCOMPRESSED_BYTES };
+
+export const chunkCountFor = (compressedBytes: number) => Math.ceil(Math.ceil(compressedBytes / 3) * 4 / CHUNK_CHARACTERS);
 
 export type CloudPayload = { content: FileContent; versions: FileVersion[] };
 export type EncodedCloudPayload = {
@@ -101,20 +109,23 @@ async function digest(data: Uint8Array) {
   return Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('');
 }
 
-export async function encodeCloudPayload(content: FileContent | undefined, versions: FileVersion[], meta: FileMeta): Promise<EncodedCloudPayload> {
+export async function encodeCloudPayload(content: FileContent | undefined, versions: FileVersion[], meta: FileMeta, limits: PayloadLimits = DEFAULT_LIMITS): Promise<EncodedCloudPayload> {
   validateCloudMeta(meta, meta.id);
   const payload = { content, versions };
   validateCloudPayload(payload, meta);
   const json = JSON.stringify(payload);
-  if (json.length > MAX_UNCOMPRESSED_BYTES) throw new Error('cloud/payload-too-large');
+  if (json.length > limits.uncompressed) throw new Error('cloud/payload-too-large');
   const input = new TextEncoder().encode(json);
-  if (input.byteLength > MAX_UNCOMPRESSED_BYTES) throw new Error('cloud/payload-too-large');
-  const compressed = await transform(input, false, MAX_COMPRESSED_BYTES);
-  let binary = '';
-  for (let offset = 0; offset < compressed.length; offset += 8192) binary += String.fromCharCode(...compressed.subarray(offset, offset + 8192));
-  const base64 = btoa(binary);
+  if (input.byteLength > limits.uncompressed) throw new Error('cloud/payload-too-large');
+  const compressed = await transform(input, false, limits.compressed);
   const chunks: string[] = [];
-  for (let offset = 0; offset < base64.length; offset += CHUNK_CHARACTERS) chunks.push(base64.slice(offset, offset + CHUNK_CHARACTERS));
+  const bytesPerChunk = CHUNK_CHARACTERS / 4 * 3;
+  for (let start = 0; start < compressed.length; start += bytesPerChunk) {
+    const slice = compressed.subarray(start, Math.min(compressed.length, start + bytesPerChunk));
+    let binary = '';
+    for (let offset = 0; offset < slice.length; offset += 8192) binary += String.fromCharCode(...slice.subarray(offset, offset + 8192));
+    chunks.push(btoa(binary));
+  }
   if (chunks.length > MAX_CHUNKS) throw new Error('cloud/payload-too-large');
   return { chunks, compressedBytes: compressed.length, uncompressedBytes: input.length, sha256: await digest(compressed) };
 }
@@ -130,9 +141,15 @@ export async function decodeCloudPayload(encoded: EncodedCloudPayload, meta: Fil
     if (typeof chunk !== 'string' || chunk.length !== expected || !/^[A-Za-z0-9+/]*={0,2}$/.test(chunk)) fail('Invalid payload chunk');
     if (index < encoded.chunks.length - 1 && chunk.includes('=')) fail('Unexpected base64 padding');
   }
-  const binary = atob(encoded.chunks.join(''));
-  const compressed = Uint8Array.from(binary, (character) => character.charCodeAt(0));
-  if (compressed.byteLength !== encoded.compressedBytes || await digest(compressed) !== encoded.sha256) fail('Payload checksum mismatch');
+  const compressed = new Uint8Array(encoded.compressedBytes);
+  let filled = 0;
+  for (const chunk of encoded.chunks) {
+    const binary = atob(chunk);
+    if (filled + binary.length > compressed.length) fail('Payload chunk overflow');
+    for (let index = 0; index < binary.length; index++) compressed[filled + index] = binary.charCodeAt(index);
+    filled += binary.length;
+  }
+  if (filled !== encoded.compressedBytes || await digest(compressed) !== encoded.sha256) fail('Payload checksum mismatch');
   const input = await transform(compressed, true, Math.min(encoded.uncompressedBytes, MAX_UNCOMPRESSED_BYTES));
   if (input.byteLength !== encoded.uncompressedBytes) fail('Payload length mismatch');
   const payload: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(input));

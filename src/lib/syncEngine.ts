@@ -148,7 +148,7 @@ export function createSyncedWorkspace(userId: string, local: WorkspaceStorage, r
     const offline = isOffline() || /unavailable|network|deadline-exceeded|failed to fetch|fetch failed|client is offline/.test(reason);
     let message = 'Chưa thể đồng bộ tài liệu. Các thay đổi vẫn được giữ trên máy; ứng dụng sẽ thử lại.';
     if (reason.includes('cloud/payload-too-large')) {
-      message = 'Nội dung tài liệu và lịch sử phiên bản vượt giới hạn đồng bộ: tối đa 32 MiB trước nén và 6 MiB sau nén. Bản lưu trên máy vẫn được giữ nguyên.';
+      message = 'Tài liệu này lớn hơn mức trình duyệt xử lý được khi đồng bộ (trên 512 MiB dữ liệu hoặc 256 MiB sau nén). Bản lưu trên máy vẫn được giữ nguyên; hãy tách bớt nội dung hoặc lịch sử phiên bản rồi thử lại.';
     } else if (/cloud\/account-changed|unauthenticated|auth\/user-token-expired|auth\/invalid-user-token/.test(reason)) {
       message = 'Phiên đăng nhập đã thay đổi hoặc hết hạn. Hãy đăng nhập lại đúng tài khoản để tiếp tục đồng bộ; các thay đổi vẫn được giữ trên máy.';
     } else if (/cloud\/invalid-data|cloud\/invalid-revision|cloud\/invalid-user/.test(reason)) {

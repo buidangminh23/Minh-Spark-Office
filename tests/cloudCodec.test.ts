@@ -4,7 +4,7 @@ import { randomBytes, createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 import { Document, Packer, Paragraph } from 'docx';
 import mammoth from 'mammoth';
-import { CHUNK_CHARACTERS, MAX_COMPRESSED_BYTES, MAX_UNCOMPRESSED_BYTES, encodeCloudPayload, decodeCloudPayload } from '../src/lib/cloudCodec.ts';
+import { CHUNK_CHARACTERS, LEGACY_MAX_CHUNKS, LEGACY_MAX_COMPRESSED_BYTES, MAX_COMPRESSED_BYTES, MAX_UNCOMPRESSED_BYTES, chunkCountFor, encodeCloudPayload, decodeCloudPayload } from '../src/lib/cloudCodec.ts';
 import type { FileContent, FileMeta, FileVersion } from '../src/lib/storage.ts';
 
 const metadata = (kind: FileMeta['kind'] = 'doc'): FileMeta => ({ id: 'roundtrip', kind, name: 'Tiếng Việt', createdAt: 1, updatedAt: 2, openedAt: 3, starred: false, deletedAt: null, size: 1, preview: '' });
@@ -30,7 +30,7 @@ test('document string compatibility retains representation, page and size valida
   }
   const invalidPage = { ...document(''), json: '<p>Imported</p>', page: { size: 'A4', orientation: 'portrait', margins: { top: -1, right: 1, bottom: 1, left: 1 } } };
   await assert.rejects(encodeCloudPayload(invalidPage as unknown as FileContent, [], metadata()), /Invalid page margins/);
-  await assert.rejects(encodeCloudPayload({ ...document(''), json: 'x'.repeat(MAX_UNCOMPRESSED_BYTES) } as unknown as FileContent, [], metadata()), /payload-too-large/);
+  await assert.rejects(encodeCloudPayload({ ...document(''), json: 'x'.repeat(5000) } as unknown as FileContent, [], metadata(), { uncompressed: 4000, compressed: MAX_COMPRESSED_BYTES }), /payload-too-large/);
 });
 
 test('round trips document, workbook and PDF payloads with version history and Vietnamese text', async () => {
@@ -72,8 +72,18 @@ test('rejects mismatched kinds, foreign version IDs and malformed metadata', asy
 });
 
 test('enforces uncompressed and compressed limits without silently truncating', async () => {
-  await assert.rejects(encodeCloudPayload(document('x'.repeat(MAX_UNCOMPRESSED_BYTES)), [], metadata()), /payload-too-large/);
-  await assert.rejects(encodeCloudPayload(document(randomBytes(MAX_COMPRESSED_BYTES + 100000).toString('base64')), [], metadata()), /payload-too-large/);
+  await assert.rejects(encodeCloudPayload(document('x'.repeat(5000)), [], metadata(), { uncompressed: 4000, compressed: MAX_COMPRESSED_BYTES }), /payload-too-large/);
+  await assert.rejects(encodeCloudPayload(document(randomBytes(200000).toString('base64')), [], metadata(), { uncompressed: MAX_UNCOMPRESSED_BYTES, compressed: 100000 }), /payload-too-large/);
+});
+
+test('syncs content far beyond the former 6 MiB compressed ceiling', async () => {
+  const content = document(randomBytes(LEGACY_MAX_COMPRESSED_BYTES + 2 * 1024 * 1024).toString('base64'));
+  const encoded = await encodeCloudPayload(content, [], metadata());
+  assert.ok(encoded.compressedBytes > LEGACY_MAX_COMPRESSED_BYTES);
+  assert.ok(encoded.chunks.length > LEGACY_MAX_CHUNKS);
+  assert.equal(encoded.chunks.length, chunkCountFor(encoded.compressedBytes));
+  assert.ok(encoded.chunks.slice(0, -1).every((chunk) => chunk.length === CHUNK_CHARACTERS));
+  assert.deepEqual((await decodeCloudPayload(encoded, metadata())).content, content);
 });
 
 test('bounds decompression by declared size even when the compressed checksum is valid', async () => {

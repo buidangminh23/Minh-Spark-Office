@@ -24,15 +24,15 @@ service cloud.firestore {
       return id.matches('^[A-Za-z0-9_-]{1,160}$')
         && data.keys().hasAll(['schema', 'revision', 'deleted', 'meta', 'chunkCount', 'encoding', 'compressedBytes', 'uncompressedBytes', 'sha256', 'updatedAt'])
         && data.keys().hasOnly(['schema', 'revision', 'deleted', 'meta', 'chunkCount', 'encoding', 'compressedBytes', 'uncompressedBytes', 'sha256', 'updatedAt'])
-        && data.schema == 1 && validRevision(data.revision) && data.deleted is bool
+        && data.schema in [1, 2] && validRevision(data.revision) && data.deleted is bool
         && data.encoding == 'gzip-base64' && data.updatedAt == request.time
-        && data.chunkCount is int && data.chunkCount >= 0 && data.chunkCount <= 14
+        && data.chunkCount is int && data.chunkCount >= 0 && data.chunkCount <= (data.schema == 1 ? 14 : 600)
         && data.compressedBytes is int && data.uncompressedBytes is int && data.sha256 is string
         && ((data.deleted && data.meta == null && data.chunkCount == 0 && data.compressedBytes == 0 && data.uncompressedBytes == 0 && data.sha256 == '')
           || (!data.deleted && validMeta(data.meta, id) && data.chunkCount >= 1
-            && data.compressedBytes >= 1 && data.compressedBytes <= 6291456
+            && data.compressedBytes >= 1 && data.compressedBytes <= (data.schema == 1 ? 6291456 : 268435456)
             && data.compressedBytes > (data.chunkCount - 1) * 450000 && data.compressedBytes <= data.chunkCount * 450000
-            && data.uncompressedBytes >= 1 && data.uncompressedBytes <= 33554432
+            && data.uncompressedBytes >= 1 && data.uncompressedBytes <= (data.schema == 1 ? 33554432 : 536870912)
             && data.sha256.matches('^[a-f0-9]{64}$')));
     }
     function usageDay() {
@@ -76,15 +76,35 @@ service cloud.firestore {
           let parent = getAfter(parentPath()).data;
           return data.keys().hasAll(['revision', 'index', 'data']) && data.keys().hasOnly(['revision', 'index', 'data'])
             && data.index is int && data.index >= 0 && data.index < 14 && chunkId == string(data.index)
-            && !parent.deleted && data.index < parent.chunkCount && data.revision == parent.revision
+            && parent.schema == 1 && !parent.deleted && data.index < parent.chunkCount && data.revision == parent.revision
             && data.data is string && data.data.size() > 0 && data.data.size() <= 600000
             && data.data.size() == (data.index < parent.chunkCount - 1 ? 600000 : int((parent.compressedBytes + 2) / 3) * 4 - data.index * 600000)
             && data.data.matches('^[A-Za-z0-9+/]*={0,2}$');
         }
+        function legacyChunk() {
+          return chunkId.matches('^([0-9]|1[0-3])$');
+        }
+        function revisionChunk() {
+          return chunkId.matches('^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}_([0-9]|[1-9][0-9]|[1-5][0-9][0-9])$');
+        }
+        function notCurrentRevision(revision) {
+          return !exists(parentPath()) || get(parentPath()).data.revision != revision;
+        }
+        function validRevisionChunk() {
+          let data = request.resource.data;
+          return data.keys().hasAll(['revision', 'index', 'data']) && data.keys().hasOnly(['revision', 'index', 'data'])
+            && validRevision(data.revision) && data.index is int && data.index >= 0 && data.index < 600
+            && chunkId == data.revision + '_' + string(data.index)
+            && data.data is string && data.data.size() > 0 && data.data.size() <= 600000
+            && data.data.matches('^[A-Za-z0-9+/]*={0,2}$')
+            && notCurrentRevision(data.revision);
+        }
         allow read: if owner(uid);
-        allow create, update: if owner(uid) && parentChanged() && validChunk();
-        allow delete: if owner(uid) && chunkId.matches('^([0-9]|1[0-3])$') && parentChanged()
-          && (getAfter(parentPath()).data.deleted || int(chunkId) >= getAfter(parentPath()).data.chunkCount);
+        allow create: if owner(uid) && ((legacyChunk() && parentChanged() && validChunk()) || (revisionChunk() && validRevisionChunk()));
+        allow update: if owner(uid) && legacyChunk() && parentChanged() && validChunk();
+        allow delete: if owner(uid) && ((legacyChunk() && parentChanged()
+          && (getAfter(parentPath()).data.deleted || getAfter(parentPath()).data.schema == 2 || int(chunkId) >= getAfter(parentPath()).data.chunkCount))
+          || (revisionChunk() && notCurrentRevision(chunkId.split('_')[0])));
       }
     }
   }
