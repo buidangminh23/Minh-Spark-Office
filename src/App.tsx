@@ -798,10 +798,16 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
       busy = true;
       let remaining = false;
       try {
-        const result = await invoke<{ files: { name: string; bytes: number[] }[]; errors: string[]; hasMore: boolean }>('drain_open_files');
+        const result = await invoke<{ files: { name: string; id: number }[]; errors: string[]; hasMore: boolean }>('drain_open_files');
         if (!alive) return;
         for (const error of result.errors) if (alive) toast(error, true);
-        for (const file of result.files) await importFromDesktop.current(new File([new Uint8Array(file.bytes)], file.name));
+        for (const file of result.files) {
+          let bytes: ArrayBuffer;
+          try { bytes = await invoke<ArrayBuffer>('take_open_file', { id: file.id }); }
+          catch (error) { if (alive) toast(typeof error === 'string' ? error : 'Không đọc được nội dung tệp.', true); continue; }
+          if (!alive) return;
+          await importFromDesktop.current(new File([bytes], file.name));
+        }
         remaining = result.hasMore && result.files.length === 0;
         if (result.hasMore && alive) toast('Còn tệp đang chờ. Trở về danh sách sau khi lưu để mở tệp tiếp theo.');
       } catch { if (alive) toast('Chưa mở được tệp từ hệ điều hành. Có thể dùng nút Mở tệp từ máy để thử lại.', true); }

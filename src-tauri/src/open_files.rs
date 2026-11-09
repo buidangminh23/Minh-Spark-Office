@@ -1,12 +1,11 @@
 use serde::Serialize;
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::fs::OpenOptions;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use tauri::{Emitter, Manager};
 
-const MAX_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_PENDING: usize = 16;
 const EXTENSIONS: &[&str] = &[
     "docx", "xlsx", "xlsm", "xls", "csv", "tsv", "pdf", "pptx", "ppt", "txt", "md",
@@ -16,6 +15,8 @@ const EXTENSIONS: &[&str] = &[
 struct Queue {
     files: VecDeque<PathBuf>,
     errors: Vec<String>,
+    staged: HashMap<u64, PathBuf>,
+    next_id: u64,
 }
 
 #[derive(Clone, Default)]
@@ -24,7 +25,7 @@ pub struct OpenFiles(Arc<Mutex<Queue>>);
 #[derive(Serialize)]
 pub struct OpenFile {
     name: String,
-    bytes: Vec<u8>,
+    id: u64,
 }
 
 #[derive(Serialize)]
@@ -111,16 +112,26 @@ pub fn queue_arguments(app: &tauri::AppHandle, args: impl IntoIterator<Item = St
     queue_paths(app, paths);
 }
 
-fn read_file(path: PathBuf) -> Result<OpenFile, String> {
+fn prepare_file(path: PathBuf) -> Result<(PathBuf, String), String> {
     if !supported_local_path(&path) {
         return Err("Không thể mở đường dẫn này.".into());
     }
     let resolved = path
         .canonicalize()
         .map_err(|_| "Không tìm thấy tệp cần mở.".to_string())?;
-    if !supported_local_path(&resolved) {
-        return Err("Không thể mở đường dẫn này.".into());
+    let metadata =
+        std::fs::metadata(&resolved).map_err(|_| "Không đọc được thông tin tệp.".to_string())?;
+    if !metadata.is_file() {
+        return Err("Hãy chọn một tệp, không phải thư mục.".into());
     }
+    let name = path
+        .file_name()
+        .map(|value| value.to_string_lossy().into_owned())
+        .ok_or_else(|| "Tên tệp không hợp lệ.".to_string())?;
+    Ok((resolved, name))
+}
+
+fn read_file(path: &Path) -> Result<Vec<u8>, String> {
     let mut options = OpenOptions::new();
     options.read(true);
     #[cfg(unix)]
@@ -129,7 +140,7 @@ fn read_file(path: PathBuf) -> Result<OpenFile, String> {
         options.custom_flags(libc::O_NONBLOCK);
     }
     let mut file = options
-        .open(&resolved)
+        .open(path)
         .map_err(|_| "Không đọc được tệp. Hãy kiểm tra quyền truy cập.".to_string())?;
     let metadata = file
         .metadata()
@@ -137,22 +148,13 @@ fn read_file(path: PathBuf) -> Result<OpenFile, String> {
     if !metadata.is_file() {
         return Err("Hãy chọn một tệp, không phải thư mục.".into());
     }
-    if metadata.len() > MAX_BYTES {
-        return Err("Tệp vượt quá giới hạn mở 32 MB.".into());
-    }
-    let mut bytes = Vec::with_capacity(metadata.len() as usize);
-    (&mut file)
-        .take(MAX_BYTES + 1)
-        .read_to_end(&mut bytes)
+    let mut bytes = Vec::new();
+    bytes
+        .try_reserve_exact(usize::try_from(metadata.len()).unwrap_or(usize::MAX))
+        .map_err(|_| "Không đủ bộ nhớ để mở tệp này.".to_string())?;
+    file.read_to_end(&mut bytes)
         .map_err(|_| "Không đọc được nội dung tệp.".to_string())?;
-    if bytes.len() as u64 > MAX_BYTES {
-        return Err("Tệp vượt quá giới hạn mở 32 MB.".into());
-    }
-    let name = path
-        .file_name()
-        .map(|value| value.to_string_lossy().into_owned())
-        .ok_or_else(|| "Tên tệp không hợp lệ.".to_string())?;
-    Ok(OpenFile { name, bytes })
+    Ok(bytes)
 }
 
 #[tauri::command]
@@ -169,13 +171,21 @@ pub async fn drain_open_files(
             )
         };
         let mut files = Vec::new();
-        if let Some(path) = path {
-            match read_file(path) {
-                Ok(file) => files.push(file),
-                Err(error) => errors.push(error),
+        let prepared = path.map(prepare_file);
+        let mut pending = queue.0.lock().unwrap_or_else(|error| error.into_inner());
+        match prepared {
+            Some(Ok((resolved, name))) => {
+                if pending.staged.len() >= MAX_PENDING {
+                    pending.staged.clear();
+                }
+                let id = pending.next_id;
+                pending.next_id += 1;
+                pending.staged.insert(id, resolved);
+                files.push(OpenFile { name, id });
             }
+            Some(Err(error)) => errors.push(error),
+            None => {}
         }
-        let pending = queue.0.lock().unwrap_or_else(|error| error.into_inner());
         OpenFilesBatch {
             files,
             errors,
@@ -184,6 +194,24 @@ pub async fn drain_open_files(
     })
     .await
     .map_err(|_| "Không xử lý được yêu cầu mở tệp.".to_string())
+}
+
+#[tauri::command]
+pub async fn take_open_file(
+    pending: tauri::State<'_, OpenFiles>,
+    id: u64,
+) -> Result<tauri::ipc::Response, String> {
+    let path = pending
+        .0
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .staged
+        .remove(&id)
+        .ok_or_else(|| "Tệp cần mở không còn trong hàng chờ. Hãy mở lại tệp.".to_string())?;
+    tauri::async_runtime::spawn_blocking(move || read_file(&path))
+        .await
+        .map_err(|_| "Không xử lý được yêu cầu mở tệp.".to_string())?
+        .map(tauri::ipc::Response::new)
 }
 
 #[tauri::command]
@@ -241,20 +269,22 @@ mod tests {
     }
 
     #[test]
-    fn reads_regular_file_and_rejects_oversized_or_directory() {
+    fn reads_large_regular_file_and_rejects_directory() {
         let path = fixture("content.txt");
         std::fs::write(&path, b"example").unwrap();
-        let file = read_file(path.clone()).unwrap();
-        assert_eq!(file.bytes, b"example");
-        assert!(!file.name.contains(std::path::MAIN_SEPARATOR));
+        let (resolved, name) = prepare_file(path.clone()).unwrap();
+        assert_eq!(read_file(&resolved).unwrap(), b"example");
+        assert!(!name.contains(std::path::MAIN_SEPARATOR));
+        let large = 96 * 1024 * 1024;
         std::fs::File::create(&path)
             .unwrap()
-            .set_len(MAX_BYTES + 1)
+            .set_len(large)
             .unwrap();
-        assert!(read_file(path.clone()).is_err());
+        let (resolved, _) = prepare_file(path.clone()).unwrap();
+        assert_eq!(read_file(&resolved).unwrap().len() as u64, large);
         std::fs::remove_file(&path).unwrap();
         std::fs::create_dir(&path).unwrap();
-        assert!(read_file(path.clone()).is_err());
+        assert!(prepare_file(path.clone()).is_err());
         std::fs::remove_dir(&path).unwrap();
     }
 }

@@ -31,6 +31,7 @@ fn main() {
             desktop_auth::desktop_google_sign_in,
             desktop_auth::cancel_desktop_sign_in,
             open_files::drain_open_files,
+            open_files::take_open_file,
             open_files::open_default_apps
         ])
         .setup(|app| {

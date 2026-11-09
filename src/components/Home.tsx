@@ -349,37 +349,39 @@ export default function Home(props: HomeProps) {
                 <label style={{ display: 'contents', cursor: 'pointer' }}><AppCard kind="image" title="Minh Photos" desc="Xem và sửa ảnh đa định dạng" action="arrow" onClick={() => {}} /><input type="file" accept={IMPORT_ACCEPT} hidden onChange={handleImport} /></label>
               </div>
 
-              <section className="ws-section" aria-labelledby="ws-recent-title">
-                <div className="ws-section-head">
-                  <h2 id="ws-recent-title">Tài liệu gần đây</h2>
-                  {tabs}
-                  {toolbar}
-                </div>
-                {listedFiles.length ? fileList(listedFiles.slice(0, RECENT_LIMIT)) : emptyState}
-                {listedFiles.length > RECENT_LIMIT && (
-                  <button className="ws-more" onClick={() => goTo('all')}>Xem tất cả {listedFiles.length} tài liệu <ArrowRight size={16} aria-hidden="true" /></button>
-                )}
-              </section>
+              <div className="ws-dash-cols">
+                <section className="ws-section" aria-labelledby="ws-recent-title">
+                  <div className="ws-section-head">
+                    <h2 id="ws-recent-title">Tài liệu gần đây</h2>
+                    {tabs}
+                    {toolbar}
+                  </div>
+                  {listedFiles.length ? fileList(listedFiles.slice(0, RECENT_LIMIT)) : emptyState}
+                  {listedFiles.length > RECENT_LIMIT && (
+                    <button className="ws-more" onClick={() => goTo('all')}>Xem tất cả {listedFiles.length} tài liệu <ArrowRight size={16} aria-hidden="true" /></button>
+                  )}
+                </section>
 
-              <section className="ws-section" aria-labelledby="ws-templates-title">
-                <div className="ws-section-head">
-                  <h2 id="ws-templates-title">Bắt đầu từ mẫu</h2>
-                  <button className="ws-link" aria-expanded={showAllTemplates} onClick={() => setShowAllTemplates((value) => !value)}>
-                    {showAllTemplates ? 'Thu gọn' : 'Xem tất cả'} <ArrowRight size={18} aria-hidden="true" className={showAllTemplates ? 'ws-rotate' : ''} />
-                  </button>
-                </div>
-                <div className="ws-templates">
-                  {(showAllTemplates ? TEMPLATES : TEMPLATES.slice(0, FEATURED_TEMPLATES)).map((template) => (
-                    <button key={template.id} className="ws-template" onClick={() => template.create(props)}>
-                      <TemplateThumb variant={template.thumb} title={template.title} />
-                      <span className="ws-template-meta">
-                        <SuiteLogo kind={template.kind} size={32} />
-                        <span><strong>{template.title}</strong><small>{KIND_LABEL[template.kind]}</small></span>
-                      </span>
+                <section className="ws-section" aria-labelledby="ws-templates-title">
+                  <div className="ws-section-head">
+                    <h2 id="ws-templates-title">Bắt đầu từ mẫu</h2>
+                    <button className="ws-link" aria-expanded={showAllTemplates} onClick={() => setShowAllTemplates((value) => !value)}>
+                      {showAllTemplates ? 'Thu gọn' : 'Xem tất cả'} <ArrowRight size={18} aria-hidden="true" className={showAllTemplates ? 'ws-rotate' : ''} />
                     </button>
-                  ))}
-                </div>
-              </section>
+                  </div>
+                  <div className="ws-templates">
+                    {(showAllTemplates ? TEMPLATES : TEMPLATES.slice(0, FEATURED_TEMPLATES)).map((template) => (
+                      <button key={template.id} className="ws-template" onClick={() => template.create(props)}>
+                        <TemplateThumb variant={template.thumb} title={template.title} />
+                        <span className="ws-template-meta">
+                          <SuiteLogo kind={template.kind} size={32} />
+                          <span><strong>{template.title}</strong><small>{KIND_LABEL[template.kind]}</small></span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              </div>
             </>
           ) : (
             <section className="ws-section ws-section-first" aria-labelledby="ws-list-title">
