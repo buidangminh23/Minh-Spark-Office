@@ -31,6 +31,7 @@ import type { WorkbookData } from '../lib/sheetTypes';
 import type { PresentationData } from '../lib/slideTypes';
 import { businessPitchPresentation, productLaunchPresentation, blankPresentation } from '../lib/slideTemplates';
 import { relativeTime } from '../lib/download';
+import { IMAGE_ACCEPT_STRING } from '../lib/imageFormats';
 import {
   sampleDocHtml,
   contractDocHtml,
@@ -139,6 +140,7 @@ export default function Home(props: HomeProps) {
   const [showAllTemplates, setShowAllTemplates] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const searchInput = useRef<HTMLInputElement>(null);
+  const imageInput = useRef<HTMLInputElement>(null);
   const shell = useRef<HTMLDivElement>(null);
   const isMac = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform);
 
@@ -346,7 +348,8 @@ export default function Home(props: HomeProps) {
                 <AppCard kind="sheet" title="Minh Sheets" desc="Tạo bảng tính" action="plus" onClick={() => onCreateSheet()} />
                 <AppCard kind="slide" title="Minh Slides" desc="Soạn bài thuyết trình" action="plus" onClick={() => props.onCreateSlide()} />
                 <AppCard kind="pdf" title="Minh PDF" desc="Chỉnh sửa & chuyển đổi" action="arrow" onClick={onCreatePdf} />
-                <label style={{ display: 'contents', cursor: 'pointer' }}><AppCard kind="image" title="Minh Photos" desc="Xem và sửa ảnh đa định dạng" action="arrow" onClick={() => {}} /><input type="file" accept={IMPORT_ACCEPT} hidden onChange={handleImport} /></label>
+                <AppCard kind="image" title="Minh Photos" desc="Xem và sửa ảnh đa định dạng" action="arrow" onClick={() => imageInput.current?.click()} />
+                <input ref={imageInput} type="file" accept={IMAGE_ACCEPT_STRING} hidden onChange={handleImport} data-testid="photos-input" />
               </div>
 
               <div className="ws-dash-cols">
