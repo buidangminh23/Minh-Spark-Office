@@ -4,109 +4,309 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tải Minh Spark Office cho Windows và macOS</title>
-  <meta name="description" content="Tải Minh Spark Office 0.2.31 cho Windows 10 và 11: soạn văn bản, làm bảng tính và xử lý PDF ngay trên máy, kể cả khi không có mạng." />
-  <meta name="theme-color" content="#d7473c" />
+  <meta name="description" content="Tải Minh Spark Office 0.2.31 cho Windows 10, 11 và macOS Apple Silicon: soạn văn bản, làm bảng tính, trình chiếu và xử lý PDF ngay trên máy, kể cả khi không có mạng." />
+  <meta name="theme-color" content="#2563eb" />
   <link rel="canonical" href="https://office.minhspark.com/tai-ung-dung.html" />
   <link rel="icon" type="image/png" href="/logo-icon.png" />
   <link rel="stylesheet" href="/seo.css" />
   <style>
-    .download-layout { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 40px; align-items: start; padding-top: 48px; }
-    .download-layout .seo-hero { padding: 0; }
-    .download-meta { color: #586071; font-size: 14px; }
-    .download-card { padding: 30px; border: 1px solid #e3e7ee; border-radius: 16px; background: #fff; box-shadow: 0 12px 30px #1e243008; }
-    .download-card img { display: block; width: 64px; height: 64px; object-fit: contain; margin-bottom: 20px; }
-    .download-card .seo-button { width: 100%; margin: 4px 0 10px; }
-    .download-card .download-secondary { display: block; padding: 12px 0; text-align: center; }
-    .download-card .download-meta { text-align: center; margin-bottom: 4px; }
-    .download-checksum { display: block; margin-top: 22px; font-size: 14px; }
-    .download-command { display: flex; align-items: center; gap: 8px; margin: 16px 0 8px; padding: 8px 8px 8px 16px; border: 1px solid #e3e7ee; border-radius: 12px; background: #f6f7fb; }
-    .download-command code { flex: 1 1 auto; min-width: 0; overflow-x: auto; white-space: nowrap; font: 14px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; user-select: all; }
-    .download-command button { flex: none; min-height: 40px; padding: 8px 16px; border: 0; border-radius: 8px; background: #1e2430; color: #fff; font-family: inherit; font-size: 14px; font-weight: 600; line-height: 1.4; cursor: pointer; }
-    .download-command button:focus-visible { outline: 3px solid #2b579a; outline-offset: 2px; }
-    .download-steps { margin: 16px 0; padding-left: 24px; }
-    .download-details { margin-top: 40px; }
-    .download-details p:last-child { margin-bottom: 0; }
-    @media (max-width: 760px) { .download-layout { grid-template-columns: 1fr; gap: 24px; padding-top: 32px; } }
-    @media (max-width: 480px) { .download-command { flex-direction: column; align-items: stretch; padding: 16px; } .download-command code { white-space: normal; overflow-wrap: anywhere; } }
+    .dl { --blue: #2563eb; --blue-ink: #1d4ed8; --blue-soft: #eef3fe; --ink: #1e2430; --ink-2: #586071; --line: #e3e7ee; --paper: #fff; }
+    .dl .seo-page { max-width: 1120px; }
+    .dl .seo-page a { color: var(--blue-ink); }
+    .dl .seo-page a:focus-visible, .dl button:focus-visible, .dl summary:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; border-radius: 8px; }
+    .dl .seo-page .seo-links .dl-nav-cta { padding: 8px 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); font-weight: 600; text-decoration: none; }
+
+    .dl-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 64px; align-items: center; padding: 64px 0 32px; }
+    .dl-hero h1 { margin: 16px 0 24px; }
+    .dl-eyebrow { display: inline-flex; align-items: center; gap: 8px; margin: 0; padding: 4px 12px; border-radius: 999px; background: var(--blue-soft); color: var(--blue-ink); font-size: 13px; font-weight: 650; }
+    .dl-eyebrow::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--blue); }
+    .dl .seo-lead { margin-bottom: 32px; }
+    .dl-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+    .dl-btn { display: inline-flex; align-items: center; justify-content: center; gap: 12px; min-height: 48px; padding: 12px 24px; border-radius: 10px; font-weight: 650; line-height: 1.4; text-decoration: none; }
+    .dl .seo-page .dl-btn-primary { background: var(--blue); color: #fff; box-shadow: 0 8px 20px rgba(37, 99, 235, 0.25); }
+    .dl .seo-page .dl-btn-primary:hover { background: var(--blue-ink); }
+    .dl .seo-page .dl-btn-ghost { border: 1px solid var(--line); background: var(--paper); color: var(--ink); }
+    .dl .dl-btn-ghost:hover { border-color: #cfd5e1; }
+    .dl-btn svg { flex: none; width: 20px; height: 20px; }
+    .dl-meta { margin: 0; color: var(--ink-2); font-size: 14px; }
+
+    .dl-shot { position: relative; margin: 0; }
+    .dl-window { overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); box-shadow: 0 24px 56px rgba(18, 24, 38, 0.14); }
+    .dl-window-bar { display: flex; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: #f6f7fb; }
+    .dl-window-bar span { width: 12px; height: 12px; border-radius: 50%; background: #dfe3ea; }
+    .dl-window img { display: block; width: 100%; height: auto; }
+
+    .dl-apps { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 32px; margin: 32px 0 0; padding: 24px 32px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); }
+    .dl-apps p { margin: 0; color: var(--ink-2); font-size: 14px; font-weight: 600; }
+    .dl-apps ul { display: flex; flex-wrap: wrap; gap: 16px 32px; margin: 0; padding: 0; list-style: none; }
+    .dl-apps li { display: inline-flex; align-items: center; gap: 8px; margin: 0; font-weight: 600; }
+    .dl-apps img { width: 28px; height: 28px; object-fit: contain; }
+
+    .dl-section { margin-top: 96px; }
+    .dl-section-head { max-width: 680px; margin-bottom: 32px; }
+    .dl-section-head h2 { margin-bottom: 8px; font-size: clamp(24px, 3vw, 32px); letter-spacing: -.02em; }
+    .dl-section-head p { margin: 0; color: var(--ink-2); }
+
+    .dl-platforms { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-items: stretch; }
+    .dl-card { display: flex; flex-direction: column; gap: 24px; padding: 32px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); scroll-margin-top: 24px; }
+    .dl-card:target { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-soft); }
+    .dl-card-head { display: flex; flex-direction: column; align-items: center; gap: 16px; text-align: center; }
+    .dl-card-head h3 { margin: 0; font-size: 22px; }
+    .dl-card-head p { margin: 4px 0 0; color: var(--ink-2); font-size: 14px; }
+    .dl-os { display: grid; flex: none; place-items: center; width: 64px; height: 64px; border-radius: 16px; background: #f6f7fb; }
+    .dl-os svg { width: 32px; height: 32px; }
+    .dl-os-apple svg { transform: translateY(-1px); }
+    .dl-card-body { display: flex; flex: 1 1 auto; flex-direction: column; gap: 16px; }
+    .dl-card-body p { margin: 0; }
+    .dl-card-body > p { text-align: center; }
+    .dl-card .dl-btn { width: 100%; }
+    .dl-alt { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 16px; font-size: 14px; }
+    .dl-alt span { color: var(--ink-2); }
+    .dl-specs { display: grid; gap: 8px; margin: 0; padding: 16px 0 0; border-top: 1px solid var(--line); font-size: 14px; }
+    .dl-specs div { display: flex; justify-content: space-between; gap: 16px; }
+    .dl-specs dt { color: var(--ink-2); }
+    .dl-specs dd { margin: 0; font-weight: 600; text-align: right; }
+
+    .dl-hint { color: var(--ink-2); font-size: 14px; }
+
+    .dl-guide { display: grid; gap: 48px; margin: 0; padding: 0; list-style: none; counter-reset: step; }
+    .dl-guide-step { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 32px; align-items: start; margin: 0; counter-increment: step; }
+    .dl-guide-text h3 { display: flex; align-items: center; gap: 12px; margin: 0 0 8px; font-size: 18px; }
+    .dl-guide-text h3::before { content: counter(step); display: grid; flex: none; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--blue-soft); color: var(--blue-ink); font-size: 15px; font-weight: 700; }
+    .dl-guide-text p { margin: 0; padding-left: 44px; color: var(--ink-2); overflow-wrap: anywhere; }
+    .dl-guide-step img { display: block; justify-self: start; max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); box-shadow: 0 8px 24px rgba(18, 24, 38, 0.08); }
+    .dl-guide-note { margin: 48px 0 0; color: var(--ink-2); }
+
+    .dl-faq { display: grid; gap: 12px; max-width: 860px; }
+    .dl-faq details { border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }
+    .dl-faq summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 56px; padding: 16px 24px; font-weight: 650; cursor: pointer; list-style: none; }
+    .dl-faq summary::-webkit-details-marker { display: none; }
+    .dl-faq summary::after { content: "+"; flex: none; color: var(--ink-2); font-size: 22px; font-weight: 400; line-height: 1; transition: transform 200ms cubic-bezier(0.23, 1, 0.32, 1); }
+    .dl-faq details[open] summary::after { transform: rotate(45deg); }
+    .dl-faq-body { padding: 0 24px 24px; color: var(--ink-2); }
+    .dl-faq-body p { margin: 0 0 12px; }
+    .dl-faq-body p:last-child, .dl-faq-body ol:last-child { margin-bottom: 0; }
+    .dl-faq-body ol { margin: 0 0 12px; padding-left: 24px; }
+    .dl-faq-body li { margin-bottom: 8px; }
+
+    .dl-band { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 24px; margin-top: 96px; padding: 40px; border-radius: 16px; background: var(--blue-soft); }
+    .dl-band h2 { margin: 0 0 8px; }
+    .dl-band p { margin: 0; color: var(--ink-2); }
+
+    @media (prefers-reduced-motion: reduce) { .dl-faq summary::after { transition: none; } }
+    @media (max-width: 900px) {
+      .dl-hero { grid-template-columns: 1fr; gap: 48px; padding-top: 48px; }
+      .dl-guide-step { grid-template-columns: 1fr; gap: 16px; }
+      .dl-guide-text p { padding-left: 0; }
+    }
+    @media (max-width: 760px) {
+      .dl-platforms { grid-template-columns: 1fr; }
+      .dl-section, .dl-band { margin-top: 64px; }
+    }
+    @media (max-width: 480px) {
+      .dl-card { padding: 24px; }
+      .dl-apps { padding: 24px; }
+      .dl-band { padding: 24px; }
+      .dl-actions .dl-btn { width: 100%; }
+          .dl-faq summary { padding: 16px; }
+      .dl-faq-body { padding: 0 16px 16px; }
+    }
   </style>
 </head>
-<body class="seo-document">
+<body class="seo-document dl">
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-windows" viewBox="0 0 128 128"><path fill="#0078d4" d="M67.328 67.331h60.669V128H67.328zm-67.325 0h60.669V128H.003zM67.328 0h60.669v60.669H67.328zM.003 0h60.669v60.669H.003z"/></symbol>
+    <symbol id="i-windows-white" viewBox="0 0 128 128"><path fill="currentColor" d="M67.328 67.331h60.669V128H67.328zm-67.325 0h60.669V128H.003zM67.328 0h60.669v60.669H67.328zM.003 0h60.669v60.669H.003z"/></symbol>
+    <symbol id="i-apple" viewBox="0 0 128 128"><path fill="currentColor" d="M97.905 67.885c.174 18.8 16.494 25.057 16.674 25.137-.138.44-2.607 8.916-8.597 17.669-5.178 7.568-10.553 15.108-19.018 15.266-8.318.152-10.993-4.934-20.504-4.934-9.508 0-12.479 4.776-20.354 5.086-8.172.31-14.395-8.185-19.616-15.724C15.822 94.961 7.669 66.8 18.616 47.791c5.438-9.44 15.158-15.417 25.707-15.571 8.024-.153 15.598 5.398 20.503 5.398 4.902 0 14.106-6.676 23.782-5.696 4.051.169 15.421 1.636 22.722 12.324-.587.365-13.566 7.921-13.425 23.639M82.272 21.719c4.338-5.251 7.258-12.563 6.462-19.836-6.254.251-13.816 4.167-18.301 9.416-4.02 4.647-7.54 12.087-6.591 19.216 6.971.54 14.091-3.542 18.43-8.796"/></symbol>
+  </svg>
   <div class="seo-page">
     <header class="seo-header">
       <a class="seo-brand" href="/"><img src="/logo-icon.png" width="40" height="40" alt="" />Minh Spark Office</a>
-      <nav class="seo-links" aria-label="Điều hướng"><a href="/gioi-thieu.html">Giới thiệu</a><a href="/">Dùng bản web</a></nav>
+      <nav class="seo-links" aria-label="Điều hướng"><a href="/gioi-thieu.html">Giới thiệu</a><a href="#win-setup">Cài đặt</a><a href="#hoi-dap">Hỏi đáp</a><a class="dl-nav-cta" href="/">Dùng bản web</a></nav>
     </header>
     <main>
-      <div class="download-layout">
-        <section class="seo-hero" aria-labelledby="download-title">
-          <p class="seo-eyebrow">Dành cho Windows và macOS</p>
-          <h1 id="download-title">Không gian làm việc,<br />ngay trên máy.</h1>
-          <p class="seo-lead">Minh Docs, Minh Sheets và Minh PDF trong một ứng dụng. Mở từ màn hình desktop, soạn thảo và lưu tài liệu cục bộ ngay cả khi không có mạng.</p>
-          <p class="download-meta">Bản xem trước 0.2.31 · Windows 10 / 11 x64 · macOS 13.3+ Apple Silicon</p>
-          <p>Bản web vẫn hoạt động như thường lệ. Chọn cách làm việc phù hợp với từng thiết bị.</p>
-        </section>
-        <section class="download-card" id="windows" aria-labelledby="installer-title">
-          <img src="/logo-icon.png" alt="" width="64" height="64" />
-          <h2 id="installer-title">Minh Spark Office</h2>
-          <p>Bộ cài có giao diện tiếng Việt, biểu tượng ứng dụng và lối tắt để mở nhanh.</p>
-          <a class="seo-button" href="/downloads/MinhSparkOffice-0.2.31-windows-x64-vi-Setup.exe" download>Tải cho Windows</a>
-          <p class="download-meta">Bộ cài EXE tiếng Việt · EXE x64</p>
-          <a class="download-secondary" href="/downloads/MinhSparkOffice-0.2.31-windows-x64-en-US.msi" download>Tải MSI (trình cài đặt tiếng Anh)</a>
-          <p class="download-meta">Gói MSI · MSI x64</p>
-          <a class="download-checksum" href="/downloads/SHA256SUMS.txt">Xem mã kiểm tra SHA-256</a>
-        </section>
-      </div>
-      <section class="download-card seo-section" id="macos" aria-labelledby="mac-installer-title">
-        <img src="/logo-icon.png" alt="" width="64" height="64" />
-        <h2 id="mac-installer-title">Minh Spark Office cho macOS</h2>
-        <p>Dành cho máy Mac dùng chip Apple Silicon (M1, M2, M3, M4 và mới hơn), macOS 13.3 trở lên.</p>
-        <p><strong>Cách cài khuyên dùng:</strong> mở ứng dụng Terminal, dán lệnh dưới đây rồi nhấn Return. Lệnh tải bản mới nhất, kiểm tra mã SHA-256 và chữ ký, cài vào Applications rồi mở ứng dụng. macOS không hiện cảnh báo “chưa được mở” với cách cài này.</p>
-        <div class="download-command"><code id="mac-install-command">curl -fsSL https://office.minhspark.com/install-macos.sh | bash</code><button type="button" data-copy="mac-install-command">Sao chép</button></div>
-        <p class="download-meta">Xem trước nội dung lệnh tại <a href="/install-macos.sh">install-macos.sh</a>. Sau lần cài này, ứng dụng tự cập nhật.</p>
-        <a class="download-secondary" href="/downloads/MinhSparkOffice-0.2.31-macos-arm64.dmg" download>Hoặc tải file DMG</a>
-        <p>Bản macOS chưa có chứng thư Apple Developer ID và chưa được notarize, nên file DMG tải bằng trình duyệt sẽ bị macOS chặn với thông báo “Minh Spark Office chưa được mở”. Nếu dùng DMG:</p>
-        <ol class="download-steps">
-          <li>Mở DMG, kéo Minh Spark Office vào Applications, mở ứng dụng một lần rồi bấm Xong.</li>
-          <li>Vào Cài đặt hệ thống → Quyền riêng tư &amp; Bảo mật, kéo xuống và bấm “Vẫn mở”.</li>
-          <li>Hoặc chạy lại lệnh cài ở trên: lệnh thay bản cài từ DMG và gỡ cảnh báo.</li>
-        </ol>
-        <p>Máy Mac Intel hiện dùng được <a href="/">bản web</a>.</p>
+      <section class="dl-hero" aria-labelledby="download-title">
+        <div>
+          <p class="dl-eyebrow">Bản 0.2.31 · Windows và macOS</p>
+          <h1 id="download-title">Cả bộ văn phòng,<br />ngay trên máy tính.</h1>
+          <p class="seo-lead">Minh Docs, Minh Sheets, Minh Slides và Minh PDF trong một ứng dụng. Mở từ màn hình desktop, làm việc cả khi không có mạng và tự đồng bộ với bản web khi kết nối lại.</p>
+          <div class="dl-actions">
+            <a class="dl-btn dl-btn-primary" id="hero-primary" href="#windows" data-platform="auto"><svg aria-hidden="true"><use href="#i-windows-white" /></svg><span>Tải cho Windows</span></a>
+            <a class="dl-btn dl-btn-ghost" id="hero-secondary" href="#macos"><svg aria-hidden="true"><use href="#i-apple" /></svg><span>Tải cho macOS</span></a>
+          </div>
+          <p class="dl-meta" id="hero-meta">Miễn phí · Windows 10 / 11 x64 · macOS 13.3+ Apple Silicon</p>
+        </div>
+        <figure class="dl-shot">
+          <div class="dl-window">
+            <div class="dl-window-bar" aria-hidden="true"><span></span><span></span><span></span></div>
+            <img src="/screenshot-home.png" width="1440" height="900" alt="Màn hình chính của Minh Spark Office với Minh Docs, Minh Sheets, Minh Slides, Minh PDF và danh sách tài liệu gần đây" />
+          </div>
+        </figure>
       </section>
-      <div class="seo-grid download-details">
-        <section class="seo-card">
-          <h2>Cài đặt và bắt đầu</h2>
-          <ol>
-            <li>Tải bộ cài EXE rồi mở file vừa tải.</li>
-            <li>Làm theo các bước trong trình cài đặt.</li>
-            <li>Mở Minh Spark Office từ menu Start hoặc lối tắt trên desktop.</li>
-          </ol>
-          <p>Nếu máy chưa có Microsoft Edge WebView2, trình cài đặt cần kết nối mạng để tải thành phần này. Sau khi cài xong, các thao tác tài liệu cục bộ có thể dùng offline.</p>
-        </section>
-        <section class="seo-card">
-          <h2>Tài liệu lưu ở đâu?</h2>
-          <p>Đăng nhập cùng tài khoản Google trên web và ứng dụng máy tính để dùng chung kho tài liệu. Bản sửa được lưu trên máy trước, sau đó tự đồng bộ khi có mạng.</p>
-          <p>Trong ứng dụng máy tính, đăng nhập Google qua trình duyệt rồi hoàn tất để quay lại app. Trạng thái ở cuối cửa sổ cho biết tài liệu đã đồng bộ hay đang chờ kết nối.</p>
-          <p>Tài liệu cũ trên máy được giữ lại. Chọn “Thêm tài liệu trên máy” để đưa các bản nháp đã chọn vào tài khoản.</p>
-        </section>
+
+      <div class="dl-apps">
+        <p>Có sẵn trong ứng dụng</p>
+        <ul>
+          <li><img src="/logos/minh-docs.png" alt="" width="28" height="28" />Minh Docs</li>
+          <li><img src="/logos/minh-sheets.png" alt="" width="28" height="28" />Minh Sheets</li>
+          <li><img src="/logos/minh-slides.png" alt="" width="28" height="28" />Minh Slides</li>
+          <li><img src="/logos/minh-pdf.png" alt="" width="28" height="28" />Minh PDF</li>
+          <li><img src="/logos/minh-photos.png" alt="" width="28" height="28" />Minh Photos</li>
+        </ul>
       </div>
-      <section class="seo-section"><h2>Mở bằng và ứng dụng mặc định</h2><p>Sau khi cài, nhấp chuột phải vào DOCX, XLSX, XLSM, XLS, CSV, TSV, PDF, TXT hoặc Markdown và chọn Mở bằng → Minh Spark Office.</p><p>Windows: dùng nút “Đặt ứng dụng mặc định” trong app để mở phần cài đặt. macOS: chọn tệp trong Finder → Get Info → Open with → Minh Spark Office → Change All.</p></section>
-      <section class="seo-section seo-note" aria-labelledby="preview-title">
-        <h2 id="preview-title">Bản xem trước</h2>
-        <p>Phiên bản 0.2.31 chưa có chữ ký số nhà phát hành. Windows có thể hiển thị cảnh báo khi mở bộ cài. Tải đúng từ trang này và đối chiếu SHA-256 nếu cần kiểm tra file.</p>
-        <p>Ứng dụng tự kiểm tra phiên bản mới và cho phép tải, xác minh chữ ký gói cập nhật, cài đặt và mở lại. Bản 0.1.0 cần cài nâng cấp một lần từ trang này. Chữ ký cập nhật khác với chữ ký nhà phát hành Windows.</p>
+
+      <section class="dl-section" aria-labelledby="platform-title">
+        <div class="dl-section-head">
+          <h2 id="platform-title">Chọn hệ điều hành</h2>
+          <p>Hai bản dùng chung tài khoản và kho tài liệu với bản web. Sau lần cài đầu, ứng dụng tự cập nhật.</p>
+        </div>
+        <div class="dl-platforms">
+          <article class="dl-card" id="windows" aria-labelledby="installer-title">
+            <div class="dl-card-head">
+              <span class="dl-os"><svg aria-hidden="true"><use href="#i-windows" /></svg></span>
+              <div><h3 id="installer-title">Windows</h3><p>Windows 10 và 11, 64-bit</p></div>
+            </div>
+            <div class="dl-card-body">
+              <p>Bộ cài có giao diện tiếng Việt, tạo lối tắt trên desktop và menu Start.</p>
+              <a class="dl-btn dl-btn-primary" href="/downloads/MinhSparkOffice-0.2.31-windows-x64-vi-Setup.exe" download><svg aria-hidden="true"><use href="#i-windows-white" /></svg>Tải bộ cài EXE</a>
+              <div class="dl-alt"><a href="#win-setup">Hướng dẫn cài đặt từ đầu</a><a href="/downloads/MinhSparkOffice-0.2.31-windows-x64-en-US.msi" download>Tải gói MSI (tiếng Anh)</a></div>
+            </div>
+            <dl class="dl-specs">
+              <div><dt>Phiên bản</dt><dd>0.2.31</dd></div>
+              <div><dt>Định dạng</dt><dd>EXE x64 · MSI x64</dd></div>
+              <div><dt>Yêu cầu</dt><dd>Windows 10 / 11</dd></div>
+            </dl>
+          </article>
+
+          <article class="dl-card" id="macos" aria-labelledby="mac-installer-title">
+            <div class="dl-card-head">
+              <span class="dl-os dl-os-apple"><svg aria-hidden="true"><use href="#i-apple" /></svg></span>
+              <div><h3 id="mac-installer-title">macOS</h3><p>Apple Silicon (M1 trở lên), macOS 13.3+</p></div>
+            </div>
+            <div class="dl-card-body">
+              <p>Mở file DMG rồi kéo Minh Spark Office vào thư mục Applications.</p>
+              <a class="dl-btn dl-btn-primary" href="/downloads/MinhSparkOffice-0.2.31-macos-arm64.dmg" download><svg aria-hidden="true"><use href="#i-apple" /></svg>Tải file DMG</a>
+              <div class="dl-alt"><a href="#mac-dmg">Hướng dẫn mở lần đầu</a><span>macOS hỏi xác nhận ở lần mở đầu tiên</span></div>
+            </div>
+            <dl class="dl-specs">
+              <div><dt>Phiên bản</dt><dd>0.2.31</dd></div>
+              <div><dt>Định dạng</dt><dd>DMG arm64</dd></div>
+              <div><dt>Yêu cầu</dt><dd>macOS 13.3 trở lên</dd></div>
+            </dl>
+          </article>
+        </div>
+      </section>
+
+      <section class="dl-section" id="win-setup" aria-labelledby="steps-title">
+        <div class="dl-section-head">
+          <h2 id="steps-title">Cài đặt trên Windows từ đầu</h2>
+          <p>Ảnh chụp từ một lần cài thật. Nút cần bấm ở mỗi bước được đóng khung xanh.</p>
+        </div>
+        <ol class="dl-guide">
+          <li class="dl-guide-step">
+            <div class="dl-guide-text"><h3>Tải bộ cài</h3><p>Bấm “Tải bộ cài EXE” ở thẻ Windows phía trên. File MinhSparkOffice-0.2.31-windows-x64-vi-Setup.exe được lưu vào thư mục Tải xuống.</p></div>
+            <img src="/huong-dan/windows/01-tai-bo-cai.webp" width="520" height="525" alt="Thẻ Windows trên trang tải với nút Tải bộ cài EXE" loading="lazy" decoding="async" />
+          </li>
+          <li class="dl-guide-step">
+            <div class="dl-guide-text"><h3>Mở file vừa tải</h3><p>Mở file trong danh sách tải của trình duyệt hoặc nhấp đúp trong thư mục Tải xuống. Nếu Windows hiện “Windows protected your PC” (tiếng Việt: “Windows đã bảo vệ PC của bạn”), bấm “More info” (“Thêm thông tin”). Cảnh báo này xuất hiện vì bản xem trước chưa có chữ ký số nhà phát hành.</p></div>
+            <img src="/huong-dan/windows/02-smartscreen.webp" width="532" height="500" alt="Hộp thoại Windows protected your PC với liên kết More info" loading="lazy" decoding="async" />
+          </li>
+          <li class="dl-guide-step">
+            <div class="dl-guide-text"><h3>Cho phép chạy bộ cài</h3><p>Kiểm tra dòng App là MinhSparkOffice-0.2.31-windows-x64-vi-Setup.exe rồi bấm “Run anyway” (“Vẫn chạy”).</p></div>
+            <img src="/huong-dan/windows/03-run-anyway.webp" width="532" height="500" alt="Hộp thoại SmartScreen hiện tên bộ cài và nút Run anyway" loading="lazy" decoding="async" />
+          </li>
+          <li class="dl-guide-step">
+            <div class="dl-guide-text"><h3>Bắt đầu trình cài</h3><p>Trình cài tiếng Việt mở ra. Bấm “Tiếp tục”.</p></div>
+            <img src="/huong-dan/windows/04-chao-mung.webp" width="503" height="390" alt="Màn Chào mừng đến với Trợ lí Cài đặt Minh Spark Office" loading="lazy" decoding="async" />
+          </li>
+          <li class="dl-guide-step">
+            <div class="dl-guide-text"><h3>Chọn thư mục cài</h3><p>Giữ thư mục mặc định trong AppData\Local\Minh Spark Office rồi bấm “Tiếp tục”. Ứng dụng cần khoảng 22 MB.</p></div>
+            <img src="/huong-dan/windows/05-thu-muc.webp" width="503" height="390" alt="Màn Chọn thư mục cài đặt" loading="lazy" decoding="async" />
+          </li>
+          <li class="dl-guide-step">
+            <div class="dl-guide-text"><h3>Tạo lối tắt trong menu Start</h3><p>Giữ tên thư mục Minh Spark Office rồi bấm “Cài đặt”. Nếu máy chưa có Microsoft Edge WebView2, trình cài tự tải thành phần này nên cần có mạng.</p></div>
+            <img src="/huong-dan/windows/06-start-menu.webp" width="503" height="390" alt="Màn Chọn thư mục Trình đơn Start với nút Cài đặt" loading="lazy" decoding="async" />
+          </li>
+          <li class="dl-guide-step">
+            <div class="dl-guide-text"><h3>Chờ cài xong</h3><p>Khi thanh tiến trình đầy và hiện “Cài đặt hoàn tất”, bấm “Tiếp tục”.</p></div>
+            <img src="/huong-dan/windows/07-cai-xong.webp" width="503" height="390" alt="Màn Cài đặt hoàn tất với thanh tiến trình đầy" loading="lazy" decoding="async" />
+          </li>
+          <li class="dl-guide-step">
+            <div class="dl-guide-text"><h3>Mở ứng dụng</h3><p>Giữ dấu chọn “Chạy Minh Spark Office” và “Tạo biểu tượng ngoài màn hình”, rồi bấm “Hoàn thành”.</p></div>
+            <img src="/huong-dan/windows/08-hoan-thanh.webp" width="503" height="390" alt="Màn Hoàn tất Cài đặt Minh Spark Office với nút Hoàn thành" loading="lazy" decoding="async" />
+          </li>
+          <li class="dl-guide-step">
+            <div class="dl-guide-text"><h3>Đăng nhập</h3><p>Minh Spark Office mở ra ở màn Không gian làm việc. Bấm “Đăng nhập”, chọn tài khoản Google trong trình duyệt rồi quay lại ứng dụng để dùng chung tài liệu với bản web.</p></div>
+            <img src="/huong-dan/windows/09-dang-nhap.webp" width="1100" height="740" alt="Màn hình chính của Minh Spark Office với nút Đăng nhập ở góc trên bên phải" loading="lazy" decoding="async" />
+          </li>
+        </ol>
+        <p class="dl-guide-note">Từ đó ứng dụng tự kiểm tra và cài bản mới. Muốn gỡ: Cài đặt → Ứng dụng → Ứng dụng đã cài → Minh Spark Office → Gỡ cài đặt.</p>
+      </section>
+
+      <section class="dl-section" id="hoi-dap" aria-labelledby="faq-title">
+        <div class="dl-section-head">
+          <h2 id="faq-title">Hỏi đáp</h2>
+        </div>
+        <div class="dl-faq">
+          <details>
+            <summary>Tài liệu lưu ở đâu?</summary>
+            <div class="dl-faq-body">
+              <p>Đăng nhập cùng tài khoản Google trên web và ứng dụng máy tính để dùng chung kho tài liệu. Bản sửa được lưu trên máy trước, sau đó tự đồng bộ khi có mạng; trạng thái ở cuối cửa sổ cho biết đã đồng bộ hay đang chờ kết nối.</p>
+              <p>Tài liệu cũ trên máy được giữ lại. Chọn “Thêm tài liệu trên máy” để đưa các bản nháp đã chọn vào tài khoản.</p>
+            </div>
+          </details>
+          <details id="mac-dmg">
+            <summary>Mở ứng dụng lần đầu trên macOS</summary>
+            <div class="dl-faq-body">
+              <p>Bản macOS chưa có chứng thư Apple Developer ID và chưa được notarize, nên lần mở đầu tiên macOS hiện thông báo “Minh Spark Office chưa được mở”.</p>
+              <ol>
+                <li>Mở DMG, kéo Minh Spark Office vào Applications, mở ứng dụng một lần rồi bấm Xong.</li>
+                <li>Vào Cài đặt hệ thống → Quyền riêng tư &amp; Bảo mật, kéo xuống và bấm “Vẫn mở”.</li>
+                <li>Mở lại Minh Spark Office và bấm Mở. Từ lần sau ứng dụng mở bình thường và tự cập nhật.</li>
+              </ol>
+              <p>Máy Mac chip Intel hiện dùng được <a href="/">bản web</a>.</p>
+            </div>
+          </details>
+          <details>
+            <summary>Mở tệp bằng Minh Spark Office</summary>
+            <div class="dl-faq-body">
+              <p>Sau khi cài, nhấp chuột phải vào DOCX, XLSX, XLSM, XLS, CSV, TSV, PDF, TXT hoặc Markdown và chọn Mở bằng → Minh Spark Office.</p>
+              <p>Windows: dùng nút “Đặt ứng dụng mặc định” trong app. macOS: chọn tệp trong Finder → Get Info → Open with → Minh Spark Office → Change All.</p>
+            </div>
+          </details>
+        </div>
+      </section>
+
+      <section class="dl-band" aria-labelledby="web-title">
+        <div>
+          <h2 id="web-title">Không muốn cài đặt?</h2>
+          <p>Bản web có đủ các ứng dụng và dùng chung tài khoản với bản máy tính.</p>
+        </div>
+        <a class="dl-btn dl-btn-ghost" href="/">Mở bản web</a>
       </section>
     </main>
     <footer class="seo-footer">Minh Spark Office · <a href="/">Dùng bản web</a> · <a href="/gioi-thieu.html">Tìm hiểu thêm</a></footer>
   </div>
   <script>
-    document.querySelectorAll('[data-copy]').forEach((button) => {
-      button.addEventListener('click', async () => {
-        const text = document.getElementById(button.dataset.copy).textContent;
-        try { await navigator.clipboard.writeText(text); button.textContent = 'Đã chép'; }
-        catch { getSelection().selectAllChildren(document.getElementById(button.dataset.copy)); button.textContent = 'Nhấn ⌘C'; }
-        setTimeout(() => { button.textContent = 'Sao chép'; }, 2000);
-      });
-    });
+    const openTarget = (hash) => {
+      const target = hash && document.querySelector(hash);
+      if (target instanceof HTMLDetailsElement) target.open = true;
+    };
+    document.querySelectorAll('a[href^="#"]').forEach((link) => link.addEventListener('click', () => openTarget(link.getAttribute('href'))));
+    openTarget(location.hash);
+    (() => {
+      const ua = navigator.userAgent;
+      const isMac = /Macintosh|Mac OS X/.test(ua) && !/iPhone|iPad/.test(ua);
+      if (!isMac) return;
+      const primary = document.getElementById('hero-primary');
+      const secondary = document.getElementById('hero-secondary');
+      primary.href = '#macos';
+      primary.querySelector('use').setAttribute('href', '#i-apple');
+      primary.querySelector('span').textContent = 'Tải cho macOS';
+      secondary.href = '#windows';
+      secondary.querySelector('use').setAttribute('href', '#i-windows');
+      secondary.querySelector('span').textContent = 'Tải cho Windows';
+    })();
   </script>
 </body>
 </html>
