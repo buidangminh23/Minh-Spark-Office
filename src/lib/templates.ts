@@ -1,5 +1,5 @@
 import type { JSONContent } from '@tiptap/react';
-import { emptySheet, emptyWorkbook, uid } from './xlsxConvert';
+import { emptySheet, emptyWorkbook, uid } from './workbookBasics';
 import type { WorkbookData } from './sheetTypes';
 
 export const blankDoc = (): JSONContent => ({ type: 'doc', content: [{ type: 'paragraph' }] });

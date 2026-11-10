@@ -8,14 +8,9 @@ import { DesktopSignIn, isDesktopSignInRequest } from './components/DesktopSignI
 import { isDesktop } from './lib/desktop';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { lazy, Suspense, useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import Home from './components/Home';
-import DocEditor from './editors/doc/DocEditor';
-import SheetEditor from './editors/sheet/SheetEditor';
-import PdfEditor from './editors/pdf/PdfEditor';
-import SlideEditor from './editors/slide/SlideEditor';
-import ImageEditor from './editors/image/ImageEditor';
-import { isImageFile, readImageFile, formatFileSize } from './lib/imageFormats';
+import { isImageFile, formatFileSize } from './lib/imageFormatNames';
 import { UiProvider, useUi } from './components/ui';
 import {
   estimateStorage,
@@ -30,13 +25,30 @@ import {
 } from './lib/storage';
 import { blankDoc, sampleDocHtml, sampleWorkbook } from './lib/templates';
 import { blankPresentation, businessPitchPresentation, createSlideFromLayout } from './lib/slideTemplates';
-import { importFromPptx } from './lib/pptxImport';
 import type { PresentationData } from './lib/slideTypes';
-import { emptyWorkbook, importSpreadsheet } from './lib/xlsxConvert';
-import { importDocx } from './lib/docxConvert';
-import { extractHtmlBody, importDocxFull, markdownToHtml, textToHtml } from './lib/docxImport';
-import { isEncryptedOffice, decryptOfficeFile, DEFAULT_EXCEL_PASSWORD } from './lib/officeCrypto';
+import { emptyWorkbook } from './lib/workbookBasics';
 import { downloadBlob } from './lib/download';
+import type { FileKind } from './lib/storage';
+
+const DocEditor = lazy(() => import('./editors/doc/DocEditor'));
+const SheetEditor = lazy(() => import('./editors/sheet/SheetEditor'));
+const PdfEditor = lazy(() => import('./editors/pdf/PdfEditor'));
+const SlideEditor = lazy(() => import('./editors/slide/SlideEditor'));
+const ImageEditor = lazy(() => import('./editors/image/ImageEditor'));
+
+function EditorLoading({ kind }: { kind: FileKind }) {
+  return (
+    <div role="status" aria-label="Đang tải trình soạn thảo" style={{ position: 'fixed', inset: 0, display: 'grid', placeItems: 'center', background: '#f6f7fb', zIndex: 1000 }}>
+      <div className="desktop-splash-content">
+        <div className="desktop-splash-mark">
+          <svg className="desktop-splash-ring" viewBox="0 0 132 132"><circle className="desktop-splash-track" cx="66" cy="66" r="64" /><circle className="desktop-splash-arc" cx="66" cy="66" r="64" /></svg>
+          <div className="desktop-splash-tile"><img src={suiteLogos[kind]} alt="" width="62" height="62" /></div>
+        </div>
+        <p className="desktop-splash-name">Minh Spark Office</p>
+      </div>
+    </div>
+  );
+}
 
 function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
   const ui = useUi();
@@ -584,6 +596,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
       const isImage = isImageFile(file.name);
 
       // Check if file is encrypted with MS Office agile encryption
+      const { isEncryptedOffice, decryptOfficeFile, DEFAULT_EXCEL_PASSWORD } = await import('./lib/officeCrypto');
       if (isEncryptedOffice(bytes)) {
         ui.showBusy('Đang thử mở khoá tệp bảo vệ…');
         let unlocked = false;
@@ -629,7 +642,11 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
       // Convert decrypted or plain buffer into document or sheet
       if (isDoc) {
         ui.showBusy('Đang chuyển đổi tệp Word…');
-        const imported = await importDocxFull(bytes.buffer as ArrayBuffer).catch(async () => ({ html: await importDocx(bytes.buffer as ArrayBuffer), page: defaultPage() }));
+        const { importDocxFull } = await import('./lib/docxImport');
+        const imported = await importDocxFull(bytes.buffer as ArrayBuffer).catch(async () => {
+          const { importDocx } = await import('./lib/docxConvert');
+          return { html: await importDocx(bytes.buffer as ArrayBuffer), page: defaultPage() };
+        });
         const id = `doc-${Date.now()}`;
         const meta: FileMeta = {
           id,
@@ -655,6 +672,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
         ui.toast(`Đã nạp tệp Word "${file.name}"`);
       } else if (isText) {
         const source = new TextDecoder().decode(bytes);
+        const { extractHtmlBody, markdownToHtml, textToHtml } = await import('./lib/docxImport');
         const html = /\.(md|markdown)$/i.test(file.name) ? markdownToHtml(source) : /\.txt$/i.test(file.name) ? textToHtml(source) : extractHtmlBody(source);
         const meta: FileMeta = { id: `doc-${Date.now()}`, name: file.name, kind: 'doc', createdAt: Date.now(), updatedAt: Date.now(), openedAt: Date.now(), starred: false, deletedAt: null, size: file.size, preview: '' };
         const content: DocContent = { kind: 'doc', json: html as any, page: defaultPage() };
@@ -665,6 +683,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
         ui.toast(`Đã mở "${file.name}"`);
       } else if (isXls) {
         ui.showBusy('Đang đọc dữ liệu bảng tính…');
+        const { importSpreadsheet } = await import('./lib/xlsxConvert');
         const workbook = await importSpreadsheet(bytes.buffer as ArrayBuffer, file.name);
         const id = `sheet-${Date.now()}`;
         const meta: FileMeta = {
@@ -719,6 +738,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
         ui.toast(`Đã nạp tệp PDF "${file.name}"`);
       } else if (isPpt) {
         ui.showBusy('Đang đọc bài thuyết trình…');
+        const { importFromPptx } = await import('./lib/pptxImport');
         const presentation = await importFromPptx(bytes.buffer as ArrayBuffer, file.name);
         const id = `slide-${Date.now()}`;
         const meta: FileMeta = {
@@ -744,6 +764,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
         ui.toast(`Đã nạp bài thuyết trình "${file.name}"`);
       } else if (isImage) {
         ui.showBusy(`Đang nạp hình ảnh ${file.name}…`);
+        const { readImageFile } = await import('./lib/imageFormats');
         const parsed = await readImageFile(file);
         const id = `image-${Date.now()}`;
         const meta: FileMeta = {
@@ -961,71 +982,81 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
   if (activeMeta && activeContent) {
     if (activeMeta.kind === 'doc' && activeContent.kind === 'doc') {
       return (
-        <DocEditor
-          key={activeMeta.id}
-          meta={activeMeta}
-          content={activeContent}
-          onSave={handleSaveActive}
-          onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
-          onNewDocument={(html) => void handleCreateDoc(html)}
-          onOpenFile={(file) => void handleImportFile(file)}
-          onBack={handleCloseEditor}
-        />
+        <Suspense fallback={<EditorLoading kind={activeMeta.kind} />}>
+          <DocEditor
+            key={activeMeta.id}
+            meta={activeMeta}
+            content={activeContent}
+            onSave={handleSaveActive}
+            onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
+            onNewDocument={(html) => void handleCreateDoc(html)}
+            onOpenFile={(file) => void handleImportFile(file)}
+            onBack={handleCloseEditor}
+          />
+        </Suspense>
       );
     }
 
     if (activeMeta.kind === 'sheet' && activeContent.kind === 'sheet') {
       return (
-        <SheetEditor
-          key={activeMeta.id}
-          meta={activeMeta}
-          content={activeContent}
-          onSave={handleSaveActive}
-          onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
-          onBack={handleCloseEditor}
-        />
+        <Suspense fallback={<EditorLoading kind={activeMeta.kind} />}>
+          <SheetEditor
+            key={activeMeta.id}
+            meta={activeMeta}
+            content={activeContent}
+            onSave={handleSaveActive}
+            onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
+            onBack={handleCloseEditor}
+          />
+        </Suspense>
       );
     }
 
     if (activeMeta.kind === 'slide' && activeContent.kind === 'slide') {
       return (
-        <SlideEditor
-          key={activeMeta.id}
-          meta={activeMeta}
-          content={activeContent}
-          onSave={handleSaveActive}
-          onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
-          onBack={handleCloseEditor}
-        />
+        <Suspense fallback={<EditorLoading kind={activeMeta.kind} />}>
+          <SlideEditor
+            key={activeMeta.id}
+            meta={activeMeta}
+            content={activeContent}
+            onSave={handleSaveActive}
+            onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
+            onBack={handleCloseEditor}
+          />
+        </Suspense>
       );
     }
 
     if (activeMeta.kind === 'image' && activeContent.kind === 'image') {
       return (
-        <ImageEditor
-          key={activeMeta.id}
-          meta={activeMeta}
-          content={activeContent}
-          onSave={handleSaveActive}
-          onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
-          onBack={handleCloseEditor}
-          onOpenInDoc={handleCreateDocWithImage}
-          onOpenInSheet={handleCreateSheetWithImage}
-          onOpenInSlide={handleCreateSlideWithImage}
-        />
+        <Suspense fallback={<EditorLoading kind={activeMeta.kind} />}>
+          <ImageEditor
+            key={activeMeta.id}
+            meta={activeMeta}
+            content={activeContent}
+            onSave={handleSaveActive}
+            onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
+            onBack={handleCloseEditor}
+            onOpenInDoc={handleCreateDocWithImage}
+            onOpenInSheet={handleCreateSheetWithImage}
+            onOpenInSlide={handleCreateSlideWithImage}
+          />
+        </Suspense>
       );
     }
 
     if (activeMeta.kind === 'pdf' && activeContent.kind === 'pdf') {
       return (
-        <PdfEditor
-          key={activeMeta.id}
-          meta={activeMeta}
-          content={activeContent}
-          onSave={handleSaveActive}
-          onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
-          onBack={handleCloseEditor}
-        />
+        <Suspense fallback={<EditorLoading kind={activeMeta.kind} />}>
+          <PdfEditor
+            key={activeMeta.id}
+            meta={activeMeta}
+            content={activeContent}
+            onSave={handleSaveActive}
+            onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
+            onBack={handleCloseEditor}
+          />
+        </Suspense>
       );
     }
   }
