@@ -45,6 +45,8 @@ export type SheetData = {
   zoomRatio?: number;
 };
 
+export type ImportTruncation = { sheet: string; rows: number; columns: number; keptRows: number; keptColumns: number };
+
 export type WorkbookData = {
   id: string;
   name: string;
@@ -54,4 +56,5 @@ export type WorkbookData = {
   sheetOrder: string[];
   sheets: Record<string, SheetData>;
   resources?: unknown[];
+  importTruncation?: ImportTruncation[];
 };

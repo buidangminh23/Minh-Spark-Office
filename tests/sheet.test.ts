@@ -97,6 +97,18 @@ test('coerceNumeric parses numbers, currency signs, commas, and percentage strin
   assert.equal(coerceNumeric('không phải số'), null);
 });
 
+test('coerceNumeric never reads a leading-zero group as thousands', () => {
+  assert.equal(coerceNumeric('0.125'), 0.125);
+  assert.equal(coerceNumeric('-0.500'), -0.5);
+  assert.equal(coerceNumeric('0,125'), 0.125);
+  assert.equal(coerceNumeric('12,5'), 12.5);
+  assert.equal(coerceNumeric('1.500'), 1500);
+  assert.equal(coerceNumeric('1.500.000'), 1500000);
+  assert.equal(coerceNumeric('12.500,75'), 12500.75);
+  assert.equal(coerceNumeric('1,500'), 1500);
+  assert.equal(coerceNumeric('3.14'), 3.14);
+});
+
 test('formula auditing reference extraction parses precedent cell and range addresses correctly', () => {
   const formula = '=SUM(B3:D7) + $A$1 * Sheet2!C10 - MAX(E2:E15, 100)';
   const refRegex = /(?:([A-Za-z0-9_]+)!)?\$?([A-Za-z]+)\$?(\d+)(?::\$?([A-Za-z]+)\$?(\d+))?/g;

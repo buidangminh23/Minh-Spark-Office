@@ -378,6 +378,52 @@ export const FORMULA_CATALOG: FormulaCatalogItem[] = [
   { group: 'Tài chính', name: 'NPV', syntax: '=NPV(lãi_chiết_khấu, vùng_dòng_tiền)', desc: 'Tính hiện giá thuần (Net Present Value) của dự án', example: '=NPV(0.1, B3:D3)', template: '=NPV(0.1, {range})' },
 ];
 
+export interface CellRect {
+  startRow: number;
+  endRow: number;
+  startColumn: number;
+  endColumn: number;
+}
+
+export const subtractRect = (source: CellRect, cut: CellRect): CellRect[] => {
+  const overlaps =
+    cut.startRow <= source.endRow && cut.endRow >= source.startRow && cut.startColumn <= source.endColumn && cut.endColumn >= source.startColumn;
+  if (!overlaps) return [source];
+  const pieces: CellRect[] = [];
+  const top = Math.max(source.startRow, cut.startRow);
+  const bottom = Math.min(source.endRow, cut.endRow);
+  if (source.startRow < top) pieces.push({ ...source, endRow: top - 1 });
+  if (bottom < source.endRow) pieces.push({ ...source, startRow: bottom + 1 });
+  if (source.startColumn < cut.startColumn) pieces.push({ startRow: top, endRow: bottom, startColumn: source.startColumn, endColumn: cut.startColumn - 1 });
+  if (cut.endColumn < source.endColumn) pieces.push({ startRow: top, endRow: bottom, startColumn: cut.endColumn + 1, endColumn: source.endColumn });
+  return pieces;
+};
+
+export const findDuplicateRowIndexes = (rows: unknown[][], skipHeader = true): number[] => {
+  const seen = new Set<string>();
+  const duplicates: number[] = [];
+  rows.forEach((row, index) => {
+    if (skipHeader && index === 0) return;
+    const key = JSON.stringify(row.map((value) => (value === null || value === undefined ? '' : String(value).trim())));
+    if (seen.has(key)) duplicates.push(index);
+    else seen.add(key);
+  });
+  return duplicates;
+};
+
+export const groupDescendingRuns = (indexes: number[]): { start: number; count: number }[] => {
+  const sorted = [...new Set(indexes)].sort((a, b) => b - a);
+  const runs: { start: number; count: number }[] = [];
+  for (const index of sorted) {
+    const last = runs[runs.length - 1];
+    if (last && last.start - 1 === index) {
+      last.start = index;
+      last.count += 1;
+    } else runs.push({ start: index, count: 1 });
+  }
+  return runs;
+};
+
 export const coerceNumeric = (val: unknown): number | null => {
   if (typeof val === 'number' && Number.isFinite(val)) return val;
   if (typeof val === 'string') {
@@ -389,12 +435,16 @@ export const coerceNumeric = (val: unknown): number | null => {
       return Number.isFinite(n) ? n / 100 : null;
     }
     const noCurrency = trimmed.replace(/[₫$€£¥\s]/g, '');
-    if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(noCurrency)) {
+    if (/^-?[1-9]\d{0,2}(\.\d{3})+(,\d+)?$/.test(noCurrency)) {
       const n = Number(noCurrency.replace(/\./g, '').replace(',', '.'));
       return Number.isFinite(n) ? n : null;
     }
-    if (/^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(noCurrency)) {
+    if (/^-?[1-9]\d{0,2}(,\d{3})+(\.\d+)?$/.test(noCurrency)) {
       const n = Number(noCurrency.replace(/,/g, ''));
+      return Number.isFinite(n) ? n : null;
+    }
+    if (/^-?\d+,\d+$/.test(noCurrency)) {
+      const n = Number(noCurrency.replace(',', '.'));
       return Number.isFinite(n) ? n : null;
     }
     const cleaned = noCurrency.replace(/,/g, '');
