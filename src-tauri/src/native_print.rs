@@ -380,6 +380,7 @@ mod platform {
         let extended = settings.cast::<ICoreWebView2PrintSettings2>()?;
         extended.SetCopies(1)?;
         extended.SetPagesPerSide(1)?;
+        extended.SetMediaSize(COREWEBVIEW2_PRINT_MEDIA_SIZE_CUSTOM)?;
         extended.SetColorMode(if request.grayscale { COREWEBVIEW2_PRINT_COLOR_MODE_GRAYSCALE } else { COREWEBVIEW2_PRINT_COLOR_MODE_DEFAULT })?;
 
         match &request.target {
