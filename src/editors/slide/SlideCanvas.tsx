@@ -2,6 +2,7 @@ import { useRef, useState, useEffect, type ReactNode } from 'react';
 import { Lock, Sheet, Copy, ZoomIn, Cuboid, Clapperboard, Pause, Play, RotateCcw, ChartNoAxesColumn } from 'lucide-react';
 import type { SlideData, SlideElement, ShapeType } from '../../lib/slideTypes';
 import { ToneDot } from './slideIcons';
+import { isEditableKeyTarget } from './slideKeyTarget';
 
 interface SlideCanvasProps {
   slide: SlideData;
@@ -339,6 +340,7 @@ export function SlideCanvas({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (readOnly || !selectedElementId || editingTextId) return;
+      if (e.defaultPrevented || isEditableKeyTarget(e.target)) return;
 
       if (e.key === 'Delete' || e.key === 'Backspace') {
         onDeleteElement?.(selectedElementId);

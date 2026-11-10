@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
@@ -41,6 +41,9 @@ import {
 } from 'lucide-react';
 import type { SlideData } from '../../lib/slideTypes';
 import { SlideCanvas } from './SlideCanvas';
+import { useUi } from '../../components/ui';
+import { downloadBlob } from '../../lib/download';
+import { isEditableKeyTarget } from './slideKeyTarget';
 import {
   playTransitionSound,
   playPresenterSound,
@@ -70,6 +73,7 @@ export function SlideShow({
   isPresenterMode: defaultPresenter = false,
   onClose,
 }: SlideShowProps) {
+  const ui = useUi();
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [isPresenterMode, setIsPresenterMode] = useState(defaultPresenter);
 
@@ -130,6 +134,8 @@ export function SlideShow({
   const [isWebcamActive, setIsWebcamActive] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const isMountedRef = useRef(true);
   const recordedChunksRef = useRef<Blob[]>([]);
 
   // AI Speaker Coach (Pace & Filler word analyzer)
@@ -170,7 +176,8 @@ export function SlideShow({
   }, [currentIndex, animStep, currentSlide?.id]);
 
   // Entrance animations on current slide
-  const entranceElements = currentSlide.elements.filter((el) => {
+  const currentElements = currentSlide.elements;
+  const entranceElements = useMemo(() => currentElements.filter((el) => {
     if (el.animations && el.animations.length > 0) {
       return el.animations.some((a) => a.category === 'entrance' && a.type !== 'none');
     }
@@ -179,7 +186,7 @@ export function SlideShow({
       return !t.includes('out') && !t.includes('disappear') && !t.includes('pulse') && !t.includes('spin') && !t.includes('teeter');
     }
     return false;
-  });
+  }), [currentElements]);
 
   const hiddenElementIds = entranceElements
     .filter((_, idx) => idx >= animStep)
@@ -254,21 +261,25 @@ export function SlideShow({
     }
   }, [blankMode, animStep, currentIndex, slides]);
 
-  // Auto-advance slide if advanceAfterSeconds is configured
+  const handleAdvanceRef = useRef(handleAdvance);
+  useLayoutEffect(() => {
+    handleAdvanceRef.current = handleAdvance;
+  });
+
+  const advanceAfterSeconds = currentSlide.transition?.advanceAfterSeconds;
+  const entranceCount = entranceElements.length;
   useEffect(() => {
-    const afterSec = currentSlide.transition?.advanceAfterSeconds;
-    if (afterSec && afterSec > 0 && animStep >= entranceElements.length) {
-      const timer = setTimeout(() => {
-        handleAdvance();
-      }, afterSec * 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [currentSlide, animStep, entranceElements.length, handleAdvance]);
+    if (!advanceAfterSeconds || advanceAfterSeconds <= 0 || animStep < entranceCount) return;
+    const timer = setTimeout(() => {
+      handleAdvanceRef.current();
+    }, advanceAfterSeconds * 1000);
+    return () => clearTimeout(timer);
+  }, [currentIndex, advanceAfterSeconds, animStep, entranceCount]);
 
   // Key navigation & hotkeys
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Hotkeys for presenter tools
+      if (isEditableKeyTarget(e.target) && e.key !== 'Escape') return;
       if (e.key.toLowerCase() === 'l') {
         e.preventDefault();
         setIsLaserActive((v) => !v);
@@ -429,51 +440,86 @@ export function SlideShow({
     }, 2500);
   };
 
-  // Recording Studio & Webcam toggle
-  const toggleRecordingStudio = async () => {
-    if (isRecording) {
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        mediaRecorderRef.current.stop();
-      }
-      setIsRecording(false);
-      setIsWebcamActive(false);
-      if (videoRef.current && videoRef.current.srcObject) {
-        const stream = videoRef.current.srcObject as MediaStream;
-        stream.getTracks().forEach((t) => t.stop());
-        videoRef.current.srcObject = null;
-      }
-    } else {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
-        setIsWebcamActive(true);
-        setIsRecording(true);
+  const stopMediaStream = useCallback(() => {
+    const stream = mediaStreamRef.current;
+    mediaStreamRef.current = null;
+    stream?.getTracks().forEach((track) => track.stop());
+    if (videoRef.current) videoRef.current.srcObject = null;
+  }, []);
 
-        const recorder = new MediaRecorder(stream);
-        recordedChunksRef.current = [];
-        recorder.ondataavailable = (e) => {
-          if (e.data.size > 0) recordedChunksRef.current.push(e.data);
-        };
-        recorder.onstop = () => {
-          const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `Minh-Presentation-Studio-${Date.now()}.webm`;
-          a.click();
-          URL.revokeObjectURL(url);
-        };
-        recorder.start();
-        mediaRecorderRef.current = recorder;
+  const finishRecording = useCallback(() => {
+    const recorder = mediaRecorderRef.current;
+    mediaRecorderRef.current = null;
+    if (recorder && recorder.state !== 'inactive') {
+      try {
+        recorder.stop();
       } catch {
-        // Fallback simulation if no hardware device is connected
-        setIsWebcamActive(true);
-        setIsRecording(true);
+        recordedChunksRef.current = [];
       }
     }
+    stopMediaStream();
+  }, [stopMediaStream]);
+
+  const toggleRecordingStudio = async () => {
+    if (isRecording) {
+      finishRecording();
+      setIsRecording(false);
+      setIsWebcamActive(false);
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      ui.toast('Trình duyệt này không hỗ trợ ghi hình webcam.', true);
+      return;
+    }
+    let stream: MediaStream | null = null;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      if (!isMountedRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      const recorder = new MediaRecorder(stream);
+      recordedChunksRef.current = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) recordedChunksRef.current.push(e.data);
+      };
+      recorder.onstop = () => {
+        const chunks = recordedChunksRef.current;
+        recordedChunksRef.current = [];
+        if (chunks.length === 0) return;
+        downloadBlob(new Blob(chunks, { type: recorder.mimeType || 'video/webm' }), `Minh-Presentation-Studio-${Date.now()}.webm`);
+      };
+      recorder.start(1000);
+      mediaStreamRef.current = stream;
+      mediaRecorderRef.current = recorder;
+      setIsWebcamActive(true);
+      setIsRecording(true);
+    } catch (error) {
+      stream?.getTracks().forEach((track) => track.stop());
+      setIsWebcamActive(false);
+      setIsRecording(false);
+      const reason = error instanceof DOMException && error.name === 'NotAllowedError'
+        ? 'Chưa được cấp quyền dùng camera và micro.'
+        : error instanceof DOMException && error.name === 'NotFoundError'
+          ? 'Không tìm thấy camera hoặc micro.'
+          : `Không bật được ghi hình: ${error instanceof Error ? error.message : String(error)}`;
+      ui.toast(reason, true);
+    }
   };
+
+  useEffect(() => {
+    if (!isWebcamActive || !videoRef.current) return;
+    videoRef.current.srcObject = mediaStreamRef.current;
+  }, [isWebcamActive]);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      stopPresentationBgm();
+      finishRecording();
+    };
+  }, [finishRecording]);
 
   // Resize canvas for drawing
   useEffect(() => {

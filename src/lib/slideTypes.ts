@@ -335,6 +335,7 @@ export interface SlideElement {
 
   // Live Linked Data from Minh Sheets
   sheetLink?: {
+    fileId?: string;
     sheetName: string;
     range: string;
     lastSync?: string;

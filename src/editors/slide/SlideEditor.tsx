@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -59,6 +59,7 @@ import { SlideDiffModal } from './SlideDiffModal';
 import { SlideMasterModal } from './SlideMasterModal';
 import { SlideSheetsLinkModal } from './SlideSheetsLinkModal';
 import { SlideCustomShowsModal } from './SlideCustomShowsModal';
+import { isEditableKeyTarget } from './slideKeyTarget';
 import './slideEditor.css';
 
 interface SlideEditorProps {
@@ -209,43 +210,100 @@ export default function SlideEditor({
     setSaveStatus('unsaved');
   }, [redoStack, presentation]);
 
-  // Debounced Autosave
-  const triggerAutoSave = useCallback(
-    (newPres: PresentationData) => {
-      setSaveStatus('unsaved');
-      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+  const presentationRef = useRef(presentation);
+  const savedPresentationRef = useRef(content.presentation);
+  const mountedRef = useRef(true);
+  const saveContextRef = useRef({ meta, onSave, comments: content.comments });
 
-      autosaveTimerRef.current = setTimeout(async () => {
-        setSaveStatus('saving');
-        const updatedContent: SlideContent = {
-          kind: 'slide',
-          presentation: newPres,
-          comments: content.comments,
-        };
-        const ok = await onSave(meta, updatedContent, false);
-        setSaveStatus(ok ? 'saved' : 'unsaved');
-      }, AUTOSAVE_DEBOUNCE_MS);
+  useLayoutEffect(() => {
+    presentationRef.current = presentation;
+    saveContextRef.current = { meta, onSave, comments: content.comments };
+  });
+
+  const clearAutosaveTimer = useCallback(() => {
+    if (!autosaveTimerRef.current) return;
+    clearTimeout(autosaveTimerRef.current);
+    autosaveTimerRef.current = null;
+  }, []);
+
+  const saveLatest = useCallback(
+    async (explicit: boolean) => {
+      clearAutosaveTimer();
+      const snapshot = presentationRef.current;
+      const { meta: saveMeta, onSave: save, comments } = saveContextRef.current;
+      if (mountedRef.current) setSaveStatus('saving');
+      const ok = await save(saveMeta, { kind: 'slide', presentation: snapshot, comments }, explicit);
+      if (ok) savedPresentationRef.current = snapshot;
+      if (mountedRef.current) {
+        setSaveStatus(ok && presentationRef.current === snapshot ? 'saved' : 'unsaved');
+      }
+      return ok;
     },
-    [content.comments, meta, onSave]
+    [clearAutosaveTimer]
   );
 
-  // Explicit Save (Ctrl+S)
-  const handleExplicitSave = useCallback(async () => {
-    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
-    setSaveStatus('saving');
-    const updatedContent: SlideContent = {
-      kind: 'slide',
-      presentation,
-      comments: content.comments,
+  useEffect(() => {
+    if (presentation === savedPresentationRef.current) return;
+    setSaveStatus('unsaved');
+    clearAutosaveTimer();
+    autosaveTimerRef.current = setTimeout(() => {
+      autosaveTimerRef.current = null;
+      void saveLatest(false);
+    }, AUTOSAVE_DEBOUNCE_MS);
+  }, [presentation, saveLatest, clearAutosaveTimer]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      clearAutosaveTimer();
+      if (presentationRef.current === savedPresentationRef.current) return;
+      const { meta: saveMeta, onSave: save, comments } = saveContextRef.current;
+      void save(saveMeta, { kind: 'slide', presentation: presentationRef.current, comments }, false);
     };
-    const ok = await onSave(meta, updatedContent, true);
-    setSaveStatus(ok ? 'saved' : 'unsaved');
+  }, [clearAutosaveTimer]);
+
+  useEffect(() => {
+    if (saveStatus === 'saved') return;
+    const flush = () => {
+      if (presentationRef.current !== savedPresentationRef.current) void saveLatest(false);
+    };
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      flush();
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    const visibility = () => {
+      if (document.visibilityState === 'hidden') flush();
+    };
+    window.addEventListener('beforeunload', beforeUnload);
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', visibility);
+    return () => {
+      window.removeEventListener('beforeunload', beforeUnload);
+      window.removeEventListener('pagehide', flush);
+      document.removeEventListener('visibilitychange', visibility);
+    };
+  }, [saveStatus, saveLatest]);
+
+  const handleExplicitSave = useCallback(async () => {
+    const ok = await saveLatest(true);
     if (ok) ui.toast('Đã lưu bài thuyết trình');
-  }, [content.comments, meta, onSave, presentation, ui]);
+  }, [saveLatest, ui]);
+
+  const handleBack = useCallback(async () => {
+    if (presentationRef.current !== savedPresentationRef.current) {
+      const ok = await saveLatest(false);
+      if (!ok) {
+        ui.toast('Chưa lưu được bài thuyết trình. Vui lòng thử lại trước khi thoát.', true);
+        return;
+      }
+    }
+    onBack();
+  }, [onBack, saveLatest, ui]);
 
   useDocumentCloser(async () => {
-    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
-    const saved = await onSave(meta, { kind: 'slide', presentation, comments: content.comments }, false);
+    const saved = await saveLatest(false);
     if (saved) onBack();
     return saved;
   });
@@ -255,6 +313,9 @@ export default function SlideEditor({
   // Global Keyboard Shortcuts
   useEffect(() => {
     const handleGlobalKeys = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      const isTextEditingShortcut = (e.ctrlKey || e.metaKey) && (key === 'z' || key === 'y' || key === 'd');
+      if (isTextEditingShortcut && isEditableKeyTarget(e.target)) return;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
         void handleExplicitSave();
@@ -307,7 +368,6 @@ export default function SlideEditor({
 
     const newPres: PresentationData = { ...presentation, slides: updatedSlides };
     setPresentation(newPres);
-    triggerAutoSave(newPres);
   };
 
   const deleteSlideElement = (elementId: string) => {
@@ -323,7 +383,6 @@ export default function SlideEditor({
     const newPres: PresentationData = { ...presentation, slides: updatedSlides };
     setPresentation(newPres);
     setSelectedElementId(null);
-    triggerAutoSave(newPres);
   };
 
   // Duplicate Element
@@ -343,7 +402,6 @@ export default function SlideEditor({
     const newPres = { ...presentation, slides: updatedSlides };
     setPresentation(newPres);
     setSelectedElementId(duplicated.id);
-    triggerAutoSave(newPres);
     ui.toast('Đã nhân bản phần tử');
   };
 
@@ -381,7 +439,6 @@ export default function SlideEditor({
     const newPres = { ...presentation, slides: updatedSlides };
     setPresentation(newPres);
     setSelectedElementId(pasted.id);
-    triggerAutoSave(newPres);
     ui.toast('Đã dán phần tử');
   };
 
@@ -446,7 +503,6 @@ export default function SlideEditor({
     const newPres = { ...presentation, slides: updatedSlides };
     setPresentation(newPres);
     setSelectedElementId(newEl.id);
-    triggerAutoSave(newPres);
   };
 
   // Slide Background
@@ -457,7 +513,6 @@ export default function SlideEditor({
     );
     const newPres = { ...presentation, slides: updatedSlides };
     setPresentation(newPres);
-    triggerAutoSave(newPres);
   };
 
   const handleApplyBgToAll = () => {
@@ -466,7 +521,6 @@ export default function SlideEditor({
     const updatedSlides = presentation.slides.map((s) => ({ ...s, background: { ...bg } }));
     const newPres = { ...presentation, slides: updatedSlides };
     setPresentation(newPres);
-    triggerAutoSave(newPres);
     ui.toast('Đã áp dụng nền cho tất cả trang chiếu');
   };
 
@@ -485,7 +539,6 @@ export default function SlideEditor({
     setPresentation(newPres);
     setActiveSlideIndex(activeSlideIndex + 1);
     setSelectedElementId(null);
-    triggerAutoSave(newPres);
     ui.toast('Đã thêm trang chiếu mới');
   };
 
@@ -508,7 +561,6 @@ export default function SlideEditor({
     const newPres = { ...presentation, slides: newSlides };
     setPresentation(newPres);
     setActiveSlideIndex(index + 1);
-    triggerAutoSave(newPres);
     ui.toast('Đã nhân bản trang chiếu');
   };
 
@@ -526,7 +578,6 @@ export default function SlideEditor({
     setPresentation(newPres);
     setActiveSlideIndex(nextIdx);
     setSelectedElementId(null);
-    triggerAutoSave(newPres);
     ui.toast('Đã xoá trang chiếu');
   };
 
@@ -541,7 +592,6 @@ export default function SlideEditor({
     const newPres = { ...presentation, slides: newSlides };
     setPresentation(newPres);
     setActiveSlideIndex(toIndex);
-    triggerAutoSave(newPres);
   };
 
   // Add Elements
@@ -568,7 +618,6 @@ export default function SlideEditor({
     const newPres = { ...presentation, slides: updatedSlides };
     setPresentation(newPres);
     setSelectedElementId(newEl.id);
-    triggerAutoSave(newPres);
   };
 
   const handleAddShape = (shapeType: ShapeType) => {
@@ -593,7 +642,6 @@ export default function SlideEditor({
     const newPres = { ...presentation, slides: updatedSlides };
     setPresentation(newPres);
     setSelectedElementId(newEl.id);
-    triggerAutoSave(newPres);
   };
 
   const handleAddTable = (rows: number, cols: number) => {
@@ -623,7 +671,6 @@ export default function SlideEditor({
     const newPres = { ...presentation, slides: updatedSlides };
     setPresentation(newPres);
     setSelectedElementId(newEl.id);
-    triggerAutoSave(newPres);
     ui.toast('Đã chèn bảng biểu');
   };
 
@@ -651,7 +698,6 @@ export default function SlideEditor({
     const newPres = { ...presentation, slides: updatedSlides };
     setPresentation(newPres);
     setSelectedElementId(newEl.id);
-    triggerAutoSave(newPres);
     ui.toast('Đã chèn biểu đồ');
   };
 
@@ -679,7 +725,6 @@ export default function SlideEditor({
     const newPres = { ...presentation, slides: updatedSlides };
     setPresentation(newPres);
     setSelectedElementId(newEl.id);
-    triggerAutoSave(newPres);
     ui.toast('Đã chèn sơ đồ SmartArt');
   };
 
@@ -702,7 +747,6 @@ export default function SlideEditor({
     const newPres = { ...presentation, slides: updatedSlides };
     setPresentation(newPres);
     setSelectedElementId(newEl.id);
-    triggerAutoSave(newPres);
     ui.toast('Đã thêm hình ảnh vào trang chiếu');
   };
 
@@ -726,7 +770,6 @@ export default function SlideEditor({
     const newPres = { ...presentation, slides: updatedSlides };
     setPresentation(newPres);
     setSelectedElementId(newEl.id);
-    triggerAutoSave(newPres);
     ui.toast('Đã chèn mã QR');
   };
 
@@ -749,7 +792,6 @@ export default function SlideEditor({
     const newPres = { ...presentation, slides: updatedSlides };
     setPresentation(newPres);
     setSelectedElementId(newEl.id);
-    triggerAutoSave(newPres);
     ui.toast('Đã chèn khối mã nguồn');
   };
 
@@ -770,7 +812,6 @@ export default function SlideEditor({
     const newPres = { ...presentation, slides: updatedSlides };
     setPresentation(newPres);
     setSelectedElementId(newEl.id);
-    triggerAutoSave(newPres);
     ui.toast('Đã chèn công thức Toán LaTeX');
   };
 
@@ -789,7 +830,6 @@ export default function SlideEditor({
     const newPres = { ...presentation, slides: updatedSlides };
     setPresentation(newPres);
     setSelectedElementId(newEl.id);
-    triggerAutoSave(newPres);
   };
 
   const handleAdd3dModel = () => {
@@ -913,6 +953,7 @@ export default function SlideEditor({
   };
 
   const handleBatchGenerateMailMerge = (newSlides: SlideData[]) => {
+    pushHistory(presentation);
     setPresentation((prev) => ({
       ...prev,
       slides: [...prev.slides, ...newSlides],
@@ -920,6 +961,7 @@ export default function SlideEditor({
   };
 
   const handleApplyBrandTheme = (themeUpdates: Partial<SlideTheme>) => {
+    pushHistory(presentation);
     setPresentation((prev) => ({
       ...prev,
       slides: prev.slides.map((s) => ({
@@ -938,6 +980,7 @@ export default function SlideEditor({
     logoUrl?: string;
     showSlideNumber?: boolean;
   }) => {
+    pushHistory(presentation);
     setPresentation((prev) => ({
       ...prev,
       slideMaster: master,
@@ -945,6 +988,7 @@ export default function SlideEditor({
   };
 
   const handleSaveCustomShows = (shows: { id: string; name: string; slideIds: string[] }[]) => {
+    pushHistory(presentation);
     setPresentation((prev) => ({
       ...prev,
       customShows: shows,
@@ -967,7 +1011,6 @@ export default function SlideEditor({
     });
     const updatedPres = { ...presentation, slides: updatedSlides };
     setPresentation(updatedPres);
-    triggerAutoSave(updatedPres);
     ui.toast('Đã áp dụng bố cục thiết kế từ AI Designer');
   };
 
@@ -982,7 +1025,6 @@ export default function SlideEditor({
       },
     };
     setPresentation(updated);
-    triggerAutoSave(updated);
     setIsWatermarkModalOpen(false);
     ui.toast('Đã lưu cấu hình hình mờ bài thuyết trình');
   };
@@ -1008,7 +1050,6 @@ export default function SlideEditor({
     };
 
     setPresentation(newPres);
-    triggerAutoSave(newPres);
     ui.toast(`Đã áp dụng chủ đề "${theme.name}"`);
   };
 
@@ -1020,7 +1061,6 @@ export default function SlideEditor({
     );
     const newPres = { ...presentation, slides: updatedSlides };
     setPresentation(newPres);
-    triggerAutoSave(newPres);
   };
 
   const handleChangeTransitionDuration = (duration: number) => {
@@ -1030,7 +1070,6 @@ export default function SlideEditor({
     );
     const newPres = { ...presentation, slides: updatedSlides };
     setPresentation(newPres);
-    triggerAutoSave(newPres);
   };
 
   const handleChangeTransitionDirection = (direction: TransitionDirection) => {
@@ -1040,7 +1079,6 @@ export default function SlideEditor({
     );
     const newPres = { ...presentation, slides: updatedSlides };
     setPresentation(newPres);
-    triggerAutoSave(newPres);
   };
 
   const handleChangeTransitionSound = (sound: TransitionSound) => {
@@ -1050,7 +1088,6 @@ export default function SlideEditor({
     );
     const newPres = { ...presentation, slides: updatedSlides };
     setPresentation(newPres);
-    triggerAutoSave(newPres);
     playTransitionSound(sound);
   };
 
@@ -1061,7 +1098,6 @@ export default function SlideEditor({
     );
     const newPres = { ...presentation, slides: updatedSlides };
     setPresentation(newPres);
-    triggerAutoSave(newPres);
   };
 
   const handleChangeAdvanceAfterSeconds = (advanceAfterSeconds: number) => {
@@ -1071,7 +1107,6 @@ export default function SlideEditor({
     );
     const newPres = { ...presentation, slides: updatedSlides };
     setPresentation(newPres);
-    triggerAutoSave(newPres);
   };
 
   const handleChangeTransitionMorphMode = (morphMode: 'objects' | 'words' | 'characters') => {
@@ -1081,7 +1116,6 @@ export default function SlideEditor({
     );
     const newPres = { ...presentation, slides: updatedSlides };
     setPresentation(newPres);
-    triggerAutoSave(newPres);
   };
 
   const handleChangeTransitionLoopSound = (loopSound: boolean) => {
@@ -1091,7 +1125,6 @@ export default function SlideEditor({
     );
     const newPres = { ...presentation, slides: updatedSlides };
     setPresentation(newPres);
-    triggerAutoSave(newPres);
   };
 
   const handleSetTriggerElementId = (triggerElementId: string) => {
@@ -1118,7 +1151,6 @@ export default function SlideEditor({
     );
     const newPres = { ...presentation, slides: updatedSlides };
     setPresentation(newPres);
-    triggerAutoSave(newPres);
   };
 
 
@@ -1287,7 +1319,6 @@ export default function SlideEditor({
     }));
     const newPres = { ...presentation, slides: updatedSlides };
     setPresentation(newPres);
-    triggerAutoSave(newPres);
     ui.toast('Đã áp dụng hiệu ứng chuyển tiếp cho tất cả các trang');
   };
 
@@ -1298,7 +1329,6 @@ export default function SlideEditor({
     );
     const newPres = { ...presentation, slides: updatedSlides };
     setPresentation(newPres);
-    triggerAutoSave(newPres);
   };
 
   // Find & Replace All
@@ -1319,7 +1349,6 @@ export default function SlideEditor({
 
     const newPres = { ...presentation, slides: updatedSlides };
     setPresentation(newPres);
-    triggerAutoSave(newPres);
     return count;
   };
 
@@ -1328,7 +1357,7 @@ export default function SlideEditor({
       {/* 1. Office Title Bar */}
       <header className="ppt-titlebar">
         <div className="ppt-title-left">
-          <button className="ppt-back-btn" onClick={onBack} title="Trở về Trang chủ">
+          <button className="ppt-back-btn" onClick={() => void handleBack()} title="Trở về Trang chủ">
             <ArrowLeft size={16} />
           </button>
           <SuiteLogo kind="slide" size={26} />
@@ -1415,7 +1444,6 @@ export default function SlideEditor({
         onChangeAspectRatio={(ratio) => {
           const newPres = { ...presentation, aspectRatio: ratio };
           setPresentation(newPres);
-          triggerAutoSave(newPres);
         }}
         currentTransition={currentSlide?.transition.type || 'none'}
         onChangeTransition={handleChangeTransition}
@@ -1844,7 +1872,6 @@ export default function SlideEditor({
           const newPres = { ...presentation, slides: newSlides, themeId };
           setPresentation(newPres);
           setActiveSlideIndex(0);
-          triggerAutoSave(newPres);
           ui.toast('AI Copilot đã tạo bài thuyết trình mới hoàn chỉnh!');
         }}
         onUpdateSlideElements={(slideId, elements) => {
@@ -1854,7 +1881,6 @@ export default function SlideEditor({
           );
           const newPres = { ...presentation, slides: updatedSlides };
           setPresentation(newPres);
-          triggerAutoSave(newPres);
         }}
         onUpdateSlideBackground={(slideId, bg) => {
           pushHistory(presentation);
@@ -1863,14 +1889,12 @@ export default function SlideEditor({
           );
           const newPres = { ...presentation, slides: updatedSlides };
           setPresentation(newPres);
-          triggerAutoSave(newPres);
         }}
         onApplyTheme={handleApplyTheme}
         onUpdatePresentationSlides={(newSlides) => {
           pushHistory(presentation);
           const newPres = { ...presentation, slides: newSlides };
           setPresentation(newPres);
-          triggerAutoSave(newPres);
         }}
       />
 
@@ -1998,9 +2022,9 @@ export default function SlideEditor({
           onPrint={() => { setIsBackstageOpen(false); setIsPrintOpen(true); }}
           onNew={() => {
             setIsBackstageOpen(false);
-            onBack();
+            void handleBack();
           }}
-          onBackToHome={onBack}
+          onBackToHome={() => void handleBack()}
         />
       )}
     </div>
