@@ -103,6 +103,7 @@ function pruneFlow(paper: HTMLElement, clone: HTMLElement, pageTop: number, heig
 function pageClone(paper: HTMLElement, index: number, pageTop: number, height: number): HTMLElement {
   const clone = paper.cloneNode(true) as HTMLElement;
   clone.querySelectorAll('[contenteditable]').forEach((node) => node.setAttribute('contenteditable', 'false'));
+  clone.querySelectorAll('[data-placeholder]').forEach((node) => { node.removeAttribute('data-placeholder'); node.classList.remove('is-editor-empty', 'is-empty'); });
   clone.querySelectorAll('.doc-ruler-v, .selection-bubble, .doc-object-handle, [data-resize-handle], .column-resize-handle').forEach((node) => node.remove());
   clone.querySelectorAll(':scope > .page-sheet').forEach((sheet, i) => { if (i !== index) sheet.remove(); });
   pruneFlow(paper, clone, pageTop, height);
