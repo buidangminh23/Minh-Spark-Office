@@ -26,13 +26,8 @@ import {
   Layers,
   Crop,
   Minimize2,
-  Eraser,
-  PenTool,
-  FileSpreadsheet,
-  Presentation,
   Image as ImageIcon,
   ScanText,
-  MoreHorizontal,
   ZoomIn,
   ZoomOut,
   RotateCw,
@@ -40,7 +35,6 @@ import {
   ChevronRight,
   Upload,
   Check,
-  CopyCheck,
   Play,
   Share,
 } from 'lucide-react';
@@ -51,15 +45,48 @@ import {
   type FileVersion,
   type CommentItem,
 } from '../../lib/storage';
-import { downloadBlob } from '../../lib/download';
+import { downloadBlob, formatBytes } from '../../lib/download';
 import { useUi } from '../../components/ui';
 import { useDocumentCloser } from '../../lib/documentCloser';
 import { currentAuthorName } from '../../lib/currentAuthor';
 import { looksLikePdf, pdfBytesToDataUrl, pdfDataUrlToBytes } from './pdfBytes';
-import { usePdfDocument, usePdfPageText } from './usePdfDocument';
+import { usePageCanvas, usePdfDocument, usePdfPageText } from './usePdfDocument';
 import { PdfPrintDialog } from './PdfPrintDialog';
 import { PdfPageScroller, PdfThumb, typicalWidth } from './PdfPageScroller';
 import { usePageNavigation } from './usePageNavigation';
+import { extractAllText, rasterizePages, trimmedCanvasPng } from './pdfRaster';
+import type { Margins, SignatureAnchor } from './pdfTools';
+
+const loadPdfTools = () => import('./pdfTools');
+
+const SIGN_ANCHORS: { value: SignatureAnchor; label: string }[] = [
+  { value: 'bottom-right', label: 'Góc dưới bên phải' },
+  { value: 'bottom-center', label: 'Giữa cuối trang' },
+  { value: 'bottom-left', label: 'Góc dưới bên trái' },
+  { value: 'top-right', label: 'Góc trên bên phải' },
+  { value: 'top-left', label: 'Góc trên bên trái' },
+  { value: 'center', label: 'Giữa trang' },
+];
+
+const RASTER_DPI_OPTIONS = [96, 150, 300];
+const IMAGE_ONLY_DPI = 150;
+const NO_PDF_MESSAGE = 'Tài liệu này chưa có tệp PDF. Bấm "Mở tệp PDF" để nạp tệp trước.';
+
+type ConvertTarget = 'text' | 'image';
+
+function bytesBlob(bytes: Uint8Array | string, type: string) {
+  return new Blob([bytes as BlobPart], { type });
+}
+
+function PdfPlayPage({ doc, pageNumber, width, height, rotation }: { doc: Parameters<typeof usePageCanvas>[0]; pageNumber: number; width: number; height: number; rotation: number }) {
+  const quarter = rotation % 180 !== 0;
+  const pageWidth = quarter ? height : width;
+  const pageHeight = quarter ? width : height;
+  const cssWidth = Math.floor(Math.min(window.innerWidth * 0.86, (window.innerHeight * 0.74 * pageWidth) / pageHeight));
+  const { canvasRef, failed } = usePageCanvas(doc, pageNumber, cssWidth, rotation, true);
+  if (failed) return <div style={{ color: '#fff' }}>Không vẽ được trang {pageNumber}.</div>;
+  return <canvas ref={canvasRef} style={{ width: cssWidth, height: Math.round((cssWidth * pageHeight) / pageWidth), background: '#fff', boxShadow: '0 8px 30px rgba(0,0,0,0.5)' }} />;
+}
 
 interface PdfEditorProps {
   meta: FileMeta;
@@ -153,7 +180,7 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
   const [showSplitModal, setShowSplitModal] = useState(false);
   const [showMergeModal, setShowMergeModal] = useState(false);
   const [showCompressModal, setShowCompressModal] = useState(false);
-  const [showConvertModal, setShowConvertModal] = useState<string | null>(null);
+  const [showConvertModal, setShowConvertModal] = useState<ConvertTarget | null>(null);
   const [showOcrModal, setShowOcrModal] = useState(false);
   const [showCropModal, setShowCropModal] = useState(false);
   const [showPlayModal, setShowPlayModal] = useState(false);
@@ -166,6 +193,16 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
 
   const signCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const isDrawingRef = useRef(false);
+  const [signHasInk, setSignHasInk] = useState(false);
+  const [signPage, setSignPage] = useState(1);
+  const [signAnchor, setSignAnchor] = useState<SignatureAnchor>('bottom-right');
+  const [signWidth, setSignWidth] = useState(30);
+  const [splitInput, setSplitInput] = useState('');
+  const [mergeFiles, setMergeFiles] = useState<File[]>([]);
+  const [cropMm, setCropMm] = useState<Margins>({ top: 10, right: 10, bottom: 10, left: 10 });
+  const [cropScope, setCropScope] = useState<'all' | 'current'>('all');
+  const [rasterFormat, setRasterFormat] = useState<'png' | 'jpeg'>('png');
+  const [rasterDpi, setRasterDpi] = useState(150);
 
   const [versions, setVersions] = useState<FileVersion[]>([]);
 
@@ -314,6 +351,219 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
       ui.toast(`Đã nạp tệp PDF: ${file.name}`);
     } catch {
       ui.toast(`Không đọc được tệp "${file.name}"`, true);
+    }
+  };
+
+  const baseName = title.replace(/\.[^/.]+$/, '') || 'tai-lieu';
+
+  const runPdfTool = async (busy: string, work: () => Promise<void>) => {
+    ui.showBusy(busy);
+    try {
+      await work();
+    } catch (error) {
+      const tools = await loadPdfTools().catch(() => null);
+      ui.toast(tools && tools.isPdfToolError(error) ? error.message : 'Không xử lý được tệp PDF này. Tài liệu vẫn giữ nguyên.', true);
+    } finally {
+      ui.showBusy(null);
+    }
+  };
+
+  const requireBytes = () => {
+    if (!pdfDataUrl) {
+      ui.toast(NO_PDF_MESSAGE, true);
+      return null;
+    }
+    return pdfDataUrlToBytes(pdfDataUrl);
+  };
+
+  const requireReadyDoc = () => {
+    if (pdfState.status === 'ready') return pdfState;
+    ui.toast(pdfState.status === 'loading' ? 'Tệp PDF đang mở, thử lại sau giây lát' : NO_PDF_MESSAGE, true);
+    return null;
+  };
+
+  const applyPdfBytes = async (bytes: Uint8Array) => {
+    setPdfDataUrl(await pdfBytesToDataUrl(bytes));
+    markDirty();
+  };
+
+  const openSignModal = () => {
+    setSignPage(currentPage);
+    setSignHasInk(false);
+    setShowSignModal(true);
+  };
+
+  const signPoint = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = event.currentTarget;
+    const rect = canvas.getBoundingClientRect();
+    return { x: (event.clientX - rect.left) * (canvas.width / rect.width), y: (event.clientY - rect.top) * (canvas.height / rect.height) };
+  };
+
+  const clearSignature = () => {
+    const canvas = signCanvasRef.current;
+    canvas?.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height);
+    setSignHasInk(false);
+  };
+
+  const handleInsertSignature = () => {
+    const bytes = requireBytes();
+    const canvas = signCanvasRef.current;
+    if (!bytes || !canvas) return;
+    void runPdfTool('Đang chèn chữ ký vào trang PDF…', async () => {
+      const png = await trimmedCanvasPng(canvas);
+      if (!png) {
+        ui.toast('Chưa có nét chữ ký. Hãy ký vào khung trước khi chèn.', true);
+        return;
+      }
+      const tools = await loadPdfTools();
+      const signed = await tools.stampSignature(bytes, png, { pageIndex: signPage - 1, anchor: signAnchor, widthFraction: signWidth / 100 }, { keepAttributes });
+      await applyPdfBytes(signed);
+      setShowSignModal(false);
+      ui.toast(`Đã chèn chữ ký vào trang ${signPage}`);
+    });
+  };
+
+  const handleSplit = () => {
+    const bytes = requireBytes();
+    if (!bytes) return;
+    void runPdfTool('Đang tách trang PDF…', async () => {
+      const tools = await loadPdfTools();
+      const ranges = tools.parsePageRanges(splitInput, totalPages);
+      const parts = await tools.splitPdf(bytes, ranges, { keepAttributes });
+      if (parts.length === 1) {
+        downloadBlob(bytesBlob(parts[0], 'application/pdf'), `${baseName}_trang_${ranges[0].label}.pdf`);
+      } else {
+        const zipped = await tools.zipFiles(parts.map((part, index) => ({ name: `${baseName}_trang_${ranges[index].label}.pdf`, bytes: part })));
+        downloadBlob(bytesBlob(zipped, 'application/zip'), `${baseName}_tach_trang.zip`);
+      }
+      setShowSplitModal(false);
+      ui.toast(parts.length === 1 ? 'Đã tách và tải xuống 1 tệp PDF' : `Đã tách ${parts.length} tệp PDF và tải xuống dạng .zip`);
+    });
+  };
+
+  const handlePickMergeFiles = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = Array.from(event.currentTarget.files ?? []);
+    event.currentTarget.value = '';
+    setMergeFiles((prev) => [...prev, ...picked]);
+  };
+
+  const handleMerge = () => {
+    if (mergeFiles.length === 0) {
+      ui.toast('Chọn ít nhất một tệp PDF để ghép', true);
+      return;
+    }
+    void runPdfTool('Đang ghép các tệp PDF…', async () => {
+      const extra: Uint8Array[] = [];
+      for (const file of mergeFiles) {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        if (!looksLikePdf(bytes)) {
+          ui.toast(`"${file.name}" không phải tệp PDF hợp lệ. Chưa ghép tệp nào.`, true);
+          return;
+        }
+        extra.push(bytes);
+      }
+      const tools = await loadPdfTools();
+      const sources = pdfDataUrl ? [pdfDataUrlToBytes(pdfDataUrl), ...extra] : extra;
+      const merged = await tools.mergePdfs(sources, { keepAttributes });
+      await applyPdfBytes(merged.bytes);
+      setMergeFiles([]);
+      setShowMergeModal(false);
+      ui.toast(`Đã ghép ${mergeFiles.length} tệp. Tài liệu hiện có ${merged.pageCount} trang.`);
+    });
+  };
+
+  const handleCompress = () => {
+    const bytes = requireBytes();
+    if (!bytes) return;
+    void runPdfTool('Đang nén tệp PDF…', async () => {
+      const tools = await loadPdfTools();
+      const result = await tools.compressPdf(bytes, { keepAttributes });
+      setShowCompressModal(false);
+      if (!result.reduced) {
+        ui.toast(`Tệp đã gọn sẵn (${formatBytes(result.before)}), không giảm thêm được. Tài liệu giữ nguyên.`);
+        return;
+      }
+      await applyPdfBytes(result.bytes);
+      const percent = Math.round((1 - result.after / result.before) * 100);
+      ui.toast(`Đã nén: ${formatBytes(result.before)} → ${formatBytes(result.after)} (giảm ${percent}%)`);
+    });
+  };
+
+  const handleCrop = () => {
+    const bytes = requireBytes();
+    if (!bytes) return;
+    void runPdfTool('Đang cắt lề trang PDF…', async () => {
+      const tools = await loadPdfTools();
+      const margins = { top: cropMm.top * tools.MM_TO_PT, right: cropMm.right * tools.MM_TO_PT, bottom: cropMm.bottom * tools.MM_TO_PT, left: cropMm.left * tools.MM_TO_PT };
+      const result = await tools.cropPdf(bytes, margins, cropScope === 'current' ? [currentPage - 1] : null, { keepAttributes });
+      await applyPdfBytes(result.bytes);
+      setShowCropModal(false);
+      ui.toast(`Đã cắt lề ${result.pageCount} trang`);
+    });
+  };
+
+  const handleConvert = (target: ConvertTarget) => {
+    const ready = requireReadyDoc();
+    if (!ready) return;
+    void runPdfTool(target === 'text' ? 'Đang trích xuất chữ…' : 'Đang xuất trang thành ảnh…', async () => {
+      if (target === 'text') {
+        const { text, hasText } = await extractAllText(ready.doc);
+        if (!hasText) {
+          ui.toast('Tệp không có lớp chữ (có thể là bản quét), chưa trích xuất được chữ.', true);
+          return;
+        }
+        downloadBlob(bytesBlob(`\ufeff${text}`, 'text/plain;charset=utf-8'), `${baseName}.txt`);
+        setShowConvertModal(null);
+        ui.toast(`Đã xuất chữ của ${ready.doc.numPages} trang thành ${baseName}.txt`);
+        return;
+      }
+      const ext = rasterFormat === 'png' ? 'png' : 'jpg';
+      const pages = await rasterizePages(ready.doc, ready.sizes, rasterDpi, rasterFormat, (done, total) => ui.showBusy(`Đang xuất trang ${done}/${total}…`));
+      if (pages.length === 1) {
+        downloadBlob(bytesBlob(pages[0].bytes, `image/${rasterFormat}`), `${baseName}.${ext}`);
+      } else {
+        const tools = await loadPdfTools();
+        const zipped = await tools.zipFiles(pages.map((page, index) => ({ name: `${baseName}_trang_${index + 1}.${ext}`, bytes: page.bytes })));
+        downloadBlob(bytesBlob(zipped, 'application/zip'), `${baseName}_anh.zip`);
+      }
+      setShowConvertModal(null);
+      ui.toast(pages.length === 1 ? `Đã xuất trang thành ${baseName}.${ext}` : `Đã xuất ${pages.length} trang thành ảnh .${ext} (tệp .zip)`);
+    });
+  };
+
+  const handleImageOnlyPdf = () => {
+    const ready = requireReadyDoc();
+    if (!ready || !pdfDataUrl) return;
+    void runPdfTool('Đang chuyển các trang thành ảnh…', async () => {
+      const pages = await rasterizePages(ready.doc, ready.sizes, IMAGE_ONLY_DPI, 'jpeg', (done, total) => ui.showBusy(`Đang chuyển trang ${done}/${total} thành ảnh…`));
+      const tools = await loadPdfTools();
+      const bytes = await tools.imagesToPdf(pages, pdfDataUrlToBytes(pdfDataUrl), { keepAttributes });
+      downloadBlob(bytesBlob(bytes, 'application/pdf'), `${baseName}_chi_anh.pdf`);
+      ui.toast(`Đã tải xuống ${baseName}_chi_anh.pdf (${pages.length} trang dạng ảnh, không còn lớp chữ)`);
+    });
+  };
+
+  const shareFile = useMemo(() => {
+    if (!showShareModal || !pdfDataUrl) return null;
+    return new File([pdfDataUrlToBytes(pdfDataUrl) as BlobPart], `${baseName}.pdf`, { type: 'application/pdf' });
+  }, [showShareModal, pdfDataUrl, baseName]);
+
+  const currentPdfSize = pdfDataUrl ? Math.floor(((pdfDataUrl.length - pdfDataUrl.indexOf(',') - 1) * 3) / 4) - (pdfDataUrl.endsWith('==') ? 2 : pdfDataUrl.endsWith('=') ? 1 : 0) : null;
+
+  const canShareFile = Boolean(shareFile && typeof navigator.canShare === 'function' && navigator.canShare({ files: [shareFile] }));
+
+  const handleSystemShare = async () => {
+    const file = shareFile;
+    if (!file) {
+      ui.toast(NO_PDF_MESSAGE, true);
+      return;
+    }
+    try {
+      await navigator.share({ files: [file], title: baseName });
+      setShowShareModal(false);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      ui.toast('Thiết bị này chưa gửi được tệp qua bảng chia sẻ. Hãy tải tệp xuống rồi gửi.', true);
     }
   };
 
@@ -494,7 +744,7 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
                   <button
                     className="ribbon-btn-large"
                     onClick={() => setShowShareModal(true)}
-                    title="Tạo và chia sẻ liên kết tài liệu PDF"
+                    title="Gửi tệp PDF qua bảng chia sẻ của hệ thống hoặc tải xuống để gửi"
                   >
                     <div style={{ position: 'relative' }}>
                       <FileCheck size={20} color="#dc2626" />
@@ -511,8 +761,8 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
                 <div className="ribbon-controls">
                   <button
                     className="ribbon-btn-large"
-                    onClick={() => setShowSignModal(true)}
-                    title="Ký chữ ký điện tử & Đóng dấu xác thực"
+                    onClick={openSignModal}
+                    title="Chèn chữ ký tay vào trang PDF"
                   >
                     <FileSignature size={20} color="#475569" />
                     <span>Sign</span>
@@ -554,23 +804,6 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
                     <span>PDF<br/>Compressor</span>
                   </button>
 
-                  <button
-                    className="ribbon-btn-large"
-                    onClick={() => ui.toast('Đã bật công cụ xoá thông tin mật (Wipe Off / Redaction)')}
-                    title="Xoá che thông tin nhạy cảm trên PDF"
-                  >
-                    <Eraser size={20} color="#e11d48" />
-                    <span>Wipe<br/>Off</span>
-                  </button>
-
-                  <button
-                    className="ribbon-btn-large"
-                    onClick={() => ui.toast('Đã chọn công cụ vẽ hình khối & đường thẳng chú thích')}
-                    title="Vẽ hình khối và đường kẻ (Draw Shapes)"
-                  >
-                    <PenTool size={20} color="#6366f1" />
-                    <span>Draw<br/>Shapes</span>
-                  </button>
                 </div>
                 <div className="ribbon-group-label">Minh PDF Tools</div>
               </div>
@@ -580,50 +813,17 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
                 <div className="ribbon-controls">
                   <button
                     className="ribbon-btn-large"
-                    onClick={() => setShowConvertModal('word')}
-                    title="Chuyển đổi PDF sang Microsoft Word (.docx)"
+                    onClick={() => setShowConvertModal('text')}
+                    title="Trích toàn bộ chữ của tệp PDF ra tệp văn bản (.txt)"
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <FileText size={16} color="#dc2626" />
-                      <span style={{ fontSize: 13, fontWeight: 900, color: '#185abd' }}>W</span>
-                    </div>
-                    <span>PDF to<br/>Word</span>
+                    <FileText size={20} color="#dc2626" />
+                    <span>PDF to<br/>Text</span>
                   </button>
 
                   <button
                     className="ribbon-btn-large"
-                    onClick={() => setShowConvertModal('excel')}
-                    title="Chuyển đổi bảng biểu PDF sang Excel (.xlsx)"
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <FileSpreadsheet size={16} color="#dc2626" />
-                      <span style={{ fontSize: 13, fontWeight: 900, color: '#107c41' }}>X</span>
-                    </div>
-                    <span>PDF to<br/>Excel</span>
-                  </button>
-
-                  <button
-                    className="ribbon-btn-large"
-                    onClick={() => setShowConvertModal('ppt')}
-                    title="Chuyển đổi PDF sang PowerPoint (.pptx)"
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Presentation size={16} color="#dc2626" />
-                      <span style={{ fontSize: 13, fontWeight: 900, color: '#ea580c' }}>P</span>
-                    </div>
-                    <span>PDF<br/>to PPT</span>
-                  </button>
-
-                  <button
-                    className="ribbon-btn-large"
-                    onClick={() => {
-                      ui.showBusy('Đang chuyển đổi PDF sang dạng ảnh bảo mật…');
-                      setTimeout(() => {
-                        ui.showBusy(null);
-                        ui.toast('Đã tạo tệp Image-only PDF chống sao chép thành công!');
-                      }, 500);
-                    }}
-                    title="Chuyển thành tệp PDF dạng ảnh chỉ đọc chống sao chép"
+                    onClick={handleImageOnlyPdf}
+                    title="Tải xuống bản PDF mà mỗi trang là một ảnh, không còn lớp chữ để chọn hay sao chép"
                   >
                     <ImageIcon size={20} color="#475569" />
                     <span>To Image-<br/>only PDF</span>
@@ -653,7 +853,7 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
               {/* 4. Group: Settings */}
               <div className="ribbon-section">
                 <div className="ribbon-controls" style={{ padding: '0 8px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, cursor: 'pointer', userSelect: 'none' }}>
+                  <label title="Giữ tiêu đề, tác giả và ngày sửa gốc của tệp khi ký, ghép, cắt, nén hoặc tách" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, cursor: 'pointer', userSelect: 'none' }}>
                     <input
                       type="checkbox"
                       checked={keepAttributes}
@@ -664,21 +864,6 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
                   </label>
                 </div>
                 <div className="ribbon-group-label">Settings</div>
-              </div>
-
-              {/* 5. Group: Other */}
-              <div className="ribbon-section">
-                <div className="ribbon-controls">
-                  <button
-                    className="ribbon-btn-large"
-                    onClick={() => ui.toast('Mở rộng các tính năng bảo mật, đóng dấu chìm (Watermark) và thiết lập trang in')}
-                    title="Thêm các thiết lập khác"
-                  >
-                    <MoreHorizontal size={20} color="#64748b" />
-                    <span>More<br/>▾</span>
-                  </button>
-                </div>
-                <div className="ribbon-group-label">Other</div>
               </div>
 
               <div className="ribbon-section">
@@ -700,9 +885,9 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
                 <Download size={14} />
                 <span>Tải tệp PDF</span>
               </button>
-              <button className="btn" onClick={() => setShowSignModal(true)}>
+              <button className="btn" onClick={openSignModal}>
                 <FileSignature size={14} />
-                <span>Ký số</span>
+                <span>Chèn chữ ký</span>
               </button>
             </div>
           )}
@@ -962,54 +1147,65 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <FileSignature size={20} color="#dc2626" />
-                <h2>Ký số & Đóng dấu điện tử PDF</h2>
+                <h2>Chèn chữ ký tay vào PDF</h2>
               </div>
               <button className="icon-btn" onClick={() => setShowSignModal(false)}>
                 <X size={18} />
               </button>
             </div>
 
-            <div style={{ border: '1px solid #cbd5e1', borderRadius: 8, overflow: 'hidden', background: '#fafbfc', marginBottom: 14 }}>
+            <div style={{ border: '1px solid #cbd5e1', borderRadius: 8, overflow: 'hidden', background: '#fafbfc', marginBottom: 12 }}>
               <canvas
                 ref={signCanvasRef}
                 width={480}
                 height={160}
-                style={{ display: 'block', cursor: 'crosshair', width: '100%' }}
-                onMouseDown={(e) => {
-                  isDrawingRef.current = true;
+                style={{ display: 'block', cursor: 'crosshair', width: '100%', touchAction: 'none' }}
+                onPointerDown={(e) => {
                   const ctx = signCanvasRef.current?.getContext('2d');
-                  if (ctx) {
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    ctx.beginPath();
-                    ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
-                  }
+                  if (!ctx) return;
+                  e.currentTarget.setPointerCapture(e.pointerId);
+                  isDrawingRef.current = true;
+                  const point = signPoint(e);
+                  ctx.strokeStyle = '#0f172a';
+                  ctx.lineWidth = 2.5;
+                  ctx.lineCap = 'round';
+                  ctx.lineJoin = 'round';
+                  ctx.beginPath();
+                  ctx.moveTo(point.x, point.y);
                 }}
-                onMouseMove={(e) => {
+                onPointerMove={(e) => {
                   if (!isDrawingRef.current) return;
                   const ctx = signCanvasRef.current?.getContext('2d');
-                  if (ctx) {
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
-                    ctx.strokeStyle = '#0f172a';
-                    ctx.lineWidth = 2.5;
-                    ctx.stroke();
-                  }
+                  if (!ctx) return;
+                  const point = signPoint(e);
+                  ctx.lineTo(point.x, point.y);
+                  ctx.stroke();
+                  if (!signHasInk) setSignHasInk(true);
                 }}
-                onMouseUp={() => { isDrawingRef.current = false; }}
-                onMouseLeave={() => { isDrawingRef.current = false; }}
+                onPointerUp={() => { isDrawingRef.current = false; }}
+                onPointerCancel={() => { isDrawingRef.current = false; }}
               />
             </div>
 
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 16, fontSize: 12 }}>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span>Trang</span>
+                <input className="text-field" type="number" min={1} max={totalPages} value={signPage} onChange={(e) => setSignPage(Math.min(totalPages, Math.max(1, Number(e.target.value) || 1)))} />
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span>Vị trí</span>
+                <select className="text-field" value={signAnchor} onChange={(e) => setSignAnchor(e.target.value as SignatureAnchor)}>
+                  {SIGN_ANCHORS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                </select>
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span>Độ rộng: {signWidth}% trang</span>
+                <input type="range" min={10} max={60} step={5} value={signWidth} onChange={(e) => setSignWidth(Number(e.target.value))} />
+              </label>
+            </div>
+
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <button
-                className="btn"
-                onClick={() => {
-                  const ctx = signCanvasRef.current?.getContext('2d');
-                  if (ctx && signCanvasRef.current) {
-                    ctx.clearRect(0, 0, signCanvasRef.current.width, signCanvasRef.current.height);
-                  }
-                }}
-              >
+              <button className="btn" onClick={clearSignature}>
                 Xoá nét vẽ
               </button>
 
@@ -1020,16 +1216,15 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
                 <button
                   className="btn"
                   style={{ background: '#dc2626', color: '#fff', borderColor: '#b91c1c' }}
-                  onClick={() => {
-                    setShowSignModal(false);
-                    ui.toast('Đã chèn chữ ký điện tử thành công vào tài liệu PDF!');
-                  }}
+                  disabled={!signHasInk || !hasRealPdf}
+                  onClick={handleInsertSignature}
                 >
                   <Check size={14} />
                   <span>Chèn chữ ký</span>
                 </button>
               </div>
             </div>
+            {!hasRealPdf && <div style={{ fontSize: 12, color: '#b91c1c', marginTop: 10 }}>{NO_PDF_MESSAGE}</div>}
           </div>
         </div>
       )}
@@ -1045,22 +1240,22 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
               </button>
             </div>
             <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>
-              Nhập các dải trang cần trích xuất thành các tệp PDF độc lập:
+              Nhập các dải trang, mỗi dải thành một tệp PDF riêng (tệp có {totalPages} trang). Nhiều tệp sẽ được gom vào một tệp .zip.
             </p>
-            <input className="text-field" defaultValue="1-2, 3" style={{ marginBottom: 16 }} />
+            <input
+              className="text-field"
+              value={splitInput}
+              placeholder={totalPages > 1 ? `Ví dụ: 1-${Math.ceil(totalPages / 2)}, ${Math.ceil(totalPages / 2) + 1}-${totalPages}` : 'Ví dụ: 1'}
+              onChange={(e) => setSplitInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleSplit(); }}
+              style={{ marginBottom: 16 }}
+            />
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button className="btn" onClick={() => setShowSplitModal(false)}>
                 Huỷ
               </button>
-              <button
-                className="btn"
-                style={{ background: '#dc2626', color: '#fff' }}
-                onClick={() => {
-                  setShowSplitModal(false);
-                  ui.toast('Đã tách thành công các trang PDF!');
-                }}
-              >
-                Bắt đầu tách
+              <button className="btn" style={{ background: '#dc2626', color: '#fff' }} disabled={!hasRealPdf || !splitInput.trim()} onClick={handleSplit}>
+                Tách và tải xuống
               </button>
             </div>
           </div>
@@ -1077,31 +1272,42 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
                 <X size={18} />
               </button>
             </div>
-            <div
+            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 10 }}>
+              {hasRealPdf ? 'Các trang của tệp được chọn sẽ được nối vào sau tài liệu hiện tại, theo thứ tự bên dưới.' : 'Các tệp được chọn sẽ được ghép thành tài liệu này, theo thứ tự bên dưới.'}
+            </p>
+            <label
               style={{
+                display: 'block',
                 border: '2px dashed #cbd5e1',
                 borderRadius: 8,
-                padding: '28px 16px',
+                padding: '22px 16px',
                 textAlign: 'center',
                 background: '#fafbfc',
-                marginBottom: 16,
+                marginBottom: 12,
+                cursor: 'pointer',
               }}
             >
-              <Layers size={36} color="#64748b" style={{ margin: '0 auto 8px', display: 'block' }} />
-              <div style={{ fontSize: 13, fontWeight: 600 }}>Kéo thả hoặc bấm để chọn các tệp PDF cần ghép</div>
-            </div>
+              <Layers size={32} color="#64748b" style={{ margin: '0 auto 8px', display: 'block' }} />
+              <div style={{ fontSize: 13, fontWeight: 600 }}>Bấm để chọn các tệp PDF cần ghép</div>
+              <input type="file" accept=".pdf,application/pdf" multiple hidden onChange={handlePickMergeFiles} />
+            </label>
+            {mergeFiles.length > 0 && (
+              <ol style={{ fontSize: 12.5, margin: '0 0 14px', paddingLeft: 0, listStyle: 'none', maxHeight: 160, overflowY: 'auto' }}>
+                {mergeFiles.map((file, index) => (
+                  <li key={`${file.name}-${index}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{index + 1}. {file.name} · {formatBytes(file.size)}</span>
+                    <button className="icon-btn" title="Bỏ tệp này" onClick={() => setMergeFiles((prev) => prev.filter((_, i) => i !== index))}>
+                      <X size={13} />
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            )}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <button className="btn" onClick={() => setShowMergeModal(false)}>
+              <button className="btn" onClick={() => { setMergeFiles([]); setShowMergeModal(false); }}>
                 Huỷ
               </button>
-              <button
-                className="btn"
-                style={{ background: '#dc2626', color: '#fff' }}
-                onClick={() => {
-                  setShowMergeModal(false);
-                  ui.toast('Đã ghép các tệp PDF thành một tệp hoàn chỉnh!');
-                }}
-              >
+              <button className="btn" style={{ background: '#dc2626', color: '#fff' }} disabled={mergeFiles.length === 0} onClick={handleMerge}>
                 Ghép tệp
               </button>
             </div>
@@ -1119,34 +1325,15 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
                 <X size={18} />
               </button>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 18 }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, cursor: 'pointer', padding: 8, border: '1px solid var(--line)', borderRadius: 6 }}>
-                <input type="radio" name="compLevel" defaultChecked />
-                <div>
-                  <strong>Nén tối đa (Tiết kiệm 65% dung lượng)</strong>
-                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>Phù hợp gửi email và chia sẻ web tốc độ cao</div>
-                </div>
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, cursor: 'pointer', padding: 8, border: '1px solid var(--line)', borderRadius: 6 }}>
-                <input type="radio" name="compLevel" />
-                <div>
-                  <strong>Nén tiêu chuẩn (Tiết kiệm 40% dung lượng)</strong>
-                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>Cân bằng hoàn hảo giữa độ nét hình ảnh và kích thước tệp</div>
-                </div>
-              </label>
-            </div>
+            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 18 }}>
+              Lưu lại cấu trúc tệp ở dạng gọn hơn (object stream). Ảnh bên trong không bị nén lại nên chất lượng giữ nguyên; mức giảm tuỳ từng tệp và có thể bằng 0.
+              {currentPdfSize !== null ? ` Kích thước hiện tại: ${formatBytes(currentPdfSize)}.` : ''}
+            </p>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button className="btn" onClick={() => setShowCompressModal(false)}>
                 Huỷ
               </button>
-              <button
-                className="btn"
-                style={{ background: '#dc2626', color: '#fff' }}
-                onClick={() => {
-                  setShowCompressModal(false);
-                  ui.toast('Đã nén tệp PDF thành công! Kích thước giảm 58%.');
-                }}
-              >
+              <button className="btn" style={{ background: '#dc2626', color: '#fff' }} disabled={!hasRealPdf} onClick={handleCompress}>
                 Tiến hành nén
               </button>
             </div>
@@ -1159,32 +1346,39 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
         <div className="dialog-backdrop" onClick={() => setShowConvertModal(null)}>
           <div className="dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 500 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <h2>Chuyển đổi tệp PDF sang {showConvertModal.toUpperCase()}</h2>
+              <h2>{showConvertModal === 'text' ? 'Xuất chữ trong PDF ra tệp .txt' : 'Xuất trang PDF thành ảnh'}</h2>
               <button className="icon-btn" onClick={() => setShowConvertModal(null)}>
                 <X size={18} />
               </button>
             </div>
-            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>
-              Hệ thống sẽ chuyển đổi toàn bộ {totalPages} trang của tệp <strong>{title}</strong> sang định dạng {showConvertModal.toUpperCase()} với độ chính xác cao.
+            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 14 }}>
+              {showConvertModal === 'text'
+                ? `Lấy lớp chữ của cả ${totalPages} trang trong tệp ${title}. Bố cục, bảng và hình không được giữ; trang scan không có lớp chữ sẽ để trống.`
+                : `Mỗi trang trong ${totalPages} trang thành một ảnh. Nhiều trang sẽ được gom vào một tệp .zip.`}
             </p>
+            {showConvertModal === 'image' && (
+              <div style={{ display: 'flex', gap: 12, marginBottom: 16, fontSize: 12 }}>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
+                  <span>Định dạng</span>
+                  <select className="text-field" value={rasterFormat} onChange={(e) => setRasterFormat(e.target.value as 'png' | 'jpeg')}>
+                    <option value="png">PNG (nét, tệp lớn)</option>
+                    <option value="jpeg">JPG (nhẹ hơn)</option>
+                  </select>
+                </label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
+                  <span>Độ phân giải</span>
+                  <select className="text-field" value={rasterDpi} onChange={(e) => setRasterDpi(Number(e.target.value))}>
+                    {RASTER_DPI_OPTIONS.map((dpi) => <option key={dpi} value={dpi}>{dpi} dpi</option>)}
+                  </select>
+                </label>
+              </div>
+            )}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button className="btn" onClick={() => setShowConvertModal(null)}>
                 Huỷ
               </button>
-              <button
-                className="btn"
-                style={{ background: '#dc2626', color: '#fff' }}
-                onClick={() => {
-                  const targetExt = showConvertModal === 'word' ? 'docx' : showConvertModal === 'excel' ? 'xlsx' : showConvertModal === 'ppt' ? 'pptx' : 'png';
-                  setShowConvertModal(null);
-                  ui.showBusy(`Đang chuyển đổi sang .${targetExt}…`);
-                  setTimeout(() => {
-                    ui.showBusy(null);
-                    ui.toast(`Đã chuyển đổi và xuất tệp .${targetExt} thành công!`);
-                  }, 600);
-                }}
-              >
-                Bắt đầu chuyển đổi
+              <button className="btn" style={{ background: '#dc2626', color: '#fff' }} disabled={!hasRealPdf} onClick={() => handleConvert(showConvertModal)}>
+                Xuất và tải xuống
               </button>
             </div>
           </div>
@@ -1255,21 +1449,39 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
                 <X size={18} />
               </button>
             </div>
-            <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>
-              Tự động nhận diện và cắt bỏ lề trắng thừa trên toàn bộ tài liệu PDF.
+            <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>
+              Nhập lề cần cắt bỏ (mm), tính theo hướng trang đang hiển thị. Phần bị cắt được ẩn khỏi trang khi xem và in.
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12, fontSize: 12 }}>
+              {([['top', 'trên'], ['bottom', 'dưới'], ['left', 'trái'], ['right', 'phải']] as const).map(([side, label]) => (
+                <label key={side} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span>Lề {label} (mm)</span>
+                  <input
+                    className="text-field"
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={cropMm[side]}
+                    onChange={(e) => setCropMm((prev) => ({ ...prev, [side]: Math.max(0, Number(e.target.value) || 0) }))}
+                  />
+                </label>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 16, fontSize: 12.5, marginBottom: 16 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input type="radio" name="cropScope" checked={cropScope === 'all'} onChange={() => setCropScope('all')} />
+                Mọi trang
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input type="radio" name="cropScope" checked={cropScope === 'current'} onChange={() => setCropScope('current')} />
+                Chỉ trang {currentPage}
+              </label>
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button className="btn" onClick={() => setShowCropModal(false)}>
                 Huỷ
               </button>
-              <button
-                className="btn"
-                style={{ background: '#dc2626', color: '#fff' }}
-                onClick={() => {
-                  setShowCropModal(false);
-                  ui.toast('Đã cắt gọn lề trang PDF!');
-                }}
-              >
+              <button className="btn" style={{ background: '#dc2626', color: '#fff' }} disabled={!hasRealPdf} onClick={handleCrop}>
                 Áp dụng cắt lề
               </button>
             </div>
@@ -1279,44 +1491,40 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
 
       {/* MODAL 8: Play Presentation Modal */}
       {showPlayModal && (
-        <div className="dialog-backdrop" onClick={() => setShowPlayModal(false)} style={{ background: 'rgba(0,0,0,0.92)' }}>
-          <div
-            style={{
-              width: '90vw',
-              height: '88vh',
-              background: '#ffffff',
-              borderRadius: 8,
-              padding: 40,
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-              position: 'relative',
-            }}
-            onClick={(e) => e.stopPropagation()}
+        <div
+          className="dialog-backdrop"
+          onClick={() => setShowPlayModal(false)}
+          style={{ background: 'rgba(0,0,0,0.92)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}
+        >
+          <button
+            className="icon-btn"
+            style={{ position: 'absolute', top: 16, right: 16, color: '#fff' }}
+            onClick={() => setShowPlayModal(false)}
+            title="Thoát trình chiếu"
           >
-            <button
-              className="icon-btn"
-              style={{ position: 'absolute', top: 16, right: 16 }}
-              onClick={() => setShowPlayModal(false)}
-            >
-              <X size={20} />
+            <X size={20} />
+          </button>
+          <div onClick={(e) => e.stopPropagation()}>
+            {pdfState.status === 'ready' && pdfState.sizes[currentPage - 1] ? (
+              <PdfPlayPage
+                doc={pdfState.doc}
+                pageNumber={currentPage}
+                width={pdfState.sizes[currentPage - 1].width}
+                height={pdfState.sizes[currentPage - 1].height}
+                rotation={rotation}
+              />
+            ) : (
+              <div style={{ color: '#fff', fontSize: 15 }}>{pdfState.status === 'loading' ? 'Đang mở tệp PDF…' : NO_PDF_MESSAGE}</div>
+            )}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, color: '#fff' }} onClick={(e) => e.stopPropagation()}>
+            <button className="btn" disabled={currentPage <= 1} onClick={() => goToPage(currentPage - 1)}>
+              Trang trước
             </button>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 14, color: '#64748b', fontWeight: 600 }}>MINH SPARK OFFICE PRESENTATION</div>
-              <h1 style={{ fontSize: 32, fontWeight: 800, marginTop: 12 }}>{title.replace(/\.[^/.]+$/, '')}</h1>
-            </div>
-            <div style={{ fontSize: 18, lineHeight: 1.8, maxWidth: 700, margin: '0 auto', textAlign: 'center', color: '#334155' }}>
-              Trình chiếu tài liệu PDF toàn màn hình phục vụ hội nghị và thuyết trình nội bộ doanh nghiệp.
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <button className="btn" onClick={() => goToPage(currentPage - 1)}>
-                Trang trước
-              </button>
-              <span>Trang {currentPage} / {totalPages}</span>
-              <button className="btn" onClick={() => goToPage(currentPage + 1)}>
-                Trang tiếp theo
-              </button>
-            </div>
+            <span>Trang {currentPage} / {totalPages}</span>
+            <button className="btn" disabled={currentPage >= totalPages} onClick={() => goToPage(currentPage + 1)}>
+              Trang tiếp theo
+            </button>
           </div>
         </div>
       )}
@@ -1328,38 +1536,33 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Share2 size={20} color="#dc2626" />
-                <h2>Chia sẻ tệp PDF</h2>
+                <h2>Gửi tệp PDF</h2>
               </div>
               <button className="icon-btn" onClick={() => setShowShareModal(false)}>
                 <X size={18} />
               </button>
             </div>
-            <div style={{ background: '#f8fafc', padding: 12, borderRadius: 8, border: '1px solid var(--line)', marginBottom: 16 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Liên kết chia sẻ bảo mật:</div>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <input
-                  className="text-field"
-                  readOnly
-                  value={`http://localhost:5173/#pdf-${meta.id}`}
-                  style={{ flex: 1, fontSize: 11, background: '#fff' }}
-                />
-                <button
-                  className="btn"
-                  style={{ background: '#dc2626', color: '#fff', fontSize: 11 }}
-                  onClick={() => {
-                    navigator.clipboard.writeText(`http://localhost:5173/#pdf-${meta.id}`);
-                    ui.toast('Đã sao chép liên kết chia sẻ!');
-                  }}
-                >
-                  <CopyCheck size={13} />
-                  <span>Sao chép</span>
-                </button>
-              </div>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>
+              {!hasRealPdf
+                ? NO_PDF_MESSAGE
+                : canShareFile
+                  ? 'Minh Office chưa tạo được liên kết chia sẻ. Bạn có thể gửi thẳng tệp PDF qua bảng chia sẻ của hệ thống, hoặc tải tệp xuống rồi đính kèm.'
+                  : 'Minh Office chưa tạo được liên kết chia sẻ, và thiết bị này không có bảng chia sẻ tệp. Hãy tải tệp xuống rồi đính kèm khi gửi.'}
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button className="btn" onClick={() => setShowShareModal(false)}>
                 Đóng
               </button>
+              <button className="btn" disabled={!hasRealPdf} onClick={() => { handleExportPdf(); setShowShareModal(false); }}>
+                <Download size={13} />
+                <span>Tải tệp xuống</span>
+              </button>
+              {canShareFile && (
+                <button className="btn" style={{ background: '#dc2626', color: '#fff' }} onClick={() => void handleSystemShare()}>
+                  <Share size={13} />
+                  <span>Gửi tệp…</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
