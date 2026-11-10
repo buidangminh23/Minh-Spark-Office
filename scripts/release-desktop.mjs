@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { closeSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -108,6 +108,30 @@ function capture(command, args, { cwd = root, input, timeout } = {}) {
   return result.stdout.trim();
 }
 
+const SSH_OPTIONS = ['-n', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=4'];
+
+function remoteBash(script) {
+  return `printf %s ${Buffer.from(script).toString('base64')} | base64 -d | bash -ls`;
+}
+
+function sshCapture(remoteCommand, { timeout }) {
+  const dir = mkdtempSync(join(tmpdir(), 'mso-ssh-'));
+  const outPath = join(dir, 'stdout.txt');
+  const errPath = join(dir, 'stderr.txt');
+  const out = openSync(outPath, 'w');
+  const err = openSync(errPath, 'w');
+  try {
+    const result = spawnSync('ssh', [...SSH_OPTIONS, MAC_HOST, remoteCommand], { stdio: ['ignore', out, err], windowsHide: true, timeout });
+    if (result.error?.code === 'ETIMEDOUT') throw new Error(`ssh ${MAC_HOST} timed out after ${timeout / 1000}s`);
+    if (result.status !== 0) throw new Error(`ssh ${MAC_HOST} failed: ${readFileSync(errPath, 'utf8').trim()}`);
+    return readFileSync(outPath, 'utf8').trim();
+  } finally {
+    closeSync(out);
+    closeSync(err);
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 function readVersion() {
   return JSON.parse(readFileSync(join(root, 'src-tauri/tauri.conf.json'), 'utf8')).version;
 }
@@ -124,7 +148,7 @@ function preflight({ checkClean }) {
   if (!existsSync(join(KEY_SOURCE, 'updater.key')) && !existsSync(join(KEY_LINK, 'updater.key'))) {
     throw new Error('Updater signing key not found; never generate a replacement key');
   }
-  if (capture('ssh', ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=2', MAC_HOST, 'echo ok'], { input: '', timeout: 60_000 }) !== 'ok') throw new Error(`Mac ${MAC_HOST} unreachable`);
+  if (sshCapture('echo ok', { timeout: 60_000 }) !== 'ok') throw new Error(`Mac ${MAC_HOST} unreachable`);
   run('npx', ['--yes', 'vercel@latest', 'whoami']);
   console.log('Preflight OK');
 }
@@ -182,7 +206,7 @@ function buildMac(version) {
     `if ! PATH=/usr/bin:$PATH bash scripts/build-macos.sh > build-${version}.log 2>&1; then tail -40 build-${version}.log; exit 1; fi`,
     `tail -3 build-${version}.log`,
   ].join('\n');
-  run('ssh', [MAC_HOST, 'bash -ls'], { input: script });
+  run('ssh', [...SSH_OPTIONS, MAC_HOST, remoteBash(script)]);
   mkdirSync(join(root, 'release'), { recursive: true });
   const remote = `${MAC_HOST}:${MAC_BUILD_DIR}/release`;
   run('scp', ['-q', `${remote}/MinhSparkOffice-${version}-macos-arm64.dmg`, `${remote}/MinhSparkOffice-${version}-macos-arm64.app.tar.gz`, `${remote}/SHA256SUMS-macos.txt`, '.'], { cwd: join(root, 'release') });
@@ -300,7 +324,7 @@ async function verify(version) {
     'quarantined=$(find "$app" -exec xattr -p com.apple.quarantine {} \\; 2>/dev/null | wc -l | tr -d " ")',
     'echo "$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$app/Contents/Info.plist") $quarantined"',
   ].join('\n');
-  const result = capture('ssh', ['-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=4', MAC_HOST, 'bash -ls'], { input: probe, timeout: 600_000 }).split('\n').pop();
+  const result = sshCapture(remoteBash(probe), { timeout: 600_000 }).split('\n').pop();
   if (result !== `${version} 0`) throw new Error(`Mac install check returned "${result}"`);
   console.log(`Mac curl install: ${version}, codesign OK, nothing quarantined`);
 }
