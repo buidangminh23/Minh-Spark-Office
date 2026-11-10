@@ -92,10 +92,11 @@ service cloud.firestore {
         }
         function validRevisionChunk() {
           let data = request.resource.data;
-          return data.keys().hasAll(['revision', 'index', 'data']) && data.keys().hasOnly(['revision', 'index', 'data'])
+          return fileId.matches('^[A-Za-z0-9_-]{1,160}$')
+            && data.keys().hasAll(['revision', 'index', 'data']) && data.keys().hasOnly(['revision', 'index', 'data'])
             && validRevision(data.revision) && data.index is int && data.index >= 0 && data.index < 600
             && chunkId == data.revision + '_' + string(data.index)
-            && data.data is string && data.data.size() > 0 && data.data.size() <= 600000
+            && data.data is string && data.data.size() > 0 && data.data.size() <= 600000 && data.data.size() % 4 == 0
             && data.data.matches('^[A-Za-z0-9+/]*={0,2}$')
             && notCurrentRevision(data.revision);
         }

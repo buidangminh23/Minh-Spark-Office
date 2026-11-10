@@ -14,6 +14,61 @@ const DEFAULT_LIMITS: PayloadLimits = { compressed: MAX_COMPRESSED_BYTES, uncomp
 
 export const chunkCountFor = (compressedBytes: number) => Math.ceil(Math.ceil(compressedBytes / 3) * 4 / CHUNK_CHARACTERS);
 
+export function cloudSchemaFor(encoded: Pick<EncodedCloudPayload, 'compressedBytes' | 'uncompressedBytes'> & { chunks: unknown[] }): 1 | 2 {
+  const fitsLegacy = encoded.chunks.length <= LEGACY_MAX_CHUNKS && encoded.compressedBytes <= LEGACY_MAX_COMPRESSED_BYTES && encoded.uncompressedBytes <= LEGACY_MAX_UNCOMPRESSED_BYTES;
+  return fitsLegacy ? 1 : 2;
+}
+
+export type ManifestOutcome = 'commit' | 'committed' | 'conflict';
+
+export function manifestOutcome(currentRevision: string | null, expectedRevision: string | null, ownRevision: string): ManifestOutcome {
+  if (currentRevision !== null && currentRevision === ownRevision) return 'committed';
+  return currentRevision === expectedRevision ? 'commit' : 'conflict';
+}
+
+export const ORPHAN_SAFE_AGE_MS = 60 * 60 * 1000;
+export const ORPHAN_JOURNAL_LIMIT = 200;
+export const ORPHAN_MAX_ATTEMPTS = 20;
+export type OrphanEntry = { fileId: string; chunkCount: number; since: number; attempts: number };
+export type OrphanJournal = Record<string, OrphanEntry>;
+
+const validOrphan = (value: unknown): value is OrphanEntry => object(value) && typeof value.fileId === 'string' && Number.isInteger(value.chunkCount) && (value.chunkCount as number) >= 0 && (value.chunkCount as number) <= MAX_CHUNKS
+  && finite(value.since) && Number.isInteger(value.attempts) && (value.attempts as number) >= 0;
+
+export function parseOrphanJournal(value: unknown): OrphanJournal {
+  if (!object(value)) return {};
+  return Object.fromEntries(Object.entries(value).filter(([revision, entry]) => /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(revision) && validOrphan(entry))) as OrphanJournal;
+}
+
+export function recordOrphanSuspect(journal: OrphanJournal, revision: string, fileId: string, chunkCount: number, now: number): OrphanJournal {
+  const next: OrphanJournal = { ...journal, [revision]: { fileId, chunkCount: Math.min(Math.max(chunkCount, journal[revision]?.chunkCount ?? 0), MAX_CHUNKS), since: journal[revision]?.since ?? now, attempts: journal[revision]?.attempts ?? 0 } };
+  const entries = Object.entries(next);
+  if (entries.length <= ORPHAN_JOURNAL_LIMIT) return next;
+  entries.sort(([, a], [, b]) => b.since - a.since);
+  return Object.fromEntries(entries.slice(0, ORPHAN_JOURNAL_LIMIT));
+}
+
+export function forgetOrphan(journal: OrphanJournal, revision: string): OrphanJournal {
+  if (!(revision in journal)) return journal;
+  const next = { ...journal };
+  delete next[revision];
+  return next;
+}
+
+export function orphanFailed(journal: OrphanJournal, revision: string): OrphanJournal {
+  const entry = journal[revision];
+  if (!entry) return journal;
+  if (entry.attempts + 1 >= ORPHAN_MAX_ATTEMPTS) return forgetOrphan(journal, revision);
+  return { ...journal, [revision]: { ...entry, attempts: entry.attempts + 1 } };
+}
+
+export function orphanCandidates(journal: OrphanJournal, now: number, active: ReadonlySet<string>, limit: number): Array<[string, OrphanEntry]> {
+  return Object.entries(journal)
+    .filter(([revision, entry]) => !active.has(revision) && entry.since <= now - ORPHAN_SAFE_AGE_MS)
+    .sort(([, a], [, b]) => a.since - b.since)
+    .slice(0, Math.max(0, limit));
+}
+
 export type CloudPayload = { content: FileContent; versions: FileVersion[] };
 export type EncodedCloudPayload = {
   chunks: string[];

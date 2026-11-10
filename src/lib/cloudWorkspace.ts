@@ -1,6 +1,6 @@
 import { collection, doc, getDocFromServer, getDocsFromServer, getFirestore, onSnapshot, runTransaction, serverTimestamp, Timestamp, writeBatch, type DocumentReference, type Firestore } from 'firebase/firestore';
 import type { Auth } from 'firebase/auth';
-import { CLOUD_ENCODING, CHUNK_CHARACTERS, LEGACY_MAX_CHUNKS, LEGACY_MAX_COMPRESSED_BYTES, LEGACY_MAX_UNCOMPRESSED_BYTES, MAX_CHUNKS, MAX_COMPRESSED_BYTES, MAX_UNCOMPRESSED_BYTES, chunkCountFor, decodeCloudPayload, encodeCloudPayload, validateCloudId, validateCloudMeta } from './cloudCodec';
+import { CLOUD_ENCODING, CHUNK_CHARACTERS, LEGACY_MAX_CHUNKS, LEGACY_MAX_COMPRESSED_BYTES, LEGACY_MAX_UNCOMPRESSED_BYTES, MAX_CHUNKS, MAX_COMPRESSED_BYTES, MAX_UNCOMPRESSED_BYTES, chunkCountFor, cloudSchemaFor, decodeCloudPayload, encodeCloudPayload, forgetOrphan, manifestOutcome, orphanCandidates, orphanFailed, parseOrphanJournal, recordOrphanSuspect, validateCloudId, validateCloudMeta, type OrphanJournal } from './cloudCodec';
 import { RemoteConflictError, type RemoteRecord, type RemoteWorkspace } from './syncTypes';
 import type { FileMeta } from './storage';
 
@@ -18,6 +18,8 @@ type Manifest = {
 };
 
 export const CLOUD_SCHEMA = 2;
+const ORPHAN_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
+const ORPHAN_SWEEP_REVISIONS = 3;
 const UPLOAD_BATCH_CHUNKS = 12;
 const DELETE_BATCH_CHUNKS = 400;
 const PARALLEL_BATCHES = 3;
@@ -73,8 +75,42 @@ class ChunkMissing extends Error {}
 
 type Snapshot = { data: Manifest; chunks: string[] } | null;
 
-export function createFirestoreWorkspace(auth: Pick<Auth, 'currentUser'>, database: Firestore, uid: string): RemoteWorkspace {
+export interface OrphanJournalStore { read(): OrphanJournal; write(journal: OrphanJournal): void }
+export type FirestoreWorkspaceOptions = { journal?: OrphanJournalStore; now?: () => number };
+
+const memoryJournals = new Map<string, OrphanJournal>();
+const activeUploads = new Set<string>();
+
+export function createOrphanJournalStore(uid: string): OrphanJournalStore {
+  const key = `minh-office-cloud-orphans:${uid}`;
+  const storage = (): Storage | null => {
+    try { return typeof localStorage === 'undefined' ? null : localStorage; } catch { return null; }
+  };
+  return {
+    read() {
+      try {
+        const raw = storage()?.getItem(key);
+        if (raw) return parseOrphanJournal(JSON.parse(raw));
+      } catch (error) { console.warn('cloud: unable to read the orphan chunk journal', error); }
+      return { ...(memoryJournals.get(key) ?? {}) };
+    },
+    write(journal) {
+      memoryJournals.set(key, { ...journal });
+      try { storage()?.setItem(key, JSON.stringify(journal)); }
+      catch (error) { console.warn('cloud: unable to persist the orphan chunk journal', error); }
+    },
+  };
+}
+
+export function createFirestoreWorkspace(auth: Pick<Auth, 'currentUser'>, database: Firestore, uid: string, options: FirestoreWorkspaceOptions = {}): RemoteWorkspace {
   if (!uid || uid.includes('/')) throw new Error('cloud/invalid-user');
+  const journal = options.journal ?? createOrphanJournalStore(uid);
+  const now = options.now ?? Date.now;
+  const updateJournal = (change: (current: OrphanJournal) => OrphanJournal) => {
+    try { journal.write(change(journal.read())); }
+    catch (error) { console.warn('cloud: unable to update the orphan chunk journal', error); }
+  };
+  let lastSweep = Number.NEGATIVE_INFINITY;
   const assertAccount = () => {
     if (auth.currentUser?.uid !== uid) throw new Error('cloud/account-changed');
   };
@@ -92,17 +128,55 @@ export function createFirestoreWorkspace(auth: Pick<Auth, 'currentUser'>, databa
     });
   };
 
-  const removeQuietly = async (file: DocumentReference, revision: string, count: number) => {
+  const removeChunks = async (file: DocumentReference, revision: string, count: number) => {
     if (count < 1) return;
+    assertAccount();
+    const head = writeBatch(database);
+    head.delete(chunkRef(file, revision, 0));
+    await head.commit();
+    if (count < 2) return;
+    await inPool(Math.ceil((count - 1) / DELETE_BATCH_CHUNKS), PARALLEL_BATCHES, async (batchIndex) => {
+      assertAccount();
+      const batch = writeBatch(database);
+      const start = 1 + batchIndex * DELETE_BATCH_CHUNKS;
+      for (let index = start; index < Math.min(count, start + DELETE_BATCH_CHUNKS); index++) batch.delete(chunkRef(file, revision, index));
+      await batch.commit();
+    });
+  };
+
+  const removeQuietly = async (file: DocumentReference, revision: string, count: number) => {
+    if (count < 1) { updateJournal((current) => forgetOrphan(current, revision)); return true; }
     try {
-      await inPool(Math.ceil(count / DELETE_BATCH_CHUNKS), PARALLEL_BATCHES, async (batchIndex) => {
-        const batch = writeBatch(database);
-        const start = batchIndex * DELETE_BATCH_CHUNKS;
-        for (let index = start; index < Math.min(count, start + DELETE_BATCH_CHUNKS); index++) batch.delete(chunkRef(file, revision, index));
-        await batch.commit();
-      });
-    } catch {
-      return;
+      await removeChunks(file, revision, count);
+      updateJournal((current) => forgetOrphan(current, revision));
+      return true;
+    } catch (error) {
+      console.warn(`cloud: unable to remove chunk revision ${revision} of ${file.id}; it stays queued for cleanup`, error);
+      return false;
+    }
+  };
+
+  const sweepOrphans = async () => {
+    const started = now();
+    if (started - lastSweep < ORPHAN_SWEEP_INTERVAL_MS) return;
+    lastSweep = started;
+    for (const [revision, entry] of orphanCandidates(journal.read(), started, activeUploads, ORPHAN_SWEEP_REVISIONS)) {
+      try {
+        assertAccount();
+        const file = reference(entry.fileId);
+        const parent = await getDocFromServer(file);
+        assertAccount();
+        if (parent.exists() && parent.data()?.revision === revision) {
+          updateJournal((current) => forgetOrphan(current, revision));
+          continue;
+        }
+        await removeChunks(file, revision, entry.chunkCount);
+        updateJournal((current) => forgetOrphan(current, revision));
+      } catch (error) {
+        if ((error as Error)?.message?.includes('cloud/account-changed')) return;
+        console.warn(`cloud: orphan chunk cleanup for revision ${revision} failed`, error);
+        updateJournal((current) => orphanFailed(current, revision));
+      }
     }
   };
 
@@ -167,11 +241,14 @@ export function createFirestoreWorkspace(auth: Pick<Auth, 'currentUser'>, databa
       assertAccount();
       const snapshot = await getDocsFromServer(files);
       assertAccount();
-      return snapshot.docs.map((entry) => {
+      const entries = snapshot.docs.map((entry) => {
         validateCloudId(entry.id);
         const data = manifest(entry.data(), entry.id);
         return { id: entry.id, revision: data.revision, deleted: data.deleted };
       });
+      await sweepOrphans().catch((error) => { console.warn('cloud: orphan chunk sweep failed', error); });
+      assertAccount();
+      return entries;
     },
     read,
     async write(record, expectedRevision) {
@@ -186,29 +263,52 @@ export function createFirestoreWorkspace(auth: Pick<Auth, 'currentUser'>, databa
       if (!deleted) validateCloudMeta(meta, id);
       const encoded = deleted ? { chunks: [], compressedBytes: 0, uncompressedBytes: 0, sha256: '' } : await encodeCloudPayload(record.content, record.versions, meta!);
       assertAccount();
+      const schema = cloudSchemaFor(encoded);
       const revision = crypto.randomUUID();
       const replaced: { manifest: Manifest | null } = { manifest: null };
+      const staged = schema === 2 && encoded.chunks.length > 0;
+      const body = { schema, revision, deleted, meta, chunkCount: encoded.chunks.length, encoding: CLOUD_ENCODING, compressedBytes: encoded.compressedBytes, uncompressedBytes: encoded.uncompressedBytes, sha256: encoded.sha256 };
+      activeUploads.add(revision);
       try {
-        await writeChunks(file, revision, encoded.chunks);
-        assertAccount();
-        await runTransaction(database, async (transaction) => {
+        try {
+          if (staged) {
+            updateJournal((current) => recordOrphanSuspect(current, revision, id, encoded.chunks.length, now()));
+            await writeChunks(file, revision, encoded.chunks);
+            assertAccount();
+          }
+          await runTransaction(database, async (transaction) => {
+            assertAccount();
+            const existing = await transaction.get(file);
+            assertAccount();
+            const previous = existing.exists() ? manifest(existing.data(), id) : null;
+            const outcome = manifestOutcome(previous?.revision ?? null, expectedRevision, revision);
+            if (outcome === 'committed') return;
+            if (outcome === 'conflict') throw new RevisionChanged();
+            if (staged && !(await transaction.get(chunkRef(file, revision, 0))).exists()) throw new Error('cloud/upload-interrupted: aborted, staged chunks were removed before commit');
+            replaced.manifest = previous;
+            if (schema === 1) {
+              encoded.chunks.forEach((data, index) => transaction.set(doc(file, 'chunks', String(index)), { revision, index, data }));
+              if (previous?.schema === 1) for (let index = encoded.chunks.length; index < previous.chunkCount; index++) transaction.delete(doc(file, 'chunks', String(index)));
+            } else if (previous?.schema === 1) {
+              for (let index = 0; index < previous.chunkCount; index++) transaction.delete(doc(file, 'chunks', String(index)));
+            }
+            transaction.set(file, { ...body, updatedAt: serverTimestamp() });
+          });
+        } catch (error) {
+          if (staged) await removeQuietly(file, revision, encoded.chunks.length);
           assertAccount();
-          const existing = await transaction.get(file);
-          assertAccount();
-          const previous = existing.exists() ? manifest(existing.data(), id) : null;
-          replaced.manifest = previous;
-          if ((previous?.revision ?? null) !== expectedRevision) throw new RevisionChanged();
-          if (previous?.schema === 1) for (let index = 0; index < previous.chunkCount; index++) transaction.delete(doc(file, 'chunks', String(index)));
-          transaction.set(file, { schema: CLOUD_SCHEMA, revision, deleted, meta, chunkCount: encoded.chunks.length, encoding: CLOUD_ENCODING, compressedBytes: encoded.compressedBytes, uncompressedBytes: encoded.uncompressedBytes, sha256: encoded.sha256, updatedAt: serverTimestamp() });
-        });
-      } catch (error) {
-        await removeQuietly(file, revision, encoded.chunks.length);
-        assertAccount();
-        if (error instanceof RevisionChanged) throw new RemoteConflictError(await read(id));
-        throw error;
+          if (error instanceof RevisionChanged) throw new RemoteConflictError(await read(id));
+          throw error;
+        }
+      } finally {
+        activeUploads.delete(revision);
       }
+      if (staged) updateJournal((current) => forgetOrphan(current, revision));
       const previous = replaced.manifest;
-      if (previous?.schema === 2) await removeQuietly(file, previous.revision, previous.chunkCount);
+      if (previous?.schema === 2 && previous.chunkCount > 0) {
+        updateJournal((current) => recordOrphanSuspect(current, previous.revision, id, previous.chunkCount, now()));
+        await removeQuietly(file, previous.revision, previous.chunkCount);
+      }
       assertAccount();
       return revision;
     },

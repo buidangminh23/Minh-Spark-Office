@@ -5,7 +5,8 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { assertFails, initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing';
 import { collection, deleteDoc, disableNetwork, doc, enableNetwork, getDoc, getDocs, serverTimestamp, setDoc, writeBatch, type Firestore } from 'firebase/firestore';
 import type { Auth } from 'firebase/auth';
-import { createFirestoreWorkspace } from '../src/lib/cloudWorkspace.ts';
+import { createFirestoreWorkspace, type FirestoreWorkspaceOptions, type OrphanJournalStore } from '../src/lib/cloudWorkspace.ts';
+import { ORPHAN_SAFE_AGE_MS, type OrphanJournal } from '../src/lib/cloudCodec.ts';
 import { RemoteConflictError, type RemoteRecord } from '../src/lib/syncTypes.ts';
 import { MAX_COMPRESSED_BYTES, MAX_UNCOMPRESSED_BYTES, CHUNK_CHARACTERS, LEGACY_MAX_CHUNKS, LEGACY_MAX_COMPRESSED_BYTES, encodeCloudPayload } from '../src/lib/cloudCodec.ts';
 import { revisionChunkId } from '../src/lib/cloudWorkspace.ts';
@@ -15,7 +16,8 @@ const record = (id: string, text = 'Tài liệu'): RemoteRecord => ({ id, revisi
 describe('Firestore workspace and adversarial rules', { skip: !process.env.FIRESTORE_EMULATOR_HOST }, () => {
   let environment: RulesTestEnvironment;
   const database = (uid: string) => environment.authenticatedContext(uid).firestore() as unknown as Firestore;
-  const adapter = (uid: string, db = database(uid)) => createFirestoreWorkspace({ currentUser: { uid } } as Auth, db, uid);
+  const memoryJournal = (): OrphanJournalStore & { value: OrphanJournal } => ({ value: {}, read() { return { ...this.value }; }, write(journal) { this.value = { ...journal }; } });
+  const adapter = (uid: string, db = database(uid), options: FirestoreWorkspaceOptions = { journal: memoryJournal() }) => createFirestoreWorkspace({ currentUser: { uid } } as Auth, db, uid, options);
   before(async () => {
     const [host, port] = process.env.FIRESTORE_EMULATOR_HOST!.split(':');
     environment = await initializeTestEnvironment({ projectId: 'demo-minh-office-sync', firestore: { host, port: Number(port), rules: readFileSync(new URL('../firestore.rules', import.meta.url), 'utf8') } });
@@ -73,10 +75,11 @@ describe('Firestore workspace and adversarial rules', { skip: !process.env.FIRES
     const cloud = adapter('validator', db);
     const revision = await cloud.write(record('valid'), null);
     const parent = doc(db, 'users/validator/files/valid');
-    const chunk = doc(parent, 'chunks', revisionChunkId(revision, 0));
+    const chunk = doc(parent, 'chunks', '0');
     const original = (await getDoc(parent)).data()!;
     const originalChunk = (await getDoc(chunk)).data()!;
-    assert.equal(original.schema, 2);
+    assert.equal(original.schema, 1);
+    assert.equal(originalChunk.revision, revision);
     for (const patch of [{ extra: true }, { schema: 3 }, { chunkCount: 601 }, { compressedBytes: MAX_COMPRESSED_BYTES + 1 }, { uncompressedBytes: MAX_UNCOMPRESSED_BYTES + 1 }, { meta: { ...original.meta, id: 'wrong' } }, { meta: { ...original.meta, starred: 'yes' } }, { updatedAt: 123 }, { sha256: 'wrong' }]) {
       await assertFails(setDoc(parent, { ...original, revision: randomUUID(), updatedAt: serverTimestamp(), ...patch }));
     }
@@ -85,9 +88,10 @@ describe('Firestore workspace and adversarial rules', { skip: !process.env.FIRES
     await assertFails(deleteDoc(chunk));
     await assertFails(deleteDoc(parent));
     const other = randomUUID();
-    for (const [id, data] of [[revisionChunkId(other, 1), { revision: other, index: 0, data: 'AAAA' }], [revisionChunkId(other, 600), { revision: other, index: 600, data: 'AAAA' }], [revisionChunkId(other, 0), { revision: other, index: 0, data: 'x'.repeat(CHUNK_CHARACTERS + 1) }], [revisionChunkId(other, 0), { revision: other, index: 0, data: 'AAAA', extra: true }], [revisionChunkId(revision, 5), { revision, index: 5, data: 'AAAA' }], ['other_0', { revision: other, index: 0, data: 'AAAA' }]] as const) {
+    for (const [id, data] of [[revisionChunkId(other, 1), { revision: other, index: 0, data: 'AAAA' }], [revisionChunkId(other, 600), { revision: other, index: 600, data: 'AAAA' }], [revisionChunkId(other, 0), { revision: other, index: 0, data: 'x'.repeat(CHUNK_CHARACTERS + 1) }], [revisionChunkId(other, 0), { revision: other, index: 0, data: 'AAAA', extra: true }], [revisionChunkId(other, 0), { revision: other, index: 0, data: 'AAA' }], [revisionChunkId(revision, 5), { revision, index: 5, data: 'AAAA' }], ['other_0', { revision: other, index: 0, data: 'AAAA' }]] as const) {
       await assertFails(setDoc(doc(parent, 'chunks', id), data));
     }
+    await assertFails(setDoc(doc(db, 'users/validator/files/bad.file.id/chunks', revisionChunkId(other, 0)), { revision: other, index: 0, data: 'AAAA' }));
     const staged = doc(parent, 'chunks', revisionChunkId(other, 0));
     await setDoc(staged, { revision: other, index: 0, data: 'AAAA' });
     await assertFails(setDoc(staged, { revision: other, index: 0, data: 'BBBB' }));
@@ -99,16 +103,24 @@ describe('Firestore workspace and adversarial rules', { skip: !process.env.FIRES
     const db = database('large');
     const big = record('big', randomBytes(LEGACY_MAX_COMPRESSED_BYTES + 1024 * 1024).toString('base64'));
     const first = await cloud.write(big, null);
+    const parent = doc(db, 'users/large/files/big');
+    assert.equal((await getDoc(parent)).data()!.schema, 2);
     const chunks = collection(db, 'users/large/files/big/chunks');
     const firstCount = (await getDocs(chunks)).size;
     assert.ok(firstCount > LEGACY_MAX_CHUNKS);
+    await assertFails(deleteDoc(doc(chunks, revisionChunkId(first, 0))));
     assert.deepEqual(await cloud.read('big'), { ...big, revision: first });
     const second = await cloud.write(record('big', 'small again'), first);
-    const remaining = (await getDocs(chunks)).docs.map((entry) => entry.id);
-    assert.deepEqual(remaining, [revisionChunkId(second, 0)]);
+    assert.equal((await getDoc(parent)).data()!.schema, 1);
+    assert.deepEqual((await getDocs(chunks)).docs.map((entry) => entry.id), ['0']);
+    assert.deepEqual(await cloud.read('big'), { ...record('big', 'small again'), revision: second });
+    const third = await cloud.write(big, second);
+    assert.equal((await getDoc(parent)).data()!.schema, 2);
+    assert.ok((await getDocs(chunks)).docs.every((entry) => entry.id.startsWith(`${third}_`)));
+    assert.deepEqual(await cloud.read('big'), { ...big, revision: third });
   });
 
-  test('reads legacy schema 1 records and upgrades them on the next write', async () => {
+  test('keeps records written by older apps in schema 1 and only upgrades when a record outgrows it', async () => {
     const db = database('legacy');
     const parent = doc(db, 'users/legacy/files/old');
     const revision = randomUUID();
@@ -120,10 +132,60 @@ describe('Firestore workspace and adversarial rules', { skip: !process.env.FIRES
     await batch.commit();
     const cloud = adapter('legacy', db);
     assert.deepEqual(await cloud.read('old'), { ...old, revision });
-    const next = await cloud.write(record('old', 'upgraded'), revision);
+    const next = await cloud.write(record('old', 'still small'), revision);
+    assert.equal((await getDoc(parent)).data()!.schema, 1);
+    assert.deepEqual((await getDocs(collection(parent, 'chunks'))).docs.map((entry) => [entry.id, entry.data().revision]), [['0', next]]);
+    assert.deepEqual(await cloud.read('old'), { ...record('old', 'still small'), revision: next });
+    const large = record('old', randomBytes(LEGACY_MAX_COMPRESSED_BYTES + 1024 * 1024).toString('base64'));
+    const upgraded = await cloud.write(large, next);
     assert.equal((await getDoc(parent)).data()!.schema, 2);
-    assert.deepEqual((await getDocs(collection(parent, 'chunks'))).docs.map((entry) => entry.id), [revisionChunkId(next, 0)]);
-    assert.deepEqual(await cloud.read('old'), { ...record('old', 'upgraded'), revision: next });
+    assert.ok((await getDocs(collection(parent, 'chunks'))).docs.every((entry) => entry.id.startsWith(`${upgraded}_`)));
+  });
+
+  test('a manifest that already carries the write revision is reported as committed, not as a conflict', async () => {
+    const db = database('ambiguous');
+    const cloud = adapter('ambiguous', db);
+    const first = await cloud.write(record('retry', 'first'), null);
+    const own = randomUUID();
+    const original = crypto.randomUUID;
+    const second = record('retry', 'second');
+    const encoded = await encodeCloudPayload(second.content, [], second.meta!);
+    await environment.withSecurityRulesDisabled(async (context) => {
+      const admin = context.firestore() as unknown as Firestore;
+      const parent = doc(admin, 'users/ambiguous/files/retry');
+      const batch = writeBatch(admin);
+      batch.set(parent, { schema: 1, revision: own, deleted: false, meta: second.meta, chunkCount: encoded.chunks.length, encoding: 'gzip-base64', compressedBytes: encoded.compressedBytes, uncompressedBytes: encoded.uncompressedBytes, sha256: encoded.sha256, updatedAt: serverTimestamp() });
+      encoded.chunks.forEach((data, index) => batch.set(doc(parent, 'chunks', String(index)), { revision: own, index, data }));
+      await batch.commit();
+    });
+    Object.assign(crypto, { randomUUID: () => own });
+    try { assert.equal(await cloud.write(second, first), own); }
+    finally { Object.assign(crypto, { randomUUID: original }); }
+    assert.deepEqual(await cloud.read('retry'), { ...second, revision: own });
+  });
+
+  test('sweeps journaled orphan chunk revisions once they are old, and never the live revision', async () => {
+    const db = database('sweeper');
+    const journal = memoryJournal();
+    let clock = 0;
+    const cloud = adapter('sweeper', db, { journal, now: () => clock });
+    const big = record('swept', randomBytes(LEGACY_MAX_COMPRESSED_BYTES + 1024 * 1024).toString('base64'));
+    const live = await cloud.write(big, null);
+    assert.deepEqual(journal.value, {});
+    const parent = doc(db, 'users/sweeper/files/swept');
+    const orphan = randomUUID();
+    for (let index = 0; index < 3; index++) await setDoc(doc(parent, 'chunks', revisionChunkId(orphan, index)), { revision: orphan, index, data: 'AAAA' });
+    journal.value = { [orphan]: { fileId: 'swept', chunkCount: 3, since: 0, attempts: 0 }, [live]: { fileId: 'swept', chunkCount: 50, since: 0, attempts: 0 } };
+    await cloud.list();
+    assert.ok((await getDoc(doc(parent, 'chunks', revisionChunkId(orphan, 0)))).exists());
+    clock = ORPHAN_SAFE_AGE_MS * 2;
+    const later = adapter('sweeper', db, { journal, now: () => clock });
+    await later.list();
+    assert.deepEqual(journal.value, {});
+    const ids = (await getDocs(collection(parent, 'chunks'))).docs.map((entry) => entry.id);
+    assert.ok(ids.length > LEGACY_MAX_CHUNKS);
+    assert.ok(ids.every((id) => id.startsWith(`${live}_`)));
+    assert.deepEqual(await later.read('swept'), { ...big, revision: live });
   });
 
   test('validates account binding before every operation and after an asynchronous encode', async () => {

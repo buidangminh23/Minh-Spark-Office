@@ -2,6 +2,8 @@ import { createStore, get, set } from 'idb-keyval';
 import type { FileContent, FileMeta, FileVersion, WorkspaceStorage } from './storage';
 import { RemoteConflictError, type RemoteRecord, type RemoteWorkspace, type SyncState, type SyncStateStore, type SyncStatus, type SyncedWorkspace } from './syncTypes';
 
+type UploadMark = { generation: number; revision: string };
+type EngineState = SyncState & { uploads?: Record<string, UploadMark> };
 const emptyState = (): SyncState => ({ bases: {}, pending: {}, generation: 0 });
 const queues = new Map<string, Promise<unknown>>();
 
@@ -55,6 +57,7 @@ export function createSyncedWorkspace(userId: string, local: WorkspaceStorage, r
   let activeId: string | null = null;
   let activeBase: string | null | undefined;
   let activeGeneration: number | null | undefined;
+  const ownGenerations = new Set<number>();
   const deferred = new Set<string>();
   const emit = () => { for (const listener of listeners) listener(); };
   const setStatus = (state: SyncStatus['state'], pending = status.pending, message?: string) => {
@@ -82,10 +85,12 @@ export function createSyncedWorkspace(userId: string, local: WorkspaceStorage, r
       state.pending[preserved.id] = { generation: ++state.generation, record: preserved, baseRevision: null };
       conflictMessage = 'Đã giữ thay đổi từ thẻ trình duyệt khác trong bản xung đột riêng.';
     }
+    const upload = (state as EngineState).uploads?.[record.id];
+    if (activeId === record.id && upload && ownGenerations.has(upload.generation)) activeBase = upload.revision;
     const anotherEditor = previous && activeGeneration !== undefined && previous.generation !== activeGeneration;
     const baseRevision = activeId === record.id && activeBase !== undefined && (!previous || anotherEditor) ? activeBase : previous?.baseRevision !== undefined ? previous.baseRevision : state.bases[record.id] ?? null;
     state.pending[record.id] = { generation: ++state.generation, record: structuredClone(record), baseRevision };
-    if (activeId === record.id) activeGeneration = state.generation;
+    if (activeId === record.id) { activeGeneration = state.generation; ownGenerations.add(state.generation); }
     await stateStore.write(state);
     if (preserved) await apply(preserved);
     await apply(record);
@@ -209,6 +214,8 @@ export function createSyncedWorkspace(userId: string, local: WorkspaceStorage, r
           if (token !== epoch) return;
           await mutate(async (state) => {
             state.bases[id] = revision;
+            const uploads = (state as EngineState).uploads ??= {};
+            uploads[id] = { generation: entry.generation, revision };
             if (state.pending[id]?.generation === entry.generation) delete state.pending[id];
             else if (state.pending[id]) state.pending[id].baseRevision = revision;
             if (activeId === id) activeBase = revision;
@@ -359,10 +366,12 @@ export function createSyncedWorkspace(userId: string, local: WorkspaceStorage, r
       activeId = id;
       activeBase = undefined;
       activeGeneration = undefined;
+      ownGenerations.clear();
       if (id) void mutate(async (state) => {
         if (activeId !== id) return;
         activeBase = state.pending[id]?.baseRevision !== undefined ? state.pending[id].baseRevision : state.bases[id] ?? null;
         activeGeneration = state.pending[id]?.generation ?? null;
+        if (activeGeneration !== null) ownGenerations.add(activeGeneration);
       }).catch(fail);
       for (const fileId of deferred) if (fileId !== id) deferred.delete(fileId);
       schedule(0);

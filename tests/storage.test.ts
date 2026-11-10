@@ -203,3 +203,42 @@ test('concurrent draft initialization preserves new files and edited migrated co
   assert.deepEqual(await legacy.loadContent('legacy'), content('original'));
   assert.deepEqual(await createWorkspaceStorage('signed-account').listFiles(), []);
 });
+
+test('a concurrent save survives a backup import that writes many files', async () => {
+  const storage = createDraftWorkspaceStorage();
+  const files = Array.from({ length: 25 }, (_, index) => meta(`imported-${index}`));
+  const contents = Object.fromEntries(files.map((file) => [file.id, content(file.id)]));
+  const [count] = await Promise.all([
+    storage.importBackup({ format: 'minh-office-backup', files, contents }),
+    (async () => { await Promise.resolve(); await storage.saveFile(meta('created-meanwhile'), content('fresh')); })(),
+  ]);
+  assert.equal(count, 25);
+  const ids = new Set((await storage.listFiles()).map((file) => file.id));
+  assert.equal(ids.size, 26);
+  assert.ok(ids.has('created-meanwhile'));
+  assert.deepEqual(await storage.loadContent('imported-3'), content('imported-3'));
+});
+
+test('metadata updates and removals do not drop or revert concurrent index changes', async () => {
+  const storage = createWorkspaceStorage('index-race');
+  await storage.saveFile(meta('renamed'), content('a'));
+  await storage.saveFile(meta('removed'), content('b'));
+  await storage.saveVersion('removed', content('old b'));
+  const saves = Array.from({ length: 10 }, (_, index) => storage.saveFile(meta(`concurrent-${index}`), content(`c${index}`)));
+  const [renamed] = await Promise.all([storage.updateMeta('renamed', { name: 'new name', starred: true }), storage.removeFile('removed'), ...saves]);
+  assert.equal(renamed?.name, 'new name');
+  const files = await storage.listFiles();
+  assert.equal(files.length, 11);
+  assert.equal(files.find((file) => file.id === 'renamed')?.name, 'new name');
+  assert.equal(files.some((file) => file.id === 'removed'), false);
+  for (let index = 0; index < 10; index++) assert.ok(files.some((file) => file.id === `concurrent-${index}`));
+  assert.equal(await storage.loadContent('removed'), undefined);
+  assert.deepEqual(await storage.listVersions('removed'), []);
+});
+
+test('updateMeta returns null for missing files without touching the index', async () => {
+  const storage = createWorkspaceStorage('missing-meta');
+  await storage.saveFile(meta('present'), content('x'));
+  assert.equal(await storage.updateMeta('absent', { name: 'nope' }), null);
+  assert.deepEqual((await storage.listFiles()).map((file) => file.id), ['present']);
+});

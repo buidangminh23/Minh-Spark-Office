@@ -265,6 +265,36 @@ test('an active tab keeps its editor base when a sibling tab advances shared Ind
   assert.deepEqual(await editingTab.loadContent('tab-shared'), content('remote edit'));
 });
 
+for (const uploader of ['editing', 'sibling'] as const) {
+  test(`an active tab adopts the base when a sibling tab uploads its own edit (next pass by ${uploader} tab)`, async () => {
+    const remote = new FakeRemote();
+    const device = client(remote);
+    const editingTab = device.workspace;
+    const siblingTab = device.reopen();
+    await editingTab.saveFile(meta('own-upload'), content('original'));
+    await editingTab.syncNow();
+    editingTab.setActiveFile('own-upload');
+    await editingTab.loadContent('own-upload');
+    await editingTab.saveFile(meta('own-upload'), content('first edit'));
+    await siblingTab.syncNow();
+    assert.deepEqual(remote.records.get('own-upload')?.content, content('first edit'));
+    await editingTab.saveFile(meta('own-upload'), content('second edit'));
+    await (uploader === 'editing' ? editingTab : siblingTab).syncNow();
+    assert.deepEqual(remote.records.get('own-upload')?.content, content('second edit'));
+    assert.equal(remote.records.size, 1);
+    assert.equal((await editingTab.listFiles()).length, 1);
+    assert.deepEqual(await editingTab.loadContent('own-upload'), content('second edit'));
+    assert.deepEqual(Object.keys((await device.state.read()).pending), []);
+    assert.notEqual(editingTab.getStatus().state, 'error');
+    await editingTab.saveFile(meta('own-upload'), content('third edit'));
+    await siblingTab.syncNow();
+    await editingTab.saveFile(meta('own-upload'), content('fourth edit'));
+    await editingTab.syncNow();
+    assert.deepEqual(remote.records.get('own-upload')?.content, content('fourth edit'));
+    assert.equal(remote.records.size, 1);
+  });
+}
+
 test('a file rejected by the cloud stays local without blocking other pending files', async () => {
   const remote = new FakeRemote();
   const write = remote.write.bind(remote);
