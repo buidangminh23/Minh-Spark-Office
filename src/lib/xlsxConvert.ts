@@ -1,6 +1,9 @@
 import ExcelJS from 'exceljs';
 import * as XLSX from 'xlsx';
 import type { CellStyle, CellValue, SheetData, WorkbookData } from './sheetTypes';
+import { columnLetter, emptySheet, emptyWorkbook, uid } from './workbookBasics';
+
+export { columnLetter, emptySheet, emptyWorkbook, uid };
 
 const EXCEL_EPOCH = Date.UTC(1899, 11, 30);
 const MAX_IMPORT_ROWS = 20000;
@@ -23,19 +26,6 @@ const H_ALIGN_TO_UNIVER: Record<string, number> = { left: 1, center: 2, right: 3
 const H_ALIGN_FROM_UNIVER: Record<number, ExcelJS.Alignment['horizontal']> = { 1: 'left', 2: 'center', 3: 'right', 4: 'justify', 5: 'justify', 6: 'distributed' };
 const V_ALIGN_TO_UNIVER: Record<string, number> = { top: 1, middle: 2, bottom: 3, justify: 2, distributed: 2 };
 const V_ALIGN_FROM_UNIVER: Record<number, ExcelJS.Alignment['vertical']> = { 1: 'top', 2: 'middle', 3: 'bottom' };
-
-export const uid = (prefix = 'id') => `${prefix}-${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36).slice(-4)}`;
-
-export const columnLetter = (index: number) => {
-  let value = index + 1;
-  let name = '';
-  while (value > 0) {
-    value--;
-    name = String.fromCharCode(65 + (value % 26)) + name;
-    value = Math.floor(value / 26);
-  }
-  return name;
-};
 
 const applyTint = (hex: string, tint = 0) => {
   if (!tint) return hex;
@@ -128,35 +118,6 @@ function valueFromExcel(cell: ExcelJS.Cell): CellValue | null {
     if ('error' in raw) return { v: String(raw.error), t: 1 };
   }
   return { v: String(raw), t: 1 };
-}
-
-export function emptySheet(name: string, rows = 1000, columns = 26): SheetData {
-  return {
-    id: uid('sheet'),
-    name,
-    rowCount: rows,
-    columnCount: columns,
-    defaultColumnWidth: 96,
-    defaultRowHeight: 24,
-    cellData: {},
-    rowData: {},
-    columnData: {},
-    mergeData: [],
-    showGridlines: 1,
-  };
-}
-
-export function emptyWorkbook(name: string): WorkbookData {
-  const sheet = emptySheet('Trang tính 1');
-  return {
-    id: uid('wb'),
-    name,
-    appVersion: '0.1.0',
-    locale: 'viVN',
-    styles: {},
-    sheetOrder: [sheet.id],
-    sheets: { [sheet.id]: sheet },
-  };
 }
 
 async function excelJsToWorkbook(buffer: ArrayBuffer, name: string): Promise<WorkbookData> {

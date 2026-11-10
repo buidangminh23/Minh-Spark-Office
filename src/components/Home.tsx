@@ -31,7 +31,7 @@ import type { WorkbookData } from '../lib/sheetTypes';
 import type { PresentationData } from '../lib/slideTypes';
 import { businessPitchPresentation, productLaunchPresentation, blankPresentation } from '../lib/slideTemplates';
 import { relativeTime } from '../lib/download';
-import { IMAGE_ACCEPT_STRING } from '../lib/imageFormats';
+import { IMAGE_ACCEPT_STRING } from '../lib/imageFormatNames';
 import {
   sampleDocHtml,
   contractDocHtml,
