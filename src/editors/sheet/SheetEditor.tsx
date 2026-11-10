@@ -1146,9 +1146,9 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
             },
             footer: {
               sheetBar: true,
-              statisticBar: true,
+              statisticBar: false,
               menus: true,
-              zoomSlider: true,
+              zoomSlider: false,
             },
           }),
           UniverSheetsFilterPreset(),
