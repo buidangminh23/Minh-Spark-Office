@@ -69,6 +69,14 @@
 
     .dl-hint { color: var(--ink-2); font-size: 14px; }
 
+    .dl-command { display: flex; align-items: stretch; gap: 8px; padding: 8px; border: 1px solid #1f2937; border-radius: 12px; background: #111827; }
+    .dl-command code { display: block; flex: 1 1 auto; min-width: 0; padding: 8px; overflow-x: auto; color: #f9fafb; font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: nowrap; }
+    .dl .dl-command button { flex: none; min-width: 96px; min-height: 40px; padding: 8px 16px; border: 0; border-radius: 8px; background: var(--blue); color: #fff; font: inherit; font-size: 14px; font-weight: 650; cursor: pointer; }
+    .dl .dl-command button:hover { background: var(--blue-ink); }
+    .dl .dl-command button:focus-visible { outline-color: #93c5fd; }
+    .dl-divider { display: flex; align-items: center; gap: 12px; margin: 8px 0 0; color: var(--ink-2); font-size: 13px; }
+    .dl-divider::before, .dl-divider::after { content: ""; flex: 1 1 auto; height: 1px; background: var(--line); }
+
     .dl-guide { display: grid; gap: 48px; margin: 0; padding: 0; list-style: none; counter-reset: step; }
     .dl-guide-step { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 32px; align-items: start; margin: 0; counter-increment: step; }
     .dl-guide-text h3 { display: flex; align-items: center; gap: 12px; margin: 0 0 8px; font-size: 18px; }
@@ -108,6 +116,8 @@
       .dl-apps { padding: 24px; }
       .dl-band { padding: 24px; }
       .dl-actions .dl-btn { width: 100%; }
+      .dl-command { flex-direction: column; }
+      .dl .dl-command button { width: 100%; }
           .dl-faq summary { padding: 16px; }
       .dl-faq-body { padding: 0 16px 16px; }
     }
@@ -185,9 +195,12 @@
               <div><h3 id="mac-installer-title">macOS</h3><p>Apple Silicon (M1 trở lên), macOS 13.3+</p></div>
             </div>
             <div class="dl-card-body">
-              <p>Mở file DMG rồi kéo Minh Spark Office vào thư mục Applications.</p>
-              <a class="dl-btn dl-btn-primary" href="/api/download?file=MinhSparkOffice-0.2.36-macos-arm64.dmg" download><svg aria-hidden="true"><use href="#i-apple" /></svg>Tải file DMG</a>
-              <div class="dl-alt"><a href="#mac-dmg">Hướng dẫn mở lần đầu</a><span>macOS hỏi xác nhận ở lần mở đầu tiên</span></div>
+              <p>Cách cài khuyên dùng: mở ứng dụng Terminal, dán lệnh dưới đây rồi nhấn Return.</p>
+              <div class="dl-command"><code id="mac-install-command">curl -fsSL https://office.minhspark.com/install-macos.sh | bash</code><button type="button" data-copy="mac-install-command" aria-label="Sao chép lệnh cài cho macOS">Sao chép</button></div>
+              <p class="dl-hint">Lệnh tải bản mới nhất, kiểm tra mã SHA-256 và chữ ký, cài vào Applications rồi mở ứng dụng. Cách này không bị trình duyệt chặn và macOS không hiện cảnh báo “chưa được mở”. Xem trước nội dung lệnh tại <a href="/install-macos.sh">install-macos.sh</a>.</p>
+              <p class="dl-divider">hoặc tải file cài đặt</p>
+              <a class="dl-btn dl-btn-ghost" href="/api/download?file=MinhSparkOffice-0.2.36-macos-arm64.dmg" download><svg aria-hidden="true"><use href="#i-apple" /></svg>Tải file DMG</a>
+              <div class="dl-alt"><a href="#mac-browser">Trình duyệt chặn file DMG?</a><a href="#mac-dmg">Hướng dẫn mở lần đầu</a></div>
             </div>
             <dl class="dl-specs">
               <div><dt>Phiên bản</dt><dd>0.2.36</dd></div>
@@ -257,14 +270,27 @@
               <p>Tài liệu cũ trên máy được giữ lại. Chọn “Thêm tài liệu trên máy” để đưa các bản nháp đã chọn vào tài khoản.</p>
             </div>
           </details>
+          <details id="mac-browser">
+            <summary>Trình duyệt cảnh báo hoặc chặn file DMG</summary>
+            <div class="dl-faq-body">
+              <p>Bản macOS chưa có chứng thư Apple Developer ID và ít người tải, nên một số trình duyệt đánh dấu file DMG là đáng ngờ dù file tải qua HTTPS từ chính office.minhspark.com và có mã kiểm tra trong <a href="/downloads/SHA256SUMS.txt">SHA256SUMS.txt</a>.</p>
+              <ol>
+                <li>Cách chắc chắn nhất: dùng lệnh cài trong Terminal ở thẻ macOS. Lệnh không đi qua trình duyệt nên không bị chặn.</li>
+                <li>Chrome hoặc Edge: mở danh sách tải xuống, chọn file MinhSparkOffice-0.2.36-macos-arm64.dmg rồi bấm “Keep” (“Giữ lại”). Nếu có thêm lựa chọn “Download suspicious file” (“Tải tệp đáng ngờ xuống”), bấm vào đó.</li>
+                <li>Safari: nếu Safari hỏi có cho phép tải xuống từ office.minhspark.com, bấm “Cho phép”. File được lưu vào thư mục Tải về.</li>
+              </ol>
+              <p>Sau khi tải xong, làm theo hướng dẫn mở lần đầu bên dưới.</p>
+            </div>
+          </details>
           <details id="mac-dmg">
             <summary>Mở ứng dụng lần đầu trên macOS</summary>
             <div class="dl-faq-body">
-              <p>Bản macOS chưa có chứng thư Apple Developer ID và chưa được notarize, nên lần mở đầu tiên macOS hiện thông báo “Minh Spark Office chưa được mở”.</p>
+              <p>Bản macOS chưa có chứng thư Apple Developer ID và chưa được notarize, nên file DMG tải bằng trình duyệt sẽ làm macOS hiện thông báo “Minh Spark Office chưa được mở” ở lần mở đầu tiên. Cài bằng lệnh Terminal ở thẻ macOS thì không gặp thông báo này.</p>
               <ol>
                 <li>Mở DMG, kéo Minh Spark Office vào Applications, mở ứng dụng một lần rồi bấm Xong.</li>
                 <li>Vào Cài đặt hệ thống → Quyền riêng tư &amp; Bảo mật, kéo xuống và bấm “Vẫn mở”.</li>
                 <li>Mở lại Minh Spark Office và bấm Mở. Từ lần sau ứng dụng mở bình thường và tự cập nhật.</li>
+                <li>Hoặc chạy lệnh cài trong Terminal: lệnh thay bản cài từ DMG và gỡ cảnh báo.</li>
               </ol>
               <p>Máy Mac chip Intel hiện dùng được <a href="/">bản web</a>.</p>
             </div>
@@ -296,6 +322,19 @@
     };
     document.querySelectorAll('a[href^="#"]').forEach((link) => link.addEventListener('click', () => openTarget(link.getAttribute('href'))));
     openTarget(location.hash);
+    document.querySelectorAll('[data-copy]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const source = document.getElementById(button.dataset.copy);
+        try {
+          await navigator.clipboard.writeText(source.textContent.trim());
+          button.textContent = 'Đã chép';
+        } catch {
+          getSelection().selectAllChildren(source);
+          button.textContent = 'Nhấn ⌘C';
+        }
+        setTimeout(() => { button.textContent = 'Sao chép'; }, 2000);
+      });
+    });
     (() => {
       const ua = navigator.userAgent;
       const isMac = /Macintosh|Mac OS X/.test(ua) && !/iPhone|iPad/.test(ua);
