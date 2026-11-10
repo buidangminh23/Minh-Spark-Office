@@ -26,7 +26,7 @@ test('the remembered printer wins while it is connected', () => {
   const resolved = resolveChoice('printer:Epson_L3150', [office, desk], 'windows');
   assert.equal(resolved.printer?.name, 'Epson_L3150');
   assert.equal(resolved.missing, null);
-  assert.deepEqual(targetFor(resolved, 'windows'), { kind: 'printer', name: 'Epson_L3150', displayName: 'Epson L3150' });
+  assert.deepEqual(targetFor(resolved, 'windows'), { kind: 'printer', name: 'Epson_L3150', displayName: 'Epson L3150', installed: true });
 });
 
 test('a vanished printer falls back to the default and says so', () => {
@@ -47,11 +47,26 @@ test('no printer installed still lets the user save a PDF', () => {
   assert.deepEqual(targetFor(resolved, 'mac'), { kind: 'pdf' });
 });
 
-test('a network printer that is not installed goes through the system dialog', () => {
+test('a network printer that is not installed is printed to directly, no system dialog', () => {
   const resolved = resolveChoice('printer:Canon_G3010', [office, lobby], 'mac');
   assert.equal(resolved.printer?.name, 'Canon_G3010');
-  assert.deepEqual(targetFor(resolved, 'mac'), { kind: 'system' });
-  assert.ok(printerNotes(resolved, 'one', 'mac').some((note) => note.includes('chưa được cài')));
+  assert.deepEqual(targetFor(resolved, 'mac'), { kind: 'printer', name: 'Canon_G3010', displayName: 'Canon G3010', installed: false });
+  assert.ok(printerNotes(resolved, 'one', 'mac').some((note) => note.includes('không cần cài')));
+});
+
+test('desktop never picks the system dialog, even from an old saved choice', () => {
+  for (const platform of ['mac', 'windows'] as const) {
+    assert.notEqual(targetFor(resolveChoice('system', [office], platform), platform).kind, 'system');
+    assert.equal(targetFor(resolveChoice('system', [], platform), platform).kind, 'pdf');
+  }
+});
+
+test('a PDF printer that asks where to save becomes a direct save to Downloads', () => {
+  const msPdf = printer('Microsoft Print to PDF', { isDefault: true, kind: 'pdf', asksForFile: true });
+  const resolved = resolveChoice(null, [msPdf], 'windows');
+  assert.deepEqual(targetFor(resolved, 'windows'), { kind: 'pdf' });
+  const wps = printer('Export to WPS PDF', { kind: 'pdf', asksForFile: false });
+  assert.equal(targetFor(resolveChoice('printer:Export to WPS PDF', [wps], 'windows'), 'windows').kind, 'printer');
 });
 
 test('web and linux never print directly', () => {

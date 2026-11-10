@@ -49,9 +49,10 @@ export type PrinterInfo = {
   installed: boolean;
   duplex: boolean | null;
   color: boolean | null;
+  asksForFile?: boolean;
 };
 
-export type PrintTarget = { kind: 'system' } | { kind: 'printer'; name: string; displayName?: string } | { kind: 'pdf' };
+export type PrintTarget = { kind: 'system' } | { kind: 'printer'; name: string; displayName?: string; installed?: boolean } | { kind: 'pdf' };
 
 export type NativePrintRequest = { widthMm: number; heightMm: number; landscape: boolean; title: string; target?: PrintTarget; duplex?: boolean; grayscale?: boolean };
 
@@ -105,7 +106,8 @@ export function printErrorMessage(error: unknown, printer?: string | null): stri
   if (code === 'PRINTER_UNAVAILABLE') return `Máy in ${who} không phản hồi. Kiểm tra máy in đã bật, còn kết nối (cáp USB hoặc cùng mạng) rồi in lại.`;
   if (code === 'PDF_NOT_WRITTEN') return 'Không ghi được tệp PDF vào thư mục Tải về. Kiểm tra ổ đĩa còn trống và quyền ghi.';
   if (code === 'PRINT_TIMEOUT') return 'Máy in không trả lời sau 15 phút. Mở hàng đợi in của hệ thống để kiểm tra lệnh in.';
-  return `Không in được${code ? ` (mã ${code})` : ''}. Thử lại hoặc chọn Hộp thoại in của hệ thống.`;
+  if (code.startsWith('LP: ')) return `Hệ thống in từ chối lệnh in tới ${who}: ${code.slice(4)}`;
+  return `Không in được${code ? ` (mã ${code})` : ''}. Thử lại, hoặc chọn máy in khác.`;
 }
 
 export function onAfterPrint(handler: () => void): () => void {

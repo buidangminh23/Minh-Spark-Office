@@ -53,6 +53,7 @@ pub struct PrinterInfo {
     pub installed: bool,
     pub duplex: Option<bool>,
     pub color: Option<bool>,
+    pub asks_for_file: bool,
 }
 
 fn contains_any(haystack: &str, needles: &[&str]) -> bool {
@@ -79,7 +80,7 @@ pub mod cups_rules {
     pub fn kind(name: &str, uri: Option<&str>, bits: u32, model: Option<&str>) -> PrinterKind {
         let uri = uri.unwrap_or("").to_ascii_lowercase();
         let scheme = uri.split(':').next().unwrap_or("");
-        if bits & FAX != 0 || scheme == "fax" || contains_any(model.unwrap_or(""), &["fax"]) {
+        if bits & FAX != 0 || scheme == "fax" || scheme == "hpfax" || contains_any(model.unwrap_or(""), &["fax"]) {
             return PrinterKind::Fax;
         }
         if scheme == "cups-pdf" || contains_any(name, &["pdf"]) || contains_any(model.unwrap_or(""), &["pdf"]) {
@@ -88,8 +89,10 @@ pub mod cups_rules {
         if bits & CLASS != 0 {
             return PrinterKind::Class;
         }
+        let path = uri.split_once(':').map(|(_, rest)| rest).unwrap_or("");
         match scheme {
             "usb" | "parallel" | "serial" => PrinterKind::Usb,
+            "hp" if path.starts_with("/usb/") || path.starts_with("/par/") => PrinterKind::Usb,
             "ipp" | "ipps" | "dnssd" | "mdns" | "lpd" | "socket" | "http" | "https" | "smb" | "bjnp" | "hp" | "hpfax" => PrinterKind::Network,
             "file" | "cups-brf" => PrinterKind::Virtual,
             _ if bits & (REMOTE | DISCOVERED) != 0 => PrinterKind::Network,
@@ -126,7 +129,7 @@ pub mod cups_rules {
         }
         let offline = reasons.split(',').any(|r| {
             let r = r.trim();
-            r.starts_with("offline") || r.starts_with("connecting-to-device") || r.starts_with("shutdown") || r.starts_with("timed-out")
+            r.starts_with("offline") || r.starts_with("shutdown") || r.starts_with("timed-out")
         });
         let state = match state.map(str::trim) {
             _ if offline => PrinterState::Offline,
@@ -184,6 +187,10 @@ pub mod windows_rules {
         PrinterKind::Local
     }
 
+    pub fn asks_for_file(port: &str) -> bool {
+        matches!(port.trim().to_ascii_uppercase().as_str(), "PORTPROMPT:" | "FILE:")
+    }
+
     pub fn state(status: u32, attributes: u32) -> (PrinterState, Vec<PrinterIssue>) {
         let mut issues = Vec::new();
         if status & 0x0010 != 0 {
@@ -230,10 +237,10 @@ fn sort_printers(list: &mut [PrinterInfo]) {
     });
 }
 
-pub fn list(discover: bool) -> Vec<PrinterInfo> {
-    let mut printers = platform::list(discover);
+pub fn list(discover: bool) -> Result<Vec<PrinterInfo>, String> {
+    let mut printers = platform::list(discover)?;
     sort_printers(&mut printers);
-    printers
+    Ok(printers)
 }
 
 #[cfg(unix)]
@@ -352,11 +359,12 @@ mod platform {
             installed,
             duplex: has_bits.then_some(bits & cups_rules::DUPLEX != 0),
             color: has_bits.then_some(bits & cups_rules::COLOR != 0),
+            asks_for_file: false,
         }
     }
 
-    pub fn list(discover: bool) -> Vec<PrinterInfo> {
-        let Some(cups) = cups() else { return Vec::new() };
+    pub fn list(discover: bool) -> Result<Vec<PrinterInfo>, String> {
+        let Some(cups) = cups() else { return Err("CUPS_UNAVAILABLE".into()) };
         let mut installed = Vec::new();
         unsafe {
             let mut dests: *mut CupsDest = std::ptr::null_mut();
@@ -395,7 +403,7 @@ mod platform {
                 }
             }
         }
-        printers
+        Ok(printers)
     }
 }
 
@@ -449,24 +457,33 @@ mod platform {
         result
     }
 
-    pub fn list(_discover: bool) -> Vec<PrinterInfo> {
+    pub fn list(_discover: bool) -> Result<Vec<PrinterInfo>, String> {
         let flags = PRINTER_ENUM_LOCAL | PRINTER_ENUM_CONNECTIONS;
         let mut needed: u32 = 0;
         let mut returned: u32 = 0;
-        unsafe {
-            let _ = EnumPrintersW(flags, PCWSTR::null(), 2, None, &mut needed, &mut returned);
+        let mut storage: Vec<u64> = Vec::new();
+        let mut filled = false;
+        for _ in 0..4 {
+            let bytes = unsafe { std::slice::from_raw_parts_mut(storage.as_mut_ptr() as *mut u8, storage.len() * 8) };
+            let buffer = (!bytes.is_empty()).then_some(bytes);
+            match unsafe { EnumPrintersW(flags, PCWSTR::null(), 2, buffer, &mut needed, &mut returned) } {
+                Ok(()) => {
+                    filled = true;
+                    break;
+                }
+                Err(_) if needed as usize > storage.len() * 8 => storage = vec![0u64; (needed as usize).div_ceil(8)],
+                Err(error) => return Err(format!("ENUM_PRINTERS_{:#010x}", error.code().0)),
+            }
         }
-        if needed == 0 {
-            return Vec::new();
-        }
-        let mut storage = vec![0u64; (needed as usize).div_ceil(8)];
-        let bytes = unsafe { std::slice::from_raw_parts_mut(storage.as_mut_ptr() as *mut u8, storage.len() * 8) };
-        if unsafe { EnumPrintersW(flags, PCWSTR::null(), 2, Some(bytes), &mut needed, &mut returned) }.is_err() {
-            return Vec::new();
+        if !filled {
+            return Err("ENUM_PRINTERS_RACE".into());
         }
         let default = default_name();
+        if returned == 0 {
+            return Ok(Vec::new());
+        }
         let infos = unsafe { std::slice::from_raw_parts(storage.as_ptr() as *const PRINTER_INFO_2W, returned as usize) };
-        infos
+        Ok(infos
             .iter()
             .map(|info| unsafe {
                 let name = wide(info.pPrinterName);
@@ -485,17 +502,18 @@ mod platform {
                     installed: true,
                     duplex,
                     color,
+                    asks_for_file: windows_rules::asks_for_file(&port),
                     name,
                 }
             })
-            .collect()
+            .collect())
     }
 }
 
 #[cfg(not(any(unix, windows)))]
 mod platform {
-    pub fn list(_discover: bool) -> Vec<super::PrinterInfo> {
-        Vec::new()
+    pub fn list(_discover: bool) -> Result<Vec<super::PrinterInfo>, String> {
+        Ok(Vec::new())
     }
 }
 
@@ -514,6 +532,9 @@ mod tests {
         assert_eq!(cups_rules::kind("Cups-PDF", Some("cups-pdf:/"), 0, None), PrinterKind::Pdf);
         assert_eq!(cups_rules::kind("Floor2", Some("ipp://x"), cups_rules::CLASS, None), PrinterKind::Class);
         assert_eq!(cups_rules::kind("Dev", Some("file:///dev/null"), 0, None), PrinterKind::Virtual);
+        assert_eq!(cups_rules::kind("HP_P1102", Some("hp:/usb/HP_LaserJet_P1102?serial=X"), 0, None), PrinterKind::Usb);
+        assert_eq!(cups_rules::kind("HP_M404", Some("hp:/net/HP_LaserJet_M404?ip=10.0.0.4"), 0, None), PrinterKind::Network);
+        assert_eq!(cups_rules::kind("HP_Fax", Some("hpfax:/usb/HP_OfficeJet?serial=X"), 0, Some("HP OfficeJet")), PrinterKind::Fax);
         assert_eq!(cups_rules::kind("Odd", None, 0, None), PrinterKind::Local);
     }
 
@@ -523,6 +544,7 @@ mod tests {
         assert_eq!(cups_rules::state(Some("4"), None, 0, None).0, PrinterState::Printing);
         assert_eq!(cups_rules::state(Some("5"), Some("paused"), 0, None).0, PrinterState::Paused);
         assert_eq!(cups_rules::state(Some("3"), Some("offline-report"), 0, None).0, PrinterState::Offline);
+        assert_eq!(cups_rules::state(Some("4"), Some("connecting-to-device"), 0, None).0, PrinterState::Printing);
         let (state, issues) = cups_rules::state(Some("3"), Some("media-empty-warning,toner-low-report"), 0, None);
         assert_eq!(state, PrinterState::Ready);
         assert_eq!(issues, vec![PrinterIssue::PaperOut]);
@@ -542,6 +564,10 @@ mod tests {
         assert_eq!(windows_rules::kind("Canon G3010", "Canon G3010 series", "WSD-1234", 0x0040), PrinterKind::Network);
         assert_eq!(windows_rules::kind("Epson L3150", "EPSON L3150 Series", "USB001", 0x0040), PrinterKind::Usb);
         assert_eq!(windows_rules::kind("Shared", "Generic", "LOCALPORT", 0x0008), PrinterKind::Shared);
+        assert!(windows_rules::asks_for_file("PORTPROMPT:"));
+        assert!(windows_rules::asks_for_file("file:"));
+        assert!(!windows_rules::asks_for_file("C:\\out\\a.pdf"));
+        assert!(!windows_rules::asks_for_file("nul:"));
     }
 
     #[test]
@@ -569,6 +595,7 @@ mod tests {
             installed,
             duplex: None,
             color: None,
+            asks_for_file: false,
         };
         let mut list = vec![make("b", false, false), make("c", false, true), make("a", true, true)];
         sort_printers(&mut list);
@@ -582,7 +609,7 @@ mod live {
     #[ignore]
     fn print_live_list() {
         let started = std::time::Instant::now();
-        let list = super::list(true);
+        let list = super::list(true).unwrap();
         println!("LIVE {} printers in {:?}: {}", list.len(), started.elapsed(), serde_json::to_string_pretty(&list).unwrap());
     }
 }

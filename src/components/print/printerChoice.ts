@@ -69,24 +69,28 @@ export function samePrinters(a: PrinterInfo[] | null, b: PrinterInfo[] | null) {
 
 export type Resolved = { choice: PrinterChoice; printer: PrinterInfo | null; missing: string | null };
 
+export const directPrinting = (platform: PrintPlatform) => platform === 'mac' || platform === 'windows';
+
 export function resolveChoice(stored: PrinterChoice | null, printers: PrinterInfo[] | null, platform: PrintPlatform): Resolved {
   if (platform === 'web' || printers === null) return { choice: 'system', printer: null, missing: null };
-  if (stored === 'system' || (stored === 'pdf' && platform !== 'linux')) return { choice: stored, printer: null, missing: null };
+  if (stored === 'pdf' && directPrinting(platform)) return { choice: 'pdf', printer: null, missing: null };
+  if (stored === 'system' && !directPrinting(platform)) return { choice: 'system', printer: null, missing: null };
   const wanted = stored?.startsWith('printer:') ? stored.slice('printer:'.length) : null;
   const exact = wanted ? printers.find((p) => p.name === wanted) : undefined;
   if (exact) return { choice: printerChoice(exact), printer: exact, missing: null };
   const fallback = printers.find((p) => p.isDefault && p.installed) ?? printers.find((p) => p.installed && p.kind !== 'fax') ?? null;
   const missing = wanted ?? null;
   if (fallback) return { choice: printerChoice(fallback), printer: fallback, missing };
-  return { choice: platform === 'linux' ? 'system' : 'pdf', printer: null, missing };
+  return { choice: directPrinting(platform) ? 'pdf' : 'system', printer: null, missing };
 }
 
+export const savesAsPdf = (printer: PrinterInfo | null) => !!printer && printer.kind === 'pdf' && !!printer.asksForFile;
+
 export function targetFor(resolved: Resolved, platform: PrintPlatform): PrintTarget {
-  if (platform !== 'mac' && platform !== 'windows') return { kind: 'system' };
-  if (resolved.choice === 'pdf') return { kind: 'pdf' };
+  if (!directPrinting(platform)) return { kind: 'system' };
   const printer = resolved.printer;
-  if (resolved.choice === 'system' || !printer || !printer.installed) return { kind: 'system' };
-  return { kind: 'printer', name: printer.name, displayName: printer.displayName };
+  if (resolved.choice === 'pdf' || !printer || savesAsPdf(printer)) return { kind: 'pdf' };
+  return { kind: 'printer', name: printer.name, displayName: printer.displayName, installed: printer.installed };
 }
 
 export function printerSubtitle(printer: PrinterInfo): string {
@@ -110,10 +114,13 @@ export function printerTone(printer: PrinterInfo | null): 'ok' | 'warn' | 'bad' 
 export function printerNotes(resolved: Resolved, sides: 'one' | 'manual' | 'auto', platform: PrintPlatform): string[] {
   const notes: string[] = [];
   const printer = resolved.printer;
-  if (resolved.missing) notes.push(`Máy in “${resolved.missing.replace(/_/g, ' ')}” chưa kết nối, đã tạm chọn ${printer ? `“${printer.displayName}”` : 'Lưu thành PDF'}. Cắm hoặc bật lại máy in, danh sách sẽ tự cập nhật.`);
-  if (printer && !printer.installed) notes.push(`“${printer.displayName}” chưa được cài trên máy này. Bấm In sẽ mở hộp thoại in của hệ thống; chọn máy in đó để hệ thống tự cài rồi in.`);
+  const fallback = printer ? `“${printer.displayName}”` : resolved.choice === 'pdf' ? 'Lưu thành PDF' : 'máy in mặc định của hệ thống';
+  if (resolved.missing) notes.push(`Máy in “${resolved.missing.replace(/_/g, ' ')}” chưa kết nối, đã tạm chọn ${fallback}. Cắm hoặc bật lại máy in, danh sách sẽ tự cập nhật.`);
+  if (printer && !printer.installed && directPrinting(platform)) notes.push(`“${printer.displayName}” chưa cài trên máy này; app sẽ gửi lệnh in thẳng qua mạng, không cần cài.`);
+  if (savesAsPdf(printer) && directPrinting(platform)) notes.push(`“${printer!.displayName}” vốn bật hộp thoại hỏi nơi lưu; app lưu thẳng PDF vào thư mục Tải về thay cho hộp thoại đó.`);
+  if (printer && !directPrinting(platform)) notes.push('Trên Linux, máy in được chọn lại ở hộp thoại in kế tiếp.');
   if (printer?.installed && (printer.state === 'offline' || printer.state === 'paused')) notes.push(`“${printer.displayName}” ${STATE_LABELS[printer.state].toLowerCase()}. Lệnh in sẽ nằm trong hàng đợi cho tới khi máy in sẵn sàng.`);
   if (printer?.installed && sides === 'auto' && printer.duplex === false && platform !== 'web') notes.push(`“${printer.displayName}” không báo hỗ trợ in hai mặt tự động; nếu bản in ra một mặt, chọn In hai mặt thủ công.`);
-  if (resolved.choice === 'pdf' && sides !== 'one') notes.push('Lưu thành PDF luôn ghi từng trang, không có mặt trước mặt sau.');
+  if ((resolved.choice === 'pdf' || savesAsPdf(printer)) && sides !== 'one' && directPrinting(platform)) notes.push('Lưu thành PDF ghi đủ mọi trang vào một tệp, không chia mặt trước mặt sau.');
   return notes;
 }

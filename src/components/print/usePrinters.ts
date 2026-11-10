@@ -11,9 +11,18 @@ export function usePrinters(platform: PrintPlatform, paused: boolean) {
   const discovered = useRef<PrinterInfo[]>([]);
   const ticks = useRef(0);
   const inFlight = useRef(false);
+  const queued = useRef(false);
+  const rerun = useRef<(discover: boolean) => Promise<void>>(async () => undefined);
 
-  const load = useCallback(async (discover: boolean) => {
-    if (platform === 'web' || inFlight.current) return;
+  const load = useCallback(async (discover: boolean): Promise<void> => {
+    if (platform === 'web') return;
+    if (inFlight.current) {
+      if (discover) {
+        queued.current = true;
+        setScanning(true);
+      }
+      return;
+    }
     inFlight.current = true;
     if (discover) setScanning(true);
     try {
@@ -24,13 +33,22 @@ export function usePrinters(platform: PrintPlatform, paused: boolean) {
       setPrinters((previous) => (samePrinters(previous, merged) ? previous : merged));
     } finally {
       inFlight.current = false;
-      if (discover) setScanning(false);
+      if (queued.current) {
+        queued.current = false;
+        void rerun.current(true);
+      } else if (discover) {
+        setScanning(false);
+      }
     }
   }, [platform]);
 
   useEffect(() => {
+    rerun.current = load;
+  }, [load]);
+
+  useEffect(() => {
     if (platform === 'web') return;
-    const timer = window.setTimeout(() => void load(true), 0);
+    const timer = window.setTimeout(() => void load(false).then(() => load(true)), 0);
     return () => window.clearTimeout(timer);
   }, [platform, load]);
 
