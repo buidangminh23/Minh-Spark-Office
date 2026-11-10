@@ -183,6 +183,7 @@ import {
   exportSingleSheetToXlsx,
   exportSheetToStyledHtml,
   renderSheetToPngBlob,
+  describeImportTruncation,
 } from '../../lib/xlsxConvert';
 import { downloadBlob } from '../../lib/download';
 import {
@@ -222,6 +223,9 @@ import {
   TABLE_THEMES,
   WORKBOOK_THEMES,
   coerceNumeric,
+  subtractRect,
+  findDuplicateRowIndexes,
+  groupDescendingRuns,
   extractTableRecords,
   buildPivotSheetData,
   analyzeSheetData,
@@ -230,6 +234,7 @@ import {
   type WorkbookThemePreset,
   type PivotAggFn,
 } from './sheetUtils';
+import { shiftFormulaReferences } from './formulaShift';
 import {
   FormulaLibraryModal,
   ChartStudioModal,
@@ -349,6 +354,7 @@ interface ClipboardBuffer {
   values: unknown[][];
   formulas: (string | null)[][];
   styles: (CellStyle | null)[][];
+  origin: { row: number; column: number };
   cutSource?: { sheetId: string; sr: number; sc: number; er: number; ec: number };
 }
 
@@ -1160,6 +1166,8 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
       univerRef.current = univer;
       univerAPIRef.current = univerAPI;
       const clonedWb = JSON.parse(JSON.stringify(content.workbook)) as WorkbookData;
+      const truncationNotice = describeImportTruncation(clonedWb.importTruncation);
+      delete clonedWb.importTruncation;
       univer.createUnit(UniverInstanceType.UNIVER_SHEET, clonedWb);
       recalculateAndBindWorkbook(univerAPI);
 
@@ -1167,6 +1175,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
         if (cancelled) return;
         syncUiFromSelection();
         syncDefinedNames();
+        if (truncationNotice) ui.toast(truncationNotice, true);
       }, 140);
     } catch (err) {
       console.error('Failed to initialize Univer:', err);
@@ -1422,6 +1431,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
         values,
         formulas,
         styles,
+        origin: { row: raw.startRow, column: raw.startColumn },
         cutSource: isCut
           ? {
               sheetId: ctx.fWorksheet.getSheetId(),
@@ -1455,13 +1465,19 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
         const srcCols = Math.max(1, ...clipboardBuf.values.map((r) => r.length));
         const outRows = mode === 'transpose' ? srcCols : srcRows;
         const outCols = mode === 'transpose' ? srcRows : srcCols;
+        const isMove = Boolean(clipboardBuf.cutSource) && (mode === 'all' || mode === 'transpose');
 
         for (let r = 0; r < outRows; r++) {
           for (let c = 0; c < outCols; c++) {
             const sr = mode === 'transpose' ? c : r;
             const sc = mode === 'transpose' ? r : c;
-            const targetCell = ctx.fWorksheet.getRange(dest.startRow + r, dest.startColumn + c, 1, 1);
-            const f = clipboardBuf.formulas[sr]?.[sc];
+            const targetRow = dest.startRow + r;
+            const targetColumn = dest.startColumn + c;
+            const targetCell = ctx.fWorksheet.getRange(targetRow, targetColumn, 1, 1);
+            const sourceFormula = clipboardBuf.formulas[sr]?.[sc];
+            const f = sourceFormula && !isMove
+              ? shiftFormulaReferences(sourceFormula, targetRow - (clipboardBuf.origin.row + sr), targetColumn - (clipboardBuf.origin.column + sc))
+              : sourceFormula;
             const v = clipboardBuf.values[sr]?.[sc];
             const st = clipboardBuf.styles[sr]?.[sc];
 
@@ -1482,9 +1498,15 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
 
         if (clipboardBuf.cutSource) {
           const cutSheet = ctx.fWorkbook.getSheetBySheetId(clipboardBuf.cutSource.sheetId);
-          if (cutSheet) {
+          if (cutSheet && isMove) {
             const { sr, sc, er, ec } = clipboardBuf.cutSource;
-            cutSheet.getRange(sr, sc, er - sr + 1, ec - sc + 1).clear();
+            const sameSheet = clipboardBuf.cutSource.sheetId === ctx.fWorksheet.getSheetId();
+            const pasted = { startRow: dest.startRow, endRow: dest.startRow + outRows - 1, startColumn: dest.startColumn, endColumn: dest.startColumn + outCols - 1 };
+            const source = { startRow: sr, endRow: er, startColumn: sc, endColumn: ec };
+            const toClear = sameSheet ? subtractRect(source, pasted) : [source];
+            for (const area of toClear) {
+              cutSheet.getRange(area.startRow, area.startColumn, area.endRow - area.startRow + 1, area.endColumn - area.startColumn + 1).clear();
+            }
           }
           setClipboardBuf((prev) => (prev ? { ...prev, cutSource: undefined } : null));
         }
@@ -2068,7 +2090,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
           for (let c = r.startColumn; c <= r.endColumn; c++) {
             const above = fWorksheet.getRange(r.startRow - 1, c, 1, 1);
             const f = above.getFormula();
-            fWorksheet.getRange(r.startRow, c, 1, 1).setValue(f || (above.getRawValue() as string | number | boolean) || '');
+            fWorksheet.getRange(r.startRow, c, 1, 1).setValue(f ? shiftFormulaReferences(f, 1, 0) : ((above.getRawValue() as string | number | boolean | null) ?? ''));
           }
         } else if (r.endRow > r.startRow) {
           const topRow = fWorksheet.getRange(r.startRow, r.startColumn, 1, r.endColumn - r.startColumn + 1);
@@ -2080,7 +2102,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
           for (let row = r.startRow; row <= r.endRow; row++) {
             const left = fWorksheet.getRange(row, r.startColumn - 1, 1, 1);
             const f = left.getFormula();
-            fWorksheet.getRange(row, r.startColumn, 1, 1).setValue(f || (left.getRawValue() as string | number | boolean) || '');
+            fWorksheet.getRange(row, r.startColumn, 1, 1).setValue(f ? shiftFormulaReferences(f, 0, 1) : ((left.getRawValue() as string | number | boolean | null) ?? ''));
           }
         } else if (r.endColumn > r.startColumn) {
           const leftCol = fWorksheet.getRange(r.startRow, r.startColumn, r.endRow - r.startRow + 1, 1);
@@ -2577,33 +2599,23 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
     if (!parsed) return;
     const rows = parsed.endRow - parsed.startRow + 1;
     const cols = parsed.endColumn - parsed.startColumn + 1;
-    const range = ctx.fWorksheet.getRange(parsed.startRow, parsed.startColumn, rows, cols);
-    const vals = range.getRawValues();
-    const seen = new Set<string>();
-    const uniqueRows: unknown[][] = [];
-    let removed = 0;
-    vals.forEach((row, idx) => {
-      if (idx === 0) {
-        uniqueRows.push(row);
-        return;
-      }
-      const key = JSON.stringify(row.map((v) => (v === null || v === undefined ? '' : String(v).trim())));
-      if (seen.has(key)) removed += 1;
-      else {
-        seen.add(key);
-        uniqueRows.push(row);
-      }
-    });
-    if (removed === 0) {
+    const vals = ctx.fWorksheet.getRange(parsed.startRow, parsed.startColumn, rows, cols).getRawValues();
+    const duplicates = findDuplicateRowIndexes(vals);
+    if (!duplicates.length) {
       ui.toast('Không phát hiện dòng dữ liệu trùng lặp nào');
       return;
     }
-    while (uniqueRows.length < rows) {
-      uniqueRows.push(Array.from({ length: cols }, () => ''));
+    try {
+      for (const run of groupDescendingRuns(duplicates)) {
+        ctx.fWorksheet.getRange(parsed.startRow + run.start, parsed.startColumn, run.count, cols).deleteCells(Dimension.ROWS);
+      }
+      ctx.fWorksheet.getRange(parsed.endRow - duplicates.length + 1, parsed.startColumn, duplicates.length, cols).insertCells(Dimension.ROWS);
+    } catch (err) {
+      ui.toast((err as Error).message || 'Không thể xoá dòng trùng lặp trong vùng này', true);
+      return;
     }
-    range.setValues(uniqueRows as (string | number | boolean)[][]);
     setSavedStatus('saving');
-    ui.toast(`Đã loại bỏ ${removed} dòng trùng lặp trong ${targetA1}`);
+    ui.toast(`Đã loại bỏ ${duplicates.length} dòng trùng lặp trong ${targetA1}`);
   };
 
   const handleApplyValidation = (input: ValidationRuleInput) => {
@@ -3522,9 +3534,13 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
     const activeId = ctx?.fWorksheet.getSheetId() ?? wb.sheetOrder[0];
     const sh = wb.sheets[activeId] ?? wb.sheets[wb.sheetOrder[0]];
     if (!sh) return;
-    const blob = ext === 'csv' ? exportSheetToCsv(sh, wb) : exportSheetToTsv(sh, wb);
-    downloadBlob(blob, `${stripSpreadsheetExt(title)}.${ext}`);
-    ui.toast(`Đã tải xuống "${stripSpreadsheetExt(title)}.${ext}"`);
+    try {
+      const blob = ext === 'csv' ? exportSheetToCsv(sh, wb) : exportSheetToTsv(sh, wb);
+      downloadBlob(blob, `${stripSpreadsheetExt(title)}.${ext}`);
+      ui.toast(`Đã tải xuống "${stripSpreadsheetExt(title)}.${ext}"`);
+    } catch (err) {
+      ui.toast((err as Error).message || `Không thể xuất tệp .${ext}`, true);
+    }
   };
 
   const handleExportJsonFile = () => {
@@ -3533,9 +3549,13 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
     const activeId = ctx?.fWorksheet.getSheetId() ?? wb.sheetOrder[0];
     const sh = wb.sheets[activeId] ?? wb.sheets[wb.sheetOrder[0]];
     if (!sh) return;
-    const blob = exportSheetToJson(sh, wb);
-    downloadBlob(blob, `${stripSpreadsheetExt(title)}.json`);
-    ui.toast(`Đã xuất dữ liệu JSON "${stripSpreadsheetExt(title)}.json"`);
+    try {
+      const blob = exportSheetToJson(sh, wb);
+      downloadBlob(blob, `${stripSpreadsheetExt(title)}.json`);
+      ui.toast(`Đã xuất dữ liệu JSON "${stripSpreadsheetExt(title)}.json"`);
+    } catch (err) {
+      ui.toast((err as Error).message || 'Không thể xuất tệp JSON', true);
+    }
   };
 
   const handleSplitSingle = async (sheetId: string) => {
@@ -3600,6 +3620,8 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
         const buf = await file.arrayBuffer();
         const parsedWb = await importSpreadsheet(buf, file.name);
         totalSheets += appendWorkbookSheetsIntoLive(parsedWb);
+        const notice = describeImportTruncation(parsedWb.importTruncation);
+        if (notice) ui.toast(`${file.name}: ${notice}`, true);
       }
       ui.toast(`Đã gộp thêm ${totalSheets} Sheet vào bảng tính hiện tại`);
     } catch (err) {
@@ -4046,8 +4068,13 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
     const sid = ctx?.fWorksheet.getSheetId() ?? wb.sheetOrder[0];
     const sh = wb.sheets[sid] ?? wb.sheets[wb.sheetOrder[0]];
     if (!sh) return;
-    const blob = exportSheetToTsv(sh, wb);
-    const text = await blob.text();
+    let text: string;
+    try {
+      text = await exportSheetToTsv(sh, wb).text();
+    } catch (err) {
+      ui.toast((err as Error).message || 'Kh\u00F4ng th\u1EC3 sao ch\u00E9p b\u1EA3ng', true);
+      return;
+    }
     const copied = await copyTextSafely(text.replace(/^\uFEFF/, ''));
     ui.toast(copied ? 'Đã sao chép toàn bộ bảng (TSV) vào Clipboard' : 'Trình duyệt chặn quyền ghi Clipboard, hãy dùng Xuất .tsv', !copied);
   };

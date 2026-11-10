@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
 import * as XLSX from 'xlsx';
-import type { CellStyle, CellValue, SheetData, WorkbookData } from './sheetTypes';
+import type { CellStyle, CellValue, ImportTruncation, SheetData, WorkbookData } from './sheetTypes';
 import { columnLetter, emptySheet, emptyWorkbook, uid } from './workbookBasics';
 
 export { columnLetter, emptySheet, emptyWorkbook, uid };
@@ -34,9 +34,28 @@ const applyTint = (hex: string, tint = 0) => {
   return tinted.map((channel) => Math.max(0, Math.min(255, channel)).toString(16).padStart(2, '0')).join('').toUpperCase();
 };
 
+export const normalizeHexColor = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') return undefined;
+  const hex = value.trim().replace(/^#/, '');
+  if (/^[0-9a-f]{8}$/i.test(hex)) return `#${hex.slice(2).toUpperCase()}`;
+  if (/^[0-9a-f]{6}$/i.test(hex)) return `#${hex.toUpperCase()}`;
+  if (/^[0-9a-f]{3}$/i.test(hex)) return `#${hex.split('').map((char) => char + char).join('').toUpperCase()}`;
+  return undefined;
+};
+
+const RGB_CHANNEL = String.raw`\s*\d{1,3}(?:\.\d+)?%?\s*`;
+const RGB_FUNCTION = new RegExp(String.raw`^rgba?\(${RGB_CHANNEL},${RGB_CHANNEL},${RGB_CHANNEL}(?:,\s*(?:0|1|0?\.\d+)\s*)?\)$`, 'i');
+
+export const safeCssColor = (value: unknown): string | undefined => {
+  const hex = normalizeHexColor(value);
+  if (hex) return hex;
+  if (typeof value === 'string' && RGB_FUNCTION.test(value.trim())) return value.trim();
+  return undefined;
+};
+
 const readColor = (color?: Partial<ExcelJS.Color> & { indexed?: number; tint?: number }) => {
   if (!color) return undefined;
-  if (color.argb) return `#${color.argb.length === 8 ? color.argb.slice(2) : color.argb}`;
+  if (color.argb) return normalizeHexColor(color.argb);
   if (color.theme !== undefined) return `#${applyTint(THEME_COLORS[color.theme] ?? '000000', color.tint)}`;
   if (color.indexed !== undefined && INDEXED_COLORS[color.indexed]) return `#${INDEXED_COLORS[color.indexed]}`;
   return undefined;
@@ -120,6 +139,51 @@ function valueFromExcel(cell: ExcelJS.Cell): CellValue | null {
   return { v: String(raw), t: 1 };
 }
 
+const MAX_EXPORT_CELLS = 5_000_000;
+const MAX_SAFE_DIGITS = 15;
+
+export const inferDelimitedValue = (text: string): CellValue => {
+  const trimmed = text.trim();
+  if (!trimmed) return { v: text, t: 1 };
+  const upper = trimmed.toUpperCase();
+  if (upper === 'TRUE' || upper === 'FALSE') return { v: upper === 'TRUE' ? 1 : 0, t: 3 };
+  if (!/^[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?$/.test(trimmed)) return { v: text, t: 1 };
+  if (/^[-+]?0\d/.test(trimmed) || /^[-+]?[1-9]\d{0,2}\.\d{3}$/.test(trimmed)) return { v: text, t: 1 };
+  if (trimmed.replace(/[eE].*$/, '').replace(/\D/g, '').replace(/^0+/, '').length > MAX_SAFE_DIGITS) return { v: text, t: 1 };
+  const value = Number(trimmed);
+  return Number.isFinite(value) ? { v: value, t: 2 } : { v: text, t: 1 };
+};
+
+const recordTruncation = (data: WorkbookData, entry: ImportTruncation) => {
+  if (entry.rows <= entry.keptRows && entry.columns <= entry.keptColumns) return;
+  (data.importTruncation ??= []).push(entry);
+};
+
+export const describeImportTruncation = (entries?: ImportTruncation[]): string | null => {
+  if (!entries?.length) return null;
+  const parts = entries.map((entry) => {
+    const dims: string[] = [];
+    if (entry.rows > entry.keptRows) dims.push(`${entry.keptRows.toLocaleString('vi-VN')}/${entry.rows.toLocaleString('vi-VN')} dòng`);
+    if (entry.columns > entry.keptColumns) dims.push(`${entry.keptColumns.toLocaleString('vi-VN')}/${entry.columns.toLocaleString('vi-VN')} cột`);
+    return `"${entry.sheet}" (${dims.join(', ')})`;
+  });
+  return `Tệp vượt giới hạn nạp, phần dữ liệu thừa KHÔNG được nạp: ${parts.join('; ')}. Lưu lại sẽ mất phần này.`;
+};
+
+const sheetJsContentExtent =(worksheet: XLSX.WorkSheet) => {
+  let rows = 0;
+  let columns = 0;
+  for (const key of Object.keys(worksheet)) {
+    if (key.startsWith('!')) continue;
+    const cell = worksheet[key] as XLSX.CellObject | undefined;
+    if (!cell || (cell.v === undefined && !cell.f)) continue;
+    const address = XLSX.utils.decode_cell(key);
+    rows = Math.max(rows, address.r + 1);
+    columns = Math.max(columns, address.c + 1);
+  }
+  return { rows, columns };
+};
+
 async function excelJsToWorkbook(buffer: ArrayBuffer, name: string): Promise<WorkbookData> {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer);
@@ -143,7 +207,17 @@ async function excelJsToWorkbook(buffer: ArrayBuffer, name: string): Promise<Wor
     if (worksheet.state && worksheet.state !== 'visible') sheet.hidden = 1;
     const tab = readColor(worksheet.properties?.tabColor as ExcelJS.Color | undefined);
     if (tab) sheet.tabColor = tab;
+    let contentRows = 0;
+    let contentColumns = 0;
     worksheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
+      if (row.hasValues) {
+        contentRows = Math.max(contentRows, rowNumber);
+        if (row.cellCount > colLimit) {
+          row.eachCell((cell, colNumber) => {
+            if (cell.value !== null && cell.value !== undefined) contentColumns = Math.max(contentColumns, colNumber);
+          });
+        }
+      }
       if (rowNumber > rowLimit) return;
       const r = rowNumber - 1;
       if (row.height) sheet.rowData[r] = { ...(sheet.rowData[r] ?? {}), h: Math.round(row.height * 4 / 3) };
@@ -181,6 +255,7 @@ async function excelJsToWorkbook(buffer: ArrayBuffer, name: string): Promise<Wor
       if (view.showGridLines === false) sheet.showGridlines = 0;
       if (view.zoomScale) sheet.zoomRatio = view.zoomScale / 100;
     }
+    recordTruncation(data, { sheet: worksheet.name, rows: contentRows, columns: contentColumns, keptRows: rowLimit, keptColumns: colLimit });
     data.sheetOrder.push(sheet.id);
     data.sheets[sheet.id] = sheet;
   });
@@ -191,12 +266,17 @@ async function excelJsToWorkbook(buffer: ArrayBuffer, name: string): Promise<Wor
 function sheetJsToWorkbook(buffer: ArrayBuffer, name: string, csv = false): WorkbookData {
   const workbook = XLSX.read(buffer, { type: 'array', cellFormula: true, cellNF: true, cellDates: false, cellStyles: true, raw: false, codepage: 65001, ...(csv ? { raw: true } : {}) });
   const data: WorkbookData = { id: uid('wb'), name, appVersion: '0.1.0', locale: 'viVN', styles: {}, sheetOrder: [], sheets: {} };
+  const formatStyleIds = new Map<string, string>();
   for (const sheetName of workbook.SheetNames) {
     const worksheet = workbook.Sheets[sheetName];
     const range = worksheet['!ref'] ? XLSX.utils.decode_range(worksheet['!ref']) : { s: { r: 0, c: 0 }, e: { r: 0, c: 0 } };
     const rowLimit = Math.min(range.e.r + 1, MAX_IMPORT_ROWS);
     const colLimit = Math.min(range.e.c + 1, MAX_IMPORT_COLS);
     const sheet = emptySheet(sheetName, Math.max(rowLimit + 50, 1000), Math.max(colLimit + 5, 26));
+    if (range.e.r + 1 > rowLimit || range.e.c + 1 > colLimit) {
+      const extent = sheetJsContentExtent(worksheet);
+      recordTruncation(data, { sheet: sheetName, rows: extent.rows, columns: extent.columns, keptRows: rowLimit, keptColumns: colLimit });
+    }
     for (let r = range.s.r; r < rowLimit; r++) {
       for (let c = range.s.c; c < colLimit; c++) {
         const cell = worksheet[XLSX.utils.encode_cell({ r, c })] as XLSX.CellObject | undefined;
@@ -207,10 +287,16 @@ function sheetJsToWorkbook(buffer: ArrayBuffer, name: string, csv = false): Work
         else if (cell.t === 'b') { entry.v = cell.v ? 1 : 0; entry.t = 3; }
         else if (cell.t === 'd') { entry.v = dateToSerial(cell.v as Date); entry.t = 2; }
         else if (cell.t === 'e') entry.v = cell.w ?? '#ERROR!';
+        else if (csv && cell.t === 's' && !cell.f && typeof cell.v === 'string') Object.assign(entry, inferDelimitedValue(cell.v));
         else if (cell.v !== undefined) { entry.v = String(cell.v); entry.t = 1; }
         if (cell.z && cell.z !== 'General') {
-          const id = `n${Object.keys(data.styles).length + 1}`;
-          data.styles[id] = { n: { pattern: String(cell.z) } };
+          const pattern = String(cell.z);
+          let id = formatStyleIds.get(pattern);
+          if (!id) {
+            id = `n${formatStyleIds.size + 1}`;
+            formatStyleIds.set(pattern, id);
+            data.styles[id] = { n: { pattern } };
+          }
           entry.s = id;
         }
         (sheet.cellData[r] ??= {})[c] = entry;
@@ -353,15 +439,130 @@ export async function exportWorkbookToXlsx(data: WorkbookData): Promise<Blob> {
   return new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
 
-const serialToDateString = (serial: number, pattern: string) => {
-  const utcMs = EXCEL_EPOCH + Math.round(serial * 86400000);
-  const date = new Date(utcMs);
+const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTH_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DAY_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+type DateToken = { kind: 'literal'; text: string } | { kind: 'part'; text: string };
+
+const DATE_PART = /^(\[h+\]|\[m+\]|\[s+\]|y+|m+|d+|h+|s+|AM\/PM|A\/P|\.0+)/i;
+
+const firstSection = (pattern: string) => {
+  let quoted = false;
+  for (let i = 0; i < pattern.length; i++) {
+    const char = pattern[i];
+    if (char === '\\') i++;
+    else if (char === '"') quoted = !quoted;
+    else if (char === ';' && !quoted) return pattern.slice(0, i);
+  }
+  return pattern;
+};
+
+const tokenizeDatePattern = (pattern: string): DateToken[] => {
+  const tokens: DateToken[] = [];
+  const source = firstSection(pattern);
+  let i = 0;
+  while (i < source.length) {
+    const char = source[i];
+    if (char === '"') {
+      const close = source.indexOf('"', i + 1);
+      const stop = close === -1 ? source.length : close;
+      tokens.push({ kind: 'literal', text: source.slice(i + 1, stop) });
+      i = stop + 1;
+      continue;
+    }
+    if (char === '\\') {
+      tokens.push({ kind: 'literal', text: source[i + 1] ?? '' });
+      i += 2;
+      continue;
+    }
+    if (char === '_' || char === '*') {
+      i += 2;
+      continue;
+    }
+    const part = DATE_PART.exec(source.slice(i));
+    if (part) {
+      tokens.push({ kind: 'part', text: part[0] });
+      i += part[0].length;
+      continue;
+    }
+    if (char === '[') {
+      const close = source.indexOf(']', i);
+      i = close === -1 ? source.length : close + 1;
+      continue;
+    }
+    tokens.push({ kind: 'literal', text: char });
+    i++;
+  }
+  return tokens;
+};
+
+export const isDateTimePattern = (pattern: string) => {
+  const tokens = tokenizeDatePattern(pattern);
+  const parts = tokens.filter((token) => token.kind === 'part' && !token.text.startsWith('.'));
+  if (!parts.length) return false;
+  return !tokens.some((token) => token.kind === 'literal' && /[#0?]/.test(token.text));
+};
+
+const isMinuteToken = (tokens: DateToken[], index: number) => {
+  const parts = tokens.map((token, i) => ({ token, i })).filter(({ token }) => token.kind === 'part' && !/^(AM\/PM|A\/P|\.0+)$/i.test(token.text));
+  const position = parts.findIndex(({ i }) => i === index);
+  const previous = parts[position - 1]?.token.text.toLowerCase() ?? '';
+  const next = parts[position + 1]?.token.text.toLowerCase() ?? '';
+  return previous.replace(/[[\]]/g, '').startsWith('h') || next.replace(/[[\]]/g, '').startsWith('s');
+};
+
+export const formatSerialDateTime = (serial: number, pattern: string): string => {
+  const tokens = tokenizeDatePattern(pattern);
+  const fractionDigits = tokens.find((token) => token.kind === 'part' && token.text.startsWith('.'))?.text.length ?? 1;
+  const precision = 10 ** Math.max(0, fractionDigits - 1);
+  const totalUnits = Math.round(serial * 86400 * precision);
+  const totalSeconds = Math.floor(totalUnits / precision);
+  const fraction = totalUnits - totalSeconds * precision;
+  const days = Math.floor(totalSeconds / 86400);
+  const secondsOfDay = totalSeconds - days * 86400;
+  const date = new Date(EXCEL_EPOCH + days * 86400000);
   if (Number.isNaN(date.getTime())) return String(serial);
-  const dd = String(date.getUTCDate()).padStart(2, '0');
-  const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
-  const yyyy = String(date.getUTCFullYear());
-  if (/yyyy[-/]mm[-/]dd/i.test(pattern)) return `${yyyy}-${mm}-${dd}`;
-  return `${dd}/${mm}/${yyyy}`;
+  const hour = Math.floor(secondsOfDay / 3600);
+  const minute = Math.floor((secondsOfDay % 3600) / 60);
+  const second = secondsOfDay % 60;
+  const twelveHour = tokens.some((token) => token.kind === 'part' && /^(AM\/PM|A\/P)$/i.test(token.text));
+  const pad = (value: number, width: number) => String(value).padStart(width, '0');
+  return tokens
+    .map((token, index) => {
+      if (token.kind === 'literal') return token.text;
+      const text = token.text;
+      const lower = text.toLowerCase();
+      if (/^\[h+\]$/.test(lower)) return pad(Math.floor(totalSeconds / 3600), lower.length - 2);
+      if (/^\[m+\]$/.test(lower)) return pad(Math.floor(totalSeconds / 60), lower.length - 2);
+      if (/^\[s+\]$/.test(lower)) return pad(totalSeconds, lower.length - 2);
+      if (lower === 'am/pm') return hour < 12 ? (text === text.toLowerCase() ? 'am' : 'AM') : text === text.toLowerCase() ? 'pm' : 'PM';
+      if (lower === 'a/p') return hour < 12 ? text[0] : text[2];
+      if (lower.startsWith('.')) return fractionDigits > 1 ? `.${pad(fraction, fractionDigits - 1)}` : '';
+      if (lower.startsWith('y')) return lower.length <= 2 ? pad(date.getUTCFullYear() % 100, 2) : String(date.getUTCFullYear());
+      if (lower.startsWith('d')) {
+        if (lower.length === 1) return String(date.getUTCDate());
+        if (lower.length === 2) return pad(date.getUTCDate(), 2);
+        return lower.length === 3 ? DAY_SHORT[date.getUTCDay()] : DAY_LONG[date.getUTCDay()];
+      }
+      if (lower.startsWith('h')) {
+        const shown = twelveHour ? hour % 12 || 12 : hour;
+        return lower.length === 1 ? String(shown) : pad(shown, 2);
+      }
+      if (lower.startsWith('s')) return lower.length === 1 ? String(second) : pad(second, 2);
+      if (lower.startsWith('m')) {
+        if (lower.length <= 2 && isMinuteToken(tokens, index)) return lower.length === 1 ? String(minute) : pad(minute, 2);
+        const month = date.getUTCMonth();
+        if (lower.length === 1) return String(month + 1);
+        if (lower.length === 2) return pad(month + 1, 2);
+        if (lower.length === 3) return MONTH_SHORT[month];
+        if (lower.length === 5) return MONTH_LONG[month][0];
+        return MONTH_LONG[month];
+      }
+      return text;
+    })
+    .join('');
 };
 
 export const formatCellDisplay = (workbook: WorkbookData | undefined, cell?: CellValue): string => {
@@ -376,9 +577,7 @@ export const formatCellDisplay = (workbook: WorkbookData | undefined, cell?: Cel
       const decimals = decMatch ? decMatch[1].length : 0;
       return `${(cell.v * 100).toFixed(decimals)}%`;
     }
-    if (/[dmy]/i.test(pattern) && !/[#0]/.test(pattern.replace(/[dmy/\-\s:]/gi, ''))) {
-      return serialToDateString(cell.v, pattern);
-    }
+    if (isDateTimePattern(pattern)) return formatSerialDateTime(cell.v, pattern);
     const decMatch = /0\.(0+)/.exec(pattern);
     const decimals = decMatch ? decMatch[1].length : 0;
     const useGrouping = pattern.includes(',');
@@ -394,6 +593,21 @@ export const formatCellDisplay = (workbook: WorkbookData | undefined, cell?: Cel
   }
   if (cell.t === 3) return cell.v ? 'TRUE' : 'FALSE';
   return String(cell.v);
+};
+
+export class ExportTooLargeError extends Error {
+  constructor(rows: number, columns: number) {
+    super(`Trang tính quá lớn để xuất (${rows.toLocaleString('vi-VN')} dòng × ${columns.toLocaleString('vi-VN')} cột). Hãy chọn vùng nhỏ hơn hoặc xuất .xlsx.`);
+    this.name = 'ExportTooLargeError';
+  }
+}
+
+const getExportBounds = (sheet: SheetData) => {
+  const bounds = getSheetBounds(sheet, Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY);
+  const rows = bounds.maxRow + 1;
+  const columns = bounds.maxCol + 1;
+  if (rows * columns > MAX_EXPORT_CELLS) throw new ExportTooLargeError(rows, columns);
+  return bounds;
 };
 
 const getSheetBounds = (sheet: SheetData, maxRowCap = 2000, maxColCap = 200) => {
@@ -421,7 +635,7 @@ const getSheetBounds = (sheet: SheetData, maxRowCap = 2000, maxColCap = 200) => 
 };
 
 export function exportSheetToCsv(sheet: SheetData, workbook?: WorkbookData): Blob {
-  const { maxRow, maxCol } = getSheetBounds(sheet, MAX_IMPORT_ROWS, MAX_IMPORT_COLS);
+  const { maxRow, maxCol } = getExportBounds(sheet);
   const lines: string[] = [];
   for (let r = 0; r <= maxRow; r++) {
     const values: string[] = [];
@@ -435,7 +649,7 @@ export function exportSheetToCsv(sheet: SheetData, workbook?: WorkbookData): Blo
 }
 
 export function exportSheetToTsv(sheet: SheetData, workbook?: WorkbookData): Blob {
-  const { maxRow, maxCol } = getSheetBounds(sheet, MAX_IMPORT_ROWS, MAX_IMPORT_COLS);
+  const { maxRow, maxCol } = getExportBounds(sheet);
   const lines: string[] = [];
   for (let r = 0; r <= maxRow; r++) {
     const values: string[] = [];
@@ -449,7 +663,7 @@ export function exportSheetToTsv(sheet: SheetData, workbook?: WorkbookData): Blo
 }
 
 export function exportSheetToJson(sheet: SheetData, workbook?: WorkbookData): Blob {
-  const { maxRow, maxCol } = getSheetBounds(sheet, MAX_IMPORT_ROWS, MAX_IMPORT_COLS);
+  const { maxRow, maxCol } = getExportBounds(sheet);
   if (maxRow < 0 || maxCol < 0) {
     return new Blob([JSON.stringify([], null, 2)], { type: 'application/json;charset=utf-8' });
   }
@@ -523,9 +737,19 @@ export type StyledHtmlOptions = {
   standalone?: boolean;
 };
 
+const escapeHtmlText = (text: string) =>
+  text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
+
+const safeFontFamily = (value: unknown) =>
+  typeof value === 'string' ? value.replace(/[^\p{L}\p{N} _-]/gu, '').trim().slice(0, 80) : '';
+
+const finiteNumber = (value: unknown, fallback: number) => {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+};
+
 export function exportSheetToStyledHtml(workbook: WorkbookData, sheet: SheetData, options: StyledHtmlOptions = {}): string {
-  const escape = (text: string) =>
-    text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
+  const escape = escapeHtmlText;
   const area = parsePrintArea(options.printArea);
   const detected = getSheetBounds(sheet, MAX_IMPORT_ROWS, MAX_IMPORT_COLS);
   const startRow = area ? area.startRow : 0;
@@ -553,14 +777,14 @@ export function exportSheetToStyledHtml(workbook: WorkbookData, sheet: SheetData
   const colGroup: string[] = [];
   for (let c = startCol; c <= endCol; c++) {
     if (sheet.columnData?.[c]?.hd) continue;
-    const w = sheet.columnData?.[c]?.w ?? sheet.defaultColumnWidth ?? 100;
+    const w = finiteNumber(sheet.columnData?.[c]?.w ?? sheet.defaultColumnWidth, 100);
     colGroup.push(`<col style="width:${Math.max(40, w)}px" />`);
   }
 
   const rowsHtml: string[] = [];
   for (let r = startRow; r <= endRow; r++) {
     if (sheet.rowData?.[r]?.hd) continue;
-    const h = sheet.rowData?.[r]?.h ?? sheet.defaultRowHeight ?? 26;
+    const h = finiteNumber(sheet.rowData?.[r]?.h ?? sheet.defaultRowHeight, 26);
     const cellsHtml: string[] = [];
     for (let c = startCol; c <= endCol; c++) {
       if (sheet.columnData?.[c]?.hd) continue;
@@ -571,16 +795,19 @@ export function exportSheetToStyledHtml(workbook: WorkbookData, sheet: SheetData
       const style = resolveStyle(workbook, cell?.s);
       const css: string[] = [];
       css.push(`padding:6px 10px`);
-      css.push(`font-family:${style?.ff ? `'${escape(style.ff)}',sans-serif` : `'Segoe UI',Arial,sans-serif`}`);
-      css.push(`font-size:${style?.fs ?? 11}pt`);
+      const family = safeFontFamily(style?.ff);
+      css.push(`font-family:${family ? `'${family}',sans-serif` : `'Segoe UI',Arial,sans-serif`}`);
+      css.push(`font-size:${Math.max(1, Math.min(409, finiteNumber(style?.fs, 11)))}pt`);
       if (style?.bl) css.push('font-weight:700');
       if (style?.it) css.push('font-style:italic');
       const decorations: string[] = [];
       if (style?.ul?.s) decorations.push('underline');
       if (style?.st?.s) decorations.push('line-through');
       if (decorations.length) css.push(`text-decoration:${decorations.join(' ')}`);
-      if (style?.cl?.rgb) css.push(`color:${style.cl.rgb}`);
-      if (style?.bg?.rgb) css.push(`background:${style.bg.rgb}`);
+      const textColor = safeCssColor(style?.cl?.rgb);
+      const fillColor = safeCssColor(style?.bg?.rgb);
+      if (textColor) css.push(`color:${textColor}`);
+      if (fillColor) css.push(`background:${fillColor}`);
       const isNum = typeof cell?.v === 'number';
       const hAlign = style?.ht === 2 ? 'center' : style?.ht === 3 ? 'right' : style?.ht === 1 ? 'left' : isNum ? 'right' : 'left';
       const vAlign = style?.vt === 1 ? 'top' : style?.vt === 3 ? 'bottom' : 'middle';
@@ -592,7 +819,7 @@ export function exportSheetToStyledHtml(workbook: WorkbookData, sheet: SheetData
         if (!side || !side.s) return borderDefault;
         const width = side.s === 13 ? '2.5px' : side.s === 8 ? '1.75px' : side.s === 7 ? '3px' : '1px';
         const line = side.s === 7 ? 'double' : side.s === 3 ? 'dotted' : side.s === 4 ? 'dashed' : 'solid';
-        return `${width} ${line} ${side.cl?.rgb ?? '#0f172a'}`;
+        return `${width} ${line} ${safeCssColor(side.cl?.rgb) ?? '#0f172a'}`;
       };
       css.push(`border-top:${sideBorder(style?.bd?.t)}`);
       css.push(`border-bottom:${sideBorder(style?.bd?.b)}`);
@@ -601,7 +828,7 @@ export function exportSheetToStyledHtml(workbook: WorkbookData, sheet: SheetData
       const attrs: string[] = [];
       if (span && span.rowSpan > 1) attrs.push(`rowspan="${span.rowSpan}"`);
       if (span && span.colSpan > 1) attrs.push(`colspan="${span.colSpan}"`);
-      attrs.push(`style="${css.join(';')}"`);
+      attrs.push(`style="${escape(css.join(';'))}"`);
       const text = escape(formatCellDisplay(workbook, cell));
       cellsHtml.push(`<td ${attrs.join(' ')}>${text || '&nbsp;'}</td>`);
     }

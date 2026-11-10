@@ -384,21 +384,58 @@ async function readText(zip: JSZip, path: string) {
   return file ? file.async('string') : null;
 }
 
+export type RegionRunToken = { fldChar?: 'begin' | 'separate' | 'end'; instr?: string; text?: string; tab?: boolean; inPageField?: boolean };
+
+const PAGE_FIELD = /^\s*(PAGE|NUMPAGES|SECTIONPAGES)\b/i;
+
+export function regionLineFromRuns(runs: RegionRunToken[]): string {
+  let line = '';
+  const stack: { instr: string; result: boolean }[] = [];
+  const hiddenByField = () => stack.some((field) => field.result && PAGE_FIELD.test(field.instr));
+  for (const run of runs) {
+    if (run.fldChar === 'begin') stack.push({ instr: '', result: false });
+    else if (run.fldChar === 'separate') {
+      const top = stack[stack.length - 1];
+      if (top) top.result = true;
+    } else if (run.fldChar === 'end') stack.pop();
+    if (run.instr !== undefined) {
+      const top = stack[stack.length - 1];
+      if (top && !top.result) top.instr += run.instr;
+    }
+    const inInstruction = stack.length > 0 && !stack[stack.length - 1].result;
+    if (run.text !== undefined && !inInstruction && !hiddenByField() && !run.inPageField) line += run.text;
+    if (run.tab && !inInstruction) line += '\t';
+  }
+  return line;
+}
+
+const isPageSimpleField = (run: Element) => {
+  let node = run.parentElement;
+  while (node && node.localName !== 'p') {
+    if (node.localName === 'fldSimple' && PAGE_FIELD.test(attr(node, 'instr') ?? '')) return true;
+    node = node.parentElement;
+  }
+  return false;
+};
+
+const runToken = (run: Element): RegionRunToken => {
+  const token: RegionRunToken = {};
+  const fldChar = child(run, 'fldChar');
+  const type = attr(fldChar, 'fldCharType');
+  if (type === 'begin' || type === 'separate' || type === 'end') token.fldChar = type;
+  const instr = child(run, 'instrText');
+  if (instr) token.instr = instr.textContent ?? '';
+  const text = child(run, 't');
+  if (text) token.text = text.textContent ?? '';
+  if (child(run, 'tab')) token.tab = true;
+  if (isPageSimpleField(run)) token.inPageField = true;
+  return token;
+};
+
 function regionText(xml: string | null) {
   if (!xml) return { text: '', hasPage: false };
   const doc = parseXml(xml);
-  const lines = NS_LOCAL(doc, 'p').map((p) => {
-    let line = '';
-    let field = false;
-    NS_LOCAL(p, 'r').forEach((run) => {
-      const instr = child(run, 'instrText');
-      if (instr) field = /PAGE/.test(instr.textContent ?? '');
-      const text = child(run, 't');
-      if (text) line += field ? '' : text.textContent ?? '';
-      if (child(run, 'tab')) line += '\t';
-    });
-    return line.trim();
-  }).filter(Boolean);
+  const lines = NS_LOCAL(doc, 'p').map((p) => regionLineFromRuns(NS_LOCAL(p, 'r').map(runToken)).trim()).filter(Boolean);
   const hasPage = NS_LOCAL(doc, 'instrText').some((el) => /PAGE/.test(el.textContent ?? '')) || NS_LOCAL(doc, 'fldSimple').some((el) => /PAGE/.test(attr(el, 'instr') ?? ''));
   return { text: lines.join(' '), hasPage };
 }
