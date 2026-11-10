@@ -64,6 +64,8 @@
 .mp-notice { display: flex; flex-direction: column; gap: var(--mp-gap-1); padding: 12px var(--mp-gap-2); border-radius: 8px; background: #eef4ff; color: #1f3f7a; font-size: 12px; }
 .mp-notice strong { font-size: 13px; }
 .mp-notice .btn { align-self: flex-start; }
+.mp-notice.is-ok { background: #e8f5ec; color: #17542c; }
+.mp-notice.is-error { background: #fdecea; color: #8a1c14; }
 
 .mp-card-wrap { position: relative; }
 .mp-card {
@@ -127,6 +129,16 @@
 
 .mp-group { display: flex; flex-direction: column; gap: var(--mp-gap-2); }
 .mp-group h3 { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.mp-group-head { display: flex; align-items: center; gap: var(--mp-gap-1); min-width: 0; }
+.mp-group-head h3 { flex: none; }
+.mp-group-meta { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--ink-secondary); }
+.mp-refresh { flex: none; margin-left: auto; margin-block: -8px; }
+.mp-refresh:disabled { cursor: progress; }
+.mp-printer-icon { position: relative; display: inline-grid; place-items: center; }
+.mp-printer-icon::after { content: ''; position: absolute; right: -4px; bottom: -4px; width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 0 2px #fff; background: transparent; }
+.mp-printer-icon.tone-ok::after { background: #1e8e3e; }
+.mp-printer-icon.tone-warn::after { background: #e37400; }
+.mp-printer-icon.tone-bad::after { background: #d93025; }
 
 .mp-field { display: flex; flex-direction: column; gap: var(--mp-gap-1); min-width: 0; }
 .mp-field > span { font-size: 12px; font-weight: 600; color: var(--ink-secondary); }
