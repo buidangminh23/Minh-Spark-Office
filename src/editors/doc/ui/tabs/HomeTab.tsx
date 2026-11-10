@@ -1,4 +1,4 @@
-import { AlignCenter, AlignJustify, AlignLeft, AlignRight, Bold, ClipboardPaste, Copy, Eraser, Highlighter, Indent, Italic, List, ListOrdered, ListTodo, Mic, MicOff, Outdent, Paintbrush, Pilcrow, Quote, Replace, Scissors, Search, Sparkles, Strikethrough, Subscript, Superscript, TextSelect, Type, Underline, ArrowDownAZ, Code, Volume2, VolumeX, Baseline, PaintBucket, CaseSensitive, ChevronDown, Pencil, Plus, RefreshCw } from 'lucide-react';
+import { AlignCenter, AlignJustify, AlignLeft, AlignRight, Bold, ClipboardPaste, Copy, Eraser, Highlighter, Indent, Italic, List, ListOrdered, ListTodo, Mic, MicOff, Outdent, Paintbrush, Pilcrow, Quote, Replace, Scissors, Search, Sparkles, Strikethrough, Subscript, Superscript, TextSelect, Type, Underline, ArrowDownAZ, Code, Volume2, VolumeX, Baseline, PaintBucket, CaseSensitive, ChevronDown, Pencil, Plus, Redo2, RefreshCw, Undo2 } from 'lucide-react';
 import { useDoc } from '../../DocContext';
 import type { FormatState } from '../../useFormatState';
 import { FONT_SIZES } from '../../extensions';
@@ -39,6 +39,13 @@ export default function HomeTab({ fmt }: { fmt: FormatState }) {
   };
   return (
     <>
+      <Group label="Hoàn tác">
+        <Rows>
+          <Small icon={<Undo2 size={14} color="#2b579a" />} label="Hoàn tác" title="Hoàn tác thao tác vừa làm (Ctrl+Z)" disabled={!fmt.canUndo} onClick={() => chain().undo().run()} />
+          <Small icon={<Redo2 size={14} color="#2b579a" />} label="Làm lại" title="Làm lại thao tác vừa hoàn tác (Ctrl+Y)" disabled={!fmt.canRedo} onClick={() => chain().redo().run()} />
+        </Rows>
+      </Group>
+
       <Group label="Clipboard">
         <Dropdown large title="Dán (Ctrl+V)" trigger={<><ClipboardPaste size={22} color="#2b579a" /><span>Dán</span></>}>
           {(close) => (
