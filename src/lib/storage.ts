@@ -1,4 +1,4 @@
-import { createStore, del, get, set, update, promisifyRequest, type UseStore } from 'idb-keyval';
+import { createStore, get, set, update, promisifyRequest, type UseStore } from 'idb-keyval';
 import { createContext, useContext } from 'react';
 import type { JSONContent } from '@tiptap/react';
 import type { WorkbookData } from './sheetTypes';
@@ -219,10 +219,6 @@ function createPersistentStorage(store: UseStore) {
     return (await get<FileMeta[]>(INDEX_KEY, store)) ?? [];
   }
 
-  async function writeIndex(files: FileMeta[]) {
-    await set(INDEX_KEY, files, store);
-  }
-
   async function loadContent(id: string) {
     return get<FileContent>(contentKey(id), store);
   }
@@ -242,18 +238,29 @@ function createPersistentStorage(store: UseStore) {
 
   async function updateMeta(id: string, patch: Partial<FileMeta>) {
     patch = structuredClone(patch);
-    const files = await listFiles();
-    const index = files.findIndex((file) => file.id === id);
-    if (index < 0) return null;
-    files[index] = { ...files[index], ...patch };
-    await writeIndex(files);
-    return files[index];
+    let updated: FileMeta | null = null;
+    await update<FileMeta[]>(INDEX_KEY, (current = []) => {
+      const index = current.findIndex((file) => file.id === id);
+      if (index < 0) { updated = null; return current; }
+      const files = [...current];
+      files[index] = { ...files[index], ...patch };
+      updated = files[index];
+      return files;
+    }, store);
+    return updated as FileMeta | null;
   }
 
   async function removeFile(id: string) {
-    await del(contentKey(id), store);
-    await del(versionsKey(id), store);
-    await writeIndex((await listFiles()).filter((file) => file.id !== id));
+    await store('readwrite', (target) => {
+      target.delete(contentKey(id));
+      target.delete(versionsKey(id));
+      const request = target.get(INDEX_KEY);
+      request.onsuccess = () => {
+        const files: FileMeta[] = request.result ?? [];
+        target.put(files.filter((file) => file.id !== id), INDEX_KEY);
+      };
+      return promisifyRequest(target.transaction);
+    });
   }
 
   async function listVersions(fileId: string): Promise<FileVersion[]> {
@@ -328,18 +335,25 @@ function createPersistentStorage(store: UseStore) {
   async function importBackup(payload: unknown) {
     const data = structuredClone(payload) as { format?: string; files?: FileMeta[]; contents?: Record<string, FileContent> };
     if (data?.format !== 'minh-office-backup' || !Array.isArray(data.files)) throw new Error('Tệp sao lưu không hợp lệ.');
-    const existing = await listFiles();
-    const ids = new Set(existing.map((file) => file.id));
     let count = 0;
-    for (const file of data.files) {
-      const content = data.contents?.[file.id];
-      if (!content || ids.has(file.id)) continue;
-      await set(contentKey(file.id), content, store);
-      existing.push(file);
-      ids.add(file.id);
-      count++;
-    }
-    await writeIndex(existing);
+    await store('readwrite', (target) => {
+      const request = target.get(INDEX_KEY);
+      request.onsuccess = () => {
+        const existing: FileMeta[] = request.result ?? [];
+        const ids = new Set(existing.map((file) => file.id));
+        count = 0;
+        for (const file of data.files!) {
+          const content = data.contents?.[file.id];
+          if (!content || ids.has(file.id)) continue;
+          target.put(content, contentKey(file.id));
+          existing.push(file);
+          ids.add(file.id);
+          count++;
+        }
+        target.put(existing, INDEX_KEY);
+      };
+      return promisifyRequest(target.transaction);
+    });
     return count;
   }
 
