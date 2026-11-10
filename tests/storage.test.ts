@@ -242,3 +242,129 @@ test('updateMeta returns null for missing files without touching the index', asy
   assert.equal(await storage.updateMeta('absent', { name: 'nope' }), null);
   assert.deepEqual((await storage.listFiles()).map((file) => file.id), ['present']);
 });
+
+test('backup roundtrip preserves complete history and never overwrites colliding files', async () => {
+  const source = createWorkspaceStorage('history-backup-source');
+  await source.saveFile(meta('archived'), content('latest'));
+  const first = await source.saveVersion('archived', content('first'), 'First revision');
+  const second = await source.saveVersion('archived', content('second'), 'Second revision');
+  const backup = JSON.parse(JSON.stringify(await source.exportBackup()));
+  const target = createWorkspaceStorage('history-backup-target');
+  assert.equal(await target.importBackup(backup), 1);
+  assert.deepEqual(await target.loadContent('archived'), content('latest'));
+  assert.deepEqual(await target.listVersions('archived'), [second, first]);
+  assert.deepEqual(await target.restoreVersion('archived', first.id), content('first'));
+  const local = await target.saveVersion('archived', content('local revision'));
+  assert.equal(await target.importBackup(backup), 0);
+  assert.deepEqual(await target.loadContent('archived'), content('first'));
+  assert.deepEqual(await target.listVersions('archived'), [local, second, first]);
+  assert.deepEqual(await source.loadContent('archived'), content('latest'));
+});
+
+test('legacy backup without history still restores with an empty version list', async () => {
+  const target = createWorkspaceStorage('legacy-history-backup');
+  const backup = { format: 'minh-office-backup', version: 2, files: [meta('legacy')], contents: { legacy: content('old backup') } };
+  assert.equal(await target.importBackup(backup), 1);
+  assert.deepEqual(await target.listVersions('legacy'), []);
+  assert.deepEqual(await target.loadContent('legacy'), content('old backup'));
+});
+
+test('concurrent snapshot saves across two workspace instances retain every successful save', async () => {
+  const first = createWorkspaceStorage('history-concurrency');
+  const second = createWorkspaceStorage('history-concurrency');
+  await first.saveFile(meta('shared'), content('latest'));
+  const saved = await Promise.all(Array.from({ length: 12 }, (_, index) =>
+    (index % 2 ? first : second).saveVersion('shared', content(`revision ${index}`), `Revision ${index}`),
+  ));
+  const actual = await first.listVersions('shared');
+  assert.equal(actual.length, saved.length);
+  assert.deepEqual(new Set(actual.map((version) => version.id)), new Set(saved.map((version) => version.id)));
+});
+
+test('concurrent snapshot append and delete neither resurrect deleted history nor drop new history', async () => {
+  const first = createWorkspaceStorage('history-delete-concurrency');
+  const second = createWorkspaceStorage('history-delete-concurrency');
+  await first.saveFile(meta('shared'), content('latest'));
+  const removed = await first.saveVersion('shared', content('removed'));
+  const retained = await first.saveVersion('shared', content('retained'));
+  await second.listVersions('shared');
+  const [added] = await Promise.all([
+    first.saveVersion('shared', content('added')),
+    second.deleteVersion('shared', removed.id),
+  ]);
+  assert.deepEqual(new Set((await first.listVersions('shared')).map((version) => version.id)), new Set([added.id, retained.id]));
+});
+
+test('snapshot history retains its 30-version limit after concurrent saves', async () => {
+  const workspace = createWorkspaceStorage('history-limit');
+  await workspace.saveFile(meta('bounded'), content('latest'));
+  await Promise.all(Array.from({ length: 35 }, (_, index) => workspace.saveVersion('bounded', content(`${index}`))));
+  const versions = await workspace.listVersions('bounded');
+  assert.equal(versions.length, 30);
+  assert.equal(new Set(versions.map((version) => version.id)).size, 30);
+  const newest = await workspace.saveVersion('bounded', content('newest'));
+  const updated = await workspace.listVersions('bounded');
+  assert.equal(updated.length, 30);
+  assert.equal(updated[0].id, newest.id);
+});
+
+test('invalid backup history is rejected before importing any documents', async () => {
+  const source = createWorkspaceStorage('invalid-backup-source');
+  await source.saveFile(meta('first'), content('first'));
+  await source.saveFile(meta('second'), content('second'));
+  const version = await source.saveVersion('second', content('history'));
+  const valid = JSON.parse(JSON.stringify(await source.exportBackup()));
+  const target = createWorkspaceStorage('invalid-backup-target');
+  for (const versions of [
+    { second: [{ ...version, fileId: 'first' }] },
+    { second: [version, version] },
+    { second: 'invalid' },
+    { second: [{ ...version, content: { kind: 'pdf' } }] },
+    { second: [{ ...version, content: { kind: 'doc' } }] },
+    { second: [{ ...version, content: { ...content('invalid'), page: {} } }] },
+    { second: [{ ...version, timestamp: -1 }] },
+    { second: [{ ...version, label: 'x'.repeat(1025) }] },
+    [],
+  ]) {
+    await assert.rejects(target.importBackup({ ...valid, versions }), /Lịch sử/);
+    assert.deepEqual(await target.listFiles(), []);
+    assert.deepEqual(await target.listVersions('second'), []);
+  }
+});
+
+test('backup validation rejects malformed file bodies and metadata before any write', async () => {
+  const target = createWorkspaceStorage('invalid-backup-bodies');
+  const valid = { format: 'minh-office-backup', files: [meta('first'), meta('second')], contents: { first: content('first'), second: content('second') } };
+  for (const invalid of [
+    { ...valid, contents: { ...valid.contents, second: { kind: 'doc' } } },
+    { ...valid, files: [meta('first'), { ...meta('second'), kind: 'unknown' }] },
+    { ...valid, files: [meta('first'), null] },
+    { ...valid, contents: [] },
+  ]) {
+    await assert.rejects(target.importBackup(invalid), /sao lưu/);
+    assert.deepEqual(await target.listFiles(), []);
+    assert.equal(await target.loadContent('first'), undefined);
+  }
+});
+
+test('backup history validates content structure for every editor kind', async () => {
+  const target = createWorkspaceStorage('invalid-editor-history');
+  const pairs = [
+    [{ kind: 'doc', json: { type: 'doc' }, page: defaultPage() }, { kind: 'doc' }],
+    [{ kind: 'sheet', workbook: { sheets: {}, sheetOrder: [] } }, { kind: 'sheet', workbook: {} }],
+    [{ kind: 'slide', presentation: { slides: [] } }, { kind: 'slide', presentation: {} }],
+    [{ kind: 'image', imageDataUrl: 'data:image/png;base64,fixture' }, { kind: 'image' }],
+    [{ kind: 'pdf', pdfDataUrl: 'data:application/pdf;base64,fixture' }, { kind: 'pdf', pdfDataUrl: 'invalid' }],
+  ];
+  for (const [body, snapshot] of pairs) {
+    const file = { ...meta('second'), kind: body.kind };
+    await assert.rejects(target.importBackup({
+      format: 'minh-office-backup', files: [meta('first'), file],
+      contents: { first: content('first'), second: body },
+      versions: { second: [{ id: 'version', fileId: 'second', timestamp: 1, label: 'Malformed', content: snapshot }] },
+    }), /Lịch sử/);
+    assert.deepEqual(await target.listFiles(), []);
+    assert.equal(await target.loadContent('first'), undefined);
+    assert.deepEqual(await target.listVersions('second'), []);
+  }
+});

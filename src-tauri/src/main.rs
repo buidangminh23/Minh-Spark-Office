@@ -2,6 +2,7 @@
 
 use tauri::webview::{Color, NewWindowResponse};
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+mod close_guard;
 mod desktop_auth;
 mod native_print;
 mod open_files;
@@ -28,6 +29,7 @@ fn main() {
         .plugin(tauri_plugin_process::init())
         .manage(desktop_auth::DesktopLogin::default())
         .manage(open_files::OpenFiles::default())
+        .manage(close_guard::CloseGuard::default())
         .invoke_handler(tauri::generate_handler![
             open_web_app,
             native_print::print_window,
@@ -37,7 +39,9 @@ fn main() {
             desktop_auth::cancel_desktop_sign_in,
             open_files::drain_open_files,
             open_files::take_open_file,
-            open_files::open_default_apps
+            open_files::open_default_apps,
+            close_guard::pending_close_request,
+            close_guard::finish_close_request
         ])
         .setup(|app| {
             if let Ok(cwd) = std::env::current_dir() {
@@ -81,6 +85,23 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("Failed to build Minh Spark Office")
         .run(|app, event| {
+            match &event {
+                tauri::RunEvent::WindowEvent {
+                    label,
+                    event: tauri::WindowEvent::CloseRequested { api, .. },
+                    ..
+                } if label == "main" && !close_guard::approved(app) => {
+                    api.prevent_close();
+                    close_guard::request(app);
+                }
+                tauri::RunEvent::ExitRequested { api, code, .. }
+                    if *code != Some(tauri::RESTART_EXIT_CODE) && !close_guard::approved(app) =>
+                {
+                    api.prevent_exit();
+                    close_guard::request(app);
+                }
+                _ => {}
+            }
             #[cfg(target_os = "macos")]
             if let tauri::RunEvent::Opened { urls } = event {
                 open_files::queue_paths(

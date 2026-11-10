@@ -4,6 +4,7 @@ import type { JSONContent } from '@tiptap/react';
 import type { WorkbookData } from './sheetTypes';
 import type { PresentationData } from './slideTypes';
 import { PAPER_KEYS, paperLabel, paperPx, type PaperKey } from './paperSizes';
+import { validateCloudMeta, validateCloudPayload } from './cloudCodec';
 
 export type FileKind = 'doc' | 'sheet' | 'pdf' | 'slide' | 'image';
 
@@ -183,6 +184,36 @@ export type FileMeta = {
   preview: string;
 };
 
+export type WorkspaceBackup = {
+  format: 'minh-office-backup';
+  version?: number;
+  exportedAt?: string;
+  files: FileMeta[];
+  contents: Record<string, FileContent | undefined>;
+  versions?: Record<string, FileVersion[]>;
+};
+
+export function parseWorkspaceBackup(payload: unknown): WorkspaceBackup {
+  const data = structuredClone(payload) as WorkspaceBackup;
+  if (data?.format !== 'minh-office-backup' || !Array.isArray(data.files) || !data.contents || typeof data.contents !== 'object' || Array.isArray(data.contents)) throw new Error('Tệp sao lưu không hợp lệ.');
+  if (data.versions !== undefined && (!data.versions || typeof data.versions !== 'object' || Array.isArray(data.versions))) throw new Error('Lịch sử trong tệp sao lưu không hợp lệ.');
+  for (const file of data.files) {
+    try { validateCloudMeta(file, file?.id); }
+    catch { throw new Error('Tệp sao lưu không hợp lệ.'); }
+    const content = data.contents[file.id];
+    if (content !== undefined) {
+      try { validateCloudPayload({ content, versions: [] }, file); }
+      catch { throw new Error('Nội dung trong tệp sao lưu không hợp lệ.'); }
+    }
+    const versions = data.versions?.[file.id];
+    if (versions === undefined) continue;
+    if (Array.isArray(versions) && versions.length === 0) continue;
+    try { validateCloudPayload({ content: content ?? versions?.[0]?.content, versions }, file); }
+    catch { throw new Error('Lịch sử trong tệp sao lưu không hợp lệ.'); }
+  }
+  return data;
+}
+
 const INDEX_KEY = 'files-index';
 const contentKey = (id: string) => `content:${id}`;
 const versionsKey = (fileId: string) => `versions:${fileId}`;
@@ -291,7 +322,6 @@ function createPersistentStorage(store: UseStore) {
     label?: string
   ): Promise<FileVersion> {
     content = structuredClone(content);
-    const versions = await listVersions(fileId);
     const now = Date.now();
     const timeStr = new Date(now).toLocaleTimeString('vi-VN', {
       hour: '2-digit',
@@ -306,8 +336,7 @@ function createPersistentStorage(store: UseStore) {
       label: label || `Bản lưu ${timeStr} (${dateStr})`,
       content,
     };
-    const updated = [newVersion, ...versions].slice(0, 30);
-    await set(versionsKey(fileId), updated, store);
+    await update<FileVersion[]>(versionsKey(fileId), (versions = []) => [newVersion, ...versions].slice(0, 30), store);
     return newVersion;
   }
 
@@ -320,21 +349,29 @@ function createPersistentStorage(store: UseStore) {
   }
 
   async function deleteVersion(fileId: string, versionId: string): Promise<void> {
-    const versions = await listVersions(fileId);
-    const updated = versions.filter((v) => v.id !== versionId);
-    await set(versionsKey(fileId), updated, store);
+    await update<FileVersion[]>(versionsKey(fileId), (versions = []) => versions.filter((version) => version.id !== versionId), store);
   }
 
-  async function exportBackup() {
-    const files = await listFiles();
-    const contents: Record<string, FileContent | undefined> = {};
-    for (const file of files) contents[file.id] = await loadContent(file.id);
-    return { format: 'minh-office-backup', version: 2, exportedAt: new Date().toISOString(), files, contents };
+  async function exportBackup(): Promise<WorkspaceBackup> {
+    const backup: WorkspaceBackup = { format: 'minh-office-backup', version: 3, exportedAt: new Date().toISOString(), files: [], contents: Object.create(null), versions: Object.create(null) };
+    await store('readonly', (target) => {
+      const index = target.get(INDEX_KEY);
+      index.onsuccess = () => {
+        backup.files = index.result ?? [];
+        for (const file of backup.files) {
+          const content = target.get(contentKey(file.id));
+          content.onsuccess = () => { backup.contents[file.id] = content.result; };
+          const versions = target.get(versionsKey(file.id));
+          versions.onsuccess = () => { backup.versions![file.id] = versions.result ?? []; };
+        }
+      };
+      return promisifyRequest(target.transaction);
+    });
+    return backup;
   }
 
   async function importBackup(payload: unknown) {
-    const data = structuredClone(payload) as { format?: string; files?: FileMeta[]; contents?: Record<string, FileContent> };
-    if (data?.format !== 'minh-office-backup' || !Array.isArray(data.files)) throw new Error('Tệp sao lưu không hợp lệ.');
+    const data = parseWorkspaceBackup(payload);
     let count = 0;
     await store('readwrite', (target) => {
       const request = target.get(INDEX_KEY);
@@ -342,10 +379,11 @@ function createPersistentStorage(store: UseStore) {
         const existing: FileMeta[] = request.result ?? [];
         const ids = new Set(existing.map((file) => file.id));
         count = 0;
-        for (const file of data.files!) {
+        for (const file of data.files) {
           const content = data.contents?.[file.id];
           if (!content || ids.has(file.id)) continue;
           target.put(content, contentKey(file.id));
+          target.put(data.versions?.[file.id] ?? [], versionsKey(file.id));
           existing.push(file);
           ids.add(file.id);
           count++;
@@ -375,7 +413,6 @@ export function createDraftWorkspaceStorage(): WorkspaceStorage {
     if (await get<boolean>(migrationKey, rawStore)) return;
     const legacy = createWorkspaceStorage(null);
     const snapshot = await legacy.exportBackup();
-    const histories = new Map(await Promise.all(snapshot.files.map(async (file) => [file.id, await legacy.listVersions(file.id)] as const)));
     await rawStore('readwrite', (store) => {
       const marker = store.get(migrationKey);
       marker.onsuccess = () => {
@@ -390,7 +427,7 @@ export function createDraftWorkspaceStorage(): WorkspaceStorage {
             ids.add(file.id);
             const content = snapshot.contents[file.id];
             if (content) store.put(content, contentKey(file.id));
-            store.put(histories.get(file.id) ?? [], versionsKey(file.id));
+            store.put(snapshot.versions?.[file.id] ?? [], versionsKey(file.id));
           }
           store.put(files, INDEX_KEY);
           store.put(true, migrationKey);

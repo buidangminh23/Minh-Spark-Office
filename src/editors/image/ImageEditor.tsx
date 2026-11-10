@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -63,6 +63,8 @@ import type {
   CommentItem,
 } from '../../lib/storage';
 import { flattenEncoding, isMarkupBlank, screenOffsetToImagePoint } from './markupMath';
+import { IMAGE_FILTER_PRESETS as PRESET_FILTERS, buildImageFilter, parseImageFilter } from './imageFilters';
+import { trackWorkspaceOperation } from '../../lib/workspaceLifecycle';
 import './imageEditor.css';
 
 interface ImageEditorProps {
@@ -82,28 +84,6 @@ interface ImageEditorProps {
 
 type RibbonTab = 'view' | 'crop' | 'adjust' | 'markup' | 'office' | 'info';
 type Backdrop = 'dark' | 'light' | 'checker';
-
-interface FilterSetting {
-  id: string;
-  name: string;
-  filter: string;
-}
-
-const PRESET_FILTERS: FilterSetting[] = [
-  { id: 'normal', name: 'Gốc', filter: 'none' },
-  { id: 'bw', name: 'Trắng đen', filter: 'grayscale(100%)' },
-  { id: 'sepia', name: 'Cổ điển', filter: 'sepia(80%)' },
-  { id: 'vivid', name: 'Rực rỡ', filter: 'saturate(160%) contrast(110%)' },
-  { id: 'warm', name: 'Ấm áp', filter: 'sepia(30%) saturate(130%)' },
-  { id: 'cool', name: 'Lạnh', filter: 'hue-rotate(180deg) saturate(110%)' },
-  { id: 'invert', name: 'Đảo màu', filter: 'invert(100%)' },
-  {
-    id: 'noir',
-    name: 'Điện ảnh',
-    filter: 'grayscale(100%) contrast(150%) brightness(90%)',
-  },
-  { id: 'blur', name: 'Làm mờ', filter: 'blur(3px)' },
-];
 
 export default function ImageEditor({
   meta,
@@ -139,12 +119,8 @@ export default function ImageEditor({
   const [flipY, setFlipY] = useState(content.flipY || false);
   const [backdrop, setBackdrop] = useState<Backdrop>('dark');
 
-  const [selectedFilter, setSelectedFilter] = useState('normal');
-  const [brightness, setBrightness] = useState(100);
-  const [contrast, setContrast] = useState(100);
-  const [saturation, setSaturation] = useState(100);
-  const [blurVal, setBlurVal] = useState(0);
-  const [hueVal, setHueVal] = useState(0);
+  const [filterSettings, setFilterSettings] = useState(() => parseImageFilter(content.filter));
+  const { preset: selectedFilter, brightness, contrast, saturation } = filterSettings;
 
   const [cropAspect, setCropAspect] = useState<
     'free' | '1:1' | '4:3' | '16:9' | '3:2' | '9:16'
@@ -218,7 +194,7 @@ export default function ImageEditor({
     return { url: out.toDataURL(encoding.mime, encoding.quality), mime: encoding.mime };
   }, [currentDataUrl, mimeType]);
 
-  const commitMarkup = useCallback(async (): Promise<{ url: string; mime: string }> => {
+  const commitMarkup = useCallback((): Promise<{ url: string; mime: string }> => trackWorkspaceOperation(async () => {
     const flat = await flattenMarkup();
     if (flat.url === currentDataUrl) return flat;
     const preload = new Image();
@@ -228,7 +204,7 @@ export default function ImageEditor({
     setCurrentDataUrl(flat.url);
     setMimeType(flat.mime);
     return flat;
-  }, [flattenMarkup, currentDataUrl]);
+  }), [flattenMarkup, currentDataUrl]);
 
   const changeRevision = useRef(0);
   const markDirty = useCallback(() => {
@@ -247,25 +223,10 @@ export default function ImageEditor({
     img.src = currentDataUrl;
   }, [currentDataUrl]);
 
-  const activeCssFilter = useMemo(() => {
-    const preset =
-      PRESET_FILTERS.find((p) => p.id === selectedFilter)?.filter || 'none';
-    const adjustments = [
-      brightness !== 100 ? `brightness(${brightness}%)` : '',
-      contrast !== 100 ? `contrast(${contrast}%)` : '',
-      saturation !== 100 ? `saturate(${saturation}%)` : '',
-      blurVal > 0 ? `blur(${blurVal}px)` : '',
-      hueVal !== 0 ? `hue-rotate(${hueVal}deg)` : '',
-    ]
-      .filter(Boolean)
-      .join(' ');
-
-    if (preset === 'none') return adjustments || 'none';
-    return `${preset} ${adjustments}`.trim();
-  }, [selectedFilter, brightness, contrast, saturation, blurVal, hueVal]);
+  const activeCssFilter = buildImageFilter(filterSettings);
 
   const persistImage = useCallback(
-    async (explicit = false) => {
+    (explicit = false) => trackWorkspaceOperation(async () => {
       const savedRevision = changeRevision.current;
       let flat: { url: string; mime: string };
       try {
@@ -301,7 +262,7 @@ export default function ImageEditor({
         setSavedStatus('saved');
       }
       return saved;
-    },
+    }),
     [
       meta,
       title,
@@ -318,9 +279,9 @@ export default function ImageEditor({
     ]
   );
 
-  useDocumentCloser(() =>
+  useDocumentCloser((close) =>
     persistImage(false).then((saved) => {
-      if (saved) onBack();
+      if (saved && close) onBack();
       return saved;
     })
   );
@@ -348,7 +309,7 @@ export default function ImageEditor({
     setShowHistoryModal(true);
   };
 
-  const handleCreateSnapshot = async () => {
+  const handleCreateSnapshot = () => trackWorkspaceOperation(async () => {
     let flat: { url: string; mime: string };
     try {
       flat = await commitMarkup();
@@ -363,6 +324,11 @@ export default function ImageEditor({
       width: dimensions.width,
       height: dimensions.height,
       comments,
+      zoom,
+      rotation,
+      flipX,
+      flipY,
+      filter: activeCssFilter,
     };
     const currentMeta = { ...meta, name: title, updatedAt: Date.now() };
     try {
@@ -382,13 +348,13 @@ export default function ImageEditor({
     } catch {
       ui.toast('Chưa lưu được phiên bản.', true);
     }
-  };
+  });
 
-  const handleDeleteVersion = async (versionId: string) => {
+  const handleDeleteVersion = (versionId: string) => trackWorkspaceOperation(async () => {
     await deleteVersion(meta.id, versionId);
     setVersions((prev) => prev.filter((v) => v.id !== versionId));
     ui.toast('Đã xoá phiên bản lưu');
-  };
+  });
 
   const handleZoomIn = () => setZoom((z) => Math.min(800, z + 25));
   const handleZoomOut = () => setZoom((z) => Math.max(10, z - 25));
@@ -629,16 +595,13 @@ export default function ImageEditor({
   };
 
   const handleApplyCrop = async () => {
-    let source: string;
+    ui.showBusy('Đang cắt ảnh…');
     try {
-      source = (await commitMarkup()).url;
-    } catch {
-      ui.toast('Không ghép được nét vẽ vào ảnh nên chưa cắt ảnh.', true);
-      return;
-    }
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
+      const source = (await commitMarkup()).url;
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.src = source;
+      await img.decode();
       const { left, right, top, bottom } = cropPercents;
       const sx = (img.naturalWidth * left) / 100;
       const sy = (img.naturalHeight * top) / 100;
@@ -649,7 +612,7 @@ export default function ImageEditor({
       canvas.width = Math.max(1, Math.round(sw));
       canvas.height = Math.max(1, Math.round(sh));
       const ctx = canvas.getContext('2d');
-      if (!ctx) return;
+      if (!ctx) throw new Error('Canvas unavailable');
 
       ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
       const croppedUrl = canvas.toDataURL('image/png');
@@ -660,9 +623,11 @@ export default function ImageEditor({
       setCropPercents({ top: 0, right: 0, bottom: 0, left: 0 });
       markDirty();
       ui.toast('Đã cắt ảnh thành công');
-    };
-    img.onerror = () => ui.toast('Không đọc được ảnh để cắt', true);
-    img.src = source;
+    } catch {
+      ui.toast('Không cắt được ảnh. Ảnh và nét vẽ vẫn được giữ lại.', true);
+    } finally {
+      ui.showBusy(null);
+    }
   };
 
   const handleBakeAllToDataUrl = async (): Promise<string> => {
@@ -1192,7 +1157,7 @@ export default function ImageEditor({
                         selectedFilter === preset.id ? 'active' : ''
                       }`}
                       onClick={() => {
-                        setSelectedFilter(preset.id);
+                        setFilterSettings((current) => ({ ...current, preset: preset.id, preservedFilter: '' }));
                         markDirty();
                       }}
                     >
@@ -1212,7 +1177,8 @@ export default function ImageEditor({
                     max={200}
                     value={brightness}
                     onChange={(e) => {
-                      setBrightness(Number(e.target.value));
+                      const value = Number(e.target.value);
+                      setFilterSettings((current) => ({ ...current, brightness: value }));
                       markDirty();
                     }}
                   />
@@ -1227,7 +1193,8 @@ export default function ImageEditor({
                     max={200}
                     value={contrast}
                     onChange={(e) => {
-                      setContrast(Number(e.target.value));
+                      const value = Number(e.target.value);
+                      setFilterSettings((current) => ({ ...current, contrast: value }));
                       markDirty();
                     }}
                   />
@@ -1242,7 +1209,8 @@ export default function ImageEditor({
                     max={250}
                     value={saturation}
                     onChange={(e) => {
-                      setSaturation(Number(e.target.value));
+                      const value = Number(e.target.value);
+                      setFilterSettings((current) => ({ ...current, saturation: value }));
                       markDirty();
                     }}
                   />
@@ -1254,12 +1222,7 @@ export default function ImageEditor({
                 <button
                   className="image-tool-btn"
                   onClick={() => {
-                    setSelectedFilter('normal');
-                    setBrightness(100);
-                    setContrast(100);
-                    setSaturation(100);
-                    setBlurVal(0);
-                    setHueVal(0);
+                    setFilterSettings(parseImageFilter(undefined));
                     markDirty();
                   }}
                 >
@@ -1712,6 +1675,14 @@ export default function ImageEditor({
                             clearMarkupCanvas();
                             setCurrentDataUrl(ver.content.imageDataUrl);
                             setMimeType(ver.content.mimeType || 'image/png');
+                            setRotation(ver.content.rotation || 0);
+                            setFlipX(ver.content.flipX || false);
+                            setFlipY(ver.content.flipY || false);
+                            setFilterSettings(parseImageFilter(ver.content.filter));
+                            setComments(ver.content.comments || []);
+                            setZoom(ver.content.zoom || 100);
+                            setAutoFit(false);
+                            setPan({ x: 0, y: 0 });
                             setDimensions({
                               width: ver.content.width || 800,
                               height: ver.content.height || 600,

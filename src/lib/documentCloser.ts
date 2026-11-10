@@ -1,28 +1,37 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 
-type Closer = () => Promise<boolean>;
+type Closer = (close: boolean) => Promise<boolean>;
 
-let active: Closer | null = null;
+export function createDocumentCloseRegistry() {
+  let active: Closer | null = null;
+  let pending: Promise<boolean> | null = null;
+  return {
+    register(closer: Closer) {
+      active = closer;
+      return () => { if (active === closer) active = null; };
+    },
+    save(close: boolean, allowEmpty = false): Promise<boolean> {
+      if (pending) return pending;
+      const closer = active;
+      if (!closer) return Promise.resolve(allowEmpty);
+      pending = Promise.resolve().then(() => closer(close)).catch(() => false).finally(() => { pending = null; });
+      return pending;
+    },
+  };
+}
+
+const registry = createDocumentCloseRegistry();
 
 export async function saveAndCloseActiveDocument(): Promise<boolean> {
-  if (!active) return false;
-  try {
-    return await active();
-  } catch {
-    return false;
-  }
+  return registry.save(true);
 }
+
+export const saveActiveDocumentForExit = () => registry.save(false, true);
 
 export function useDocumentCloser(close: Closer) {
   const latest = useRef(close);
   useLayoutEffect(() => {
     latest.current = close;
   });
-  useEffect(() => {
-    const closer: Closer = () => latest.current();
-    active = closer;
-    return () => {
-      if (active === closer) active = null;
-    };
-  }, []);
+  useLayoutEffect(() => registry.register((close) => latest.current(close)), []);
 }

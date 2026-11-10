@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { check, type Update } from '@tauri-apps/plugin-updater';
 import { getVersion } from '@tauri-apps/api/app';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { isDesktop } from '../lib/desktop';
-import { saveAndCloseActiveDocument } from '../lib/documentCloser';
+import { saveActiveDocumentForExit } from '../lib/documentCloser';
+import { installAfterDocumentSave } from '../lib/desktopClose';
+import { acquireWorkspaceExit } from '../lib/workspaceLifecycle';
 import { clearDockProgress, requestDockAttention, showDockProgress } from '../lib/desktopProgress';
 import { UpdateProgressRing, type RingMode } from './UpdateProgressRing';
 import './workspaceStatus.css';
@@ -127,18 +130,23 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
       if (!ready.current || !update.current || busy.current || !stillWanted()) return;
     } finally { autoInFlight.current = false; }
     busy.current = true; setError('');
-    if (editingNow.current && !(await saveAndCloseActiveDocument())) {
-      busy.current = false;
+    const selectedUpdate = update.current;
+    const result = await installAfterDocumentSave({
+      acquire: acquireWorkspaceExit,
+      prepare: () => flushSync(() => { if (document.activeElement instanceof HTMLElement) document.activeElement.blur(); }),
+      save: saveActiveDocumentForExit,
+      install: async () => {
+        setPhase('installing');
+        await selectedUpdate.install({ restartAfterInstall: true });
+        if (/Mac/.test(navigator.platform)) await relaunch();
+      },
+    });
+    if (result !== 'installing') {
       setPostponed(true);
-      setError('Chưa lưu được tài liệu đang mở nên chưa cài. Hãy lưu tài liệu rồi thử lại.');
-      return;
+      setPhase('downloaded');
+      setError(result === 'blocked' ? 'Đang xử lý tài liệu nên chưa cài. Hãy chờ thao tác hoàn tất rồi thử lại.' : result === 'save-failed' ? 'Chưa lưu được tài liệu đang mở nên chưa cài. Hãy lưu tài liệu rồi thử lại.' : 'Chưa khởi chạy được bộ cài. Hãy thử lại.');
+      busy.current = false;
     }
-    setPhase('installing');
-    try {
-      await update.current.install({ restartAfterInstall: true });
-      if (/Mac/.test(navigator.platform)) await relaunch();
-    }
-    catch { setPostponed(true); setPhase('downloaded'); setError('Chưa khởi chạy được bộ cài. Hãy thử lại.'); busy.current = false; }
   };
   const autoUpdate = async () => {
     await checkUpdate(true);
