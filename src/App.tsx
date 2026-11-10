@@ -8,7 +8,7 @@ import { DesktopSignIn, isDesktopSignInRequest } from './components/DesktopSignI
 import { isDesktop } from './lib/desktop';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { lazy, Suspense, useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import Home from './components/Home';
 import { isImageFile, formatFileSize } from './lib/imageFormatNames';
 import { UiProvider, useUi } from './components/ui';
@@ -28,13 +28,37 @@ import { blankPresentation, businessPitchPresentation, createSlideFromLayout } f
 import type { PresentationData } from './lib/slideTypes';
 import { emptyWorkbook } from './lib/workbookBasics';
 import { downloadBlob } from './lib/download';
+import { isChunkLoadError, reloadOnceForStaleChunk } from './lib/staleChunk';
 import type { FileKind } from './lib/storage';
 
-const DocEditor = lazy(() => import('./editors/doc/DocEditor'));
-const SheetEditor = lazy(() => import('./editors/sheet/SheetEditor'));
-const PdfEditor = lazy(() => import('./editors/pdf/PdfEditor'));
-const SlideEditor = lazy(() => import('./editors/slide/SlideEditor'));
-const ImageEditor = lazy(() => import('./editors/image/ImageEditor'));
+const editorLoaders = {
+  doc: () => import('./editors/doc/DocEditor'),
+  sheet: () => import('./editors/sheet/SheetEditor'),
+  pdf: () => import('./editors/pdf/PdfEditor'),
+  slide: () => import('./editors/slide/SlideEditor'),
+  image: () => import('./editors/image/ImageEditor'),
+};
+type EditorKind = keyof typeof editorLoaders;
+type LoadedEditors = { [K in EditorKind]?: Awaited<ReturnType<(typeof editorLoaders)[K]>>['default'] };
+const loadedEditors: LoadedEditors = {};
+
+const loadEditor = async (kind: EditorKind) => {
+  const module = await editorLoaders[kind]();
+  (loadedEditors as Record<EditorKind, unknown>)[kind] = module.default;
+};
+
+function useLoadedEditors(kind: EditorKind | null, onError: (error: unknown) => void) {
+  const [, setLoaded] = useState(0);
+  const errorRef = useRef(onError);
+  errorRef.current = onError;
+  useEffect(() => {
+    if (!kind || loadedEditors[kind]) return;
+    let alive = true;
+    loadEditor(kind).then(() => { if (alive) setLoaded((count) => count + 1); }, (error) => { if (alive) errorRef.current(error); });
+    return () => { alive = false; };
+  }, [kind]);
+  return loadedEditors;
+}
 
 function EditorLoading({ kind }: { kind: FileKind }) {
   return (
@@ -59,6 +83,14 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
   const [files, setFiles] = useState<FileMeta[]>([]);
   const [activeMeta, setActiveMeta] = useState<FileMeta | null>(null);
   const [activeContent, setActiveContent] = useState<FileContent | null>(null);
+  const activeEditorKind = activeMeta && activeContent && activeMeta.kind === activeContent.kind ? activeMeta.kind : null;
+  const editors = useLoadedEditors(activeEditorKind, (error) => {
+    if (isChunkLoadError(error) && reloadOnceForStaleChunk()) return;
+    console.error(error);
+    toast('Không tải được trình soạn thảo. Kiểm tra kết nối mạng rồi mở lại tệp.', true);
+    setActiveMeta(null);
+    setActiveContent(null);
+  });
   const [storageInfo, setStorageInfo] = useState<{ usage: number; quota: number } | null>(null);
 
   const activeKind = activeMeta?.kind;
@@ -979,84 +1011,77 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
   };
 
   // Render active editor or Home
+  if (activeMeta && activeContent && activeEditorKind && !editors[activeEditorKind]) return <EditorLoading kind={activeEditorKind} />;
+  const { doc: DocEditor, sheet: SheetEditor, slide: SlideEditor, image: ImageEditor, pdf: PdfEditor } = editors;
+
   if (activeMeta && activeContent) {
-    if (activeMeta.kind === 'doc' && activeContent.kind === 'doc') {
+    if (activeMeta.kind === 'doc' && activeContent.kind === 'doc' && DocEditor) {
       return (
-        <Suspense fallback={<EditorLoading kind={activeMeta.kind} />}>
-          <DocEditor
-            key={activeMeta.id}
-            meta={activeMeta}
-            content={activeContent}
-            onSave={handleSaveActive}
-            onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
-            onNewDocument={(html) => void handleCreateDoc(html)}
-            onOpenFile={(file) => void handleImportFile(file)}
-            onBack={handleCloseEditor}
-          />
-        </Suspense>
+        <DocEditor
+          key={activeMeta.id}
+          meta={activeMeta}
+          content={activeContent}
+          onSave={handleSaveActive}
+          onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
+          onNewDocument={(html) => void handleCreateDoc(html)}
+          onOpenFile={(file) => void handleImportFile(file)}
+          onBack={handleCloseEditor}
+        />
       );
     }
 
-    if (activeMeta.kind === 'sheet' && activeContent.kind === 'sheet') {
+    if (activeMeta.kind === 'sheet' && activeContent.kind === 'sheet' && SheetEditor) {
       return (
-        <Suspense fallback={<EditorLoading kind={activeMeta.kind} />}>
-          <SheetEditor
-            key={activeMeta.id}
-            meta={activeMeta}
-            content={activeContent}
-            onSave={handleSaveActive}
-            onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
-            onBack={handleCloseEditor}
-          />
-        </Suspense>
+        <SheetEditor
+          key={activeMeta.id}
+          meta={activeMeta}
+          content={activeContent}
+          onSave={handleSaveActive}
+          onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
+          onBack={handleCloseEditor}
+        />
       );
     }
 
-    if (activeMeta.kind === 'slide' && activeContent.kind === 'slide') {
+    if (activeMeta.kind === 'slide' && activeContent.kind === 'slide' && SlideEditor) {
       return (
-        <Suspense fallback={<EditorLoading kind={activeMeta.kind} />}>
-          <SlideEditor
-            key={activeMeta.id}
-            meta={activeMeta}
-            content={activeContent}
-            onSave={handleSaveActive}
-            onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
-            onBack={handleCloseEditor}
-          />
-        </Suspense>
+        <SlideEditor
+          key={activeMeta.id}
+          meta={activeMeta}
+          content={activeContent}
+          onSave={handleSaveActive}
+          onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
+          onBack={handleCloseEditor}
+        />
       );
     }
 
-    if (activeMeta.kind === 'image' && activeContent.kind === 'image') {
+    if (activeMeta.kind === 'image' && activeContent.kind === 'image' && ImageEditor) {
       return (
-        <Suspense fallback={<EditorLoading kind={activeMeta.kind} />}>
-          <ImageEditor
-            key={activeMeta.id}
-            meta={activeMeta}
-            content={activeContent}
-            onSave={handleSaveActive}
-            onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
-            onBack={handleCloseEditor}
-            onOpenInDoc={handleCreateDocWithImage}
-            onOpenInSheet={handleCreateSheetWithImage}
-            onOpenInSlide={handleCreateSlideWithImage}
-          />
-        </Suspense>
+        <ImageEditor
+          key={activeMeta.id}
+          meta={activeMeta}
+          content={activeContent}
+          onSave={handleSaveActive}
+          onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
+          onBack={handleCloseEditor}
+          onOpenInDoc={handleCreateDocWithImage}
+          onOpenInSheet={handleCreateSheetWithImage}
+          onOpenInSlide={handleCreateSlideWithImage}
+        />
       );
     }
 
-    if (activeMeta.kind === 'pdf' && activeContent.kind === 'pdf') {
+    if (activeMeta.kind === 'pdf' && activeContent.kind === 'pdf' && PdfEditor) {
       return (
-        <Suspense fallback={<EditorLoading kind={activeMeta.kind} />}>
-          <PdfEditor
-            key={activeMeta.id}
-            meta={activeMeta}
-            content={activeContent}
-            onSave={handleSaveActive}
-            onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
-            onBack={handleCloseEditor}
-          />
-        </Suspense>
+        <PdfEditor
+          key={activeMeta.id}
+          meta={activeMeta}
+          content={activeContent}
+          onSave={handleSaveActive}
+          onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
+          onBack={handleCloseEditor}
+        />
       );
     }
   }
