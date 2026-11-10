@@ -11,6 +11,8 @@ pub enum PrintTarget {
     Printer {
         name: String,
         display_name: Option<String>,
+        #[serde(default = "installed_default")]
+        installed: bool,
     },
     Pdf,
 }
@@ -54,17 +56,21 @@ impl PrintOutcome {
     }
 }
 
+fn installed_default() -> bool {
+    true
+}
+
 const JOB_TIMEOUT: Duration = Duration::from_secs(15 * 60);
 
 #[tauri::command]
-pub async fn list_printers(discover: Option<bool>) -> Vec<PrinterInfo> {
+pub async fn list_printers(discover: Option<bool>) -> Result<Vec<PrinterInfo>, String> {
     let discover = discover.unwrap_or(false);
-    tauri::async_runtime::spawn_blocking(move || printers::list(discover)).await.unwrap_or_default()
+    tauri::async_runtime::spawn_blocking(move || printers::list(discover)).await.map_err(|error| error.to_string())?
 }
 
 #[tauri::command]
 pub async fn default_printer() -> Option<String> {
-    tauri::async_runtime::spawn_blocking(|| printers::list(false).into_iter().find(|p| p.is_default).map(|p| p.display_name))
+    tauri::async_runtime::spawn_blocking(|| printers::list(false).ok()?.into_iter().find(|p| p.is_default).map(|p| p.display_name))
         .await
         .ok()
         .flatten()
@@ -80,32 +86,80 @@ pub async fn print_window(window: tauri::WebviewWindow, request: Option<PrintReq
         window.print().map_err(|error| error.to_string())?;
         return Ok(PrintOutcome::dialog());
     }
+    if let PrintTarget::Printer { name, installed, .. } = &request.target {
+        if cfg!(unix) && !*installed {
+            return print_through_cups(&window, &request, name).await;
+        }
+    }
     let pdf_path = match request.target {
         PrintTarget::Pdf => Some(pdf_destination(&request.title)?),
         _ => None,
     };
+    match run_job(&window, &request, pdf_path.clone()).await {
+        Err(code) if code == "PRINTER_NOT_FOUND" && cfg!(unix) => {
+            let PrintTarget::Printer { name, .. } = &request.target else { return Err(code) };
+            print_through_cups(&window, &request, name).await
+        }
+        Err(code) => Err(code),
+        Ok(finished) => finish_outcome(&request, pdf_path, finished),
+    }
+}
+
+async fn run_job(window: &tauri::WebviewWindow, request: &PrintRequest, pdf_path: Option<PathBuf>) -> Result<bool, String> {
     let (sender, receiver) = tokio::sync::oneshot::channel::<Result<bool, String>>();
-    platform::start(&window, request.clone(), pdf_path.clone(), sender)?;
+    platform::start(window, request.clone(), pdf_path, sender)?;
+    tokio::time::timeout(JOB_TIMEOUT, receiver)
+        .await
+        .map_err(|_| "PRINT_TIMEOUT".to_string())?
+        .map_err(|_| "PRINT_ABORTED".to_string())?
+}
+
+fn finish_outcome(request: &PrintRequest, pdf_path: Option<PathBuf>, finished: bool) -> Result<PrintOutcome, String> {
     if matches!(request.target, PrintTarget::System) {
         return Ok(PrintOutcome::dialog());
     }
-    let finished = tokio::time::timeout(JOB_TIMEOUT, receiver)
-        .await
-        .map_err(|_| "PRINT_TIMEOUT".to_string())?
-        .map_err(|_| "PRINT_ABORTED".to_string())??;
-    if !finished {
-        return Ok(PrintOutcome::cancelled());
-    }
     match pdf_path {
-        Some(path) => {
-            if !path.is_file() {
-                return Err("PDF_NOT_WRITTEN".into());
-            }
+        Some(path) if path.is_file() => {
             reveal(&path);
             Ok(PrintOutcome::saved(&path))
         }
-        None => Ok(PrintOutcome::sent()),
+        Some(_) if finished => Err("PDF_NOT_WRITTEN".into()),
+        _ if finished => Ok(PrintOutcome::sent()),
+        _ => Ok(PrintOutcome::cancelled()),
     }
+}
+
+async fn print_through_cups(window: &tauri::WebviewWindow, request: &PrintRequest, queue: &str) -> Result<PrintOutcome, String> {
+    let dir = std::env::temp_dir().join("minh-spark-office-print");
+    std::fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
+    let spool = dir.join(format!("job-{}-{}.pdf", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0)));
+    let render = PrintRequest { target: PrintTarget::Pdf, ..request.clone() };
+    let rendered = run_job(window, &render, Some(spool.clone())).await;
+    if !matches!(rendered, Ok(true)) || !spool.is_file() {
+        let _ = std::fs::remove_file(&spool);
+        return match rendered {
+            Err(code) => Err(code),
+            _ => Err("PDF_NOT_WRITTEN".into()),
+        };
+    }
+    let sides = if request.duplex { "sides=two-sided-long-edge" } else { "sides=one-sided" };
+    let args = cups_submit_args(queue, &request.title, sides, &spool);
+    let output = tauri::async_runtime::spawn_blocking(move || std::process::Command::new("lp").args(args).output())
+        .await
+        .map_err(|error| error.to_string())?;
+    let _ = std::fs::remove_file(&spool);
+    let output = output.map_err(|error| format!("LP_START_{error}"))?;
+    if output.status.success() {
+        Ok(PrintOutcome::sent())
+    } else {
+        let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        Err(if detail.is_empty() { "PRINTER_UNAVAILABLE".into() } else { format!("LP: {detail}") })
+    }
+}
+
+pub fn cups_submit_args(queue: &str, title: &str, sides: &str, file: &Path) -> Vec<std::ffi::OsString> {
+    let title: String = title.chars().filter(|c| !c.is_control()).take(200).collect();
+    vec!["-d".into(), queue.into(), "-t".into(), title.into(), "-o".into(), sides.into(), "--".into(), file.as_os_str().to_os_string()]
 }
 
 fn downloads_dir() -> Result<PathBuf, String> {
@@ -254,21 +308,9 @@ mod platform {
         if info.is_null() {
             return Err(("NO_PRINT_INFO".into(), done));
         }
-        let short = request.width_mm.min(request.height_mm) * POINTS_PER_MM;
-        let long = request.width_mm.max(request.height_mm) * POINTS_PER_MM;
-        let _: () = msg_send![info, setOrientation: PORTRAIT];
-        let _: () = msg_send![info, setPaperSize: PaperSize { width: short, height: long }];
-        let _: () = msg_send![info, setOrientation: if request.landscape { LANDSCAPE } else { PORTRAIT }];
-        let _: () = msg_send![info, setTopMargin: 0.0f64];
-        let _: () = msg_send![info, setBottomMargin: 0.0f64];
-        let _: () = msg_send![info, setLeftMargin: 0.0f64];
-        let _: () = msg_send![info, setRightMargin: 0.0f64];
-        let _: () = msg_send![info, setHorizontallyCentered: Bool::NO];
-        let _: () = msg_send![info, setVerticallyCentered: Bool::NO];
-
         let show_panel = matches!(request.target, PrintTarget::System);
         match &request.target {
-            PrintTarget::Printer { name, display_name } => {
+            PrintTarget::Printer { name, display_name, .. } => {
                 let printer = [display_name.as_deref(), Some(name.as_str()), Some(name.replace('_', " ").as_str())]
                     .into_iter()
                     .flatten()
@@ -301,6 +343,18 @@ mod platform {
             PrintTarget::System => {}
         }
 
+        let short = request.width_mm.min(request.height_mm) * POINTS_PER_MM;
+        let long = request.width_mm.max(request.height_mm) * POINTS_PER_MM;
+        let _: () = msg_send![info, setOrientation: PORTRAIT];
+        let _: () = msg_send![info, setPaperSize: PaperSize { width: short, height: long }];
+        let _: () = msg_send![info, setOrientation: if request.landscape { LANDSCAPE } else { PORTRAIT }];
+        let _: () = msg_send![info, setTopMargin: 0.0f64];
+        let _: () = msg_send![info, setBottomMargin: 0.0f64];
+        let _: () = msg_send![info, setLeftMargin: 0.0f64];
+        let _: () = msg_send![info, setRightMargin: 0.0f64];
+        let _: () = msg_send![info, setHorizontallyCentered: Bool::NO];
+        let _: () = msg_send![info, setVerticallyCentered: Bool::NO];
+
         let operation: *mut AnyObject = msg_send![webview, printOperationWithPrintInfo: info];
         let _: () = msg_send![info, release];
         if operation.is_null() {
@@ -314,7 +368,7 @@ mod platform {
         let _: () = msg_send![operation, setShowsProgressPanel: Bool::YES];
         let _: () = msg_send![operation, setCanSpawnSeparateThread: Bool::YES];
         let (target, selector, context): (*mut AnyObject, Option<Sel>, *mut c_void) = if show_panel {
-            drop(done);
+            let _ = done.send(Ok(true));
             (std::ptr::null_mut(), None, std::ptr::null_mut())
         } else {
             (delegate(), Some(sel!(printOperationDidRun:success:contextInfo:)), Box::into_raw(Box::new(done)) as *mut c_void)
@@ -445,6 +499,13 @@ mod tests {
     }
 
     #[test]
+    fn cups_jobs_cannot_be_hijacked_by_titles_or_names() {
+        let args = cups_submit_args("Canon_G3010", "-o evil\nx", "sides=one-sided", Path::new("/tmp/a b.pdf"));
+        let args: Vec<String> = args.iter().map(|a| a.to_string_lossy().into_owned()).collect();
+        assert_eq!(args, ["-d", "Canon_G3010", "-t", "-o evilx", "-o", "sides=one-sided", "--", "/tmp/a b.pdf"]);
+    }
+
+    #[test]
     fn pdf_paths_never_overwrite() {
         let dir = std::env::temp_dir().join(format!("minh-print-test-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
@@ -458,7 +519,9 @@ mod tests {
     #[test]
     fn targets_parse_from_the_web_request() {
         let request: PrintRequest = serde_json::from_str(r#"{"widthMm":210,"heightMm":297,"landscape":false,"title":"t","target":{"kind":"printer","name":"HP_M404","displayName":"HP M404"},"duplex":true}"#).unwrap();
-        assert!(matches!(request.target, PrintTarget::Printer { ref name, ref display_name } if name == "HP_M404" && display_name.as_deref() == Some("HP M404")));
+        assert!(matches!(request.target, PrintTarget::Printer { ref name, ref display_name, installed: true } if name == "HP_M404" && display_name.as_deref() == Some("HP M404")));
+        let found: PrintRequest = serde_json::from_str(r#"{"widthMm":210,"heightMm":297,"landscape":false,"title":"t","target":{"kind":"printer","name":"Canon_G3010","installed":false}}"#).unwrap();
+        assert!(matches!(found.target, PrintTarget::Printer { installed: false, .. }));
         assert!(request.duplex);
         let legacy: PrintRequest = serde_json::from_str(r#"{"widthMm":210,"heightMm":297,"landscape":true,"title":"t"}"#).unwrap();
         assert!(matches!(legacy.target, PrintTarget::System));

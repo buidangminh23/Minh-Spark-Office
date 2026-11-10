@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { FileOutput, FileText, Layers, Loader2, MonitorCog, Network, NotebookPen, Phone, Printer, RefreshCw, Share2, Usb } from 'lucide-react';
 import type { PrintPlatform, PrinterInfo, PrinterKind } from '../../lib/print/printRun';
 import { CardFace, OptionCard, type CardOption } from './OptionCard';
-import { printerChoice, printerSubtitle, printerTone, type PrinterChoice, type Resolved } from './printerChoice';
+import { directPrinting, printerChoice, printerSubtitle, printerTone, savesAsPdf, type PrinterChoice, type Resolved } from './printerChoice';
 
 const KIND_ICONS: Record<PrinterKind, (size: number) => ReactNode> = {
   usb: (s) => <Usb size={s} />,
@@ -34,10 +34,10 @@ const PDF_OPTION = (platform: PrintPlatform): CardOption<PrinterChoice> => ({
   icon: <FileText size={20} />,
 });
 
-const SYSTEM_OPTION = (platform: PrintPlatform): CardOption<PrinterChoice> => ({
+const SYSTEM_OPTION = (): CardOption<PrinterChoice> => ({
   value: 'system',
   title: 'Hộp thoại in của hệ thống',
-  subtitle: platform === 'mac' ? 'Mở hộp thoại của macOS để chọn khay giấy, chất lượng in' : 'Mở hộp thoại in của Windows để chỉnh tùy chọn riêng',
+  subtitle: 'Chọn máy in ở hộp thoại in kế tiếp',
   group: 'Khác',
   icon: <MonitorCog size={20} />,
 });
@@ -46,7 +46,7 @@ function optionFor(printer: PrinterInfo): CardOption<PrinterChoice> {
   return {
     value: printerChoice(printer),
     title: printer.displayName,
-    subtitle: printerSubtitle(printer),
+    subtitle: savesAsPdf(printer) ? `${printerSubtitle(printer)} · lưu thẳng vào Tải về` : printerSubtitle(printer),
     group: printer.installed ? 'Máy in' : 'Máy in mạng tìm thấy',
     icon: <span className={`mp-printer-icon tone-${printerTone(printer)}`}>{KIND_ICONS[printer.kind](20)}</span>,
   };
@@ -66,8 +66,9 @@ export function PrinterPicker({ platform, printers, resolved, scanning, onChange
 
   const installed = (printers ?? []).filter((p) => p.installed);
   const found = (printers ?? []).filter((p) => !p.installed);
-  const options: CardOption<PrinterChoice>[] = [...installed.map(optionFor), ...found.map(optionFor), ...(platform === 'linux' ? [] : [PDF_OPTION(platform)]), SYSTEM_OPTION(platform)];
-  const current = options.find((o) => o.value === resolved.choice) ?? SYSTEM_OPTION(platform);
+  const direct = directPrinting(platform);
+  const options: CardOption<PrinterChoice>[] = [...installed.map(optionFor), ...found.map(optionFor), ...(direct ? [PDF_OPTION(platform)] : [SYSTEM_OPTION()])];
+  const current = options.find((o) => o.value === resolved.choice) ?? (direct ? PDF_OPTION(platform) : SYSTEM_OPTION());
   const printer = resolved.printer;
   const icon = printer ? <span className={`mp-printer-icon tone-${printerTone(printer)}`}>{KIND_ICONS[printer.kind](20)}</span> : current.icon;
   const count = printers === null ? 'Đang tìm máy in…' : installed.length ? `${installed.length} máy in${found.length ? `, ${found.length} máy in mạng chưa cài` : ''}` : 'Chưa có máy in nào được cài';

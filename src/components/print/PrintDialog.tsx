@@ -2,10 +2,10 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { BookOpen, ChevronLeft, ChevronRight, Copy, File, Files, LayoutGrid, Layers, Loader2, Maximize2, Printer, RectangleHorizontal, RectangleVertical, X } from 'lucide-react';
 import { PAPERS, mmToPx, type OrientationChoice, type ScaleMode } from '../../lib/print/printLayout';
 import { PAPER_CATALOG, PAPER_GROUP_LABELS, PAPER_KEYS, type PaperKey } from '../../lib/paperSizes';
-import { PRINT_ROOT_ID, PRINTING_CLASS, onAfterPrint, openSystemPrint, printErrorMessage, printPlatform, waitForPrintReady } from '../../lib/print/printRun';
+import { PRINT_ROOT_ID, PRINTING_CLASS, onAfterPrint, openSystemPrint, printErrorMessage, printPlatform, waitForPrintReady, type PrintTarget } from '../../lib/print/printRun';
 import { PrinterPicker } from './PrinterPicker';
 import { usePrinters } from './usePrinters';
-import { loadChoice, printerNotes, resolveChoice, saveChoice, targetFor, type PrinterChoice } from './printerChoice';
+import { directPrinting, loadChoice, printerNotes, resolveChoice, saveChoice, savesAsPdf, targetFor, type PrinterChoice } from './printerChoice';
 import { OptionCard, type CardOption } from './OptionCard';
 import { CmField } from './MarginGallery';
 import { MarginControls } from './PrintLayoutControls';
@@ -126,7 +126,15 @@ export function PrintDialog({ source, onClose, extraOptions, cards, autoNotes, i
   const { printers, scanning, refresh } = usePrinters(platform, phase === 'preparing');
   const resolved = useMemo(() => resolveChoice(storedChoice, printers, platform), [storedChoice, printers, platform]);
   const target = useMemo(() => targetFor(resolved, platform), [resolved, platform]);
-  const choosePrinter = useCallback((choice: PrinterChoice) => { setStoredChoice(choice); saveChoice(choice); setNotice(null); }, []);
+  const choosePrinter = useCallback((choice: PrinterChoice) => {
+    setStoredChoice(choice);
+    saveChoice(choice);
+    setNotice(null);
+    setPhase((p) => (p === 'done' ? 'idle' : p));
+  }, []);
+  const listReady = !directPrinting(platform) || printers !== null;
+  const [jobKind, setJobKind] = useState<PrintTarget['kind'] | null>(null);
+  const jobRef = useRef<{ target: PrintTarget; printerLabel: string | null; duplex: boolean; grayscale: boolean } | null>(null);
   const update = useCallback((patch: Partial<PrintSettings>) => setSettings((s) => ({ ...s, ...patch })), []);
 
   const settingsListener = useRef(onSettingsChange);
@@ -139,7 +147,7 @@ export function PrintDialog({ source, onClose, extraOptions, cards, autoNotes, i
   const plan = useMemo(() => planSheets(source, settings), [source, settings]);
   const selected = useMemo(() => filterParity(selectSheets(plan, settings, source.currentItem), settings.parity), [plan, settings, source.currentItem]);
   const outputs = useMemo(() => (plan.sheets.length ? composePages(plan.sheets, selected, settings.pagesPerSheet) : []), [plan.sheets, selected, settings.pagesPerSheet]);
-  const manual = settings.sides === 'manual';
+  const manual = settings.sides === 'manual' && target.kind !== 'pdf';
   const fullRun = useMemo(() => expandCopies(outputs, settings.copies, settings.collate || manual, manual), [outputs, settings.copies, settings.collate, manual]);
   const run: PrintRun = useMemo(() => (step === 'all' ? fullRun : duplexSide(fullRun, step, settings.reverseBack)), [fullRun, step, settings.reverseBack]);
   const ctx = useMemo(() => ({ sheets: plan.sheets, source, settings, total: plan.sheets.length }), [plan.sheets, source, settings]);
@@ -150,8 +158,9 @@ export function PrintDialog({ source, onClose, extraOptions, cards, autoNotes, i
   const scale = zoomPercent / 100;
 
   const printerLabel = resolved.printer?.displayName ?? null;
-  const latest = useRef({ run, title: source.title, onClose, manual, step, target, printerLabel, duplex: settings.sides === 'auto', grayscale: settings.grayscale, refresh });
-  useLayoutEffect(() => { latest.current = { run, title: source.title, onClose, manual, step, target, printerLabel, duplex: settings.sides === 'auto', grayscale: settings.grayscale, refresh }; });
+  const locked = phase === 'preparing' && jobKind !== 'system';
+  const latest = useRef({ run, title: source.title, onClose, manual, step, refresh, locked });
+  useLayoutEffect(() => { latest.current = { run, title: source.title, onClose, manual, step, refresh, locked }; });
 
   useEffect(() => {
     if (phase !== 'preparing') return;
@@ -169,7 +178,7 @@ export function PrintDialog({ source, onClose, extraOptions, cards, autoNotes, i
     (async () => {
       await waitForPrintReady(root, setPendingLeft);
       if (cancelled) return;
-      const job = latest.current;
+      const job = { ...latest.current, ...(jobRef.current ?? { target: { kind: 'system' } as PrintTarget, printerLabel: null, duplex: false, grayscale: false }) };
       document.body.classList.add(PRINTING_CLASS);
       if (job.target.kind === 'system') detach = onAfterPrint(finish);
       const first = job.run.find(Boolean);
@@ -194,7 +203,7 @@ export function PrintDialog({ source, onClose, extraOptions, cards, autoNotes, i
       if (result.mode !== 'done') return;
       document.body.classList.remove(PRINTING_CLASS);
       if (result.status === 'cancelled') {
-        setNotice({ tone: 'error', title: 'Đã hủy', text: 'Lệnh in đã bị hủy, chưa có trang nào được gửi.' });
+        setNotice({ tone: 'error', title: 'Lệnh in đã dừng', text: 'Lệnh in bị hủy hoặc hệ thống in báo lỗi, chưa có trang nào được gửi. Bấm In để thử lại.' });
         setPhase(job.manual && job.step === 'back' ? 'flip' : 'idle');
         return;
       }
@@ -226,16 +235,18 @@ export function PrintDialog({ source, onClose, extraOptions, cards, autoNotes, i
   useEffect(() => () => document.body.classList.remove(PRINTING_CLASS), []);
 
   const startPrint = useCallback(() => {
-    if (!outputs.length || source.loading || (phase !== 'idle' && phase !== 'flip')) return;
+    if (!outputs.length || source.loading || !listReady || (phase !== 'idle' && phase !== 'flip' && phase !== 'done')) return;
     setNotice(null);
     if (phase === 'flip') {
       document.body.classList.remove(PRINTING_CLASS);
       setStep('back');
     } else {
       setStep(manual ? 'front' : 'all');
+      jobRef.current = { target, printerLabel: savesAsPdf(resolved.printer) || target.kind === 'pdf' ? null : printerLabel, duplex: settings.sides === 'auto' && target.kind === 'printer', grayscale: settings.grayscale };
     }
+    setJobKind(jobRef.current?.target.kind ?? target.kind);
     setPhase('preparing');
-  }, [outputs.length, source.loading, phase, manual]);
+  }, [outputs.length, source.loading, listReady, phase, manual, target, resolved.printer, printerLabel, settings.sides, settings.grayscale]);
 
   const scrollToPage = useCallback((index: number) => {
     const target = stage?.querySelector<HTMLElement>(`[data-page-index="${index}"]`);
@@ -255,7 +266,7 @@ export function PrintDialog({ source, onClose, extraOptions, cards, autoNotes, i
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const typing = event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLTextAreaElement;
-      if (event.key === 'Escape' && !typing) { event.preventDefault(); latest.current.onClose(); }
+      if (event.key === 'Escape' && !typing) { event.preventDefault(); if (!latest.current.locked) latest.current.onClose(); }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'p') { event.preventDefault(); startPrint(); }
       if (!typing && event.key === 'PageDown') scrollToPage(Math.min(outputs.length - 1, current + 1));
       if (!typing && event.key === 'PageUp') scrollToPage(Math.max(0, current - 1));
@@ -278,7 +289,7 @@ export function PrintDialog({ source, onClose, extraOptions, cards, autoNotes, i
   const sidesOptions: CardOption<PrintSettings['sides']>[] = [
     { value: 'one', title: 'In một mặt', subtitle: 'Chỉ in một mặt của tờ giấy', icon: <File size={20} /> },
     { value: 'manual', title: 'In hai mặt thủ công', subtitle: 'In mặt trước, lật giấy theo hướng dẫn rồi in mặt sau', icon: <BookOpen size={20} /> },
-    { value: 'auto', title: 'In hai mặt tự động', subtitle: target.kind === 'printer' ? 'Máy in có bộ đảo mặt tự in mặt sau' : 'Bật "In hai mặt" ở bước kế tiếp (máy in có đảo mặt)', icon: <Copy size={20} /> },
+    { value: 'auto', title: 'In hai mặt tự động', subtitle: target.kind === 'printer' ? 'Máy in có bộ đảo mặt tự in mặt sau' : target.kind === 'pdf' ? 'Không áp dụng khi lưu PDF' : 'Bật "In hai mặt" ở bước kế tiếp (máy in có đảo mặt)', icon: <Copy size={20} /> },
   ];
   const collateOptions: CardOption<'yes' | 'no'>[] = [
     { value: 'yes', title: 'Theo bộ', subtitle: '1,2,3   1,2,3   1,2,3', icon: <Layers size={20} /> },
@@ -287,7 +298,7 @@ export function PrintDialog({ source, onClose, extraOptions, cards, autoNotes, i
 
   const printLabel = busy
     ? pendingLeft ? `Đang chuẩn bị ${pendingLeft} trang…` : 'Đang mở…'
-    : phase === 'flip' ? 'In mặt sau' : target.kind === 'pdf' ? 'Lưu PDF' : 'In';
+    : !listReady ? 'Đang tìm máy in…' : phase === 'flip' ? 'In mặt sau' : target.kind === 'pdf' ? 'Lưu PDF' : 'In';
 
   return (
     <div className="dialog-backdrop mp-backdrop" onMouseDown={(e) => e.target === e.currentTarget && (phase === 'idle' || phase === 'done') && onClose()}>
@@ -298,12 +309,12 @@ export function PrintDialog({ source, onClose, extraOptions, cards, autoNotes, i
               <h2>In</h2>
               <span className="mp-file" title={source.title}>{source.title}</span>
             </div>
-            <button className="icon-btn" onClick={onClose} aria-label="Đóng"><X size={18} /></button>
+            <button className="icon-btn" onClick={onClose} aria-label="Đóng" disabled={locked} title={locked ? 'Đang gửi lệnh in, chờ xong rồi đóng' : undefined}><X size={18} /></button>
           </header>
 
           <div className="mp-scroll">
             <div className="mp-print-row">
-              <button className="mp-print-big" onClick={startPrint} disabled={busy || phase === 'waiting' || phase === 'done' || !outputs.length || source.loading}>
+              <button className="mp-print-big" onClick={startPrint} disabled={busy || phase === 'waiting' || !listReady || !outputs.length || source.loading}>
                 {busy ? <Loader2 size={28} className="mp-spin" /> : <Printer size={28} />}
                 <span>{printLabel}</span>
               </button>
@@ -423,8 +434,8 @@ export function PrintDialog({ source, onClose, extraOptions, cards, autoNotes, i
             <p className="mp-hint">
               {direct
                 ? target.kind === 'pdf'
-                  ? 'Bấm Lưu PDF là ghi thẳng ra tệp, đúng khổ giấy và lề như bản xem trước.'
-                  : `Bấm In là gửi thẳng tới “${resolved.printer?.displayName ?? 'máy in'}”, không mở thêm hộp thoại. Cần chỉnh khay giấy hay chất lượng in thì chọn Hộp thoại in của hệ thống.`
+                  ? 'Bấm Lưu PDF là ghi thẳng vào thư mục Tải về, đúng khổ giấy và lề như bản xem trước, không hỏi nơi lưu.'
+                  : `Bấm In là gửi thẳng tới “${resolved.printer?.displayName ?? 'máy in'}”, không mở thêm hộp thoại nào.`
                 : platform === 'mac'
                   ? 'Máy in và in hai mặt tự động chọn trong hộp thoại in của macOS.'
                   : 'Ở bước kế tiếp, để Lề là Mặc định hoặc Không có và Tỉ lệ là 100% để bản in đúng như xem trước.'}
