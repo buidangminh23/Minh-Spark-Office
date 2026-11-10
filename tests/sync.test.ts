@@ -82,6 +82,67 @@ test('offline outbox survives reopening and uploads backup imports', async () =>
   assert.equal((await second.listFiles()).length, 2);
 });
 
+test('backup history survives offline import, reopening, and synchronization to another device', async () => {
+  const source = createWorkspaceStorage(`backup-source-${++sequence}`);
+  await source.saveFile(meta('backup-history'), content('latest backup content'));
+  const first = await source.saveVersion('backup-history', content('original'), 'Original');
+  const second = await source.saveVersion('backup-history', content('revised'), 'Revised');
+  const backup = JSON.parse(JSON.stringify(await source.exportBackup()));
+  const remote = new FakeRemote();
+  remote.online = false;
+  const device = client(remote);
+  assert.equal(await device.workspace.importBackup(backup), 1);
+  assert.deepEqual(await device.workspace.listVersions('backup-history'), [second, first]);
+  const reopened = device.reopen();
+  remote.online = true;
+  await reopened.syncNow();
+  const receiving = client(remote).workspace;
+  await receiving.syncNow();
+  assert.deepEqual(await receiving.listVersions('backup-history'), [second, first]);
+  assert.deepEqual(await receiving.loadContent('backup-history'), content('latest backup content'));
+  assert.deepEqual(await receiving.restoreVersion('backup-history', first.id), content('original'));
+  const local = await receiving.saveVersion('backup-history', content('local revision'));
+  assert.equal(await receiving.importBackup(backup), 0);
+  assert.deepEqual(await receiving.listVersions('backup-history'), [local, second, first]);
+  assert.deepEqual(await receiving.loadContent('backup-history'), content('original'));
+});
+
+test('invalid backup history creates neither local documents nor pending cloud writes', async () => {
+  const remote = new FakeRemote();
+  const device = client(remote);
+  const backup = {
+    format: 'minh-office-backup',
+    files: [meta('valid'), meta('invalid')],
+    contents: { valid: content('valid'), invalid: content('invalid') },
+    versions: { invalid: [{ id: 'version', fileId: 'other', timestamp: 1, label: 'Invalid', content: content('history') }] },
+  };
+  await assert.rejects(device.workspace.importBackup(backup), /Lịch sử/);
+  assert.deepEqual(await device.workspace.listFiles(), []);
+  await device.workspace.syncNow();
+  assert.equal(remote.records.size, 0);
+  assert.deepEqual((await device.state.read()).pending, {});
+});
+
+test('malformed snapshot content is rejected before the first backup record enters the outbox', async () => {
+  const remote = new FakeRemote();
+  const device = client(remote);
+  await device.workspace.saveFile(meta('retained'), content('existing'));
+  const before = await device.state.read();
+  await assert.rejects(device.workspace.importBackup({
+    format: 'minh-office-backup',
+    files: [meta('first'), meta('second')],
+    contents: { first: content('first'), second: content('second') },
+    versions: { second: [{ id: 'version', fileId: 'second', timestamp: 1, label: 'Malformed', content: { kind: 'doc' } }] },
+  }), /Lịch sử/);
+  assert.deepEqual(await device.state.read(), before);
+  assert.deepEqual((await device.workspace.listFiles()).map((file) => file.id), ['retained']);
+  assert.deepEqual(await device.workspace.loadContent('retained'), content('existing'));
+  assert.equal(await device.workspace.loadContent('first'), undefined);
+  assert.deepEqual(await device.workspace.listVersions('second'), []);
+  await device.workspace.syncNow();
+  assert.deepEqual([...remote.records.keys()], ['retained']);
+});
+
 test('concurrent edits create a distinct conflict copy and preserve the remote original', async () => {
   const remote = new FakeRemote();
   const a = client(remote).workspace;

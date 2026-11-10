@@ -1,5 +1,5 @@
 import { createStore, get, set } from 'idb-keyval';
-import type { FileContent, FileMeta, FileVersion, WorkspaceStorage } from './storage';
+import { parseWorkspaceBackup, type FileVersion, type WorkspaceStorage } from './storage';
 import { RemoteConflictError, type RemoteRecord, type RemoteWorkspace, type SyncState, type SyncStateStore, type SyncStatus, type SyncedWorkspace } from './syncTypes';
 
 type UploadMark = { generation: number; revision: string };
@@ -322,15 +322,14 @@ export function createSyncedWorkspace(userId: string, local: WorkspaceStorage, r
       });
     },
     async importBackup(payload) {
-      const data = structuredClone(payload) as { format?: string; files?: FileMeta[]; contents?: Record<string, FileContent> };
-      if (data?.format !== 'minh-office-backup' || !Array.isArray(data.files)) throw new Error('Tệp sao lưu không hợp lệ.');
+      const data = parseWorkspaceBackup(payload);
       return mutate(async (state) => {
         const ids = new Set((await local.listFiles()).map((file) => file.id));
         let count = 0;
-        for (const meta of data.files!) {
+        for (const meta of data.files) {
           const content = data.contents?.[meta.id];
           if (ids.has(meta.id) || !content) continue;
-          await enqueue(state, { id: meta.id, meta, content, versions: [], deleted: false, revision: '' });
+          await enqueue(state, { id: meta.id, meta, content, versions: data.versions?.[meta.id] ?? [], deleted: false, revision: '' });
           ids.add(meta.id);
           count++;
         }

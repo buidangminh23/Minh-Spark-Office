@@ -302,9 +302,9 @@ export default function SlideEditor({
     onBack();
   }, [onBack, saveLatest, ui]);
 
-  useDocumentCloser(async () => {
+  useDocumentCloser(async (close) => {
     const saved = await saveLatest(false);
-    if (saved) onBack();
+    if (saved && close) onBack();
     return saved;
   });
 

@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { CheckCircle2, AlertTriangle, X } from 'lucide-react';
+import { workspaceLifecycle } from '../lib/workspaceLifecycle';
 
 type Field = { name: string; label: string; type?: 'text' | 'password' | 'number' | 'textarea' | 'select' | 'checkbox'; value?: string | number | boolean; options?: { value: string; label: string }[]; placeholder?: string; min?: number; max?: number };
 
@@ -108,6 +109,15 @@ export function UiProvider({ children }: { children: ReactNode }) {
   const [dialogs, setDialogs] = useState<{ id: number; request: DialogRequest; resolve: (value: Record<string, string | boolean> | null) => void }[]>([]);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
+  const busyOwner = useRef(Symbol('workspace-ui'));
+  const showBusy = useCallback((text: string | null) => {
+    workspaceLifecycle.setBusy(busyOwner.current, text !== null);
+    setBusy(text);
+  }, []);
+  useEffect(() => {
+    const owner = busyOwner.current;
+    return () => workspaceLifecycle.setBusy(owner, false);
+  }, []);
   const counter = useRef(0);
 
   const ask = useCallback((request: DialogRequest) => new Promise<Record<string, string | boolean> | null>((resolve) => {
@@ -124,7 +134,7 @@ export function UiProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <UiContext.Provider value={{ ask, confirm, toast, showBusy: setBusy }}>
+    <UiContext.Provider value={{ ask, confirm, toast, showBusy }}>
       {children}
       {dialogs.map((dialog) => (
         <DialogView key={dialog.id} request={dialog.request} onDone={(value) => {

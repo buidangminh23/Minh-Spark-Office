@@ -772,6 +772,8 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
     return getActiveContext();
   }, [getActiveContext, ui]);
 
+  const pendingFormulaEdit = useRef<{ text: string; context: ReturnType<typeof getEditableContext> } | null>(null);
+
   const syncDefinedNames = useCallback(() => {
     const ctx = getActiveContext();
     if (!ctx) return;
@@ -826,7 +828,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
       setNameBoxText(fullA1);
       setNewCommentCell(fullA1);
 
-      if (!formulaBarFocusedRef.current) {
+      if (!formulaBarFocusedRef.current && !pendingFormulaEdit.current) {
         const topLeft = fWorksheet.getRange(rawRange.startRow, rawRange.startColumn, 1, 1);
         const fStr = topLeft.getFormula();
         const rawV = topLeft.getRawValue();
@@ -992,8 +994,6 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
       return false;
     }
   }, [setSavedStatus, captureHydratedWorkbook, meta, title, onSave, comments, printSettings, ui]);
-
-  useDocumentCloser(() => persistWorkbook(false).then((saved) => { if (saved) onBack(); return saved; }));
 
   const handleSaveNow = useCallback(() => void persistWorkbook(true), [persistWorkbook]);
 
@@ -2840,18 +2840,20 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
   );
 
   const handleCommitFormulaBar = useCallback(() => {
-    const ctx = getEditableContext();
-    if (!ctx) return;
+    const pending = pendingFormulaEdit.current;
+    const ctx = pending ? pending.context : getEditableContext();
+    if (!ctx || isProtectedRef.current) return false;
+    const text = pending?.text ?? formulaBarText;
     const raw = ctx.fRange.getRange();
     const cell = ctx.fWorksheet.getRange(raw.startRow, raw.startColumn, 1, 1);
-    const trimmed = formulaBarText.trim();
+    const trimmed = text.trim();
     if (trimmed === '') {
       cell.setValue('');
     } else if (trimmed.startsWith('=')) {
       cell.setValue(trimmed);
     } else {
       const n = coerceNumeric(trimmed);
-      cell.setValue(n !== null && /^-?\d+(\.\d+)?$/.test(trimmed) ? n : formulaBarText);
+      cell.setValue(n !== null && /^-?\d+(\.\d+)?$/.test(trimmed) ? n : text);
     }
     try {
       ctx.api.getFormula()?.executeCalculation();
@@ -2859,13 +2861,24 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
       void 0;
     }
     try {
-      announceAutomation(applyEditAutomation(ctx.fWorksheet, raw.startRow, raw.startColumn, formulaBarText, null));
+      announceAutomation(applyEditAutomation(ctx.fWorksheet, raw.startRow, raw.startColumn, text, null));
     } catch (err) {
       console.warn('Auto-fit column after formula bar commit failed:', err);
     }
+    pendingFormulaEdit.current = null;
     setSavedStatus('saving');
     setTimeout(() => syncUiFromSelection(), 35);
+    return true;
   }, [setSavedStatus, getEditableContext, formulaBarText, syncUiFromSelection, announceAutomation]);
+
+  useDocumentCloser(async (close) => {
+    if (pendingFormulaEdit.current && !handleCommitFormulaBar()) return false;
+    const workbook = univerAPIRef.current?.getActiveWorkbook();
+    if (workbook?.isCellEditing() && !(await workbook.endEditingAsync(true))) return false;
+    const saved = await persistWorkbook(false);
+    if (saved && close) onBack();
+    return saved;
+  });
 
   const handleGoalSeek = async (formulaCellRef: string, targetValue: number, variableCellRef: string): Promise<string> => {
     const ctx = getActiveContext();
@@ -5779,6 +5792,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
             className="sheet-fx-act"
             title="Huỷ chỉnh sửa (Esc)"
             onClick={() => {
+              pendingFormulaEdit.current = null;
               formulaBarFocusedRef.current = false;
               syncUiFromSelection();
             }}
@@ -5812,7 +5826,10 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
             onBlur={() => {
               formulaBarFocusedRef.current = false;
             }}
-            onChange={(e) => setFormulaBarText(e.target.value)}
+            onChange={(e) => {
+              pendingFormulaEdit.current = { text: e.target.value, context: pendingFormulaEdit.current?.context ?? getEditableContext() };
+              setFormulaBarText(e.target.value);
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault();
@@ -5821,6 +5838,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                 e.currentTarget.blur();
               } else if (e.key === 'Escape') {
                 e.preventDefault();
+                pendingFormulaEdit.current = null;
                 formulaBarFocusedRef.current = false;
                 syncUiFromSelection();
                 e.currentTarget.blur();

@@ -4,6 +4,9 @@ import { createDraftWorkspaceStorage, WorkspaceContext, useWorkspace } from './l
 import { accountWorkspace, syncedWorkspace } from './lib/workspaces';
 import { WorkspaceStatus } from './components/WorkspaceStatus';
 import { DesktopUpdater } from './components/DesktopUpdater';
+import { DesktopCloseGuard } from './components/DesktopCloseGuard';
+import { createDesktopFileQueue } from './lib/desktopFileQueue';
+import { workspaceLifecycle } from './lib/workspaceLifecycle';
 import { DesktopSignIn, isDesktopSignInRequest } from './components/DesktopSignIn';
 import { isDesktop } from './lib/desktop';
 import { invoke } from '@tauri-apps/api/core';
@@ -615,7 +618,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
   };
 
   // Import file (.docx, .xlsx, .csv) with password decryption support
-  const handleImportFile = async (file: File) => {
+  const handleImportFile = async (file: File): Promise<boolean> => {
     try {
       ui.showBusy(`Đang xử lý ${file.name}…`);
       const buffer = await file.arrayBuffer();
@@ -654,7 +657,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
 
           if (!res || !res.password) {
             ui.toast('Đã huỷ mở tệp mã hoá');
-            return;
+            return false;
           }
 
           ui.showBusy('Đang giải mã tệp…');
@@ -699,6 +702,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
         };
         await saveFile(meta, content);
         await refreshFiles();
+        activeDocument.current = meta;
         setActiveMeta(meta);
         setActiveContent(content);
         ui.toast(`Đã nạp tệp Word "${file.name}"`);
@@ -710,6 +714,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
         const content: DocContent = { kind: 'doc', json: html as any, page: defaultPage() };
         await saveFile(meta, content);
         await refreshFiles();
+        activeDocument.current = meta;
         setActiveMeta(meta);
         setActiveContent(content);
         ui.toast(`Đã mở "${file.name}"`);
@@ -736,6 +741,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
         };
         await saveFile(meta, content);
         await refreshFiles();
+        activeDocument.current = meta;
         setActiveMeta(meta);
         setActiveContent(content);
         ui.toast(`Đã nạp bảng tính "${file.name}"`);
@@ -765,6 +771,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
         };
         await saveFile(meta, content);
         await refreshFiles();
+        activeDocument.current = meta;
         setActiveMeta(meta);
         setActiveContent(content);
         ui.toast(`Đã nạp tệp PDF "${file.name}"`);
@@ -791,6 +798,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
         };
         await saveFile(meta, content);
         await refreshFiles();
+        activeDocument.current = meta;
         setActiveMeta(meta);
         setActiveContent(content);
         ui.toast(`Đã nạp bài thuyết trình "${file.name}"`);
@@ -820,14 +828,18 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
         };
         await saveFile(meta, content);
         await refreshFiles();
+        activeDocument.current = meta;
         setActiveMeta(meta);
         setActiveContent(content);
         ui.toast(`Đã nạp hình ảnh "${file.name}"`);
       } else {
         ui.toast('Định dạng tệp không được hỗ trợ', true);
+        return false;
       }
+      return true;
     } catch (err) {
       ui.toast((err as Error).message || 'Không thể mở tệp này', true);
+      return false;
     } finally {
       ui.showBusy(null);
     }
@@ -839,39 +851,26 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
   useEffect(() => {
     if (!ready || !isDesktop()) return;
     let alive = true;
-    let busy = false;
     let unlisten: (() => void) | undefined;
-    const drain = async (notify = false) => {
-      if (!alive || busy) return;
-      if (activeDocument.current) {
-        if (notify) toast('Đã nhận tệp từ hệ điều hành. Hãy lưu và trở về danh sách để mở tệp mới.');
-        return;
-      }
-      busy = true;
-      let remaining = false;
-      try {
-        const result = await invoke<{ files: { name: string; id: number }[]; errors: string[]; hasMore: boolean }>('drain_open_files');
-        if (!alive) return;
-        for (const error of result.errors) if (alive) toast(error, true);
-        for (const file of result.files) {
-          let bytes: ArrayBuffer;
-          try { bytes = await invoke<ArrayBuffer>('take_open_file', { id: file.id }); }
-          catch (error) { if (alive) toast(typeof error === 'string' ? error : 'Không đọc được nội dung tệp.', true); continue; }
-          if (!alive) return;
-          await importFromDesktop.current(new File([bytes], file.name));
-        }
-        remaining = result.hasMore && result.files.length === 0;
-        if (result.hasMore && alive) toast('Còn tệp đang chờ. Trở về danh sách sau khi lưu để mở tệp tiếp theo.');
-      } catch { if (alive) toast('Chưa mở được tệp từ hệ điều hành. Có thể dùng nút Mở tệp từ máy để thử lại.', true); }
-      finally { busy = false; if (alive && remaining) queueMicrotask(() => { void drain(); }); }
-    };
-    drainDesktopFiles.current = () => { void drain(); };
-    void listen('office-open-files-changed', () => { void drain(true); }).then((stop) => {
+    const queue = createDesktopFileQueue({
+      isEditing: () => Boolean(activeDocument.current) || workspaceLifecycle.isBlocked(),
+      drain: () => invoke('drain_open_files'),
+      read: (file) => invoke<ArrayBuffer>('take_open_file', { id: file.id }),
+      open: (file) => importFromDesktop.current(file),
+      notify: toast,
+    });
+    drainDesktopFiles.current = () => { void queue.resume(); };
+    const stopLifecycle = workspaceLifecycle.subscribe(() => {
+      if (!workspaceLifecycle.isBlocked()) void queue.resume();
+    });
+    void listen('office-open-files-changed', () => { void queue.request(true); }).then((stop) => {
       if (!alive) { stop(); return; }
       unlisten = stop;
-      void drain();
+      void queue.request();
+    }).catch(() => {
+      if (alive) toast('Chưa nhận được yêu cầu mở tệp từ hệ điều hành. Có thể dùng nút Mở tệp từ máy để thử lại.', true);
     });
-    return () => { alive = false; unlisten?.(); drainDesktopFiles.current = () => {}; };
+    return () => { alive = false; queue.stop(); stopLifecycle(); unlisten?.(); drainDesktopFiles.current = () => {}; };
   }, [ready, storage, toast]);
   useEffect(() => { if (!activeMeta) drainDesktopFiles.current(); }, [activeMeta]);
 
@@ -1118,6 +1117,7 @@ function Workspace({ userId, onEditing, editing }: { userId: string | null; onEd
   return (
     <WorkspaceContext value={workspace}>
       <UiProvider>
+        <DesktopCloseGuard />
         <div className={`workspace-frame ${editing ? 'is-editing' : ''}`}><div className="workspace-content"><MainApp onEditing={onEditing} /></div><WorkspaceStatus /></div>
       </UiProvider>
     </WorkspaceContext>

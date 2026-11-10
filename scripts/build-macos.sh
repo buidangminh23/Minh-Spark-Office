@@ -3,7 +3,7 @@ set -euo pipefail
 
 root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$root"
-export PATH="$HOME/bin:$HOME/.cargo/bin:/opt/homebrew/bin:$PATH"
+export PATH="$HOME/bin:$HOME/.cargo/bin:/usr/bin:/bin:/opt/homebrew/bin:$PATH"
 export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-1}"
 export CARGO_INCREMENTAL=0
 export CI=true

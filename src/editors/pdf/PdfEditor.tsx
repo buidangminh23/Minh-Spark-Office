@@ -241,7 +241,7 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
     return saved;
   }, [meta, title, onSave, content, pdfDataUrl, totalPages, comments]);
 
-  useDocumentCloser(() => persistPdf(false).then((saved) => { if (saved) onBack(); return saved; }));
+  useDocumentCloser((close) => persistPdf(false).then((saved) => { if (saved && close) onBack(); return saved; }));
 
   const handleSaveNow = async () => {
     if (await persistPdf(true)) ui.toast('Đã lưu tài liệu PDF');

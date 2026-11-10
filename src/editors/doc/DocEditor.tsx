@@ -318,7 +318,7 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
     return saved;
   }, [editor]);
 
-  useDocumentCloser(() => persist(false).then((saved) => { if (saved) onBack(); return saved; }));
+  useDocumentCloser((close) => persist(false).then((saved) => { if (saved && close) onBack(); return saved; }));
 
   const saveNow = useCallback(async () => {
     if (await persist(true)) ui.toast('Đã lưu tài liệu');
