@@ -5,6 +5,8 @@ use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 mod close_guard;
 mod desktop_auth;
 mod native_print;
+#[cfg(target_os = "macos")]
+mod native_quit;
 mod open_files;
 mod printers;
 
@@ -44,6 +46,8 @@ fn main() {
             close_guard::finish_close_request
         ])
         .setup(|app| {
+            #[cfg(target_os = "macos")]
+            native_quit::install(app.handle()).map_err(std::io::Error::other)?;
             if let Ok(cwd) = std::env::current_dir() {
                 open_files::queue_arguments(
                     app.handle(),
