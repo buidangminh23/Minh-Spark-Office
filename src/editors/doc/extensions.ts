@@ -4,6 +4,7 @@ import { TableCell, TableHeader } from '@tiptap/extension-table';
 import { NodeSelection } from '@tiptap/pm/state';
 import type { ResizableNodeView } from '@tiptap/core';
 import { enhanceImageView } from './resizeObjects';
+import { safeImageSrc } from './safeUrl';
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -367,6 +368,14 @@ export const LayoutImage = Image.extend({
   addAttributes() {
     return {
       ...this.parent?.(),
+      src: {
+        default: null,
+        parseHTML: (element) => safeImageSrc(element.getAttribute('src')),
+        renderHTML: (attributes) => {
+          const src = safeImageSrc(attributes.src);
+          return src ? { src } : {};
+        },
+      },
       frame: {
         default: null,
         parseHTML: (element) => element.getAttribute('data-frame'),
