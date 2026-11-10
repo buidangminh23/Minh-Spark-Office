@@ -19,7 +19,7 @@
     {
       "source": "/(gioi-thieu|tai-ung-dung|minh-docs|minh-sheets)\\.html",
       "headers": [
-        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'sha256-/QN49dvipivqmhnat/EFRJ9sph4YESgT1vduyTUx9rw=' 'sha256-7KeNxauOsqUG/SiQpytRueE2jG/e0koPWBXfc/DKQCE='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self'; font-src 'self' data:; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" }
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self'; font-src 'self' data:; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" }
       ]
     },
     {

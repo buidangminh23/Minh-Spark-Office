@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { videoEmbedUrl } from '../src/editors/doc/insertNodes';
@@ -43,8 +42,9 @@ const allows = (sources: string[], url: string) => {
 };
 
 const inlineScripts = (html: string) => [...html.matchAll(/<script(\s[^>]*)?>([\s\S]*?)<\/script>/g)]
-  .filter((match) => !/\ssrc=/.test(match[1] ?? '') && !/type="application\/ld\+json"/.test(match[1] ?? ''))
-  .map((match) => `'sha256-${createHash('sha256').update(match[2], 'utf8').digest('base64')}'`);
+  .filter((match) => !/\ssrc=/.test(match[1] ?? '') && !/type="application\/ld\+json"/.test(match[1] ?? ''));
+
+const externalScripts = (html: string) => [...html.matchAll(/<script\s[^>]*src="([^"]+)"/g)].map((match) => match[1]);
 
 test('the app and its static pages each get exactly one policy', () => {
   for (const path of ['/', '/index.html', '/assets/index-abc.js', '/assets/pyodideWorker-abc.js', '/api/download', '/updates/latest.json']) policyFor(path);
@@ -98,15 +98,20 @@ test('the app policy admits every external origin the web build uses', () => {
   assert.ok(allows(policy['form-action'], target.action), 'desktop sign-in hands the token to the loopback callback');
 });
 
-test('every inline script on the static pages is pinned by hash, also after a version bump', () => {
+test('static pages run no inline scripts, so the policy needs no line-ending dependent hashes', () => {
   const policy = policyFor('/tai-ung-dung.html');
+  assert.deepEqual(policy['script-src'], ["'self'"]);
   const current = JSON.parse(read('src-tauri/tauri.conf.json')).version;
   const next = nextPatchVersion(current);
   for (const page of STATIC_PAGES) {
     const html = read(page);
     const file = VERSION_FILES.find((entry) => entry.path === page);
     const bumped = file ? bumpVersionText(html, file, current, next) : html;
-    for (const hash of [...inlineScripts(html), ...inlineScripts(bumped)]) assert.ok(policy['script-src'].includes(hash), `${page} inline script ${hash} is not in the static page policy`);
+    assert.equal(inlineScripts(html).length + inlineScripts(bumped).length, 0, `${page} has an inline script`);
+    for (const src of externalScripts(html)) {
+      assert.ok(src.startsWith('/') && !src.startsWith('//'), `${page} loads ${src} from another origin`);
+      assert.ok(read(`public${src}`).length > 0, `${page} script ${src} is missing`);
+    }
   }
 });
 
