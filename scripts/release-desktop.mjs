@@ -27,6 +27,7 @@ const KEY_LINK = join(LOCAL_APP_DATA, 'MinhSparkOffice', 'signing');
 const KEY_SOURCE = process.env.MINHSPARK_UPDATER_KEY_DIR
   || join(LOCAL_APP_DATA, 'Packages', 'OpenAI.Codex_2p2nqsd0c76g0', 'LocalCache', 'Local', 'MinhSparkOffice', 'signing');
 const WINDOWS_TAR = join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe');
+const SSH_OPTIONS = ['-n', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=4'];
 const STEPS = ['bump', 'windows', 'mac', 'package', 'commit', 'deploy', 'verify', 'push'];
 const LIVE_RETRIES = 6;
 const LIVE_RETRY_MS = 10_000;
@@ -107,8 +108,6 @@ function capture(command, args, { cwd = root, input, timeout } = {}) {
   if (result.status !== 0) throw new Error(`${command} ${args.join(' ')} failed: ${(result.stderr || '').trim()}`);
   return result.stdout.trim();
 }
-
-const SSH_OPTIONS = ['-n', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=4'];
 
 function remoteBash(script) {
   return `printf %s ${Buffer.from(script).toString('base64')} | base64 -d | bash -ls`;
