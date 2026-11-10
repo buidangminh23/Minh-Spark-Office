@@ -37,7 +37,7 @@ objc2 = "0.6"
 
 [target.'cfg(windows)'.dependencies]
 webview2-com = "0.39"
-windows = { version = "0.62", features = ["Win32_Graphics_Printing", "Win32_Storage_Xps", "Win32_Graphics_Gdi"] }
+windows = { version = "0.62", features = ["Win32_Graphics_Printing", "Win32_Storage_Xps", "Win32_Graphics_Gdi", "Win32_Security"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

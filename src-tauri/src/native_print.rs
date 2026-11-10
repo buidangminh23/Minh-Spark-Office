@@ -404,7 +404,7 @@ mod platform {
                 };
                 let handler = PrintToPdfCompletedHandler::create(Box::new(move |result, success| {
                     finish(match result {
-                        Ok(()) if success.as_bool() => Ok(true),
+                        Ok(()) if success => Ok(true),
                         Ok(()) => Err("PDF_NOT_WRITTEN".into()),
                         Err(error) => Err(format!("WEBVIEW2_{:#010x}", error.code().0)),
                     });
