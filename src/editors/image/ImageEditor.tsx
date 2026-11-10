@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -62,6 +62,7 @@ import type {
   FileVersion,
   CommentItem,
 } from '../../lib/storage';
+import { flattenEncoding, isMarkupBlank, screenOffsetToImagePoint } from './markupMath';
 import './imageEditor.css';
 
 interface ImageEditorProps {
@@ -124,6 +125,7 @@ export default function ImageEditor({
   const [printJob, setPrintJob] = useState<{ src: string; width: number; height: number } | null>(null);
   const [savedStatus, setSavedStatus] = useState<'saved' | 'saving'>('saved');
   const [currentDataUrl, setCurrentDataUrl] = useState(content.imageDataUrl);
+  const [mimeType, setMimeType] = useState(content.mimeType || 'image/png');
   const [dimensions, setDimensions] = useState({
     width: content.width || 800,
     height: content.height || 600,
@@ -179,6 +181,54 @@ export default function ImageEditor({
   const markupCanvasRef = useRef<HTMLCanvasElement>(null);
   const isDrawingMarkup = useRef(false);
   const markupHistory = useRef<ImageData[]>([]);
+  const clearMarkupAfterCommit = useRef(false);
+
+  const clearMarkupCanvas = useCallback(() => {
+    const canvas = markupCanvasRef.current;
+    canvas?.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height);
+    markupHistory.current = [];
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!clearMarkupAfterCommit.current) return;
+    clearMarkupAfterCommit.current = false;
+    clearMarkupCanvas();
+  }, [currentDataUrl, clearMarkupCanvas]);
+
+  const flattenMarkup = useCallback(async (): Promise<{ url: string; mime: string }> => {
+    const canvas = markupCanvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx || canvas.width === 0 || canvas.height === 0) return { url: currentDataUrl, mime: mimeType };
+    if (isMarkupBlank(ctx.getImageData(0, 0, canvas.width, canvas.height).data)) return { url: currentDataUrl, mime: mimeType };
+    const img = new Image();
+    img.src = currentDataUrl;
+    await img.decode();
+    const out = document.createElement('canvas');
+    out.width = canvas.width;
+    out.height = canvas.height;
+    const outCtx = out.getContext('2d');
+    if (!outCtx) throw new Error('Canvas unavailable');
+    const encoding = flattenEncoding(mimeType);
+    if (encoding.mime === 'image/jpeg') {
+      outCtx.fillStyle = '#ffffff';
+      outCtx.fillRect(0, 0, out.width, out.height);
+    }
+    outCtx.drawImage(img, 0, 0, out.width, out.height);
+    outCtx.drawImage(canvas, 0, 0);
+    return { url: out.toDataURL(encoding.mime, encoding.quality), mime: encoding.mime };
+  }, [currentDataUrl, mimeType]);
+
+  const commitMarkup = useCallback(async (): Promise<{ url: string; mime: string }> => {
+    const flat = await flattenMarkup();
+    if (flat.url === currentDataUrl) return flat;
+    const preload = new Image();
+    preload.src = flat.url;
+    await preload.decode().catch(() => undefined);
+    clearMarkupAfterCommit.current = true;
+    setCurrentDataUrl(flat.url);
+    setMimeType(flat.mime);
+    return flat;
+  }, [flattenMarkup, currentDataUrl]);
 
   const changeRevision = useRef(0);
   const markDirty = useCallback(() => {
@@ -217,6 +267,13 @@ export default function ImageEditor({
   const persistImage = useCallback(
     async (explicit = false) => {
       const savedRevision = changeRevision.current;
+      let flat: { url: string; mime: string };
+      try {
+        flat = await commitMarkup();
+      } catch {
+        ui.toast('Không ghép được nét vẽ vào ảnh nên chưa lưu. Nét vẽ vẫn còn trên ảnh.', true);
+        return false;
+      }
       const updatedMeta: FileMeta = {
         ...meta,
         name: title.trim() || meta.name,
@@ -227,8 +284,8 @@ export default function ImageEditor({
       };
       const updatedContent: ImageContent = {
         kind: 'image',
-        imageDataUrl: currentDataUrl,
-        mimeType: content.mimeType || 'image/png',
+        imageDataUrl: flat.url,
+        mimeType: flat.mime,
         width: dimensions.width,
         height: dimensions.height,
         comments,
@@ -249,8 +306,8 @@ export default function ImageEditor({
       meta,
       title,
       dimensions,
-      currentDataUrl,
-      content.mimeType,
+      commitMarkup,
+      ui,
       comments,
       zoom,
       rotation,
@@ -292,10 +349,17 @@ export default function ImageEditor({
   };
 
   const handleCreateSnapshot = async () => {
+    let flat: { url: string; mime: string };
+    try {
+      flat = await commitMarkup();
+    } catch {
+      ui.toast('Không ghép được nét vẽ vào ảnh nên chưa lưu phiên bản.', true);
+      return;
+    }
     const draft: ImageContent = {
       kind: 'image',
-      imageDataUrl: currentDataUrl,
-      mimeType: content.mimeType,
+      imageDataUrl: flat.url,
+      mimeType: flat.mime,
       width: dimensions.width,
       height: dimensions.height,
       comments,
@@ -378,6 +442,15 @@ export default function ImageEditor({
     }
   };
 
+  const markupPoint = (e: React.MouseEvent, canvas: HTMLCanvasElement) => {
+    const rect = canvas.getBoundingClientRect();
+    return screenOffsetToImagePoint(
+      e.clientX - (rect.left + rect.width / 2),
+      e.clientY - (rect.top + rect.height / 2),
+      { scale: zoom / 100, rotation, flipX, flipY, width: canvas.width, height: canvas.height }
+    );
+  };
+
   const handleMouseDown = (e: React.MouseEvent) => {
     if (markupTool === 'none' || e.button !== 0) {
       setIsPanning(true);
@@ -394,9 +467,7 @@ export default function ImageEditor({
     );
     if (markupHistory.current.length > 20) markupHistory.current.shift();
 
-    const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
-    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    const { x, y } = markupPoint(e, canvas);
 
     isDrawingMarkup.current = true;
     ctx.lineWidth = brushSize;
@@ -449,9 +520,7 @@ export default function ImageEditor({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
-    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    const { x, y } = markupPoint(e, canvas);
 
     if (markupTool === 'pen' || markupTool === 'highlighter') {
       ctx.lineTo(x, y);
@@ -473,9 +542,7 @@ export default function ImageEditor({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const rect = canvas.getBoundingClientRect();
-    const currentX = (e.clientX - rect.left) * (canvas.width / rect.width);
-    const currentY = (e.clientY - rect.top) * (canvas.height / rect.height);
+    const { x: currentX, y: currentY } = markupPoint(e, canvas);
     const startX = panStartRef.current.x;
     const startY = panStartRef.current.y;
 
@@ -561,7 +628,14 @@ export default function ImageEditor({
     ui.toast('Đã xoá các nét vẽ');
   };
 
-  const handleApplyCrop = () => {
+  const handleApplyCrop = async () => {
+    let source: string;
+    try {
+      source = (await commitMarkup()).url;
+    } catch {
+      ui.toast('Không ghép được nét vẽ vào ảnh nên chưa cắt ảnh.', true);
+      return;
+    }
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
@@ -579,22 +653,22 @@ export default function ImageEditor({
 
       ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
       const croppedUrl = canvas.toDataURL('image/png');
+      clearMarkupAfterCommit.current = true;
       setCurrentDataUrl(croppedUrl);
+      setMimeType('image/png');
       setDimensions({ width: canvas.width, height: canvas.height });
       setCropPercents({ top: 0, right: 0, bottom: 0, left: 0 });
       markDirty();
       ui.toast('Đã cắt ảnh thành công');
     };
-    img.src = currentDataUrl;
+    img.onerror = () => ui.toast('Không đọc được ảnh để cắt', true);
+    img.src = source;
   };
 
   const handleBakeAllToDataUrl = async (): Promise<string> => {
     const img = new Image();
-    img.crossOrigin = 'anonymous';
-    await new Promise((r) => {
-      img.onload = r;
-      img.src = currentDataUrl;
-    });
+    img.src = (await flattenMarkup()).url;
+    await img.decode();
 
     const isQuarter = rotation % 180 !== 0;
     const w = isQuarter ? dimensions.height : dimensions.width;
@@ -604,7 +678,7 @@ export default function ImageEditor({
     canvas.width = w;
     canvas.height = h;
     const ctx = canvas.getContext('2d');
-    if (!ctx) return currentDataUrl;
+    if (!ctx) throw new Error('Canvas unavailable');
 
     ctx.save();
     if (activeCssFilter && activeCssFilter !== 'none') {
@@ -622,11 +696,16 @@ export default function ImageEditor({
     );
     ctx.restore();
 
-    if (markupCanvasRef.current) {
-      ctx.drawImage(markupCanvasRef.current, 0, 0, w, h);
-    }
-
     return canvas.toDataURL('image/png');
+  };
+
+  const bakeOrReport = async () => {
+    try {
+      return await handleBakeAllToDataUrl();
+    } catch {
+      ui.toast('Không chuẩn bị được ảnh kèm nét vẽ', true);
+      return null;
+    }
   };
 
   const handleExport = async (format: 'png' | 'jpeg' | 'webp' | 'pdf') => {
@@ -729,6 +808,7 @@ export default function ImageEditor({
       const parsed = await readImageFile(file);
       setTitle(file.name);
       setCurrentDataUrl(parsed.dataUrl);
+      setMimeType(parsed.mimeType);
       setDimensions({ width: parsed.width, height: parsed.height });
       handleResetZoom();
       handleClearMarkup();
@@ -1353,7 +1433,8 @@ export default function ImageEditor({
                 <button
                   className="image-tool-btn"
                   onClick={async () => {
-                    const baked = await handleBakeAllToDataUrl();
+                    const baked = await bakeOrReport();
+                    if (!baked) return;
                     if (onOpenInDoc) onOpenInDoc(baked, title);
                     else ui.toast('Đã chuẩn bị ảnh cho Minh Docs');
                   }}
@@ -1366,7 +1447,8 @@ export default function ImageEditor({
                 <button
                   className="image-tool-btn"
                   onClick={async () => {
-                    const baked = await handleBakeAllToDataUrl();
+                    const baked = await bakeOrReport();
+                    if (!baked) return;
                     if (onOpenInSheet) onOpenInSheet(baked, title);
                     else ui.toast('Đã chuẩn bị ảnh cho Minh Sheets');
                   }}
@@ -1379,7 +1461,8 @@ export default function ImageEditor({
                 <button
                   className="image-tool-btn"
                   onClick={async () => {
-                    const baked = await handleBakeAllToDataUrl();
+                    const baked = await bakeOrReport();
+                    if (!baked) return;
                     if (onOpenInSlide) onOpenInSlide(baked, title);
                     else ui.toast('Đã chuẩn bị ảnh cho Minh Slides');
                   }}
@@ -1626,7 +1709,9 @@ export default function ImageEditor({
                         style={{ padding: '4px 8px', fontSize: '11px' }}
                         onClick={() => {
                           if (ver.content.kind === 'image') {
+                            clearMarkupCanvas();
                             setCurrentDataUrl(ver.content.imageDataUrl);
+                            setMimeType(ver.content.mimeType || 'image/png');
                             setDimensions({
                               width: ver.content.width || 800,
                               height: ver.content.height || 600,
