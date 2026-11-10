@@ -8,6 +8,14 @@ export const VERSION_FILES = [
   { path: 'public/gioi-thieu.html', pattern: (v) => new RegExp(escape(v), 'g'), count: 'all' },
 ];
 
+export const PREFLIGHT_CHECKS = [
+  { label: 'Typecheck', command: 'npx', args: ['tsc', '-b'] },
+  { label: 'Unit tests', command: 'npm', args: ['test'] },
+  { label: 'Lint (errors fail, warnings are reported)', command: 'npm', args: ['run', 'lint'] },
+];
+
+export const MAC_INSTALL_COMMAND = 'curl -fsSL https://office.minhspark.com/install-macos.sh | bash';
+
 function escape(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

@@ -9,6 +9,7 @@ import { NODE_EDITORS } from './nodeEditors';
 import { defaultFormat, formatDate, type FieldKind } from './insertFields';
 import { attachWidthHandles, isObjectHandleEvent } from './resizeObjects';
 import { currentAuthorName } from '../../lib/currentAuthor';
+import { safeFileData, safeHttpUrl } from './safeUrl';
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -168,7 +169,14 @@ export const VideoEmbed = Node.create({
   draggable: true,
   addAttributes() {
     return {
-      url: attrOf('url', 'data-url', ''),
+      url: {
+        default: '',
+        parseHTML: (element: HTMLElement) => safeHttpUrl(element.getAttribute('data-url')),
+        renderHTML: (attributes: Record<string, unknown>) => {
+          const url = safeHttpUrl(attributes.url);
+          return url ? { 'data-url': url } : {};
+        },
+      },
       width: {
         default: 100,
         parseHTML: (element: HTMLElement) => Number(element.getAttribute('data-width')) || 100,
@@ -180,11 +188,11 @@ export const VideoEmbed = Node.create({
     return [{ tag: 'div[data-video-embed]' }];
   },
   renderHTML({ HTMLAttributes, node }) {
-    const url = String(node.attrs.url);
+    const url = safeHttpUrl(node.attrs.url);
     const embed = videoEmbedUrl(url);
     return ['div', mergeAttributes(HTMLAttributes, { 'data-video-embed': 'true', class: 'doc-video', style: `width: ${node.attrs.width}%` }),
       ['div', { class: 'doc-video-handle', contenteditable: 'false', title: 'Bấm để chọn, kéo để di chuyển video', 'aria-label': 'Chọn video' }],
-      embed ? ['iframe', { src: embed, title: 'Video trực tuyến', loading: 'lazy', allowfullscreen: 'true', referrerpolicy: 'strict-origin-when-cross-origin', allow: 'encrypted-media; picture-in-picture' }] : ['a', { href: url }, url],
+      embed ? ['iframe', { src: embed, title: 'Video trực tuyến', loading: 'lazy', allowfullscreen: 'true', referrerpolicy: 'strict-origin-when-cross-origin', allow: 'encrypted-media; picture-in-picture' }] : url ? ['a', { href: url, rel: 'noopener noreferrer', target: '_blank' }, url] : ['span', { class: 'doc-video-link' }, String(node.attrs.url ?? '')],
     ];
   },
   renderText({ node }) {
@@ -206,12 +214,17 @@ export const VideoEmbed = Node.create({
       const render = (current: PMNode) => {
         dom.style.width = `${current.attrs.width}%`;
         dom.dataset.width = String(current.attrs.width);
-        const url = String(current.attrs.url);
-        if (url === shownUrl) return;
-        shownUrl = url;
-        dom.querySelector('iframe, a.doc-video-link')?.remove();
+        const raw = String(current.attrs.url ?? '');
+        if (raw === shownUrl) return;
+        shownUrl = raw;
+        const url = safeHttpUrl(raw);
+        dom.querySelector('iframe, .doc-video-link')?.remove();
         const embed = videoEmbedUrl(url);
-        const frame = embed ? Object.assign(document.createElement('iframe'), { src: embed, title: 'Video trực tuyến', loading: 'lazy', allowFullscreen: true, referrerPolicy: 'strict-origin-when-cross-origin' }) : Object.assign(document.createElement('a'), { href: url, textContent: url, className: 'doc-video-link' });
+        const frame = embed
+          ? Object.assign(document.createElement('iframe'), { src: embed, title: 'Video trực tuyến', loading: 'lazy', allowFullscreen: true, referrerPolicy: 'strict-origin-when-cross-origin' })
+          : url
+            ? Object.assign(document.createElement('a'), { href: url, textContent: url, className: 'doc-video-link', rel: 'noopener noreferrer', target: '_blank' })
+            : Object.assign(document.createElement('span'), { textContent: raw, className: 'doc-video-link' });
         if (frame instanceof HTMLIFrameElement) frame.allow = 'encrypted-media; picture-in-picture';
         dom.insertBefore(frame, mover.nextSibling);
       };
@@ -259,7 +272,11 @@ export const FileObject = Node.create({
         renderHTML: (attributes: Record<string, unknown>) => ({ 'data-file-size': attributes.size }),
       },
       mime: attrOf('mime', 'data-file-mime', 'application/octet-stream'),
-      data: attrOf('data', 'data-file-object', ''),
+      data: {
+        default: '',
+        parseHTML: (element: HTMLElement) => safeFileData(element.getAttribute('data-file-object')),
+        renderHTML: (attributes: Record<string, unknown>) => ({ 'data-file-object': safeFileData(attributes.data) }),
+      },
     };
   },
   parseHTML() {
@@ -349,8 +366,9 @@ FLATTEN_EXTRA.docField = (node, editor) => {
 };
 
 FLATTEN_EXTRA.videoEmbed = (node) => {
-  const url = String(node.attrs?.url ?? '');
-  return [{ type: 'paragraph', content: [{ type: 'text', text: 'Video: ' }, { type: 'text', text: url, marks: [{ type: 'link', attrs: { href: url } }] }] }];
+  const raw = String(node.attrs?.url ?? '');
+  const url = safeHttpUrl(raw);
+  return [{ type: 'paragraph', content: [{ type: 'text', text: 'Video: ' }, ...textNode(url || raw, url ? [{ type: 'link', attrs: { href: url } }] : undefined)] }];
 };
 
 FLATTEN_EXTRA.fileObject = (node) => textNode(`[Tệp đính kèm: ${String(node.attrs?.name ?? '')}]`, node.marks);
@@ -362,8 +380,13 @@ FLATTEN_EXTRA.esignField = (node) => {
 };
 
 NODE_EDITORS.fileObject = (ctx, node) => {
+  const data = safeFileData(node.attrs.data);
+  if (!data) {
+    ctx.ui.toast('Tệp đính kèm này không hợp lệ nên không tải được', true);
+    return true;
+  }
   const link = document.createElement('a');
-  link.href = String(node.attrs.data);
+  link.href = data;
   link.download = String(node.attrs.name);
   link.click();
   ctx.ui.toast(`Đang tải ${String(node.attrs.name)}`);

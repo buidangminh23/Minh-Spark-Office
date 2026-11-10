@@ -5,6 +5,7 @@ import { searchKey } from '../search';
 import { useDoc } from '../DocContext';
 import { addComment, copySelection, editLink, imageSettings, insertDateTime, insertFootnote, insertImageFromDevice, pastePlainText, pasteRich } from '../actions';
 import { insertChip } from '../actionsExtra';
+import { safeImageSrc } from '../safeUrl';
 
 const STATUS_CHIP_OPTIONS = ['Bản nháp', 'Đang làm', 'Chờ ký duyệt', 'Đã duyệt'];
 
@@ -106,7 +107,8 @@ export function SelectionBubble() {
 }
 
 const saveImageAs = (ctx: ReturnType<typeof useDoc>) => {
-  const { src, alt } = ctx.editor.getAttributes('image');
+  const { src: raw, alt } = ctx.editor.getAttributes('image');
+  const src = safeImageSrc(raw);
   if (!src) return;
   const link = document.createElement('a');
   link.href = String(src);

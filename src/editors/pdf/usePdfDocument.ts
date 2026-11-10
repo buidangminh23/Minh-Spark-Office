@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import type { PdfPageSize } from './pdfRender';
+import { isChunkLoadError, reloadOnceForStaleChunk } from '../../lib/staleChunk';
 
 const RENDER_DEBOUNCE_MS = 60;
 
@@ -9,7 +10,7 @@ export const loadRenderer = () => import('./pdfRender');
 export type PdfDocumentState =
   | { status: 'none' }
   | { status: 'loading' }
-  | { status: 'error' }
+  | { status: 'error'; reason: 'file' | 'outdated-app' }
   | { status: 'ready'; doc: PDFDocumentProxy; sizes: PdfPageSize[] };
 
 export function usePdfDocument(dataUrl: string | undefined): PdfDocumentState {
@@ -24,8 +25,17 @@ export function usePdfDocument(dataUrl: string | undefined): PdfDocumentState {
     let close: (() => Promise<void>) | null = null;
     setState({ status: 'loading' });
     void (async () => {
+      let renderer: Awaited<ReturnType<typeof loadRenderer>>;
       try {
-        const renderer = await loadRenderer();
+        renderer = await loadRenderer();
+      } catch (error) {
+        if (cancelled) return;
+        const outdated = isChunkLoadError(error);
+        setState({ status: 'error', reason: outdated ? 'outdated-app' : 'file' });
+        if (outdated) reloadOnceForStaleChunk();
+        return;
+      }
+      try {
         const loading = renderer.openPdfDocument(dataUrl);
         close = loading.close;
         if (cancelled) return void close();
@@ -33,7 +43,7 @@ export function usePdfDocument(dataUrl: string | undefined): PdfDocumentState {
         const sizes = await renderer.readPageSizes(doc);
         if (!cancelled) setState({ status: 'ready', doc, sizes });
       } catch {
-        if (!cancelled) setState({ status: 'error' });
+        if (!cancelled) setState({ status: 'error', reason: 'file' });
       }
     })();
     return () => {

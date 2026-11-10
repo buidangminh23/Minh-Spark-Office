@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  MAC_INSTALL_COMMAND,
+  PREFLIGHT_CHECKS,
   VERSION_FILES,
   bumpVersionText,
   isSemver,
@@ -87,8 +89,8 @@ function heading(text) {
 }
 
 function run(command, args, { cwd = root, input, allowFailure = false } = {}) {
-  const useShell = process.platform === 'win32' && command === 'npx';
-  const result = spawnSync(useShell ? 'npx.cmd' : command, args, {
+  const useShell = process.platform === 'win32' && (command === 'npx' || command === 'npm');
+  const result = spawnSync(useShell ? `${command}.cmd` : command, args, {
     cwd,
     input,
     stdio: input === undefined ? 'inherit' : ['pipe', 'inherit', 'inherit'],
@@ -113,9 +115,10 @@ function preflight({ checkClean }) {
   heading('Preflight');
   if (process.platform !== 'win32') throw new Error('Run the release on the Windows build machine');
   if (checkClean && capture('git', ['status', '--porcelain']) !== '') throw new Error('Working tree is not clean; commit or stash first');
-  run('git', ['fetch', '--quiet', 'origin']);
-  if (!run('git', ['merge-base', '--is-ancestor', 'origin/main', 'HEAD'], { allowFailure: true })) {
-    throw new Error('HEAD does not contain origin/main; rebase onto origin/main first');
+  requireOriginMain('HEAD does not contain origin/main; rebase onto origin/main first');
+  for (const check of PREFLIGHT_CHECKS) {
+    console.log(`\n--- ${check.label}: ${check.command} ${check.args.join(' ')}`);
+    if (!run(check.command, check.args, { allowFailure: true })) throw new Error(`${check.label} failed; fix it before releasing`);
   }
   if (!existsSync(join(KEY_SOURCE, 'updater.key')) && !existsSync(join(KEY_LINK, 'updater.key'))) {
     throw new Error('Updater signing key not found; never generate a replacement key');
@@ -123,6 +126,11 @@ function preflight({ checkClean }) {
   if (capture('ssh', ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', MAC_HOST, 'echo ok']) !== 'ok') throw new Error(`Mac ${MAC_HOST} unreachable`);
   run('npx', ['--yes', 'vercel@latest', 'whoami']);
   console.log('Preflight OK');
+}
+
+function requireOriginMain(message) {
+  run('git', ['fetch', '--quiet', 'origin']);
+  if (!run('git', ['merge-base', '--is-ancestor', 'origin/main', 'HEAD'], { allowFailure: true })) throw new Error(message);
 }
 
 function bump(from, to) {
@@ -208,6 +216,7 @@ function deploy(version) {
   heading('Deploy web with installers');
   const link = projectLinkFile();
   if (!link) throw new Error('No .vercel/project.json found; run vercel link once in the main checkout');
+  requireOriginMain(`origin/main gained commits that HEAD lacks; deploying now would roll production back. Rebase the release commits onto origin/main, then resume with --version ${version} --from deploy`);
   const site = mkdtempSync(join(tmpdir(), 'mso-site-'));
   temporaryPaths.push(site);
   const archive = join(site, '..', `${site.split(/[\\/]/).pop()}.tar`);
@@ -279,6 +288,7 @@ async function verify(version) {
   }
   const page = await (await fetchLive('/tai-ung-dung.html')).text();
   if (!page.includes(`MinhSparkOffice-${version}-windows-x64-vi-Setup.exe`)) throw new Error('Download page does not link this version');
+  if (!page.includes(MAC_INSTALL_COMMAND)) throw new Error('Download page lost the macOS curl installer');
   const probe = [
     'set -euo pipefail',
     'dir=$(mktemp -d /tmp/mso-release.XXXXXX)',
@@ -296,10 +306,7 @@ async function verify(version) {
 
 function push() {
   heading('Push release commits to main');
-  run('git', ['fetch', '--quiet', 'origin']);
-  if (!run('git', ['merge-base', '--is-ancestor', 'origin/main', 'HEAD'], { allowFailure: true })) {
-    throw new Error('origin/main moved during the release; rebase the release commits onto it and push by hand (the site is already live)');
-  }
+  requireOriginMain('origin/main moved after the deploy; rebase the release commits onto it, push by hand, then redeploy so production includes those commits');
   run('git', ['push', 'origin', 'HEAD:main']);
 }
 

@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import {
+  MAC_INSTALL_COMMAND,
+  PREFLIGHT_CHECKS,
   VERSION_FILES,
   bumpVersionText,
   missingPlatforms,
@@ -71,4 +74,33 @@ test('retainedUpdaterFiles keeps the updater files of the last releases before t
   assert.ok(kept.every((name) => !name.endsWith('.dmg')));
   assert.deepEqual(retainedUpdaterFiles(files, '0.2.10'), retainedUpdaterFiles(files, '0.2.10', 3));
   assert.deepEqual([...new Set(retainedUpdaterFiles(files, '0.2.10').map((name) => name.split('-')[1]))], ['0.2.9']);
+});
+
+const readRepo = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
+
+test('release preflight typechecks, tests and lints before anything is built or deployed', () => {
+  const commands = PREFLIGHT_CHECKS.map((check) => `${check.command} ${check.args.join(' ')}`);
+  assert.deepEqual(commands, ['npx tsc -b', 'npm test', 'npm run lint']);
+  assert.match(JSON.parse(readRepo('package.json')).scripts.lint, /^oxlint(?!.*--deny-warnings)/);
+  const script = readRepo('scripts/release-desktop.mjs');
+  const deploy = script.slice(script.indexOf('function deploy('), script.indexOf('function sha256('));
+  assert.ok(deploy.indexOf('requireOriginMain(') > -1 && deploy.indexOf('requireOriginMain(') < deploy.indexOf("'archive'"), 'deploy must re-check origin/main before archiving HEAD');
+});
+
+test('the download page leads macOS with the curl installer and every version string follows a bump', () => {
+  const page = readRepo('public/tai-ung-dung.html');
+  const current = JSON.parse(readRepo('src-tauri/tauri.conf.json')).version;
+  const next = nextPatchVersion(current);
+  const bumped = bumpVersionText(page, file('public/tai-ung-dung.html'), current, next);
+  assert.ok(!bumped.includes(current), `${current} left on the bumped page`);
+  for (const name of releaseArtifactNames(next).filter((artifact) => !artifact.endsWith('.app.tar.gz'))) {
+    assert.ok(bumped.includes(name), `${name} missing after the bump`);
+  }
+  const mac = page.slice(page.indexOf('id="macos"'), page.indexOf('</article>', page.indexOf('id="macos"')));
+  assert.ok(mac.includes(MAC_INSTALL_COMMAND), 'macOS card must show the curl installer');
+  assert.ok(mac.indexOf(MAC_INSTALL_COMMAND) < mac.indexOf('.dmg'), 'the curl installer must come before the DMG');
+  assert.match(mac, /data-copy="mac-install-command"/);
+  assert.doesNotMatch(mac.slice(mac.indexOf('.dmg') - 200, mac.indexOf('.dmg')), /dl-btn-primary/, 'the DMG is the secondary action');
+  assert.ok(MAC_INSTALL_COMMAND.includes(new URL('/install-macos.sh', 'https://office.minhspark.com').href));
+  assert.ok(readRepo('public/install-macos.sh').startsWith('#!/bin/bash'));
 });

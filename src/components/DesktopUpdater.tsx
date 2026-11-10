@@ -15,6 +15,8 @@ const AUTO_CHECK_MS = 15 * 60 * 1000;
 const FIRST_CHECK_MS = 3000;
 const FOCUS_CHECK_MS = 60 * 1000;
 const INSTALL_COUNTDOWN_SECONDS = 10;
+const DOWNLOAD_TIMEOUT_MS = 30 * 60 * 1000;
+const AUTO_RETRY_AFTER_FAILURE_MS = 60 * 60 * 1000;
 const CheckMark = () => <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" /></svg>;
 
 export function DesktopUpdater({ editing }: { editing: boolean }) {
@@ -33,6 +35,11 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
   const busy = useRef(false);
   const mounted = useRef(true);
   const dialog = useRef<HTMLElement | null>(null);
+  const editingNow = useRef(editing);
+  useEffect(() => { editingNow.current = editing; }, [editing]);
+  const autoRun = useRef(0);
+  const autoInFlight = useRef(false);
+  const failedDownload = useRef<{ version: string; at: number } | null>(null);
   const checkUpdate = async (silent = false) => {
     if (busy.current) return;
     busy.current = true;
@@ -80,38 +87,47 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
       if (!mounted.current) return;
       if (event.event === 'Started') setTotal(event.data.contentLength ?? 0);
       if (event.event === 'Progress') setDownloaded((value) => value + event.data.chunkLength);
-    }, { timeout: 120000 });
+    }, { timeout: DOWNLOAD_TIMEOUT_MS });
   };
   const download = async () => {
     if (!update.current || busy.current) return;
     busy.current = true;
     setError(''); setPhase('downloading');
+    const attempted = update.current.version;
     try {
       try {
         await fetchUpdate(update.current);
-      } catch {
+      } catch (failure) {
         const latest = await check({ timeout: 20000 });
-        if (!latest) throw new Error('No update available');
+        if (!latest || latest.version === attempted) { await latest?.close(); throw failure; }
         await update.current?.close();
         update.current = latest;
         if (mounted.current) setNextVersion(latest.version);
         await fetchUpdate(latest);
       }
+      failedDownload.current = null;
       if (mounted.current) { ready.current = true; setPhase('downloaded'); }
     } catch {
+      failedDownload.current = { version: update.current?.version ?? attempted, at: Date.now() };
       if (mounted.current) {
         setPhase('available');
         setError('Tải hoặc xác minh chữ ký chưa thành công. App hiện tại vẫn dùng được; hãy thử tải lại.');
       }
     } finally { busy.current = false; if (!mounted.current) await update.current?.close(); }
   };
-  const install = async () => {
+  const install = async (run?: number) => {
     if (!update.current || busy.current) return;
-    await checkUpdate(true);
-    if (!ready.current) await download();
-    if (!ready.current || !update.current || busy.current) return;
+    const automaticRun = run !== undefined;
+    const stillWanted = () => !automaticRun || (run === autoRun.current && !editingNow.current);
+    autoInFlight.current = automaticRun;
+    try {
+      await checkUpdate(true);
+      if (!stillWanted()) return;
+      if (!ready.current) await download();
+      if (!ready.current || !update.current || busy.current || !stillWanted()) return;
+    } finally { autoInFlight.current = false; }
     busy.current = true; setError('');
-    if (editing && !(await saveAndCloseActiveDocument())) {
+    if (editingNow.current && !(await saveAndCloseActiveDocument())) {
       busy.current = false;
       setPostponed(true);
       setError('Chưa lưu được tài liệu đang mở nên chưa cài. Hãy lưu tài liệu rồi thử lại.');
@@ -126,7 +142,16 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
   };
   const autoUpdate = async () => {
     await checkUpdate(true);
+    const failed = failedDownload.current;
+    if (failed && failed.version === update.current?.version && Date.now() - failed.at < AUTO_RETRY_AFTER_FAILURE_MS) return;
     if (update.current && !ready.current) await download();
+  };
+  const dismiss = () => {
+    if (phase === 'installing') return;
+    autoRun.current += 1;
+    if (phase === 'downloaded' || autoInFlight.current) setPostponed(true);
+    setCountdown(null);
+    setOpen(false);
   };
   const latestActions = useRef({ autoUpdate, install });
   useEffect(() => { latestActions.current = { autoUpdate, install }; });
@@ -150,7 +175,19 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
   }, [phase, automatic, editing, postponed]);
   useEffect(() => {
     if (countdown === null) return;
-    if (countdown <= 0) { setCountdown(null); void latestActions.current.install(); return; }
+    if (countdown <= 0) {
+      const run = ++autoRun.current;
+      const start = () => {
+        if (run !== autoRun.current) return true;
+        if (busy.current) return false;
+        setCountdown(null);
+        void latestActions.current.install(run);
+        return true;
+      };
+      if (start()) return;
+      const wait = setInterval(() => { if (start()) clearInterval(wait); }, 500);
+      return () => clearInterval(wait);
+    }
     const tick = setTimeout(() => setCountdown((value) => (value === null ? null : value - 1)), 1000);
     return () => clearTimeout(tick);
   }, [countdown]);
@@ -173,7 +210,7 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
       <span>{launcherLabel}</span>
     </button>
     {open && <div className="sync-dialog-backdrop update-dialog-backdrop"><section className="sync-dialog update-dialog" ref={dialog} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="update-title" onKeyDown={(event) => {
-      if (event.key === 'Escape' && phase !== 'installing') setOpen(false);
+      if (event.key === 'Escape') dismiss();
       if (event.key === 'Tab') {
         const items = dialog.current?.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled)');
         if (!items?.length) return;
@@ -196,11 +233,11 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
       {phase === 'downloaded' && countdown !== null && <p>Tự cài đặt và mở lại sau {countdown} giây.</p>}
       {phase === 'installing' && <p>Đang mở bộ cài. Tài liệu đã lưu trên máy vẫn được giữ.</p>}
       {error && <p className="update-error" role="alert">{error}</p>}
-      <label className="update-setting"><input type="checkbox" checked={automatic} disabled={working} onChange={(event) => { const value = event.target.checked; setAutomatic(value); localStorage.setItem('office-auto-check', String(value)); }} />Tự động cập nhật để app luôn giống bản web</label>
+      <label className="update-setting"><input type="checkbox" checked={automatic} disabled={working} onChange={(event) => { const value = event.target.checked; if (!value) autoRun.current += 1; setAutomatic(value); localStorage.setItem('office-auto-check', String(value)); }} />Tự động cập nhật để app luôn giống bản web</label>
       <div className="sync-dialog-actions">
-        {phase !== 'installing' && <button className="btn" onClick={() => { if (phase === 'downloaded') setPostponed(true); setOpen(false); }}>{phase === 'downloading' ? 'Tải trong nền' : 'Để sau'}</button>}
+        {phase !== 'installing' && <button className="btn" onClick={dismiss}>{phase === 'downloading' ? 'Tải trong nền' : 'Để sau'}</button>}
         {phase === 'available' && <button className="btn btn-primary" onClick={() => void download()}>Tải bản cập nhật</button>}
-        {phase === 'downloaded' && <button className="btn btn-primary" onClick={() => void install()}>{editing ? 'Lưu, cài đặt và mở lại' : 'Cài đặt và mở lại'}</button>}
+        {phase === 'downloaded' && <button className="btn btn-primary" onClick={() => { autoRun.current += 1; void install(); }}>{editing ? 'Lưu, cài đặt và mở lại' : 'Cài đặt và mở lại'}</button>}
         {['idle', 'current', 'error'].includes(phase) && <button className="btn btn-primary" onClick={() => void checkUpdate()}>Kiểm tra lại</button>}
       </div>
     </section></div>}
