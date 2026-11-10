@@ -14,3 +14,12 @@ test('shell scripts keep LF line endings in the working tree and in git archives
     assert.match(attribute, /eol: lf/, `${script} is not pinned to eol=lf`);
   }
 });
+
+test('shell scripts brace every variable that touches a non-ASCII character', () => {
+  for (const script of SHELL_SCRIPTS) {
+    const lines = readFileSync(new URL(`../${script}`, import.meta.url), 'utf8').split('\n');
+    lines.forEach((line, index) => {
+      assert.doesNotMatch(line, /\$[A-Za-z_][A-Za-z0-9_]*[^\x00-\x7f]/, `${script}:${index + 1} needs \${name}; bash 3.2 under en_US.UTF-8 reads the next bytes as part of the name`);
+    });
+  }
+});

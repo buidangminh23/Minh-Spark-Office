@@ -103,7 +103,7 @@ main() {
   local version="${archive#MinhSparkOffice-}"
   version="${version%-macos-arm64.app.tar.gz}"
 
-  say "Đang tải Minh Spark Office $version…"
+  say "Đang tải Minh Spark Office ${version}…"
   curl -fL --progress-bar "$BASE_URL/downloads/$archive" -o "$work/$archive" || die "tải $archive không thành công"
   local actual
   actual="$(shasum -a 256 "$work/$archive" | awk '{ print $1 }')"
