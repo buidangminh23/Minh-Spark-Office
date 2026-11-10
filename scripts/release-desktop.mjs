@@ -101,8 +101,9 @@ function run(command, args, { cwd = root, input, allowFailure = false } = {}) {
   return result.status === 0;
 }
 
-function capture(command, args, { cwd = root, input } = {}) {
-  const result = spawnSync(command, args, { cwd, input, encoding: 'utf8', windowsHide: true });
+function capture(command, args, { cwd = root, input, timeout } = {}) {
+  const result = spawnSync(command, args, { cwd, input, encoding: 'utf8', windowsHide: true, timeout });
+  if (result.error?.code === 'ETIMEDOUT') throw new Error(`${command} ${args.join(' ')} timed out after ${timeout / 1000}s`);
   if (result.status !== 0) throw new Error(`${command} ${args.join(' ')} failed: ${(result.stderr || '').trim()}`);
   return result.stdout.trim();
 }
@@ -123,7 +124,7 @@ function preflight({ checkClean }) {
   if (!existsSync(join(KEY_SOURCE, 'updater.key')) && !existsSync(join(KEY_LINK, 'updater.key'))) {
     throw new Error('Updater signing key not found; never generate a replacement key');
   }
-  if (capture('ssh', ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', MAC_HOST, 'echo ok']) !== 'ok') throw new Error(`Mac ${MAC_HOST} unreachable`);
+  if (capture('ssh', ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=2', MAC_HOST, 'echo ok'], { input: '', timeout: 60_000 }) !== 'ok') throw new Error(`Mac ${MAC_HOST} unreachable`);
   run('npx', ['--yes', 'vercel@latest', 'whoami']);
   console.log('Preflight OK');
 }
@@ -299,7 +300,7 @@ async function verify(version) {
     'quarantined=$(find "$app" -exec xattr -p com.apple.quarantine {} \\; 2>/dev/null | wc -l | tr -d " ")',
     'echo "$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$app/Contents/Info.plist") $quarantined"',
   ].join('\n');
-  const result = capture('ssh', [MAC_HOST, 'bash -ls'], { input: probe }).split('\n').pop();
+  const result = capture('ssh', ['-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=4', MAC_HOST, 'bash -ls'], { input: probe, timeout: 600_000 }).split('\n').pop();
   if (result !== `${version} 0`) throw new Error(`Mac install check returned "${result}"`);
   console.log(`Mac curl install: ${version}, codesign OK, nothing quarantined`);
 }
