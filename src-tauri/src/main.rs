@@ -5,6 +5,7 @@ use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 mod desktop_auth;
 mod native_print;
 mod open_files;
+mod printers;
 
 #[tauri::command]
 fn open_web_app() -> Result<(), String> {
@@ -31,6 +32,7 @@ fn main() {
             open_web_app,
             native_print::print_window,
             native_print::default_printer,
+            native_print::list_printers,
             desktop_auth::desktop_google_sign_in,
             desktop_auth::cancel_desktop_sign_in,
             open_files::drain_open_files,
