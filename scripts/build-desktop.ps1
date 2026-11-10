@@ -5,7 +5,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$signingKey = Join-Path $env:LOCALAPPDATA 'MinhSparkOffice\signing\updater.key'
+$signingKey = if ($env:MINHSPARK_UPDATER_KEY_PATH) { $env:MINHSPARK_UPDATER_KEY_PATH } else { Join-Path $env:LOCALAPPDATA 'MinhSparkOffice\signing\updater.key' }
 $originalSigningKey = $env:TAURI_SIGNING_PRIVATE_KEY
 $originalSigningPassword = $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD
 $originalLocation = Get-Location

@@ -34,7 +34,6 @@ const LIVE_RETRY_MS = 10_000;
 
 const options = parseArgs(process.argv.slice(2));
 const temporaryPaths = [];
-let createdKeyLink = false;
 
 try {
   await main();
@@ -172,10 +171,9 @@ function bump(from, to) {
 }
 
 function ensureSigningKey() {
-  if (existsSync(join(KEY_LINK, 'updater.key'))) return;
-  mkdirSync(dirname(KEY_LINK), { recursive: true });
-  run('pwsh', ['-NoProfile', '-Command', `New-Item -ItemType Junction -Path '${KEY_LINK}' -Target '${KEY_SOURCE}' | Out-Null`]);
-  createdKeyLink = true;
+  const key = [join(KEY_LINK, 'updater.key'), join(KEY_SOURCE, 'updater.key')].find((path) => existsSync(path));
+  if (!key) throw new Error('Updater signing key not found; never generate a replacement key');
+  process.env.MINHSPARK_UPDATER_KEY_PATH = key;
 }
 
 function buildWindows() {
@@ -336,8 +334,4 @@ function push() {
 
 function cleanup() {
   for (const path of temporaryPaths) rmSync(path, { recursive: true, force: true });
-  if (createdKeyLink) {
-    spawnSync('cmd', ['/c', 'rmdir', KEY_LINK], { windowsHide: true });
-    spawnSync('cmd', ['/c', 'rmdir', dirname(KEY_LINK)], { windowsHide: true });
-  }
 }
