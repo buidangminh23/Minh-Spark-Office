@@ -2,8 +2,11 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { BookOpen, ChevronLeft, ChevronRight, Copy, File, Files, LayoutGrid, Layers, Loader2, Maximize2, Printer, RectangleHorizontal, RectangleVertical, X } from 'lucide-react';
 import { PAPERS, mmToPx, type OrientationChoice, type ScaleMode } from '../../lib/print/printLayout';
 import { PAPER_CATALOG, PAPER_GROUP_LABELS, PAPER_KEYS, type PaperKey } from '../../lib/paperSizes';
-import { PRINT_ROOT_ID, PRINTING_CLASS, onAfterPrint, openSystemPrint, printPlatform, readDefaultPrinter, waitForPrintReady } from '../../lib/print/printRun';
-import { CardFace, OptionCard, type CardOption } from './OptionCard';
+import { PRINT_ROOT_ID, PRINTING_CLASS, onAfterPrint, openSystemPrint, printErrorMessage, printPlatform, waitForPrintReady } from '../../lib/print/printRun';
+import { PrinterPicker } from './PrinterPicker';
+import { usePrinters } from './usePrinters';
+import { loadChoice, printerNotes, resolveChoice, saveChoice, targetFor, type PrinterChoice } from './printerChoice';
+import { OptionCard, type CardOption } from './OptionCard';
 import { CmField } from './MarginGallery';
 import { MarginControls } from './PrintLayoutControls';
 import { PAGES_PER_SHEET, composePages, duplexSide, expandCopies, filterParity, physicalSheets, type PagesPerSheet, type PrintRun } from './printOutput';
@@ -25,7 +28,9 @@ type Props = {
   onPageSetup?: () => void;
 };
 
-type Phase = 'idle' | 'preparing' | 'flip' | 'waiting';
+type Phase = 'idle' | 'preparing' | 'flip' | 'waiting' | 'done';
+type Notice = { tone: 'ok' | 'error'; title: string; text: string };
+const SENT_CLOSE_MS = 2_500;
 type RangeChoice = 'all' | 'current' | 'custom' | 'odd' | 'even';
 
 const SCALE_LABELS: Record<ScaleMode, string> = {
@@ -63,16 +68,6 @@ const PAPER_OPTIONS: CardOption<string>[] = [
 ];
 
 const PER_SHEET_OPTIONS: CardOption<PagesPerSheet>[] = PAGES_PER_SHEET.map((n) => ({ value: n, title: `${n} trang mỗi tờ`, subtitle: n === 1 ? 'Mỗi trang in trên một tờ giấy' : `Thu nhỏ ${n} trang lên một mặt giấy`, icon: <LayoutGrid size={20} /> }));
-
-function usePrinterName() {
-  const [name, setName] = useState<string | null>(null);
-  useEffect(() => {
-    let alive = true;
-    void readDefaultPrinter().then((value) => { if (alive) setName(value); });
-    return () => { alive = false; };
-  }, []);
-  return name;
-}
 
 function useFitZoom(paper: { w: number; h: number } | undefined) {
   const ref = useRef<HTMLDivElement | null>(null);
@@ -125,8 +120,13 @@ export function PrintDialog({ source, onClose, extraOptions, cards, autoNotes, i
   const [zoom, setZoom] = useState<number | null>(null);
   const [current, setCurrent] = useState(0);
   const [stage, setStage] = useState<HTMLDivElement | null>(null);
-  const printerName = usePrinterName();
   const platform = printPlatform();
+  const [storedChoice, setStoredChoice] = useState<PrinterChoice | null>(() => loadChoice());
+  const [notice, setNotice] = useState<Notice | null>(null);
+  const { printers, scanning, refresh } = usePrinters(platform, phase === 'preparing');
+  const resolved = useMemo(() => resolveChoice(storedChoice, printers, platform), [storedChoice, printers, platform]);
+  const target = useMemo(() => targetFor(resolved, platform), [resolved, platform]);
+  const choosePrinter = useCallback((choice: PrinterChoice) => { setStoredChoice(choice); saveChoice(choice); setNotice(null); }, []);
   const update = useCallback((patch: Partial<PrintSettings>) => setSettings((s) => ({ ...s, ...patch })), []);
 
   const settingsListener = useRef(onSettingsChange);
@@ -149,8 +149,9 @@ export function PrintDialog({ source, onClose, extraOptions, cards, autoNotes, i
   const zoomPercent = zoom ?? fit;
   const scale = zoomPercent / 100;
 
-  const latest = useRef({ run, title: source.title, onClose, manual, step });
-  useLayoutEffect(() => { latest.current = { run, title: source.title, onClose, manual, step }; });
+  const printerLabel = resolved.printer?.displayName ?? null;
+  const latest = useRef({ run, title: source.title, onClose, manual, step, target, printerLabel, duplex: settings.sides === 'auto', grayscale: settings.grayscale, refresh });
+  useLayoutEffect(() => { latest.current = { run, title: source.title, onClose, manual, step, target, printerLabel, duplex: settings.sides === 'auto', grayscale: settings.grayscale, refresh }; });
 
   useEffect(() => {
     if (phase !== 'preparing') return;
@@ -168,22 +169,47 @@ export function PrintDialog({ source, onClose, extraOptions, cards, autoNotes, i
     (async () => {
       await waitForPrintReady(root, setPendingLeft);
       if (cancelled) return;
+      const job = latest.current;
       document.body.classList.add(PRINTING_CLASS);
-      detach = onAfterPrint(finish);
-      const first = latest.current.run.find(Boolean);
-      const mode = await openSystemPrint({
+      if (job.target.kind === 'system') detach = onAfterPrint(finish);
+      const first = job.run.find(Boolean);
+      const result = await openSystemPrint({
         widthMm: first?.paper.w ?? 210,
         heightMm: first?.paper.h ?? 297,
         landscape: first?.orientation === 'landscape',
-        title: latest.current.title,
-      }).catch(() => 'failed' as const);
+        title: job.title,
+        target: job.target,
+        duplex: job.duplex,
+        grayscale: job.grayscale,
+      }).catch((error: unknown) => ({ mode: 'failed' as const, error }));
       if (cancelled) return;
-      if (mode === 'failed') {
+      if (result.mode === 'failed') {
         document.body.classList.remove(PRINTING_CLASS);
-        setPhase('idle');
+        setNotice({ tone: 'error', title: 'Chưa in được', text: printErrorMessage(result.error, job.printerLabel) });
+        if (job.target.kind === 'printer') job.refresh();
+        setPhase(job.manual && job.step === 'back' ? 'flip' : 'idle');
         return;
       }
-      if (mode === 'detached') setPhase(afterFront() ? 'flip' : 'waiting');
+      if (result.mode === 'detached') setPhase(afterFront() ? 'flip' : 'waiting');
+      if (result.mode !== 'done') return;
+      document.body.classList.remove(PRINTING_CLASS);
+      if (result.status === 'cancelled') {
+        setNotice({ tone: 'error', title: 'Đã hủy', text: 'Lệnh in đã bị hủy, chưa có trang nào được gửi.' });
+        setPhase(job.manual && job.step === 'back' ? 'flip' : 'idle');
+        return;
+      }
+      if (afterFront()) {
+        setNotice(null);
+        setPhase('flip');
+        return;
+      }
+      if (result.status === 'saved') {
+        const file = result.path?.split(/[\\/]/).pop() ?? 'tệp PDF';
+        setNotice({ tone: 'ok', title: 'Đã lưu PDF', text: `${file} đã nằm trong thư mục Tải về.` });
+      } else {
+        setNotice({ tone: 'ok', title: 'Đã gửi lệnh in', text: `Đã gửi ${job.run.filter(Boolean).length} mặt in tới ${job.printerLabel ? `“${job.printerLabel}”` : 'máy in'}.` });
+      }
+      setPhase('done');
     })();
     return () => {
       cancelled = true;
@@ -191,10 +217,17 @@ export function PrintDialog({ source, onClose, extraOptions, cards, autoNotes, i
     };
   }, [phase]);
 
+  useEffect(() => {
+    if (phase !== 'done' || notice?.title !== 'Đã gửi lệnh in') return;
+    const timer = window.setTimeout(() => latest.current.onClose(), SENT_CLOSE_MS);
+    return () => window.clearTimeout(timer);
+  }, [phase, notice]);
+
   useEffect(() => () => document.body.classList.remove(PRINTING_CLASS), []);
 
   const startPrint = useCallback(() => {
     if (!outputs.length || source.loading || (phase !== 'idle' && phase !== 'flip')) return;
+    setNotice(null);
     if (phase === 'flip') {
       document.body.classList.remove(PRINTING_CLASS);
       setStep('back');
@@ -239,12 +272,13 @@ export function PrintDialog({ source, onClose, extraOptions, cards, autoNotes, i
   const paperSize = settings.customPaper ?? PAPERS[settings.paper];
   const orientationOption = ORIENTATION_OPTIONS.find((o) => o.value === settings.orientation)!;
   const busy = phase === 'preparing';
-  const notes = [...(autoNotes ?? []), ...plan.notes];
+  const notes = [...printerNotes(resolved, settings.sides, platform), ...(autoNotes ?? []), ...plan.notes];
+  const direct = target.kind !== 'system';
 
   const sidesOptions: CardOption<PrintSettings['sides']>[] = [
     { value: 'one', title: 'In một mặt', subtitle: 'Chỉ in một mặt của tờ giấy', icon: <File size={20} /> },
     { value: 'manual', title: 'In hai mặt thủ công', subtitle: 'In mặt trước, lật giấy theo hướng dẫn rồi in mặt sau', icon: <BookOpen size={20} /> },
-    { value: 'auto', title: 'In hai mặt tự động', subtitle: 'Bật "In hai mặt" ở bước kế tiếp (máy in có đảo mặt)', icon: <Copy size={20} /> },
+    { value: 'auto', title: 'In hai mặt tự động', subtitle: target.kind === 'printer' ? 'Máy in có bộ đảo mặt tự in mặt sau' : 'Bật "In hai mặt" ở bước kế tiếp (máy in có đảo mặt)', icon: <Copy size={20} /> },
   ];
   const collateOptions: CardOption<'yes' | 'no'>[] = [
     { value: 'yes', title: 'Theo bộ', subtitle: '1,2,3   1,2,3   1,2,3', icon: <Layers size={20} /> },
@@ -253,10 +287,10 @@ export function PrintDialog({ source, onClose, extraOptions, cards, autoNotes, i
 
   const printLabel = busy
     ? pendingLeft ? `Đang chuẩn bị ${pendingLeft} trang…` : 'Đang mở…'
-    : phase === 'flip' ? 'In mặt sau' : 'In';
+    : phase === 'flip' ? 'In mặt sau' : target.kind === 'pdf' ? 'Lưu PDF' : 'In';
 
   return (
-    <div className="dialog-backdrop mp-backdrop" onMouseDown={(e) => e.target === e.currentTarget && phase === 'idle' && onClose()}>
+    <div className="dialog-backdrop mp-backdrop" onMouseDown={(e) => e.target === e.currentTarget && (phase === 'idle' || phase === 'done') && onClose()}>
       <section className="mp-dialog" role="dialog" aria-modal="true" aria-label="In">
         <aside className="mp-settings">
           <header className="mp-head">
@@ -269,7 +303,7 @@ export function PrintDialog({ source, onClose, extraOptions, cards, autoNotes, i
 
           <div className="mp-scroll">
             <div className="mp-print-row">
-              <button className="mp-print-big" onClick={startPrint} disabled={busy || phase === 'waiting' || !outputs.length || source.loading}>
+              <button className="mp-print-big" onClick={startPrint} disabled={busy || phase === 'waiting' || phase === 'done' || !outputs.length || source.loading}>
                 {busy ? <Loader2 size={28} className="mp-spin" /> : <Printer size={28} />}
                 <span>{printLabel}</span>
               </button>
@@ -289,6 +323,13 @@ export function PrintDialog({ source, onClose, extraOptions, cards, autoNotes, i
                 <label className="mp-check"><input type="checkbox" checked={settings.reverseBack} onChange={(e) => update({ reverseBack: e.target.checked })} /><span>In mặt sau theo thứ tự ngược</span></label>
               </div>
             )}
+            {notice && (
+              <div className={`mp-notice ${notice.tone === 'error' ? 'is-error' : 'is-ok'}`} role={notice.tone === 'error' ? 'alert' : 'status'}>
+                <strong>{notice.title}</strong>
+                <span>{notice.text}</span>
+                {phase === 'done' && <button className="btn" onClick={onClose}>Xong</button>}
+              </div>
+            )}
             {phase === 'waiting' && (
               <div className="mp-notice">
                 <span>Hộp thoại in của macOS đang mở. Chọn máy in rồi bấm In.</span>
@@ -296,12 +337,7 @@ export function PrintDialog({ source, onClose, extraOptions, cards, autoNotes, i
               </div>
             )}
 
-            <section className="mp-group">
-              <h3>Máy in</h3>
-              <div className="mp-card is-static">
-                <CardFace icon={<Printer size={20} />} title={printerName ?? (platform === 'web' ? 'Máy in của hệ thống' : 'Máy in mặc định')} subtitle={platform === 'web' ? 'Chọn máy in ở bước kế tiếp' : 'Sẵn sàng · đổi máy in ở bước kế tiếp'} />
-              </div>
-            </section>
+            <PrinterPicker platform={platform} printers={printers} resolved={resolved} scanning={scanning} onChange={choosePrinter} onRefresh={refresh} />
 
             <section className="mp-group">
               <h3>Thiết lập</h3>
@@ -385,9 +421,13 @@ export function PrintDialog({ source, onClose, extraOptions, cards, autoNotes, i
             )}
 
             <p className="mp-hint">
-              {platform === 'mac'
-                ? 'Máy in và in hai mặt tự động chọn trong hộp thoại in của macOS.'
-                : 'Ở bước kế tiếp, để Lề là Mặc định hoặc Không có và Tỉ lệ là 100% để bản in đúng như xem trước.'}
+              {direct
+                ? target.kind === 'pdf'
+                  ? 'Bấm Lưu PDF là ghi thẳng ra tệp, đúng khổ giấy và lề như bản xem trước.'
+                  : `Bấm In là gửi thẳng tới “${resolved.printer?.displayName ?? 'máy in'}”, không mở thêm hộp thoại. Cần chỉnh khay giấy hay chất lượng in thì chọn Hộp thoại in của hệ thống.`
+                : platform === 'mac'
+                  ? 'Máy in và in hai mặt tự động chọn trong hộp thoại in của macOS.'
+                  : 'Ở bước kế tiếp, để Lề là Mặc định hoặc Không có và Tỉ lệ là 100% để bản in đúng như xem trước.'}
             </p>
           </div>
         </aside>

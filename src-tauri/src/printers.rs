@@ -65,6 +65,7 @@ fn non_empty(value: Option<&str>) -> Option<String> {
 }
 
 pub mod cups_rules {
+    #![cfg_attr(not(unix), allow(dead_code))]
     use super::{contains_any, PrinterIssue, PrinterKind, PrinterState};
 
     pub const CLASS: u32 = 0x0001;
