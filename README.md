@@ -14,6 +14,23 @@ npm run build
 
 Set the four `VITE_FIREBASE_*` variables from the Firebase web app configuration. These are public client configuration, not service-account credentials. Never place a Google client secret or Firebase Admin key in a `VITE_*` variable.
 
+## File conversion and OCR
+
+Open **Chuyển đổi định dạng** from the home sidebar or toolbar. The converter processes a queue on the device, supports per-file downloads and a ZIP with collision-safe names, and keeps successful results when another file fails. No document content is sent to a conversion or OCR service.
+
+| Input | Outputs |
+| --- | --- |
+| DOCX, DOTX, TXT, Markdown, HTML | DOCX, ODT, RTF, PDF, TXT, Markdown, HTML, EPUB, PPTX, PNG, JPEG, WebP; XLSX/CSV/TSV for tables |
+| XLSX, XLSM, XLSB, XLS, ODS, CSV, TSV | XLSX, ODS, CSV, TSV, JSON, HTML, DOCX, PDF, PPTX, PNG, JPEG, WebP |
+| PPTX, PPSX, POTX | PPTX, DOCX, ODT, RTF, TXT, Markdown, HTML, PDF, PNG, JPEG, WebP |
+| PDF and supported images | PDF, DOCX, XLSX, PPTX, TXT, HTML, PNG, JPEG, WebP |
+
+Vietnamese and English OCR runs through bundled Tesseract workers, WASM and language data in `public/ocr`. PDF text extraction uses its existing text layer; OCR is applied to pages without extractable text. Searchable PDF output overlays invisible text on original PDF pages. Layout DOCX/PPTX output embeds page images; editable output reconstructs text and columns and requires comparison with the source. OCR confidence warnings flag uncertain recognition. Mixed pages containing both native text and scanned content currently use only their native text layer.
+
+Identity conversion preserves original DOCX/PPTX/XLSX/ODS bytes. DOTX to DOCX and PPSX/POTX to PPTX preserve the package while updating its document content type. Table extraction preserves text identifiers, merged cell positions and supported column widths. Other Office document conversions reconstruct content and can change fonts, pagination, charts, SmartArt, media, macros and advanced formatting. Legacy DOC/PPT input is not advertised. Image decoding varies by browser, particularly HEIC and TIFF; animated images use a single frame. The interface describes these limits instead of claiming lossless conversion.
+
+Each batch accepts up to 20 files and 200 MB total input/output. Office input is limited to 50 MB per file, PDF/images to 100 MB, and PDF processing to 200 pages. Cancellation and bounded image dimensions protect the device. OCR assets ship with both web and desktop builds and include their licenses and pinned sources.
+
 ## Google authentication
 
 Enable Google in Firebase Authentication > Sign-in method. Authorize the exact application hostname in Authentication > Settings > Authorized domains. Development uses `localhost`. Production uses `office.minhspark.com`. Configure the same variables in Vercel before building.

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ArrowRight,
+  ArrowRightLeft,
   Check,
   Copy,
   Edit2,
@@ -23,6 +24,7 @@ import {
 import { useAccount } from './Authentication';
 import { SuiteLogo } from './SuiteLogo';
 import { DownloadMenu } from './DownloadMenu';
+import { ConversionDialog } from './ConversionDialog';
 import { AccountMenu, Popover, SettingsDialog, SyncButton, TemplateThumb, type ThumbVariant } from './HomeParts';
 import './home.css';
 
@@ -137,6 +139,7 @@ export default function Home(props: HomeProps) {
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [createOpen, setCreateOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [conversionOpen, setConversionOpen] = useState(false);
   const [showAllTemplates, setShowAllTemplates] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const searchInput = useRef<HTMLInputElement>(null);
@@ -302,6 +305,7 @@ export default function Home(props: HomeProps) {
           <hr />
           <NavItem active={view === 'trash' && !isSearching} onClick={() => goTo('trash')} icon={<Trash2 size={20} />} badge={trashCount || undefined}>Thùng rác</NavItem>
           <NavItem active={settingsOpen} onClick={() => setSettingsOpen(true)} icon={<Settings size={20} />}>Cài đặt</NavItem>
+          <NavItem active={conversionOpen} onClick={() => setConversionOpen(true)} icon={<ArrowRightLeft size={20} />}>Chuyển đổi định dạng</NavItem>
         </nav>
       </aside>
 
@@ -321,6 +325,7 @@ export default function Home(props: HomeProps) {
             <kbd>{isMac ? '⌘ K' : 'Ctrl K'}</kbd>
           </label>
           <div className="ws-top-actions">
+            <button className="icon-btn" title="Chuyển đổi định dạng" aria-label="Chuyển đổi định dạng" onClick={() => setConversionOpen(true)}><ArrowRightLeft size={20} /></button>
             <SyncButton />
             <span className="ws-divider" aria-hidden="true" />
             <DownloadMenu />
@@ -409,6 +414,7 @@ export default function Home(props: HomeProps) {
       </main>
 
       {settingsOpen && <SettingsDialog onClose={closeSettings} onExportBackup={onExportBackup} onImportBackup={onImportBackup} />}
+      {conversionOpen && <ConversionDialog onClose={() => setConversionOpen(false)} />}
     </div>
   );
 }
