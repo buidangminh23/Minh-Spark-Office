@@ -77,8 +77,30 @@ export async function buildMediaTextResult(pages: MediaPage[], target: string, t
         : pageText(page).split('\n').map((line) => new Paragraph({ children: [new TextRun(line)] }));
       return { children };
     }) }));
+  } else if (target === 'pptx') {
+    blob = await buildTextSlides(pages, title);
   } else throw new Error('Định dạng trích chữ chưa được hỗ trợ.');
   return { files: [{ name: `${title}.${target}`, blob }], warnings };
+}
+
+const SLIDE_WIDTH = 13.333;
+const SLIDE_HEIGHT = 7.5;
+const SLIDE_MARGIN = 0.5;
+
+async function buildTextSlides(pages: MediaPage[], title: string): Promise<Blob> {
+  const { default: PptxGenJS } = await import('pptxgenjs');
+  const deck = new PptxGenJS();
+  deck.layout = 'LAYOUT_WIDE';
+  deck.title = title;
+  for (const [index, page] of pages.entries()) {
+    const lines = mediaTextRows(page.lines).map((cells) => cells.join('   ')).filter((line) => line.trim());
+    const slide = deck.addSlide();
+    const heading = lines[0] ?? `Trang ${index + 1}`;
+    slide.addText(heading, { x: SLIDE_MARGIN, y: 0.35, w: SLIDE_WIDTH - SLIDE_MARGIN * 2, h: 0.9, fontFace: 'Arial', fontSize: 26, bold: true, color: '1F2937', fit: 'shrink' });
+    const body = lines.slice(1);
+    if (body.length) slide.addText(body.map((text) => ({ text, options: { breakLine: true } })), { x: SLIDE_MARGIN, y: 1.4, w: SLIDE_WIDTH - SLIDE_MARGIN * 2, h: SLIDE_HEIGHT - 1.9, fontFace: 'Arial', fontSize: 16, color: '374151', valign: 'top', fit: 'shrink', paraSpaceAfter: 6 });
+  }
+  return await deck.write({ outputType: 'blob' }) as Blob;
 }
 
 async function canvasBlob(canvas: HTMLCanvasElement, target: string): Promise<Blob> {
@@ -217,7 +239,7 @@ export async function convertMediaFile(file: File, target: string, options: Conv
   const ocrPages = new Set<number>();
   const warnings: string[] = [];
   const imageTarget = ['png', 'jpg', 'webp'].includes(target);
-  const layout = target === 'pptx' || (target === 'docx' && options.fidelity !== 'editable');
+  const layout = (target === 'pptx' || target === 'docx') && options.fidelity !== 'editable';
   const textNeeded = !imageTarget && !layout;
   if (/\.pdf$/i.test(file.name)) {
     await import('../editors/pdf/pdfRender');

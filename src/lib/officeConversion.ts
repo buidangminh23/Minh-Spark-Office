@@ -260,9 +260,14 @@ export async function exportConversionDocument(json: JSONContent, base: string, 
   if (target === 'epub') return one(await (await import('./docExports')).exportEpub(json, page, base));
   if (target === 'pptx') return one(await (await import('./docOtherFormats')).exportPptx(json, page, base));
   if (['xlsx', 'csv', 'tsv'].includes(target)) {
-    const tables = conversionTables(json);
-    if (!tables.length) throw new Error('Tài liệu không có bảng để chuyển sang dữ liệu bảng tính.');
-    warnings.push('Chỉ xuất các bảng; văn bản ngoài bảng và hình ảnh không nằm trong kết quả.');
+    let tables = conversionTables(json);
+    if (tables.length) warnings.push('Chỉ xuất các bảng; văn bản ngoài bảng và hình ảnh không nằm trong kết quả.');
+    else {
+      const lines = (json.content ?? []).map((node) => conversionNodeText(node).trim()).filter(Boolean);
+      if (!lines.length) throw new Error('Tài liệu không có nội dung chữ để chuyển sang bảng tính.');
+      tables = [{ rows: [['Nội dung'], ...lines.map((line) => [line])], merges: [] }];
+      warnings.push('Tài liệu không có bảng nên mỗi đoạn văn được đưa vào một dòng của cột Nội dung.');
+    }
     if (target === 'xlsx') {
       const XLSX = await import('xlsx');
       const workbook = XLSX.utils.book_new();

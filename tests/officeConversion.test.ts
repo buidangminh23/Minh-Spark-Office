@@ -107,8 +107,8 @@ test('slide outline follows presentation relationship order without inventing pl
   assert.deepEqual(new Uint8Array(await copy.files[0].blob.arrayBuffer()), new Uint8Array(await file.arrayBuffer()));
 });
 
-test('conversion rejects no-table extraction, malformed files, oversized data and cancellation', async () => {
-  await assert.rejects(convertOfficeFile(textFile(), 'xlsx'), /không có bảng/);
+test('conversion rejects text-free extraction, malformed files, oversized data and cancellation', async () => {
+  await assert.rejects(convertOfficeFile(new File(['   \n\n'], 'Blank.txt'), 'xlsx'), /không có nội dung chữ/);
   await assert.rejects(convertOfficeFile(new File([], 'Empty.txt'), 'docx'), /trống/);
   await assert.rejects(convertOfficeFile(new File(['bad'], 'Broken.docx'), 'docx'));
   const controller = new AbortController();
@@ -184,4 +184,14 @@ test('Office template and slideshow conversion preserves every package part', as
     assert.deepEqual(await output.file('preserved-part.bin')!.async('uint8array'), new Uint8Array([0, 1, 2, 3, 255]));
     assert.deepEqual(result.warnings, []);
   }
+});
+
+test('Word without tables converts to Excel with one paragraph per row', async () => {
+  const result = await convertOfficeFile(new File(['Báo cáo tháng 11\n\nKhách hàng Nguyễn Văn A\n'], 'Bao cao.txt'), 'xlsx');
+  const book = XLSX.read(await result.files[0].blob.arrayBuffer(), { type: 'array' });
+  const sheet = book.Sheets[book.SheetNames[0]];
+  assert.equal(sheet.A1.v, 'Nội dung');
+  assert.equal(sheet.A2.v, 'Báo cáo tháng 11');
+  assert.equal(sheet.A3.v, 'Khách hàng Nguyễn Văn A');
+  assert.match(result.warnings.join(' '), /mỗi đoạn văn/);
 });
