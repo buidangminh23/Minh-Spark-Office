@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import {
   ArrowRight,
   Check,
@@ -24,7 +24,7 @@ import { useAccount } from './Authentication';
 import { SuiteLogo } from './SuiteLogo';
 import { DownloadMenu } from './DownloadMenu';
 import { ConversionDialog } from './ConversionDialog';
-import { ConversionPicker } from './ConversionPicker';
+import { ConversionMenu } from './ConversionPicker';
 import { ConvertLogo } from './ConvertLogo';
 import type { ConversionPreset } from '../lib/conversionPresets';
 import { AccountMenu, Popover, SettingsDialog, SyncButton, TemplateThumb, type ThumbVariant } from './HomeParts';
@@ -141,7 +141,8 @@ export default function Home(props: HomeProps) {
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [createOpen, setCreateOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [conversion, setConversion] = useState<null | 'pick' | 'all' | ConversionPreset>(null);
+  const [conversion, setConversion] = useState<null | 'all' | ConversionPreset>(null);
+  const [conversionAnchor, setConversionAnchor] = useState<HTMLElement | null>(null);
   const [showAllTemplates, setShowAllTemplates] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const searchInput = useRef<HTMLInputElement>(null);
@@ -304,7 +305,7 @@ export default function Home(props: HomeProps) {
           {(['doc', 'sheet', 'slide', 'pdf'] as FileKind[]).map((kind) => (
             <NavItem key={kind} active={view === kind && !isSearching} onClick={() => goTo(kind)} icon={<SuiteLogo kind={kind} size={26} />}>{PRODUCT_NAME[kind]}</NavItem>
           ))}
-          <NavItem active={conversion !== null} onClick={() => setConversion('pick')} icon={<ConvertLogo size={26} />}>Chuyển định dạng</NavItem>
+          <NavItem active={conversion !== null || conversionAnchor !== null} menuOpen={conversionAnchor !== null} onClick={(event) => { const anchor = event.currentTarget; setConversionAnchor((current) => current ? null : anchor); }} icon={<ConvertLogo size={26} />}>Chuyển định dạng</NavItem>
           <hr />
           <NavItem active={view === 'trash' && !isSearching} onClick={() => goTo('trash')} icon={<Trash2 size={20} />} badge={trashCount || undefined}>Thùng rác</NavItem>
           <NavItem active={settingsOpen} onClick={() => setSettingsOpen(true)} icon={<Settings size={20} />}>Cài đặt</NavItem>
@@ -415,15 +416,16 @@ export default function Home(props: HomeProps) {
       </main>
 
       {settingsOpen && <SettingsDialog onClose={closeSettings} onExportBackup={onExportBackup} onImportBackup={onImportBackup} />}
-      {conversion === 'pick' && <ConversionPicker onPick={setConversion} onAll={() => setConversion('all')} onClose={() => setConversion(null)} />}
-      {conversion !== null && conversion !== 'pick' && <ConversionDialog key={conversion === 'all' ? 'all' : conversion.id} preset={conversion === 'all' ? undefined : conversion} onBack={() => setConversion('pick')} onClose={() => setConversion(null)} />}
+      {conversionAnchor && <ConversionMenu anchor={conversionAnchor} onPick={(preset) => { setConversionAnchor(null); setConversion(preset); }} onAll={() => { setConversionAnchor(null); setConversion('all'); }} onClose={() => setConversionAnchor(null)} />}
+      {conversion !== null && <ConversionDialog key={conversion === 'all' ? 'all' : conversion.id} preset={conversion === 'all' ? undefined : conversion} onClose={() => setConversion(null)} />}
     </div>
   );
 }
 
-function NavItem({ active, onClick, icon, badge, children }: { active: boolean; onClick: () => void; icon: ReactNode; badge?: number; children: ReactNode }) {
+function NavItem({ active, onClick, icon, badge, menuOpen, children }: { active: boolean; onClick: (event: MouseEvent<HTMLButtonElement>) => void; icon: ReactNode; badge?: number; menuOpen?: boolean; children: ReactNode }) {
+  const isMenu = menuOpen !== undefined;
   return (
-    <button className={`ws-nav-item ${active ? 'is-active' : ''}`} aria-current={active ? 'page' : undefined} onClick={onClick}>
+    <button className={`ws-nav-item ${active ? 'is-active' : ''}`} aria-current={active && !isMenu ? 'page' : undefined} aria-haspopup={isMenu ? 'menu' : undefined} aria-expanded={isMenu ? menuOpen : undefined} onClick={onClick}>
       <span className="ws-nav-icon" aria-hidden="true">{icon}</span>
       <span className="ws-nav-label">{children}</span>
       {badge ? <span className="ws-nav-badge">{badge}</span> : null}

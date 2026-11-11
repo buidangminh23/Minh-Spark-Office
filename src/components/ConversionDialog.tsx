@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Download, FilePlus2, Trash2, X } from 'lucide-react';
+import { Download, FilePlus2, Trash2, X } from 'lucide-react';
 import { CONVERSION_ACCEPT, MAX_CONVERSION_BATCH_BYTES, MAX_CONVERSION_BYTES, MAX_CONVERSION_FILES, conversionTargets, conversionZip, convertFile } from '../lib/fileConversion';
 import type { ConversionOptions, ConversionResult } from '../lib/conversionTypes';
 import { downloadBlob, formatBytes } from '../lib/download';
@@ -10,7 +10,7 @@ import './conversion.css';
 
 type QueueItem = { id: number; file: File; target: string; status: 'ready' | 'running' | 'done' | 'error'; message?: string; result?: ConversionResult };
 
-export function ConversionDialog({ preset, onBack, onClose }: { preset?: ConversionPreset; onBack?: () => void; onClose: () => void }) {
+export function ConversionDialog({ preset, onClose }: { preset?: ConversionPreset; onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const sequence = useRef(0);
@@ -102,10 +102,7 @@ export function ConversionDialog({ preset, onBack, onClose }: { preset?: Convers
         {preset ? <ConversionPair preset={preset} size={40} /> : <ConvertLogo size={44} />}
         <div><h2 id="conversion-title">{preset ? preset.title : 'Chuyển đổi định dạng'}</h2><p>{preset ? `Chọn tệp ${SOURCE_LABEL[preset.from]} để chuyển đổi, xử lý ngay trên thiết bị.` : 'Word, Excel, PowerPoint, PDF và ảnh, xử lý ngay trên thiết bị.'}</p></div>
       </div>
-      <div className="conversion-header-actions">
-        {onBack && <button className="btn" disabled={locked} onClick={onBack}><ArrowLeft size={16} />Đổi kiểu chuyển đổi</button>}
-        <button className="icon-btn" aria-label="Đóng chuyển đổi" disabled={locked} onClick={onClose}><X size={20} /></button>
-      </div>
+      <button className="icon-btn" aria-label="Đóng chuyển đổi" disabled={locked} onClick={onClose}><X size={20} /></button>
     </header>
     <div className="conversion-body">
       <div className="conversion-drop" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); addFiles(Array.from(event.dataTransfer.files)); }}>
