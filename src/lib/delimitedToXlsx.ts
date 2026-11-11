@@ -2,7 +2,13 @@ import { DELIMITER_NAME, inferDelimitedCell, type DelimitedCell, type DelimitedT
 
 const MIN_COLUMN_WIDTH = 8;
 const MAX_COLUMN_WIDTH = 60;
-const WIDTH_PADDING = 3;
+const WIDTH_PADDING = 5;
+const HEADER_HEIGHT = 24;
+const ROW_HEIGHT = 20;
+const LINE = { style: 'thin' as const, color: { argb: 'FFB4C0D3' } };
+const HEADER_LINE = { style: 'thin' as const, color: { argb: 'FF8EA9CC' } };
+const BODY_BORDER = { top: LINE, bottom: LINE, left: LINE, right: LINE };
+const HEADER_BORDER = { top: HEADER_LINE, bottom: HEADER_LINE, left: HEADER_LINE, right: HEADER_LINE };
 const HEADER_FILL = 'FF1F4E79';
 const TABLE_STYLE = 'TableStyleMedium2';
 
@@ -68,16 +74,27 @@ export async function delimitedToXlsx(source: DelimitedTable, base: string): Pro
   });
   widths.forEach((width, index) => { worksheet.getColumn(index + 1).width = width; });
   const header = worksheet.getRow(1);
+  header.height = HEADER_HEIGHT;
   header.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-  header.alignment = { vertical: 'middle', wrapText: true };
-  header.eachCell((cell) => { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: HEADER_FILL } }; });
-  table.body.forEach((row, rowIndex) => {
-    row.forEach((cell, column) => {
-      const target = worksheet.getCell(rowIndex + 2, column + 1);
-      if ((cell.kind === 'number' || cell.kind === 'date') && cell.format) target.numFmt = cell.format;
-      if (cell.kind === 'text' && (longestLine(cell.value) + WIDTH_PADDING > widths[column] || /[\r\n]/.test(cell.value))) target.alignment = { wrapText: true, vertical: 'top' };
-    });
+  table.header.forEach((_, column) => {
+    const cell = header.getCell(column + 1);
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: HEADER_FILL } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    cell.border = HEADER_BORDER;
   });
+  const bodyRows = Math.max(table.body.length, 1);
+  for (let rowIndex = 0; rowIndex < bodyRows; rowIndex++) {
+    const row = worksheet.getRow(rowIndex + 2);
+    const cells = table.header.map((_, column) => table.body[rowIndex]?.[column] ?? ({ kind: 'text', value: '' } as DelimitedCell));
+    const wraps = cells.map((cell, column) => cell.kind === 'text' && (longestLine(cell.value) + WIDTH_PADDING > widths[column] || /[\r\n]/.test(cell.value)));
+    if (!wraps.some(Boolean)) row.height = ROW_HEIGHT;
+    cells.forEach((cell, column) => {
+      const target = row.getCell(column + 1);
+      target.border = BODY_BORDER;
+      if ((cell.kind === 'number' || cell.kind === 'date') && cell.format) target.numFmt = cell.format;
+      target.alignment = { horizontal: cell.kind === 'text' ? 'left' : cell.kind === 'boolean' ? 'center' : 'right', vertical: wraps[column] ? 'top' : 'middle', indent: cell.kind === 'boolean' ? 0 : 1, wrapText: wraps[column] };
+    });
+  }
   const bytes = await workbook.xlsx.writeBuffer();
   const warnings = [`Đã tách ${table.body.length.toLocaleString('vi-VN')} dòng × ${table.header.length} cột theo ${DELIMITER_NAME[source.delimiter] ?? `“${source.delimiter}”`}, bảng mã ${source.encoding}. Dòng tiêu đề được cố định, mỗi cột có nút lọc và độ rộng tự căn theo nội dung.`];
   if (table.generatedHeader) warnings.push('Tệp không có dòng tiêu đề nên các cột được đặt tên Cột 1, Cột 2…');
