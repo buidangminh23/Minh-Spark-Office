@@ -66,6 +66,29 @@ interface SlideShowProps {
   onClose: () => void;
 }
 
+function useFitZoom(baseW: number, baseH: number) {
+  const [node, setNode] = useState<HTMLDivElement | null>(null);
+  const [zoom, setZoom] = useState(100);
+  useLayoutEffect(() => {
+    if (!node) return;
+    const measure = () => {
+      const w = node.clientWidth;
+      const h = node.clientHeight;
+      if (w <= 0 || h <= 0) return;
+      setZoom(Math.max(1, Math.min(w / baseW, h / baseH) * 100));
+    };
+    measure();
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    observer?.observe(node);
+    window.addEventListener('resize', measure);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [node, baseW, baseH]);
+  return { ref: setNode, zoom };
+}
+
 export function SlideShow({
   slides,
   initialIndex = 0,
@@ -88,6 +111,11 @@ export function SlideShow({
   const [drawTool, setDrawTool] = useState<'none' | 'pen' | 'highlighter' | 'eraser'>('none');
   const drawCanvasRef = useRef<HTMLCanvasElement>(null);
   const isDrawingRef = useRef(false);
+
+  const slideBaseW = aspectRatio === '4:3' ? 720 : 960;
+  const stageFit = useFitZoom(slideBaseW, 540);
+  const presenterMainFit = useFitZoom(slideBaseW, 540);
+  const presenterNextFit = useFitZoom(slideBaseW, 540);
 
   // Slide Zoom Navigation
   const [zoomOriginIndex, setZoomOriginIndex] = useState<number | null>(null);
@@ -650,11 +678,11 @@ export function SlideShow({
 
         <div className="ppt-presenter-body">
           {/* Main Current Slide */}
-          <div className="ppt-presenter-main-slide">
+          <div className="ppt-presenter-main-slide" ref={presenterMainFit.ref}>
             <SlideCanvas
               slide={currentSlide}
               aspectRatio={aspectRatio}
-              zoom={100}
+              zoom={presenterMainFit.zoom}
               selectedElementId={null}
               onSelectElement={() => {}}
               onUpdateElement={() => {}}
@@ -670,12 +698,12 @@ export function SlideShow({
             <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#94A3B8', textTransform: 'uppercase' }}>
               Trang chiếu tiếp theo
             </div>
-            <div className="ppt-presenter-next-slide">
+            <div className="ppt-presenter-next-slide" ref={presenterNextFit.ref}>
               {nextSlide ? (
                 <SlideCanvas
                   slide={nextSlide}
                   aspectRatio={aspectRatio}
-                  zoom={50}
+                  zoom={presenterNextFit.zoom}
                   selectedElementId={null}
                   onSelectElement={() => {}}
                   onUpdateElement={() => {}}
@@ -832,11 +860,11 @@ export function SlideShow({
       )}
 
       {/* 2. Main Slide Canvas */}
-      <div className={`ppt-slideshow-canvas ${transitionClass}`}>
+      <div className={`ppt-slideshow-canvas ${transitionClass}`} ref={stageFit.ref}>
         <SlideCanvas
           slide={currentSlide}
           aspectRatio={aspectRatio}
-          zoom={100}
+          zoom={stageFit.zoom}
           selectedElementId={null}
           onSelectElement={(elId) => {
             if (!elId || drawTool !== 'none') return;
@@ -920,6 +948,9 @@ export function SlideShow({
               position: 'absolute',
               width: '100vw',
               height: '100vh',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               transformOrigin: '0 0',
               transform: `scale(2.2) translate(${-pointerPos.x + 40}px, ${-pointerPos.y + 40}px)`,
             }}
@@ -927,7 +958,7 @@ export function SlideShow({
             <SlideCanvas
               slide={currentSlide}
               aspectRatio={aspectRatio}
-              zoom={100}
+              zoom={stageFit.zoom}
               selectedElementId={null}
               onSelectElement={() => {}}
               onUpdateElement={() => {}}
