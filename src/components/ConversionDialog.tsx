@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRightLeft, Download, FilePlus2, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Download, FilePlus2, Trash2, X } from 'lucide-react';
 import { CONVERSION_ACCEPT, MAX_CONVERSION_BATCH_BYTES, MAX_CONVERSION_BYTES, MAX_CONVERSION_FILES, conversionTargets, conversionZip, convertFile } from '../lib/fileConversion';
 import type { ConversionOptions, ConversionResult } from '../lib/conversionTypes';
 import { downloadBlob, formatBytes } from '../lib/download';
+import { SOURCE_LABEL, presetAccept, presetAcceptsFile, type ConversionPreset } from '../lib/conversionPresets';
+import { ConvertLogo } from './ConvertLogo';
+import { ConversionPair } from './ConversionPicker';
 import './conversion.css';
 
 type QueueItem = { id: number; file: File; target: string; status: 'ready' | 'running' | 'done' | 'error'; message?: string; result?: ConversionResult };
 
-export function ConversionDialog({ onClose }: { onClose: () => void }) {
+export function ConversionDialog({ preset, onBack, onClose }: { preset?: ConversionPreset; onBack?: () => void; onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const sequence = useRef(0);
@@ -21,6 +24,7 @@ export function ConversionDialog({ onClose }: { onClose: () => void }) {
   const [fidelity, setFidelity] = useState<ConversionOptions['fidelity']>('layout');
   const [ocr, setOcr] = useState(true);
   const locked = running || packing;
+  const showScanOptions = !preset || preset.from === 'pdf' || preset.from === 'image';
 
   useEffect(() => {
     mounted.current = true;
@@ -35,11 +39,12 @@ export function ConversionDialog({ onClose }: { onClose: () => void }) {
     let size = queue.reduce((total, item) => total + item.file.size, 0);
     for (const file of files) {
       const targets = conversionTargets(file.name);
+      if (preset && !presetAcceptsFile(preset, file.name)) { rejected.push(`${file.name}: không phải tệp ${SOURCE_LABEL[preset.from]}`); continue; }
       if (!targets.length) { rejected.push(`${file.name}: chưa hỗ trợ định dạng nguồn này`); continue; }
       if (!file.size || file.size > MAX_CONVERSION_BYTES) { rejected.push(`${file.name}: tệp phải có nội dung và không vượt quá 100 MB`); continue; }
       if (queue.length + added.length >= MAX_CONVERSION_FILES || size + file.size > MAX_CONVERSION_BATCH_BYTES) { rejected.push('Mỗi lượt tối đa 20 tệp, tổng dung lượng 200 MB'); break; }
       size += file.size;
-      const target = targets.find((format) => format.id === 'pdf') ?? targets[0];
+      const target = targets.find((format) => format.id === preset?.target) ?? targets.find((format) => format.id === 'pdf') ?? targets[0];
       added.push({ id: ++sequence.current, file, target: target.id, status: 'ready' });
     }
     setQueue((items) => [...items, ...added]);
@@ -93,21 +98,29 @@ export function ConversionDialog({ onClose }: { onClose: () => void }) {
 
   return <dialog ref={dialog} className="conversion-dialog" aria-labelledby="conversion-title" onCancel={(event) => { event.preventDefault(); if (!locked) onClose(); }}>
     <header className="conversion-header">
-      <div><h2 id="conversion-title"><ArrowRightLeft size={22} />Chuyển đổi định dạng</h2><p>Word, Excel, PowerPoint, PDF và ảnh — xử lý ngay trên thiết bị.</p></div>
-      <button className="icon-btn" aria-label="Đóng chuyển đổi" disabled={locked} onClick={onClose}><X size={20} /></button>
+      <div className="conversion-heading">
+        {preset ? <ConversionPair preset={preset} size={40} /> : <ConvertLogo size={44} />}
+        <div><h2 id="conversion-title">{preset ? preset.title : 'Chuyển đổi định dạng'}</h2><p>{preset ? `Chọn tệp ${SOURCE_LABEL[preset.from]} để chuyển đổi, xử lý ngay trên thiết bị.` : 'Word, Excel, PowerPoint, PDF và ảnh, xử lý ngay trên thiết bị.'}</p></div>
+      </div>
+      <div className="conversion-header-actions">
+        {onBack && <button className="btn" disabled={locked} onClick={onBack}><ArrowLeft size={16} />Đổi kiểu chuyển đổi</button>}
+        <button className="icon-btn" aria-label="Đóng chuyển đổi" disabled={locked} onClick={onClose}><X size={20} /></button>
+      </div>
     </header>
     <div className="conversion-body">
       <div className="conversion-drop" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); addFiles(Array.from(event.dataTransfer.files)); }}>
-        <FilePlus2 size={30} aria-hidden="true" /><strong>Kéo tệp vào đây hoặc chọn từ máy</strong>
+        <FilePlus2 size={30} aria-hidden="true" /><strong>{preset ? `Kéo tệp ${SOURCE_LABEL[preset.from]} vào đây hoặc chọn từ máy` : 'Kéo tệp vào đây hoặc chọn từ máy'}</strong>
         <span>Tối đa 20 tệp · Office 50 MB/tệp · PDF/ảnh 100 MB/tệp · 200 MB/lượt</span>
         <button className="btn primary" disabled={locked} onClick={() => input.current?.click()}>Chọn tệp</button>
-        <input ref={input} hidden multiple type="file" accept={CONVERSION_ACCEPT} onChange={(event) => { addFiles(Array.from(event.target.files ?? [])); event.target.value = ''; }} />
+        <input ref={input} hidden multiple type="file" accept={preset ? presetAccept(preset) : CONVERSION_ACCEPT} onChange={(event) => { addFiles(Array.from(event.target.files ?? [])); event.target.value = ''; }} />
       </div>
+      {showScanOptions && <>
       <div className="conversion-options">
         <label className="field"><span className="field-label">Ưu tiên chuyển đổi</span><select className="text-field" value={fidelity} disabled={locked} onChange={(event) => { setFidelity(event.target.value as ConversionOptions['fidelity']); invalidate(); }}><option value="layout">Giữ bố cục trang</option><option value="editable">Nội dung có thể chỉnh sửa</option></select></label>
         <label className="conversion-check"><input type="checkbox" checked={ocr} disabled={locked} onChange={(event) => { setOcr(event.target.checked); invalidate(); }} /><span>OCR tiếng Việt và tiếng Anh cho ảnh, PDF quét</span></label>
       </div>
       <p className="conversion-help">PDF → Word/PowerPoint ở chế độ giữ bố cục dùng ảnh từng trang. Chế độ chỉnh sửa lấy chữ và bảng; bố cục có thể thay đổi. OCR có thể nhận sai chữ hoặc số, cần đối chiếu với bản gốc. Công thức và định dạng chỉ được giữ khi cặp định dạng hỗ trợ.</p>
+      </>}
       {notice && <p role="alert" className="conversion-error">{notice}</p>}
       <ul className="conversion-queue" aria-label="Danh sách chuyển đổi">
         {queue.map((item) => {

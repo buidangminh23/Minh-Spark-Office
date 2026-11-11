@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ArrowRight,
-  ArrowRightLeft,
   Check,
   Copy,
   Edit2,
@@ -25,6 +24,9 @@ import { useAccount } from './Authentication';
 import { SuiteLogo } from './SuiteLogo';
 import { DownloadMenu } from './DownloadMenu';
 import { ConversionDialog } from './ConversionDialog';
+import { ConversionPicker } from './ConversionPicker';
+import { ConvertLogo } from './ConvertLogo';
+import type { ConversionPreset } from '../lib/conversionPresets';
 import { AccountMenu, Popover, SettingsDialog, SyncButton, TemplateThumb, type ThumbVariant } from './HomeParts';
 import './home.css';
 
@@ -139,7 +141,7 @@ export default function Home(props: HomeProps) {
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [createOpen, setCreateOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [conversionOpen, setConversionOpen] = useState(false);
+  const [conversion, setConversion] = useState<null | 'pick' | 'all' | ConversionPreset>(null);
   const [showAllTemplates, setShowAllTemplates] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const searchInput = useRef<HTMLInputElement>(null);
@@ -302,10 +304,10 @@ export default function Home(props: HomeProps) {
           {(['doc', 'sheet', 'slide', 'pdf'] as FileKind[]).map((kind) => (
             <NavItem key={kind} active={view === kind && !isSearching} onClick={() => goTo(kind)} icon={<SuiteLogo kind={kind} size={26} />}>{PRODUCT_NAME[kind]}</NavItem>
           ))}
+          <NavItem active={conversion !== null} onClick={() => setConversion('pick')} icon={<ConvertLogo size={26} />}>Chuyển định dạng</NavItem>
           <hr />
           <NavItem active={view === 'trash' && !isSearching} onClick={() => goTo('trash')} icon={<Trash2 size={20} />} badge={trashCount || undefined}>Thùng rác</NavItem>
           <NavItem active={settingsOpen} onClick={() => setSettingsOpen(true)} icon={<Settings size={20} />}>Cài đặt</NavItem>
-          <NavItem active={conversionOpen} onClick={() => setConversionOpen(true)} icon={<ArrowRightLeft size={20} />}>Chuyển đổi định dạng</NavItem>
         </nav>
       </aside>
 
@@ -325,7 +327,6 @@ export default function Home(props: HomeProps) {
             <kbd>{isMac ? '⌘ K' : 'Ctrl K'}</kbd>
           </label>
           <div className="ws-top-actions">
-            <button className="icon-btn" title="Chuyển đổi định dạng" aria-label="Chuyển đổi định dạng" onClick={() => setConversionOpen(true)}><ArrowRightLeft size={20} /></button>
             <SyncButton />
             <span className="ws-divider" aria-hidden="true" />
             <DownloadMenu />
@@ -414,7 +415,8 @@ export default function Home(props: HomeProps) {
       </main>
 
       {settingsOpen && <SettingsDialog onClose={closeSettings} onExportBackup={onExportBackup} onImportBackup={onImportBackup} />}
-      {conversionOpen && <ConversionDialog onClose={() => setConversionOpen(false)} />}
+      {conversion === 'pick' && <ConversionPicker onPick={setConversion} onAll={() => setConversion('all')} onClose={() => setConversion(null)} />}
+      {conversion !== null && conversion !== 'pick' && <ConversionDialog key={conversion === 'all' ? 'all' : conversion.id} preset={conversion === 'all' ? undefined : conversion} onBack={() => setConversion('pick')} onClose={() => setConversion(null)} />}
     </div>
   );
 }
