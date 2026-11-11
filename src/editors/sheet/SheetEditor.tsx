@@ -624,7 +624,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
   const [nameBoxText, setNameBoxText] = useState('A1');
   const [formulaBarText, setFormulaBarText] = useState('');
   const formulaBarFocusedRef = useRef(false);
-  const [selectedFont, setSelectedFont] = useState('Segoe UI');
+  const [selectedFont, setSelectedFont] = useState(DEFAULT_CELL_FONT_FAMILY);
   const [selectedFontSize, setSelectedFontSize] = useState('11');
   const [isBold, setIsBold] = useState(false);
   const [isItalic, setIsItalic] = useState(false);
@@ -843,7 +843,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
       }
 
       const styleData = fRange.getCellStyleData() as CellStyle | null;
-      setSelectedFont(styleData?.ff || 'Segoe UI');
+      setSelectedFont(styleData?.ff || DEFAULT_CELL_FONT_FAMILY);
       setSelectedFontSize(String(styleData?.fs || 11));
       setIsBold(Boolean(styleData?.bl));
       setIsItalic(Boolean(styleData?.it));
@@ -3404,7 +3404,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
       vAlign: v === 'top' ? 'top' : v === 'middle' ? 'middle' : 'bottom',
       wrap: Boolean(ctx.fRange.getWrap()),
       rotation: st.tr?.a ?? 0,
-      fontFamily: st.ff || 'Segoe UI',
+      fontFamily: st.ff || DEFAULT_CELL_FONT_FAMILY,
       fontSize: st.fs || 11,
       bold: Boolean(st.bl),
       italic: Boolean(st.it),
@@ -4420,7 +4420,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                         onChange={(e) => applyFontFamily(e.target.value)}
                         title="Phông chữ"
                       >
-                        {['Segoe UI', 'Arial', 'Calibri', 'Times New Roman', 'Tahoma', 'Verdana', 'Roboto', 'Courier New'].map((f) => (
+                        {['Arial', 'Segoe UI', 'Calibri', 'Times New Roman', 'Tahoma', 'Verdana', 'Roboto', 'Courier New'].map((f) => (
                           <option key={f} value={f}>
                             {f}
                           </option>

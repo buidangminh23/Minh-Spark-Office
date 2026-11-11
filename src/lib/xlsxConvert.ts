@@ -73,11 +73,18 @@ const toArgb = (rgb?: string) => {
 
 const dateToSerial = (date: Date) => (date.getTime() - EXCEL_EPOCH) / 86400000;
 
+export const DEFAULT_SHEET_FONT_FAMILY = 'Arial';
+
+export const importedFontFamily = (name: string): string =>
+  /^segoe ui(?:\s|$)/i.test(name.trim()) ? DEFAULT_SHEET_FONT_FAMILY : name;
+
+export const toNfc = (text: string): string => text.normalize('NFC');
+
 function styleFromExcel(cell: ExcelJS.Cell): CellStyle | undefined {
   const style: CellStyle = {};
   const font = cell.font;
   if (font) {
-    if (font.name) style.ff = font.name;
+    if (font.name) style.ff = importedFontFamily(font.name);
     if (font.size) style.fs = font.size;
     if (font.bold) style.bl = 1;
     if (font.italic) style.it = 1;
@@ -117,7 +124,7 @@ function valueFromExcel(cell: ExcelJS.Cell): CellValue | null {
   const raw = cell.value;
   if (raw === null || raw === undefined) return null;
   if (typeof raw === 'number') return { v: raw, t: 2 };
-  if (typeof raw === 'string') return { v: raw, t: 1 };
+  if (typeof raw === 'string') return { v: toNfc(raw), t: 1 };
   if (typeof raw === 'boolean') return { v: raw ? 1 : 0, t: 3 };
   if (raw instanceof Date) return { v: dateToSerial(raw), t: 2 };
   if (typeof raw === 'object') {
@@ -127,16 +134,16 @@ function valueFromExcel(cell: ExcelJS.Cell): CellValue | null {
       const value: CellValue = formula ? { f: `=${formula}` } : {};
       if (result instanceof Date) value.v = dateToSerial(result);
       else if (typeof result === 'number') { value.v = result; value.t = 2; }
-      else if (typeof result === 'string') { value.v = result; value.t = 1; }
+      else if (typeof result === 'string') { value.v = toNfc(result); value.t = 1; }
       else if (typeof result === 'boolean') { value.v = result ? 1 : 0; value.t = 3; }
       else if (result && typeof result === 'object' && 'error' in result) value.v = String(result.error);
       return value;
     }
-    if ('richText' in raw) return { v: raw.richText.map((part) => part.text).join(''), t: 1 };
-    if ('hyperlink' in raw) return { v: String((raw as ExcelJS.CellHyperlinkValue).text ?? raw.hyperlink), t: 1 };
+    if ('richText' in raw) return { v: toNfc(raw.richText.map((part) => part.text).join('')), t: 1 };
+    if ('hyperlink' in raw) return { v: toNfc(String((raw as ExcelJS.CellHyperlinkValue).text ?? raw.hyperlink)), t: 1 };
     if ('error' in raw) return { v: String(raw.error), t: 1 };
   }
-  return { v: String(raw), t: 1 };
+  return { v: toNfc(String(raw)), t: 1 };
 }
 
 const MAX_EXPORT_CELLS = 5_000_000;
@@ -287,8 +294,8 @@ function sheetJsToWorkbook(buffer: ArrayBuffer, name: string, csv = false): Work
         else if (cell.t === 'b') { entry.v = cell.v ? 1 : 0; entry.t = 3; }
         else if (cell.t === 'd') { entry.v = dateToSerial(cell.v as Date); entry.t = 2; }
         else if (cell.t === 'e') entry.v = cell.w ?? '#ERROR!';
-        else if (csv && cell.t === 's' && !cell.f && typeof cell.v === 'string') Object.assign(entry, inferDelimitedValue(cell.v));
-        else if (cell.v !== undefined) { entry.v = String(cell.v); entry.t = 1; }
+        else if (csv && cell.t === 's' && !cell.f && typeof cell.v === 'string') Object.assign(entry, inferDelimitedValue(toNfc(cell.v)));
+        else if (cell.v !== undefined) { entry.v = toNfc(String(cell.v)); entry.t = 1; }
         if (cell.z && cell.z !== 'General') {
           const pattern = String(cell.z);
           let id = formatStyleIds.get(pattern);
@@ -796,7 +803,7 @@ export function exportSheetToStyledHtml(workbook: WorkbookData, sheet: SheetData
       const css: string[] = [];
       css.push(`padding:6px 10px`);
       const family = safeFontFamily(style?.ff);
-      css.push(`font-family:${family ? `'${family}',sans-serif` : `'Segoe UI',Arial,sans-serif`}`);
+      css.push(`font-family:${family ? `'${family}',sans-serif` : `Arial,sans-serif`}`);
       css.push(`font-size:${Math.max(1, Math.min(409, finiteNumber(style?.fs, 11)))}pt`);
       if (style?.bl) css.push('font-weight:700');
       if (style?.it) css.push('font-style:italic');
@@ -858,7 +865,7 @@ export function exportSheetToStyledHtml(workbook: WorkbookData, sheet: SheetData
   if (!options.standalone) return tableBlock;
 
   const pageSize = `${options.paperSize ?? 'A4'} ${options.orientation ?? 'landscape'}`;
-  return `<!DOCTYPE html><html lang="vi"><head><meta charset="utf-8"/><title>${escape(options.title || sheet.name)}</title><style>@page{size:${pageSize};margin:12mm}body{font-family:'Segoe UI',Arial,sans-serif;margin:20px;color:#0f172a;background:#fff}@media print{body{margin:0}}</style></head><body>${tableBlock}</body></html>`;
+  return `<!DOCTYPE html><html lang="vi"><head><meta charset="utf-8"/><title>${escape(options.title || sheet.name)}</title><style>@page{size:${pageSize};margin:12mm}body{font-family:Arial,sans-serif;margin:20px;color:#0f172a;background:#fff}@media print{body{margin:0}}</style></head><body>${tableBlock}</body></html>`;
 }
 
 export async function renderSheetToPngBlob(
@@ -899,11 +906,11 @@ export async function renderSheetToPngBlob(
   ctx.fillStyle = '#107c41';
   ctx.fillRect(pad, pad, totalWidth - pad * 2, 3);
   ctx.fillStyle = '#0f172a';
-  ctx.font = '700 15px "Segoe UI", Arial, sans-serif';
+  ctx.font = '700 15px Arial, sans-serif';
   ctx.textBaseline = 'top';
   ctx.fillText(options.title || workbook.name || sheet.name, pad, pad + 10);
   ctx.fillStyle = '#64748b';
-  ctx.font = '400 11px "Segoe UI", Arial, sans-serif';
+  ctx.font = '400 11px Arial, sans-serif';
   ctx.fillText(`Sheet: ${sheet.name} · Minh Spark Office`, pad, pad + 30);
 
   const colOffsets: number[] = [pad];
@@ -972,7 +979,7 @@ export async function renderSheetToPngBlob(
         const fontSize = Math.round((style?.fs ?? 11) * 1.2);
         const weight = style?.bl ? '700' : '400';
         const italic = style?.it ? 'italic ' : '';
-        const family = style?.ff || 'Segoe UI';
+        const family = style?.ff || DEFAULT_SHEET_FONT_FAMILY;
         ctx.font = `${italic}${weight} ${fontSize}px "${family}", Arial, sans-serif`;
         ctx.fillStyle = style?.cl?.rgb || '#0f172a';
         const isNum = typeof cell?.v === 'number';
@@ -1007,11 +1014,11 @@ export async function renderSheetToPngBlob(
     ctx.strokeRect(sx, sy, 240, 64);
     ctx.fillStyle = '#b91c1c';
     ctx.textAlign = 'center';
-    ctx.font = '700 10px "Segoe UI", Arial, sans-serif';
+    ctx.font = '700 10px Arial, sans-serif';
     ctx.fillText('ĐÃ KÝ SỐ XÁC THỰC · MINH SPARK', sx + 120, sy + 16);
-    ctx.font = '700 13px "Segoe UI", Arial, sans-serif';
+    ctx.font = '700 13px Arial, sans-serif';
     ctx.fillText(options.signedBy, sx + 120, sy + 36);
-    ctx.font = '400 10px "Segoe UI", Arial, sans-serif';
+    ctx.font = '400 10px Arial, sans-serif';
     ctx.fillText(new Date().toLocaleDateString('vi-VN'), sx + 120, sy + 52);
   }
 

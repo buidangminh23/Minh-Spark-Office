@@ -1084,7 +1084,7 @@ export function SignatureStampModal({
       ctx.strokeRect(14, 14, out.width - 28, out.height - 28);
 
       ctx.fillStyle = '#b91c1c';
-      ctx.font = '800 14px "Segoe UI", Arial, sans-serif';
+      ctx.font = '800 14px Arial, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('XÁC THỰC CHỮ KÝ SỐ · MINH SPARK OFFICE', out.width / 2, 36);
     }
@@ -1099,12 +1099,12 @@ export function SignatureStampModal({
     }
 
     ctx.fillStyle = '#0f172a';
-    ctx.font = '700 16px "Segoe UI", Arial, sans-serif';
+    ctx.font = '700 16px Arial, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(signer, out.width / 2, 186);
 
     ctx.fillStyle = '#475569';
-    ctx.font = '600 12px "Segoe UI", Arial, sans-serif';
+    ctx.font = '600 12px Arial, sans-serif';
     ctx.fillText(`${role} · Ký ngày ${new Date().toLocaleDateString('vi-VN')}`, out.width / 2, 208);
 
     return out.toDataURL('image/png');

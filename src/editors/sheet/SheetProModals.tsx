@@ -112,7 +112,7 @@ export interface FormatCellsState {
 
 type FormatTab = 'number' | 'align' | 'font' | 'border' | 'fill';
 
-const FONT_CHOICES = ['Segoe UI', 'Times New Roman', 'Arial', 'Calibri', 'Cambria', 'Tahoma', 'Verdana', 'Roboto', 'Consolas'];
+const FONT_CHOICES = ['Arial', 'Segoe UI', 'Times New Roman', 'Calibri', 'Cambria', 'Tahoma', 'Verdana', 'Roboto', 'Consolas'];
 
 export function FormatCellsModal({
   rangeA1,

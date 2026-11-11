@@ -249,7 +249,7 @@ export const TABLE_THEMES: TableThemePreset[] = [
 ];
 
 export const WORKBOOK_THEMES: WorkbookThemePreset[] = [
-  { id: 'emerald', name: 'Minh Sheets Green', primary: '#107c41', accentBg: '#ecfdf5', headerFg: '#ffffff', border: '#a7f3d0', fontFamily: 'Segoe UI' },
+  { id: 'emerald', name: 'Minh Sheets Green', primary: '#107c41', accentBg: '#ecfdf5', headerFg: '#ffffff', border: '#a7f3d0', fontFamily: 'Arial' },
   { id: 'office-blue', name: 'Office Classic Blue', primary: '#185abd', accentBg: '#eff6ff', headerFg: '#ffffff', border: '#bfdbfe', fontFamily: 'Calibri' },
   { id: 'indigo-pro', name: 'Indigo Finance', primary: '#3730a3', accentBg: '#eef2ff', headerFg: '#ffffff', border: '#c7d2fe', fontFamily: 'Arial' },
   { id: 'teal-ledger', name: 'Teal Ledger', primary: '#0f766e', accentBg: '#f0fdfa', headerFg: '#ffffff', border: '#99f6e4', fontFamily: 'Tahoma' },
@@ -613,7 +613,7 @@ export const renderChartSvg = (
 
   const parts: string[] = [];
   parts.push(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" style="font-family:'Segoe UI',Arial,sans-serif;background:#ffffff">`
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" style="font-family:Arial,sans-serif;background:#ffffff">`
   );
   parts.push(`<rect x="0.5" y="0.5" width="${width - 1}" height="${height - 1}" rx="10" fill="#ffffff" stroke="#e2e8f0"/>`);
   parts.push(`<text x="${ width / 2 }" y="26" text-anchor="middle" font-size="15" font-weight="700" fill="#0f172a">${escapeXml(title || 'Biểu đồ phân tích dữ liệu')}</text>`);

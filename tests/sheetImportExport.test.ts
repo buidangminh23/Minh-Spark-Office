@@ -218,3 +218,34 @@ test('importSpreadsheet reports xlsx truncation through the ExcelJS path', async
   assert.equal(wb.importTruncation?.[0].keptColumns, 500);
   assert.equal(wb.importTruncation?.[0].rows, 1);
 });
+
+test('importSpreadsheet maps Segoe UI to Arial and normalizes Vietnamese text to NFC', async () => {
+  const { default: ExcelJS } = await import('exceljs');
+  const book = new ExcelJS.Workbook();
+  const sheet = book.addWorksheet('Working');
+  const decomposed = 'tới cửa đông'.normalize('NFD');
+  sheet.getCell(1, 1).value = decomposed;
+  sheet.getCell(1, 1).font = { name: 'Segoe UI', size: 11 };
+  sheet.getCell(1, 2).value = 'Times';
+  sheet.getCell(1, 2).font = { name: 'Times New Roman' };
+  sheet.getCell(2, 1).value = { richText: [{ text: 'cửa'.normalize('NFD') }, { text: ' hàng' }] };
+  const bytes = (await book.xlsx.writeBuffer()) as ArrayBuffer;
+  const wb = await importSpreadsheet(bytes, 'test.xlsx');
+  const data = wb.sheets[wb.sheetOrder[0]];
+  const a1 = data.cellData[0][0] as { v: string; s: string };
+  assert.equal(a1.v, 'tới cửa đông'.normalize('NFC'));
+  assert.notEqual(a1.v, decomposed);
+  assert.equal(wb.styles[a1.s]?.ff, 'Arial');
+  const b1 = data.cellData[0][1] as { s: string };
+  assert.equal(wb.styles[b1.s]?.ff, 'Times New Roman');
+  assert.equal((data.cellData[1][0] as { v: string }).v, 'cửa hàng'.normalize('NFC'));
+});
+
+test('importSpreadsheet normalizes decomposed Vietnamese text in CSV', async () => {
+  const csv = `Q6,Q9A
+${'đông'.normalize('NFD')},${'cửa hàng'.normalize('NFD')}`;
+  const wb = await importSpreadsheet(new TextEncoder().encode(csv).buffer as ArrayBuffer, 'data.csv');
+  const data = wb.sheets[wb.sheetOrder[0]];
+  assert.equal((data.cellData[1][0] as { v: string }).v, 'đông'.normalize('NFC'));
+  assert.equal((data.cellData[1][1] as { v: string }).v, 'cửa hàng'.normalize('NFC'));
+});

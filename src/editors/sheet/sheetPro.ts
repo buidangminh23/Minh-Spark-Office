@@ -687,7 +687,7 @@ export const buildShapeSvg = (spec: ShapeSpec): string => {
   const textSvg = lines
     .map(
       (line, i) =>
-        `<text x="${anchorX}" y="${(spec.kind === 'textbox' ? textBox.y + spec.fontSize + i * lineH : startY + i * lineH).toFixed(1)}" text-anchor="${spec.kind === 'textbox' ? 'start' : 'middle'}" font-family="Segoe UI, Arial, sans-serif" font-size="${spec.fontSize}" font-weight="${spec.bold ? 700 : 400}" fill="${escapeXml(spec.textColor)}">${escapeXml(line)}</text>`
+        `<text x="${anchorX}" y="${(spec.kind === 'textbox' ? textBox.y + spec.fontSize + i * lineH : startY + i * lineH).toFixed(1)}" text-anchor="${spec.kind === 'textbox' ? 'start' : 'middle'}" font-family="Arial, sans-serif" font-size="${spec.fontSize}" font-weight="${spec.bold ? 700 : 400}" fill="${escapeXml(spec.textColor)}">${escapeXml(line)}</text>`
     )
     .join('');
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${shape}${textSvg}</svg>`;
