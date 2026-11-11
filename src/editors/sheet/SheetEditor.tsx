@@ -31,8 +31,16 @@ import {
   Dimension,
   ImageSourceType,
 } from '@univerjs/presets';
-import { UniverSheetsCorePreset } from '@univerjs/preset-sheets-core';
+import {
+  UniverSheetsCorePreset,
+  ClearSelectionContentCommand,
+  IShortcutService,
+  KeyCode,
+  SheetsSelectionsService,
+  whenSheetEditorFocused,
+} from '@univerjs/preset-sheets-core';
 import { EXTRA_FUNCTION_DESCRIPTIONS, EXTRA_FUNCTIONS } from './extraFunctions';
+import { BACKSPACE_CLEAR_PRIORITY, selectionCoversMultipleCells } from './backspaceClear';
 import UniverPresetSheetsCoreViVN from '@univerjs/preset-sheets-core/locales/vi-VN';
 import UniverPresetSheetsCoreEnUS from '@univerjs/preset-sheets-core/locales/en-US';
 import { UniverSheetsConditionalFormattingPreset, CFValueType } from '@univerjs/preset-sheets-conditional-formatting';
@@ -432,6 +440,18 @@ const copyTextSafely = async (text: string): Promise<boolean> => {
 
 type UniverApi = ReturnType<typeof createUniver>['univerAPI'];
 type ActiveWorksheet = NonNullable<ReturnType<NonNullable<ReturnType<UniverApi['getActiveWorkbook']>>['getActiveSheet']>>;
+
+const registerBackspaceClearsSelection = (univer: ReturnType<typeof createUniver>['univer']) => {
+  const injector = univer.__getInjector();
+  const selections = injector.get(SheetsSelectionsService);
+  injector.get(IShortcutService).registerShortcut({
+    id: ClearSelectionContentCommand.id,
+    binding: KeyCode.BACKSPACE,
+    priority: BACKSPACE_CLEAR_PRIORITY,
+    preconditions: (contextService) =>
+      whenSheetEditorFocused(contextService) && selectionCoversMultipleCells(selections.getCurrentSelections()),
+  });
+};
 
 const widenColumnToFitCell = (worksheet: ActiveWorksheet, row: number, column: number): boolean => {
   const cell = worksheet.getRange(row, column, 1, 1);
@@ -1169,6 +1189,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
       const truncationNotice = describeImportTruncation(clonedWb.importTruncation);
       delete clonedWb.importTruncation;
       univer.createUnit(UniverInstanceType.UNIVER_SHEET, clonedWb);
+      registerBackspaceClearsSelection(univer);
       recalculateAndBindWorkbook(univerAPI);
 
       setTimeout(() => {
