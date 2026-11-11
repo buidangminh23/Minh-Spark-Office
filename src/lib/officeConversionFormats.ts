@@ -24,6 +24,8 @@ const targets: Record<string, ConversionTarget> = {
   webp: { id: 'webp', label: 'Ảnh WebP (.webp)', description: 'Ảnh từng trang nội dung đã dàn lại, dung lượng nhỏ.' },
 };
 
+const DELIMITED_XLSX_TARGET: ConversionTarget = { id: 'xlsx', label: 'Excel (.xlsx)', description: 'Mỗi trường vào một cột riêng, thành bảng Excel có tiêu đề cố định, nút lọc và độ rộng cột tự căn; số, ngày, phần trăm được nhận đúng kiểu.' };
+
 export function officeFileKind(name: string): 'document' | 'sheet' | 'slide' | null {
   const ext = name.split('.').pop()?.toLowerCase() ?? '';
   if ((OFFICE_DOCUMENT_EXTENSIONS as readonly string[]).includes(ext)) return 'document';
@@ -41,5 +43,6 @@ export function officeConversionTargets(fileName: string): ConversionTarget[] {
       : kind === 'slide'
         ? ['pptx', 'docx', 'odt', 'rtf', 'txt', 'md', 'html', 'pdf', 'png', 'jpg', 'webp']
         : [];
-  return ids.map((id) => targets[id]);
+  const delimited = /\.(csv|tsv)$/i.test(fileName);
+  return ids.map((id) => (delimited && id === 'xlsx' ? DELIMITED_XLSX_TARGET : targets[id]));
 }

@@ -178,10 +178,26 @@ function checkWorkbook(book: WorkBook) {
   }
 }
 
+function delimitedBook(XLSX: typeof import('xlsx'), rows: string[][]): WorkBook {
+  const book = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet(rows), 'Sheet1');
+  return book;
+}
+
 async function convertSpreadsheet(buffer: ArrayBuffer, ext: string, base: string, target: string, options: ConversionOptions): Promise<ConversionResult> {
   const XLSX = await import('xlsx');
   if (['xlsx', 'xlsm', 'xlsb', 'ods'].includes(ext)) await openOfficeZip(buffer);
-  const book = XLSX.read(buffer, { type: 'array', cellStyles: true, cellNF: true, cellFormula: true, raw: ext === 'csv' || ext === 'tsv', ...(ext === 'tsv' ? { FS: '\t' } : {}) });
+  const delimited = ext === 'csv' || ext === 'tsv' ? (await import('./delimitedTable')).readDelimitedTable(buffer, ext) : null;
+  if (delimited) {
+    if (delimited.rows.length > 50_000 || delimited.columns > 512 || delimited.rows.length * delimited.columns > MAX_CELLS) throw new Error('Bảng tính quá lớn: tối đa 50.000 hàng, 512 cột và 250.000 ô trong vùng dữ liệu. Hãy chia nhỏ tệp.');
+    if (!delimited.rows.length) throw new Error('Tệp không có dữ liệu để chuyển đổi.');
+    if (target === 'xlsx') {
+      options.onProgress?.('Đang dựng bảng Excel…');
+      const { blob, warnings } = await (await import('./delimitedToXlsx')).delimitedToXlsx(delimited, base);
+      return { files: [{ name: `${base}.xlsx`, blob }], warnings };
+    }
+  }
+  const book = delimited ? delimitedBook(XLSX, delimited.rows) : XLSX.read(buffer, { type: 'array', cellStyles: true, cellNF: true, cellFormula: true });
   checkWorkbook(book);
   checkConversionAbort(options);
   if (target === ext && ['xlsx', 'ods'].includes(ext)) return { files: [{ name: `${base}.${target}`, blob: new Blob([buffer], { type: mimeTypes[target] }) }], warnings: [] };

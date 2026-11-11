@@ -2,7 +2,7 @@ import { OFFICE_DOCUMENT_EXTENSIONS, OFFICE_SHEET_EXTENSIONS, OFFICE_SLIDE_EXTEN
 import type { FileKind } from './storage';
 
 export type FormatBadge = { text: string; color: string };
-export type ConversionPreset = { id: string; from: FileKind; to: FileKind | FormatBadge; target: string; title: string; note: string };
+export type ConversionPreset = { id: string; from: FileKind; to: FileKind | FormatBadge; target: string; title: string; note: string; fromBadge?: FormatBadge; sources?: readonly string[]; sourceLabel?: string };
 export type ConversionPresetGroup = { title: string; presets: ConversionPreset[] };
 
 export const IMAGE_SOURCE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'jfif', 'jpe', 'webp', 'gif', 'svg', 'bmp', 'ico', 'avif', 'tif', 'tiff', 'heic', 'heif'] as const;
@@ -19,6 +19,7 @@ export const SOURCE_LABEL: Record<FileKind, string> = { doc: 'Word', sheet: 'Exc
 
 const preset = (from: FileKind, to: FileKind | FormatBadge, target: string, title: string, note: string): ConversionPreset => ({ id: `${from}-${target}`, from, to, target, title, note });
 const badge = (text: string, color: string): FormatBadge => ({ text, color });
+const narrow = (value: ConversionPreset, id: string, fromBadge: FormatBadge, sources: readonly string[], sourceLabel: string): ConversionPreset => ({ ...value, id, fromBadge, sources, sourceLabel });
 
 const PNG = badge('PNG', '#0284c7');
 const WEBP = badge('WEBP', '#0f766e');
@@ -32,6 +33,7 @@ const EPUB = badge('EPUB', '#b45309');
 const CSV = badge('CSV', '#047857');
 const TSV = badge('TSV', '#0f766e');
 const JSON_DATA = badge('JSON', '#a16207');
+const JPG = badge('JPG', '#be185d');
 
 export const CONVERSION_PRESET_GROUPS: ConversionPresetGroup[] = [
   {
@@ -41,6 +43,15 @@ export const CONVERSION_PRESET_GROUPS: ConversionPresetGroup[] = [
       preset('sheet', 'pdf', 'pdf', 'Excel sang PDF', '.xlsx → .pdf'),
       preset('slide', 'pdf', 'pdf', 'PowerPoint sang PDF', '.pptx → .pdf'),
       preset('image', 'pdf', 'pdf', 'Ảnh sang PDF', '.jpg, .png → .pdf'),
+    ],
+  },
+  {
+    title: 'Hay dùng',
+    presets: [
+      narrow(preset('sheet', 'sheet', 'xlsx', 'CSV sang Excel', 'Tách cột, tạo bảng, căn cột'), 'csv-xlsx', CSV, ['csv', 'tsv'], 'CSV'),
+      preset('sheet', CSV, 'csv', 'Excel sang CSV', '.xlsx → .csv'),
+      narrow(preset('image', JPG, 'jpg', 'PNG sang JPG', '.png → .jpg'), 'png-jpg', PNG, ['png'], 'PNG'),
+      narrow(preset('image', PNG, 'png', 'JPG sang PNG', '.jpg → .png'), 'jpg-png', JPG, ['jpg', 'jpeg', 'jfif', 'jpe'], 'JPG'),
     ],
   },
   {
@@ -90,7 +101,6 @@ export const CONVERSION_PRESET_GROUPS: ConversionPresetGroup[] = [
       preset('doc', HTML, 'html', 'Word sang HTML', '.docx → .html'),
       preset('doc', TXT, 'txt', 'Word sang văn bản', '.docx → .txt'),
       preset('sheet', ODS, 'ods', 'Excel sang ODS', '.xlsx → .ods'),
-      preset('sheet', CSV, 'csv', 'Excel sang CSV', '.xlsx → .csv'),
       preset('sheet', TSV, 'tsv', 'Excel sang TSV', '.xlsx → .tsv'),
       preset('sheet', JSON_DATA, 'json', 'Excel sang JSON', '.xlsx → .json'),
       preset('sheet', HTML, 'html', 'Excel sang HTML', '.xlsx → .html'),
@@ -103,15 +113,19 @@ export const CONVERSION_PRESET_GROUPS: ConversionPresetGroup[] = [
 
 export const CONVERSION_PRESETS = CONVERSION_PRESET_GROUPS.flatMap((group) => group.presets);
 
+const presetSources = (value: ConversionPreset) => value.sources ?? SOURCE_EXTENSIONS[value.from];
+
+export const presetSourceLabel = (value: ConversionPreset) => value.sourceLabel ?? SOURCE_LABEL[value.from];
+
 export function presetAccept(value: ConversionPreset) {
-  return SOURCE_EXTENSIONS[value.from].map((extension) => `.${extension}`).join(',');
+  return presetSources(value).map((extension) => `.${extension}`).join(',');
 }
 
 export function presetAcceptsFile(value: ConversionPreset, fileName: string) {
   const extension = fileName.split('.').pop()?.toLowerCase() ?? '';
-  return fileName.includes('.') && SOURCE_EXTENSIONS[value.from].includes(extension);
+  return fileName.includes('.') && presetSources(value).includes(extension);
 }
 
 export function presetSampleName(value: ConversionPreset) {
-  return `sample.${SOURCE_EXTENSIONS[value.from][0]}`;
+  return `sample.${presetSources(value)[0]}`;
 }

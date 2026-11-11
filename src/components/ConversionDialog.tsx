@@ -3,7 +3,7 @@ import { Download, FilePlus2, Trash2, X } from 'lucide-react';
 import { CONVERSION_ACCEPT, MAX_CONVERSION_BATCH_BYTES, MAX_CONVERSION_BYTES, MAX_CONVERSION_FILES, conversionTargets, conversionZip, convertFile } from '../lib/fileConversion';
 import type { ConversionOptions, ConversionResult } from '../lib/conversionTypes';
 import { downloadBlob, formatBytes } from '../lib/download';
-import { SOURCE_LABEL, presetAccept, presetAcceptsFile, type ConversionPreset } from '../lib/conversionPresets';
+import { presetAccept, presetAcceptsFile, presetSourceLabel, type ConversionPreset } from '../lib/conversionPresets';
 import { ConvertLogo } from './ConvertLogo';
 import { ConversionPair } from './ConversionPicker';
 import './conversion.css';
@@ -24,7 +24,7 @@ export function ConversionDialog({ preset, onClose }: { preset?: ConversionPrese
   const [fidelity, setFidelity] = useState<ConversionOptions['fidelity']>('layout');
   const [ocr, setOcr] = useState(true);
   const locked = running || packing;
-  const showScanOptions = !preset || preset.from === 'pdf' || preset.from === 'image';
+  const showScanOptions = !preset || ((preset.from === 'pdf' || preset.from === 'image') && !['png', 'jpg', 'webp'].includes(preset.target));
 
   useEffect(() => {
     mounted.current = true;
@@ -39,7 +39,7 @@ export function ConversionDialog({ preset, onClose }: { preset?: ConversionPrese
     let size = queue.reduce((total, item) => total + item.file.size, 0);
     for (const file of files) {
       const targets = conversionTargets(file.name);
-      if (preset && !presetAcceptsFile(preset, file.name)) { rejected.push(`${file.name}: không phải tệp ${SOURCE_LABEL[preset.from]}`); continue; }
+      if (preset && !presetAcceptsFile(preset, file.name)) { rejected.push(`${file.name}: không phải tệp ${presetSourceLabel(preset)}`); continue; }
       if (!targets.length) { rejected.push(`${file.name}: chưa hỗ trợ định dạng nguồn này`); continue; }
       if (!file.size || file.size > MAX_CONVERSION_BYTES) { rejected.push(`${file.name}: tệp phải có nội dung và không vượt quá 100 MB`); continue; }
       if (queue.length + added.length >= MAX_CONVERSION_FILES || size + file.size > MAX_CONVERSION_BATCH_BYTES) { rejected.push('Mỗi lượt tối đa 20 tệp, tổng dung lượng 200 MB'); break; }
@@ -100,13 +100,13 @@ export function ConversionDialog({ preset, onClose }: { preset?: ConversionPrese
     <header className="conversion-header">
       <div className="conversion-heading">
         {preset ? <ConversionPair preset={preset} size={40} /> : <ConvertLogo size={44} />}
-        <div><h2 id="conversion-title">{preset ? preset.title : 'Chuyển đổi định dạng'}</h2><p>{preset ? `Chọn tệp ${SOURCE_LABEL[preset.from]} để chuyển đổi, xử lý ngay trên thiết bị.` : 'Word, Excel, PowerPoint, PDF và ảnh, xử lý ngay trên thiết bị.'}</p></div>
+        <div><h2 id="conversion-title">{preset ? preset.title : 'Chuyển đổi định dạng'}</h2><p>{preset ? `Chọn tệp ${presetSourceLabel(preset)} để chuyển đổi, xử lý ngay trên thiết bị.` : 'Word, Excel, PowerPoint, PDF và ảnh, xử lý ngay trên thiết bị.'}</p></div>
       </div>
       <button className="icon-btn" aria-label="Đóng chuyển đổi" disabled={locked} onClick={onClose}><X size={20} /></button>
     </header>
     <div className="conversion-body">
       <div className="conversion-drop" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); addFiles(Array.from(event.dataTransfer.files)); }}>
-        <FilePlus2 size={30} aria-hidden="true" /><strong>{preset ? `Kéo tệp ${SOURCE_LABEL[preset.from]} vào đây hoặc chọn từ máy` : 'Kéo tệp vào đây hoặc chọn từ máy'}</strong>
+        <FilePlus2 size={30} aria-hidden="true" /><strong>{preset ? `Kéo tệp ${presetSourceLabel(preset)} vào đây hoặc chọn từ máy` : 'Kéo tệp vào đây hoặc chọn từ máy'}</strong>
         <span>Tối đa 20 tệp · Office 50 MB/tệp · PDF/ảnh 100 MB/tệp · 200 MB/lượt</span>
         <button className="btn primary" disabled={locked} onClick={() => input.current?.click()}>Chọn tệp</button>
         <input ref={input} hidden multiple type="file" accept={preset ? presetAccept(preset) : CONVERSION_ACCEPT} onChange={(event) => { addFiles(Array.from(event.target.files ?? [])); event.target.value = ''; }} />

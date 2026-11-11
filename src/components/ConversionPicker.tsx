@@ -20,7 +20,7 @@ function FormatTile({ badge, size }: { badge: FormatBadge; size: number }) {
 export function ConversionPair({ preset, size = 36 }: { preset: ConversionPreset; size?: number }) {
   return (
     <span className="conversion-pair" aria-hidden="true">
-      <SuiteLogo kind={preset.from} size={size} />
+      {preset.fromBadge ? <FormatTile badge={preset.fromBadge} size={size} /> : <SuiteLogo kind={preset.from} size={size} />}
       <ArrowRight size={Math.round(size * 0.5)} className="conversion-pair-arrow" />
       {typeof preset.to === 'string' ? <SuiteLogo kind={preset.to} size={size} /> : <FormatTile badge={preset.to} size={size} />}
     </span>
