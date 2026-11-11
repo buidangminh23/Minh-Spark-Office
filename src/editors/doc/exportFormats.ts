@@ -1,4 +1,4 @@
-import { exportDocx, jsonToMarkdown } from '../../lib/docxConvert';
+import { exportDocx, jsonToMarkdown } from '../../lib/docxConvertLazy';
 import { exportEpub, exportOdt, exportRtf } from '../../lib/docExports';
 import { exportLatex, exportPptx, jsonToText, resolveImages, tablesOf, tablesToXlsx, tableToCsv } from '../../lib/docOtherFormats';
 import { buildPdf, buildXps, pagesAsFiles, zipFiles } from '../../lib/docPageFormats';
@@ -101,7 +101,7 @@ export const EXPORT_GROUPS: ExportGroup[] = [
   {
     label: 'Văn bản và mã nguồn',
     formats: [
-      { id: 'md', title: 'Markdown (.md)', desc: 'GitHub, Obsidian, Notion', color: '#586071', icon: 'text', inBundle: true, build: async (ctx) => one(ctx, 'md', textBlob(jsonToMarkdown(flat(ctx)), 'text/markdown')) },
+      { id: 'md', title: 'Markdown (.md)', desc: 'GitHub, Obsidian, Notion', color: '#586071', icon: 'text', inBundle: true, build: async (ctx) => one(ctx, 'md', textBlob(await jsonToMarkdown(flat(ctx)), 'text/markdown')) },
       { id: 'txt', title: 'Văn bản thuần (.txt)', desc: 'Chỉ chữ, chú thích ở cuối tệp', color: '#586071', icon: 'text', inBundle: true, build: async (ctx) => one(ctx, 'txt', textBlob(jsonToText(flat(ctx)), 'text/plain')) },
       { id: 'tex', title: 'LaTeX (.tex)', desc: 'Giữ công thức gốc. Có ảnh thì gói kèm thành .zip', color: '#0f766e', icon: 'text', inBundle: true, build: async (ctx) => {
         const { blob, extension } = await exportLatex(await flatResolved(ctx, false), ctx.page, baseName(ctx));

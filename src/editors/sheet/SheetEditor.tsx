@@ -42,31 +42,22 @@ import {
 import { EXTRA_FUNCTION_DESCRIPTIONS, EXTRA_FUNCTIONS } from './extraFunctions';
 import { BACKSPACE_CLEAR_PRIORITY, selectionCoversMultipleCells } from './backspaceClear';
 import UniverPresetSheetsCoreViVN from '@univerjs/preset-sheets-core/locales/vi-VN';
-import UniverPresetSheetsCoreEnUS from '@univerjs/preset-sheets-core/locales/en-US';
 import { UniverSheetsConditionalFormattingPreset, CFValueType } from '@univerjs/preset-sheets-conditional-formatting';
 import UniverPresetSheetsCfViVN from '@univerjs/preset-sheets-conditional-formatting/locales/vi-VN';
-import UniverPresetSheetsCfEnUS from '@univerjs/preset-sheets-conditional-formatting/locales/en-US';
 import { UniverSheetsDataValidationPreset } from '@univerjs/preset-sheets-data-validation';
 import UniverPresetSheetsDvViVN from '@univerjs/preset-sheets-data-validation/locales/vi-VN';
-import UniverPresetSheetsDvEnUS from '@univerjs/preset-sheets-data-validation/locales/en-US';
 import { UniverSheetsDrawingPreset } from '@univerjs/preset-sheets-drawing';
 import UniverPresetSheetsDrawingViVN from '@univerjs/preset-sheets-drawing/locales/vi-VN';
-import UniverPresetSheetsDrawingEnUS from '@univerjs/preset-sheets-drawing/locales/en-US';
 import { UniverSheetsFilterPreset } from '@univerjs/preset-sheets-filter';
 import UniverPresetSheetsFilterViVN from '@univerjs/preset-sheets-filter/locales/vi-VN';
-import UniverPresetSheetsFilterEnUS from '@univerjs/preset-sheets-filter/locales/en-US';
 import { UniverSheetsFindReplacePreset } from '@univerjs/preset-sheets-find-replace';
 import UniverPresetSheetsFindViVN from '@univerjs/preset-sheets-find-replace/locales/vi-VN';
-import UniverPresetSheetsFindEnUS from '@univerjs/preset-sheets-find-replace/locales/en-US';
 import { UniverSheetsHyperLinkPreset } from '@univerjs/preset-sheets-hyper-link';
 import UniverPresetSheetsLinkViVN from '@univerjs/preset-sheets-hyper-link/locales/vi-VN';
-import UniverPresetSheetsLinkEnUS from '@univerjs/preset-sheets-hyper-link/locales/en-US';
 import { UniverSheetsNotePreset } from '@univerjs/preset-sheets-note';
 import UniverPresetSheetsNoteViVN from '@univerjs/preset-sheets-note/locales/vi-VN';
-import UniverPresetSheetsNoteEnUS from '@univerjs/preset-sheets-note/locales/en-US';
 import { UniverSheetsSortPreset } from '@univerjs/preset-sheets-sort';
 import UniverPresetSheetsSortViVN from '@univerjs/preset-sheets-sort/locales/vi-VN';
-import UniverPresetSheetsSortEnUS from '@univerjs/preset-sheets-sort/locales/en-US';
 
 import {
   ArrowLeft,
@@ -1141,17 +1132,6 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
             UniverPresetSheetsLinkViVN,
             UniverPresetSheetsNoteViVN,
             UniverPresetSheetsSortViVN
-          ),
-          [LocaleType.EN_US]: mergeLocales(
-            UniverPresetSheetsCoreEnUS,
-            UniverPresetSheetsCfEnUS,
-            UniverPresetSheetsDvEnUS,
-            UniverPresetSheetsDrawingEnUS,
-            UniverPresetSheetsFilterEnUS,
-            UniverPresetSheetsFindEnUS,
-            UniverPresetSheetsLinkEnUS,
-            UniverPresetSheetsNoteEnUS,
-            UniverPresetSheetsSortEnUS
           ),
         },
         presets: [

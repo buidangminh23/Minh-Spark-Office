@@ -1,5 +1,5 @@
 import type { JSONContent } from '@tiptap/react';
-import { exportDocx, importDocx } from '../../lib/docxConvert';
+import { exportDocx, importDocx } from '../../lib/docxConvertLazy';
 import { resolveImages } from '../../lib/docOtherFormats';
 import { importDocxFull } from '../../lib/docxImport';
 import { flattenForExport } from './docFlatten';

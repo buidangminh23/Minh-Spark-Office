@@ -3,7 +3,7 @@ import { Accessibility, FileDiff, Hash, Upload } from 'lucide-react';
 import { getText, getTextSerializersFromSchema, type Editor } from '@tiptap/core';
 import { DOMParser as ProseMirrorParser } from '@tiptap/pm/model';
 import { pickFile } from '../../../lib/download';
-import { importDocx } from '../../../lib/docxConvert';
+import { importDocx } from '../../../lib/docxConvertLazy';
 import { importDocxFull } from '../../../lib/docxImport';
 import { useDoc } from '../DocContext';
 import { getPagination } from '../pagination';

@@ -1,6 +1,5 @@
 import { createWorkspaceStorage } from './storage';
 import { createSyncedWorkspace, createSyncStateStore } from './syncEngine';
-import { createCloudWorkspace } from './cloudWorkspace';
 import type { RemoteWorkspace, SyncedWorkspace } from './syncTypes';
 
 const workspaces = new Map<string, SyncedWorkspace>();
@@ -8,7 +7,7 @@ const workspaces = new Map<string, SyncedWorkspace>();
 export function accountWorkspace(uid: string) {
   const existing = workspaces.get(uid);
   if (existing) return existing;
-  const connect = () => createCloudWorkspace(uid);
+  const connect = async () => (await import('./cloudWorkspace')).createCloudWorkspace(uid);
   const remote: RemoteWorkspace = {
     list: async () => (await connect()).list(),
     read: async (id) => (await connect()).read(id),

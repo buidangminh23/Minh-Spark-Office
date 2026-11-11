@@ -6,6 +6,7 @@ import {
   emptySheet,
   exportSheetToCsv,
   exportSheetToStyledHtml,
+  exportWorkbookToXlsx,
   formatCellDisplay,
   importSpreadsheet,
   inferDelimitedValue,
@@ -248,4 +249,27 @@ ${'đông'.normalize('NFD')},${'cửa hàng'.normalize('NFD')}`;
   const data = wb.sheets[wb.sheetOrder[0]];
   assert.equal((data.cellData[1][0] as { v: string }).v, 'đông'.normalize('NFC'));
   assert.equal((data.cellData[1][1] as { v: string }).v, 'cửa hàng'.normalize('NFC'));
+});
+
+test('exportSheetToStyledHtml prints only the cells inside the print area', () => {
+  const wb = workbookWith({}, { 0: { 0: { v: 'outside-a1' }, 26: { v: 'inside-aa1' }, 27: { v: 'inside-ab1' }, 28: { v: 'outside-ac1' } }, 1: { 26: { v: 'inside-aa2' } }, 2: { 26: { v: 'outside-aa3' } } });
+  const html = exportSheetToStyledHtml(wb, wb.sheets[wb.sheetOrder[0]], { printArea: 'S1!$AA$1:$AB$2' });
+  for (const kept of ['inside-aa1', 'inside-ab1', 'inside-aa2']) assert.ok(html.includes(kept), kept);
+  for (const dropped of ['outside-a1', 'outside-ac1', 'outside-aa3']) assert.ok(!html.includes(dropped), dropped);
+});
+
+test('exportWorkbookToXlsx output is read back with values, formulas, styles and merges', async () => {
+  const wb = workbookWith({ s1: { bl: 1, bg: { rgb: '#1F7A5C' } } }, { 0: { 0: { v: 'Tổng quý', t: 1, s: 's1' } }, 1: { 0: { v: 120, t: 2 }, 1: { v: 80, t: 2 }, 2: { f: '=A2+B2', v: 200, t: 2 } } });
+  wb.sheets[wb.sheetOrder[0]].mergeData.push({ startRow: 0, endRow: 0, startColumn: 0, endColumn: 2 });
+  const blob = await exportWorkbookToXlsx(wb);
+  assert.equal(blob.type, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  const restored = await importSpreadsheet(await blob.arrayBuffer(), 'round-trip.xlsx');
+  const data = restored.sheets[restored.sheetOrder[0]];
+  const title = data.cellData[0][0] as { v: string; s: string };
+  assert.equal(title.v, 'Tổng quý');
+  assert.equal(restored.styles[title.s]?.bl, 1);
+  assert.equal(restored.styles[title.s]?.bg?.rgb, '#1F7A5C');
+  assert.equal((data.cellData[1][2] as { f: string }).f, '=A2+B2');
+  assert.equal((data.cellData[1][2] as { v: number }).v, 200);
+  assert.deepEqual(data.mergeData, [{ startRow: 0, endRow: 0, startColumn: 0, endColumn: 2 }]);
 });

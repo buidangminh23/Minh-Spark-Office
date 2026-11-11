@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { FileSpreadsheet, Upload, X } from 'lucide-react';
 import type { JSONContent } from '@tiptap/react';
-import { exportDocx } from '../../../lib/docxConvert';
+import { exportDocx } from '../../../lib/docxConvertLazy';
 import { downloadBlob, pickFile } from '../../../lib/download';
 import { type FileMeta } from '../../../lib/storage';
 import type { WorkbookData } from '../../../lib/sheetTypes';

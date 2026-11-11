@@ -37,7 +37,6 @@ import { useUi } from '../../components/ui';
 import { useDocumentCloser } from '../../lib/documentCloser';
 import { SLIDE_THEMES } from '../../lib/slideThemes';
 import { createSlideFromLayout } from '../../lib/slideTemplates';
-import { exportToPptx } from '../../lib/pptxExport';
 import { playTransitionSound } from '../../lib/slideAudio';
 import { SlideCanvas } from './SlideCanvas';
 import { SlidePrintDialog } from './SlidePrintDialog';
@@ -61,6 +60,9 @@ import { SlideSheetsLinkModal } from './SlideSheetsLinkModal';
 import { SlideCustomShowsModal } from './SlideCustomShowsModal';
 import { isEditableKeyTarget } from './slideKeyTarget';
 import './slideEditor.css';
+
+const exportToPptx = async (...args: Parameters<typeof import('../../lib/pptxExport').exportToPptx>) =>
+  (await import('../../lib/pptxExport')).exportToPptx(...args);
 
 interface SlideEditorProps {
   meta: FileMeta;

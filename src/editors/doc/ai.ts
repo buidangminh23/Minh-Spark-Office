@@ -1,5 +1,6 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { summarize } from './docTools';
+
+export const loadClaude = async () => (await import('@anthropic-ai/sdk')).default;
 
 export type AiAction = 'improve' | 'formal' | 'casual' | 'shorten' | 'expand' | 'summarize' | 'proofread' | 'continue' | 'outline' | 'custom';
 
@@ -56,6 +57,7 @@ export async function describeProvider() {
 }
 
 async function runClaude(instruction: string, text: string, onText: (chunk: string) => void, signal: AbortSignal) {
+  const Anthropic = await loadClaude();
   const client = new Anthropic({ apiKey: getApiKey(), dangerouslyAllowBrowser: true });
   const stream = client.beta.messages.stream({
     model: MODEL,
@@ -84,6 +86,7 @@ export async function runAi(action: AiAction, text: string, custom: string, onTe
     try {
       return await runClaude(instruction, text, onText, signal);
     } catch (error) {
+      const Anthropic = await loadClaude();
       if (error instanceof Anthropic.AuthenticationError) throw new Error('API key Claude không hợp lệ. Mở cài đặt Minh AI để nhập lại.');
       if (error instanceof Anthropic.RateLimitError) throw new Error('Claude đang giới hạn tốc độ, thử lại sau ít phút.');
       if (error instanceof Anthropic.APIConnectionError) throw new Error('Không kết nối được tới Claude. Kiểm tra mạng.');

@@ -1,5 +1,5 @@
 import JSZip from 'jszip';
-import { ommlToLatex } from './docxMath';
+import { ommlToLatex } from './ommlLatex';
 import { basePage, PAGE_SIZES, type PageSettings } from './storage';
 
 const TWIP_PER_PX = 15;

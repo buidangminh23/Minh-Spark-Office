@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { CircleHelp, Eraser, Pause, Play, Sigma, Undo2, X } from 'lucide-react';
-import Anthropic from '@anthropic-ai/sdk';
 import katex from 'katex';
-import { getApiKey } from '../ai';
+import { getApiKey, loadClaude } from '../ai';
 import { useDoc, type DialogId } from '../DocContext';
 import Modal from './Modal';
 
@@ -18,6 +17,7 @@ const FRAME_MS = 33;
 const cleanLatex = (raw: string) => raw.replace(/```[a-z]*\n?/gi, '').replace(/```/g, '').replace(/^\$+|\$+$/g, '').trim();
 
 async function recognizeMath(dataUrl: string, signal: AbortSignal) {
+  const Anthropic = await loadClaude();
   const client = new Anthropic({ apiKey: getApiKey(), dangerouslyAllowBrowser: true });
   const message = await client.messages.create({
     model: VISION_MODEL,
@@ -27,7 +27,8 @@ async function recognizeMath(dataUrl: string, signal: AbortSignal) {
   return cleanLatex(message.content.map((block) => (block.type === 'text' ? block.text : '')).join(''));
 }
 
-const visionError = (error: unknown) => {
+const visionError = async (error: unknown) => {
+  const Anthropic = await loadClaude();
   if (error instanceof Anthropic.AuthenticationError) return 'API key Claude không hợp lệ. Mở Minh AI, phần Cài đặt để nhập lại.';
   if (error instanceof Anthropic.RateLimitError) return 'Claude đang giới hạn tốc độ, thử lại sau ít phút.';
   if (error instanceof Anthropic.APIConnectionError) return 'Không kết nối được tới Claude. Kiểm tra mạng rồi thử lại.';
@@ -88,7 +89,7 @@ function InkMathDialog({ onClose }: { onClose: () => void }) {
       if (!result || result === 'NONE') setError('Không thấy công thức nào trong hình. Viết rõ hơn rồi thử lại.');
       else setLatex(result);
     } catch (failure) {
-      if (!abort.current.signal.aborted) setError(visionError(failure));
+      if (!abort.current.signal.aborted) setError(await visionError(failure));
     } finally {
       setBusy(false);
     }

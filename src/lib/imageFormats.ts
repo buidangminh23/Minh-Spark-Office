@@ -1,4 +1,3 @@
-import { PDFDocument } from 'pdf-lib';
 export { SUPPORTED_IMAGE_EXTENSIONS, IMAGE_EXTENSIONS_PATTERN, IMAGE_ACCEPT_STRING, isImageFile, formatFileSize } from './imageFormatNames';
 
 export function getImageMimeType(fileName: string): string {
@@ -298,6 +297,7 @@ export async function exportImageAsPdf(
   dataUrl: string,
   fileName: string
 ): Promise<Blob> {
+  const { PDFDocument } = await import('pdf-lib');
   const pdfDoc = await PDFDocument.create();
   let imageBytes: Uint8Array;
 
