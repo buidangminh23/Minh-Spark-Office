@@ -56,6 +56,6 @@
 .conversion-menu-text span { font-size: 12px; line-height: 1.4; color: #58657c; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .conversion-menu-more { flex: none; justify-content: space-between; margin-top: 8px; border-top: 1px solid #eef1f6; border-radius: 0 0 10px 10px; }
 .conversion-menu-more > svg { color: #6366f1; flex: none; }
-.format-tile { display: inline-grid; place-items: center; flex: none; width: var(--format-tile-size, 28px); height: var(--format-tile-size, 28px); }
-.format-tile > span { display: grid; place-items: center; width: 92%; height: 92%; border-radius: 24%; background: linear-gradient(160deg, #ffffff38, #ffffff00 55%), var(--format-tile-color); color: #fff; font-size: calc(var(--format-tile-size, 28px) * 0.3); font-weight: 800; letter-spacing: -.02em; line-height: 1; box-shadow: inset 0 -1px 0 #0000002e; }
 @media (max-width: 620px) { .conversion-menu-grid { grid-template-columns: minmax(0, 1fr); } }
+.format-logo { display: inline-flex; flex: none; width: var(--format-logo-size, 28px); height: var(--format-logo-size, 28px); filter: drop-shadow(0 1px 1.5px #0f172a2e); }
+.format-logo svg { display: block; width: 100%; height: 100%; }

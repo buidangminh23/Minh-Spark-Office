@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowRight, ChevronRight } from 'lucide-react';
-import { CONVERSION_PRESET_GROUPS, type ConversionPreset, type FormatBadge } from '../lib/conversionPresets';
+import { CONVERSION_PRESET_GROUPS, type ConversionPreset } from '../lib/conversionPresets';
+import { FormatLogo } from './FormatLogo';
 import { SuiteLogo } from './SuiteLogo';
 import './conversion.css';
 
@@ -9,20 +10,12 @@ const MENU_GAP = 8;
 const VIEWPORT_MARGIN = 16;
 const STACKED_LAYOUT_MAX_WIDTH = 768;
 
-function FormatTile({ badge, size }: { badge: FormatBadge; size: number }) {
-  return (
-    <span className="format-tile" style={{ '--format-tile-size': `${size}px`, '--format-tile-color': badge.color } as CSSProperties}>
-      <span>{badge.text}</span>
-    </span>
-  );
-}
-
 export function ConversionPair({ preset, size = 36 }: { preset: ConversionPreset; size?: number }) {
   return (
     <span className="conversion-pair" aria-hidden="true">
-      {preset.fromBadge ? <FormatTile badge={preset.fromBadge} size={size} /> : <SuiteLogo kind={preset.from} size={size} />}
+      {preset.fromBadge ? <FormatLogo badge={preset.fromBadge} size={size} /> : <SuiteLogo kind={preset.from} size={size} />}
       <ArrowRight size={Math.round(size * 0.5)} className="conversion-pair-arrow" />
-      {typeof preset.to === 'string' ? <SuiteLogo kind={preset.to} size={size} /> : <FormatTile badge={preset.to} size={size} />}
+      {typeof preset.to === 'string' ? <SuiteLogo kind={preset.to} size={size} /> : <FormatLogo badge={preset.to} size={size} />}
     </span>
   );
 }

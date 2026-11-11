@@ -1,7 +1,7 @@
 import { OFFICE_DOCUMENT_EXTENSIONS, OFFICE_SHEET_EXTENSIONS, OFFICE_SLIDE_EXTENSIONS } from './officeConversionFormats';
 import type { FileKind } from './storage';
 
-export type FormatBadge = { text: string; color: string };
+export type FormatBadge = { text: string; light: string; dark: string };
 export type ConversionPreset = { id: string; from: FileKind; to: FileKind | FormatBadge; target: string; title: string; note: string; fromBadge?: FormatBadge; sources?: readonly string[]; sourceLabel?: string };
 export type ConversionPresetGroup = { title: string; presets: ConversionPreset[] };
 
@@ -18,22 +18,22 @@ const SOURCE_EXTENSIONS: Record<FileKind, readonly string[]> = {
 export const SOURCE_LABEL: Record<FileKind, string> = { doc: 'Word', sheet: 'Excel', slide: 'PowerPoint', pdf: 'PDF', image: 'ảnh' };
 
 const preset = (from: FileKind, to: FileKind | FormatBadge, target: string, title: string, note: string): ConversionPreset => ({ id: `${from}-${target}`, from, to, target, title, note });
-const badge = (text: string, color: string): FormatBadge => ({ text, color });
+const badge = (text: string, light: string, dark: string): FormatBadge => ({ text, light, dark });
 const narrow = (value: ConversionPreset, id: string, fromBadge: FormatBadge, sources: readonly string[], sourceLabel: string): ConversionPreset => ({ ...value, id, fromBadge, sources, sourceLabel });
 
-const PNG = badge('PNG', '#0284c7');
-const WEBP = badge('WEBP', '#0f766e');
-const TXT = badge('TXT', '#475569');
-const HTML = badge('HTML', '#c2410c');
-const MD = badge('MD', '#334155');
-const ODT = badge('ODT', '#0369a1');
-const ODS = badge('ODS', '#15803d');
-const RTF = badge('RTF', '#4338ca');
-const EPUB = badge('EPUB', '#b45309');
-const CSV = badge('CSV', '#047857');
-const TSV = badge('TSV', '#0f766e');
-const JSON_DATA = badge('JSON', '#a16207');
-const JPG = badge('JPG', '#be185d');
+const PNG = badge('PNG', '#38bdf8', '#0369d9');
+const WEBP = badge('WEBP', '#34d3c4', '#0e8f84');
+const TXT = badge('TXT', '#94a3b8', '#475569');
+const HTML = badge('HTML', '#fb923c', '#e2450c');
+const MD = badge('MD', '#64748b', '#1e293b');
+const ODT = badge('ODT', '#38bdf8', '#1d62d4');
+const ODS = badge('ODS', '#4ade80', '#15803d');
+const RTF = badge('RTF', '#818cf8', '#4338ca');
+const EPUB = badge('EPUB', '#fbbf24', '#c2410c');
+const CSV = badge('CSV', '#2fd36f', '#0b8a43');
+const TSV = badge('TSV', '#2dd4bf', '#0f8478');
+const JSON_DATA = badge('JSON', '#fbbf24', '#c96a04');
+const JPG = badge('JPG', '#fb7185', '#d3215c');
 
 export const CONVERSION_PRESET_GROUPS: ConversionPresetGroup[] = [
   {
