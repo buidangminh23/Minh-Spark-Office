@@ -1,8 +1,23 @@
 const PDF_DATA_URL_PREFIX = 'data:application/pdf;base64,';
 
+type NativeBase64 = { fromBase64?: (text: string) => Uint8Array };
+
 export function pdfDataUrlToBytes(dataUrl: string): Uint8Array {
   const comma = dataUrl.indexOf(',');
-  const binary = atob(comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl);
+  const base64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
+  const native = Uint8Array as unknown as NativeBase64;
+  if (typeof native.fromBase64 === 'function') {
+    try {
+      return native.fromBase64(base64);
+    } catch {
+      return decodeWithAtob(base64);
+    }
+  }
+  return decodeWithAtob(base64);
+}
+
+function decodeWithAtob(base64: string): Uint8Array {
+  const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   return bytes;

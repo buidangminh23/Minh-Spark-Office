@@ -13,7 +13,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import Home from './components/Home';
-import { isImageFile, formatFileSize } from './lib/imageFormatNames';
+import { formatFileSize } from './lib/imageFormatNames';
 import { UiProvider, useUi } from './components/ui';
 import {
   estimateStorage,
@@ -33,22 +33,8 @@ import { emptyWorkbook } from './lib/workbookBasics';
 import { downloadBlob } from './lib/download';
 import { isChunkLoadError, reloadOnceForStaleChunk } from './lib/staleChunk';
 import type { FileKind } from './lib/storage';
-
-const editorLoaders = {
-  doc: () => import('./editors/doc/DocEditor'),
-  sheet: () => import('./editors/sheet/SheetEditor'),
-  pdf: () => import('./editors/pdf/PdfEditor'),
-  slide: () => import('./editors/slide/SlideEditor'),
-  image: () => import('./editors/image/ImageEditor'),
-};
-type EditorKind = keyof typeof editorLoaders;
-type LoadedEditors = { [K in EditorKind]?: Awaited<ReturnType<(typeof editorLoaders)[K]>>['default'] };
-const loadedEditors: LoadedEditors = {};
-
-const loadEditor = async (kind: EditorKind) => {
-  const module = await editorLoaders[kind]();
-  (loadedEditors as Record<EditorKind, unknown>)[kind] = module.default;
-};
+import { loadEditor, loadedEditors, preloadEditor, type EditorKind } from './lib/editorModules';
+import { importTargetOf, isOleContainer } from './lib/importTarget';
 
 function useLoadedEditors(kind: EditorKind | null, onError: (error: unknown) => void) {
   const [, setLoaded] = useState(0);
@@ -181,6 +167,8 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
     if (est) setStorageInfo(est);
   }, [listFiles]);
 
+  const refreshFilesSoon = () => { void refreshFiles().catch(() => undefined); };
+
   const handleCloseEditor = () => {
     try { sessionStorage.removeItem(openDocumentKey); } catch {}
     activeDocument.current = null;
@@ -292,6 +280,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
   // Open Document
   const handleOpenDoc = async (meta: FileMeta) => {
     try {
+      preloadEditor(meta.kind);
       ui.showBusy('Đang mở tài liệu…');
       syncedWorkspace(storage)?.setActiveFile(meta.id);
       const content = await loadContent(meta.id);
@@ -313,6 +302,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
   // Open Spreadsheet
   const handleOpenSheet = async (meta: FileMeta) => {
     try {
+      preloadEditor(meta.kind);
       ui.showBusy('Đang mở bảng tính…');
       syncedWorkspace(storage)?.setActiveFile(meta.id);
       const content = await loadContent(meta.id);
@@ -333,6 +323,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
 
   // Create new Word Doc
   const handleCreateDoc = async (templateHtml?: string) => {
+    preloadEditor('doc');
     const id = `doc-${Date.now()}`;
     const name = templateHtml ? 'Báo cáo mẫu.docx' : 'Tài liệu mới.docx';
     const meta: FileMeta = {
@@ -353,7 +344,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
       page: defaultPage(),
     };
     await saveFile(meta, content);
-    await refreshFiles();
+    refreshFilesSoon();
     setActiveMeta(meta);
     setActiveContent(content);
     ui.toast('Đã tạo văn bản Word mới');
@@ -361,6 +352,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
 
   // Create new Excel Sheet
   const handleCreateSheet = async (templateWorkbook?: SheetContent['workbook']) => {
+    preloadEditor('sheet');
     const id = `sheet-${Date.now()}`;
     const baseName = templateWorkbook?.name
       ? templateWorkbook.name.replace(/\.(xlsx|xlsm|xls|csv|tsv)$/i, '')
@@ -383,7 +375,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
       workbook: templateWorkbook || emptyWorkbook('Sheet1'),
     };
     await saveFile(meta, content);
-    await refreshFiles();
+    refreshFilesSoon();
     setActiveMeta(meta);
     setActiveContent(content);
     ui.toast('Đã tạo bảng tính Minh Sheets mới');
@@ -392,6 +384,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
   // Open PDF Document
   const handleOpenPdf = async (meta: FileMeta) => {
     try {
+      preloadEditor(meta.kind);
       ui.showBusy('Đang mở tài liệu PDF…');
       syncedWorkspace(storage)?.setActiveFile(meta.id);
       const content = await loadContent(meta.id);
@@ -412,6 +405,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
 
   // Create new PDF Document
   const handleCreatePdf = async () => {
+    preloadEditor('pdf');
     const id = `pdf-${Date.now()}`;
     const name = 'Tài liệu mới.pdf';
     const meta: FileMeta = {
@@ -431,7 +425,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
       pageCount: 3,
     };
     await saveFile(meta, content);
-    await refreshFiles();
+    refreshFilesSoon();
     setActiveMeta(meta);
     setActiveContent(content);
     ui.toast('Đã tạo tài liệu Minh PDF mới');
@@ -440,6 +434,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
   // Open Slide Presentation
   const handleOpenSlide = async (meta: FileMeta) => {
     try {
+      preloadEditor(meta.kind);
       ui.showBusy('Đang mở bài thuyết trình…');
       syncedWorkspace(storage)?.setActiveFile(meta.id);
       const content = await loadContent(meta.id);
@@ -460,6 +455,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
 
   // Create new Slide Presentation
   const handleCreateSlide = async (templatePres?: PresentationData) => {
+    preloadEditor('slide');
     const id = `slide-${Date.now()}`;
     const name = templatePres?.title || 'Bài thuyết trình mới.pptx';
     const meta: FileMeta = {
@@ -479,7 +475,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
       presentation: templatePres || blankPresentation(),
     };
     await saveFile(meta, content);
-    await refreshFiles();
+    refreshFilesSoon();
     setActiveMeta(meta);
     setActiveContent(content);
     ui.toast('Đã tạo bài thuyết trình Minh Slides mới');
@@ -489,6 +485,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
   // Open Image Document
   const handleOpenImage = async (meta: FileMeta) => {
     try {
+      preloadEditor(meta.kind);
       ui.showBusy('Đang mở hình ảnh…');
       syncedWorkspace(storage)?.setActiveFile(meta.id);
       const content = await loadContent(meta.id);
@@ -508,6 +505,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
   };
 
   const handleCreateDocWithImage = async (imageDataUrl: string, imageName: string) => {
+    preloadEditor('doc');
     const id = `doc-${Date.now()}`;
     const name = `Tài liệu có ảnh ${imageName.replace(/\.[^/.]+$/, '')}.docx`;
     const html = `<p><img src="${imageDataUrl}" alt="${imageName}" style="max-width:100%" /></p><p></p>`;
@@ -529,13 +527,14 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
       page: defaultPage(),
     };
     await saveFile(meta, content);
-    await refreshFiles();
+    refreshFilesSoon();
     setActiveMeta(meta);
     setActiveContent(content);
     ui.toast('Đã tạo tài liệu Minh Docs từ hình ảnh');
   };
 
   const handleCreateSlideWithImage = async (imageDataUrl: string, imageName: string) => {
+    preloadEditor('slide');
     const id = `slide-${Date.now()}`;
     const name = `Trình chiếu ${imageName.replace(/\.[^/.]+$/, '')}.pptx`;
     const slide = createSlideFromLayout('blank', 0);
@@ -584,13 +583,14 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
       presentation,
     };
     await saveFile(meta, content);
-    await refreshFiles();
+    refreshFilesSoon();
     setActiveMeta(meta);
     setActiveContent(content);
     ui.toast('Đã tạo bài thuyết trình Minh Slides từ hình ảnh');
   };
 
   const handleCreateSheetWithImage = async (_imageDataUrl: string, imageName: string) => {
+    preloadEditor('sheet');
     const id = `sheet-${Date.now()}`;
     const name = `Bảng tính ${imageName.replace(/\.[^/.]+$/, '')}.xlsx`;
     const wb = emptyWorkbook(imageName.slice(0, 20));
@@ -611,7 +611,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
       workbook: wb,
     };
     await saveFile(meta, content);
-    await refreshFiles();
+    refreshFilesSoon();
     setActiveMeta(meta);
     setActiveContent(content);
     ui.toast('Đã tạo bảng tính Minh Sheets từ hình ảnh');
@@ -621,18 +621,21 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
   const handleImportFile = async (file: File): Promise<boolean> => {
     try {
       ui.showBusy(`Đang xử lý ${file.name}…`);
+      const target = importTargetOf(file.name);
+      if (target) preloadEditor(target.editor);
       const buffer = await file.arrayBuffer();
       let bytes: Uint8Array<any> = new Uint8Array(buffer);
-      const isDoc = /\.(docx|doc)$/i.test(file.name);
-      const isText = /\.(txt|md|markdown|html|htm)$/i.test(file.name);
-      const isXls = /\.(xlsx|xlsm|xls|csv|tsv)$/i.test(file.name);
-      const isPdf = file.name.toLowerCase().endsWith('.pdf');
-      const isPpt = /\.(pptx|ppt)$/i.test(file.name);
-      const isImage = isImageFile(file.name);
+      const isDoc = target?.format === 'word';
+      const isText = target?.format === 'text';
+      const isXls = target?.format === 'spreadsheet';
+      const isPdf = target?.format === 'pdf';
+      const isPpt = target?.format === 'presentation';
+      const isImage = target?.format === 'image';
 
       // Check if file is encrypted with MS Office agile encryption
-      const { isEncryptedOffice, decryptOfficeFile, DEFAULT_EXCEL_PASSWORD } = await import('./lib/officeCrypto');
-      if (isEncryptedOffice(bytes)) {
+      const officeCrypto = isOleContainer(bytes) ? await import('./lib/officeCrypto') : null;
+      if (officeCrypto?.isEncryptedOffice(bytes)) {
+        const { decryptOfficeFile, DEFAULT_EXCEL_PASSWORD } = officeCrypto;
         ui.showBusy('Đang thử mở khoá tệp bảo vệ…');
         let unlocked = false;
         let plainBytes: Uint8Array | null = null;
@@ -701,7 +704,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
           page: imported.page,
         };
         await saveFile(meta, content);
-        await refreshFiles();
+        refreshFilesSoon();
         activeDocument.current = meta;
         setActiveMeta(meta);
         setActiveContent(content);
@@ -713,7 +716,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
         const meta: FileMeta = { id: `doc-${Date.now()}`, name: file.name, kind: 'doc', createdAt: Date.now(), updatedAt: Date.now(), openedAt: Date.now(), starred: false, deletedAt: null, size: file.size, preview: '' };
         const content: DocContent = { kind: 'doc', json: html as any, page: defaultPage() };
         await saveFile(meta, content);
-        await refreshFiles();
+        refreshFilesSoon();
         activeDocument.current = meta;
         setActiveMeta(meta);
         setActiveContent(content);
@@ -740,7 +743,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
           workbook,
         };
         await saveFile(meta, content);
-        await refreshFiles();
+        refreshFilesSoon();
         activeDocument.current = meta;
         setActiveMeta(meta);
         setActiveContent(content);
@@ -770,7 +773,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
           }),
         };
         await saveFile(meta, content);
-        await refreshFiles();
+        refreshFilesSoon();
         activeDocument.current = meta;
         setActiveMeta(meta);
         setActiveContent(content);
@@ -797,7 +800,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
           presentation,
         };
         await saveFile(meta, content);
-        await refreshFiles();
+        refreshFilesSoon();
         activeDocument.current = meta;
         setActiveMeta(meta);
         setActiveContent(content);
@@ -827,7 +830,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
           height: parsed.height,
         };
         await saveFile(meta, content);
-        await refreshFiles();
+        refreshFilesSoon();
         activeDocument.current = meta;
         setActiveMeta(meta);
         setActiveContent(content);
@@ -855,7 +858,11 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
     const queue = createDesktopFileQueue({
       isEditing: () => Boolean(activeDocument.current) || workspaceLifecycle.isBlocked(),
       drain: () => invoke('drain_open_files'),
-      read: (file) => invoke<ArrayBuffer>('take_open_file', { id: file.id }),
+      read: (file) => {
+        const target = importTargetOf(file.name);
+        if (target) preloadEditor(target.editor);
+        return invoke<ArrayBuffer>('take_open_file', { id: file.id });
+      },
       open: (file) => importFromDesktop.current(file),
       notify: toast,
     });

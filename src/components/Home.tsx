@@ -36,6 +36,7 @@ import type { PresentationData } from '../lib/slideTypes';
 import { businessPitchPresentation, productLaunchPresentation, blankPresentation } from '../lib/slideTemplates';
 import { relativeTime } from '../lib/download';
 import { IMAGE_ACCEPT_STRING } from '../lib/imageFormatNames';
+import { editorIntentHandlers } from '../lib/editorModules';
 import {
   sampleDocHtml,
   contractDocHtml,
@@ -435,7 +436,7 @@ function NavItem({ active, onClick, icon, badge, menuOpen, children }: { active:
 
 function AppCard({ kind, title, desc, action, onClick }: { kind: FileKind; title: string; desc: string; action: 'plus' | 'arrow'; onClick: () => void }) {
   return (
-    <button className={`ws-app ws-app-${kind}`} onClick={onClick}>
+    <button className={`ws-app ws-app-${kind}`} onClick={onClick} {...editorIntentHandlers(kind)}>
       <SuiteLogo kind={kind} size={56} />
       <span className="ws-app-text"><strong>{title}</strong><span>{desc}</span></span>
       <span className="ws-app-action" aria-hidden="true">{action === 'plus' ? <Plus size={22} /> : <ArrowRight size={22} />}</span>
@@ -535,7 +536,7 @@ function FileTable({ files, location, props, onOpen }: ListProps) {
         </thead>
         <tbody>
           {files.map((file) => (
-            <tr key={file.id} onDoubleClick={() => onOpen(file)}>
+            <tr key={file.id} onDoubleClick={() => onOpen(file)} {...(file.deletedAt ? {} : editorIntentHandlers(file.kind))}>
               <td className="ws-col-star"><StarButton file={file} onToggle={props.onToggleStar} /></td>
               <td>
                 <button className="ws-file-name" onClick={() => onOpen(file)} disabled={Boolean(file.deletedAt)}>
@@ -558,7 +559,7 @@ function FileGrid({ files, location, props, onOpen }: ListProps) {
   return (
     <div className="ws-file-grid">
       {files.map((file) => (
-        <div key={file.id} className="ws-file-card">
+        <div key={file.id} className="ws-file-card" {...(file.deletedAt ? {} : editorIntentHandlers(file.kind))}>
           <div className="ws-file-card-top">
             <SuiteLogo kind={file.kind} size={40} />
             <StarButton file={file} onToggle={props.onToggleStar} />
