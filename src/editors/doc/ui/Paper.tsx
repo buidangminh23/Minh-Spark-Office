@@ -149,6 +149,7 @@ export function Paper({ onPages }: { onPages: (count: number, current: number) =
     page.background && page.background !== 'none' ? `bg-${page.background}` : '',
     ctx.mergePreview !== null ? 'merge-preview-on' : '',
     ctx.view.highlightMerge ? 'merge-highlight' : '',
+    ctx.view.tableGridlines ? 'show-gridlines' : '',
     view.inkTool ? 'inking' : '',
     `columns-${page.columns ?? 1}`,
   ].filter(Boolean).join(' ');

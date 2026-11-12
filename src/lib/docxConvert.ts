@@ -8,6 +8,7 @@ import {
   Footer,
   Header,
   HeadingLevel,
+  HeightRule,
   HorizontalPositionAlign,
   HorizontalPositionRelativeFrom,
   ImageRun,
@@ -27,6 +28,7 @@ import {
   TableLayoutType,
   TableRow,
   TabStopType,
+  TextDirection,
   TextRun,
   TextWrappingSide,
   TextWrappingType,
@@ -422,6 +424,8 @@ const cellBorders = (value: unknown) => {
   return Object.fromEntries(['top', 'bottom', 'left', 'right'].map((edge) => [edge, on.includes(edge) ? THIN('334155') : NO_BORDER]));
 };
 
+const TEXT_DIRECTION: Record<string, (typeof TextDirection)[keyof typeof TextDirection]> = { 'vertical-rl': TextDirection.TOP_TO_BOTTOM_RIGHT_TO_LEFT, 'vertical-lr': TextDirection.BOTTOM_TO_TOP_LEFT_TO_RIGHT };
+const TABLE_ALIGN: Record<string, (typeof AlignmentType)[keyof typeof AlignmentType]> = { center: AlignmentType.CENTER, right: AlignmentType.RIGHT };
 const V_ALIGN: Record<string, (typeof VerticalAlignTable)[keyof typeof VerticalAlignTable]> = { top: VerticalAlignTable.TOP, middle: VerticalAlignTable.CENTER, bottom: VerticalAlignTable.BOTTOM };
 
 async function tableNode(node: JSONContent, context: Context): Promise<Table> {
@@ -436,6 +440,10 @@ async function tableNode(node: JSONContent, context: Context): Promise<Table> {
   });
   const hasWidths = columnWidths.some(Boolean);
   const fallback = columnWidths.length ? Math.round((context.contentWidth * TWIP) / columnWidths.length) : 0;
+  const padding = node.attrs?.cellPadding === null || node.attrs?.cellPadding === undefined ? null : Math.round(Number(node.attrs.cellPadding) * TWIP);
+  const cellMargins = padding === null ? { top: 80, bottom: 80, left: 120, right: 120 } : { top: padding, bottom: padding, left: padding, right: padding };
+  const autofit = String(node.attrs?.autofit ?? '');
+  const tableWidth = Number(node.attrs?.tableWidth);
   for (const row of node.content ?? []) {
     const cells: TableCell[] = [];
     let header = false;
@@ -454,19 +462,26 @@ async function tableNode(node: JSONContent, context: Context): Promise<Table> {
         columnSpan: Number(cell.attrs?.colspan) > 1 ? Number(cell.attrs?.colspan) : undefined,
         rowSpan: Number(cell.attrs?.rowspan) > 1 ? Number(cell.attrs?.rowspan) : undefined,
         shading: background ? { type: ShadingType.CLEAR, fill: background, color: 'auto' } : undefined,
-        margins: { top: 80, bottom: 80, left: 120, right: 120 },
+        margins: cellMargins,
+        textDirection: TEXT_DIRECTION[String(cell.attrs?.textDirection ?? '')],
         verticalAlign: V_ALIGN[String(cell.attrs?.vAlign ?? '')],
         borders: cellBorders(cell.attrs?.cellBorders),
       }));
     }
-    rows.push(new TableRow({ children: cells, tableHeader: header && rowIndex === 0 }));
+    const rowHeight = Number(row.attrs?.rowHeight);
+    rows.push(new TableRow({
+      children: cells,
+      tableHeader: Boolean(row.attrs?.repeatHeader) || (header && rowIndex === 0),
+      ...(rowHeight > 0 ? { height: { value: Math.round(rowHeight * TWIP), rule: HeightRule.ATLEAST } } : {}),
+    }));
     rowIndex++;
   }
   return new Table({
     rows,
-    width: { size: 100, type: WidthType.PERCENTAGE },
+    width: tableWidth > 0 ? { size: tableWidth, type: WidthType.PERCENTAGE } : autofit === 'contents' ? { size: 0, type: WidthType.AUTO } : { size: 100, type: WidthType.PERCENTAGE },
     borders: TABLE_BORDERS[preset] as never,
-    ...(hasWidths ? { columnWidths: columnWidths.map((value) => value || fallback), layout: TableLayoutType.FIXED } : {}),
+    ...(TABLE_ALIGN[String(node.attrs?.tableAlign ?? '')] ? { alignment: TABLE_ALIGN[String(node.attrs?.tableAlign)] } : {}),
+    ...(hasWidths ? { columnWidths: columnWidths.map((value) => value || fallback), layout: autofit === 'contents' ? TableLayoutType.AUTOFIT : TableLayoutType.FIXED } : {}),
   });
 }
 

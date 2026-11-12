@@ -247,7 +247,7 @@ export function DesignTab() {
   );
 }
 
-function Spinner({ label, icon, value, step, min, max, unit, onCommit }: { label: string; icon: ReactNode; value: number; step: number; min: number; max: number; unit: string; onCommit: (value: number) => void }) {
+export function Spinner({ label, icon, value, step, min, max, unit, onCommit }: { label: string; icon: ReactNode; value: number; step: number; min: number; max: number; unit: string; onCommit: (value: number) => void }) {
   const [draft, setDraft] = useState<string | null>(null);
   const text = value.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
   const clamp = (next: number) => Math.max(min, Math.min(max, Math.round(next * 100) / 100));
