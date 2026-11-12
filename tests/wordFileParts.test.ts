@@ -178,6 +178,19 @@ test('page cuts inside a paragraph retain character styles and clear first-line 
   await assert.rejects(splitWordPages(justified, [[0]], layout), /vị trí dòng/);
 });
 
+test('a paragraph on a natural page rollover keeps its first-line indent but loses its suppressed top margin', async () => {
+  const doc = new Document({ sections: [{ children: [
+    new Paragraph('First'), new Paragraph({ text: 'Second', spacing: { before: 100 }, indent: { firstLine: 432 } }),
+  ] }] });
+  const file = new File([await Packer.toBuffer(doc)], 'rollover.docx');
+  const layout = { pageCount: 2, boundaries: [{ paragraph: 1, offset: 0, text: 'Second', inTable: false }] };
+  const [data] = await splitWordPages(file, [[1]], layout);
+  const body = await (await JSZip.loadAsync(data)).file('word/document.xml')!.async('string');
+  assert.match(body, /w:before="0"/);
+  assert.match(body, /w:firstLine="432"/);
+  assert.doesNotMatch(body, />First<\/w:t>/);
+});
+
 test('selected pages across sections realize linked headers, keep original restart and retain margins', async () => {
   const doc = new Document({ sections: [
     { properties: { page: { margin: { left: 900 } } }, headers: { default: new Header({ children: [new Paragraph('Linked')] }) },

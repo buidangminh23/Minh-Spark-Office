@@ -26,6 +26,7 @@ export interface WordPageSegment {
   partial: boolean;
   cutStart: boolean;
   cutEnd: boolean;
+  suppressBeforeSpacing: boolean;
 }
 
 type Span = { start: number; end: number };
@@ -204,6 +205,15 @@ function clip(el: Element, span: Span, spans: Scan['spans']): Element | undefine
 export function buildWordPageMap(body: Element, styles?: Document, savedPageCount?: number, native?: WordPhysicalPages, settings?: Document): WordPageMap {
   const scan = scanBody(body, styles);
   const cuts = native ? measuredBoundaries(scan, native) : savedBoundaries(scan, body, savedPageCount, settings);
+  const explicitStarts = new Set(scan.markers.filter(mark => mark.kind === 'before' || mark.kind === 'section').map(mark => mark.right));
+  const hardEnds = new Set(scan.hardBreaks.map(mark => mark.end));
+  for (const p of scan.paragraphs) {
+    const end = p.start + p.text.length;
+    if (hardEnds.has(end)) explicitStarts.add(end + 1);
+  }
+  for (let i = 1; i < scan.blocks.length; i++) {
+    if (child(child(scan.blocks[i - 1], 'pPr'), 'sectPr')) explicitStarts.add(scan.spans.get(scan.blocks[i])!.start);
+  }
   function pageOfBlock(index: number) {
     const block = scan.blocks[index];
     if (!block) throw new RangeError('Invalid Word block index');
@@ -243,7 +253,9 @@ export function buildWordPageMap(body: Element, styles?: Document, savedPageCoun
           }
           before.setAttributeNS(W, 'w:val', '0');
         }
-        result.push({ index, node, partial: cutStart || cutEnd, cutStart, cutEnd });
+        const suppressBeforeSpacing = first > 0 && !result.length && is(node, 'p') && span.start === bounds.start &&
+          ['rendered', 'native'].includes(cuts[first - 1].kind) && !explicitStarts.has(span.start) && !hardEnds.has(span.start);
+        result.push({ index, node, partial: cutStart || cutEnd, cutStart, cutEnd, suppressBeforeSpacing });
       }
       if (!result.length) throw new WordPaginationError('Trang được chọn là trang trắng do Word tự chèn và thiếu nội dung để tách riêng.');
       return result;

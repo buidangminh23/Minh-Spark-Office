@@ -428,6 +428,28 @@ function sectionForPageOutput(node: Element, midSection: boolean) {
 
 const FLOW_DEPENDENT_PARAGRAPH = 'Dải trang cắt ngang đoạn văn có định dạng phụ thuộc vào vị trí dòng. Hãy chọn trọn đoạn văn.';
 
+function flowProperty(block: Element, name: 'spacing' | 'ind') {
+  const doc = block.ownerDocument;
+  let props = children(block).find(el => word(el, 'pPr'));
+  if (!props) {
+    props = doc.createElementNS(W, 'w:pPr');
+    block.insertBefore(props, block.firstChild);
+  }
+  let property = children(props).find(el => word(el, name));
+  if (!property) {
+    property = doc.createElementNS(W, 'w:' + name);
+    const following = ['contextualSpacing', 'mirrorIndents', 'suppressOverlap', 'jc', 'textDirection', 'textAlignment', 'textboxTightWrap', 'outlineLvl', 'divId', 'cnfStyle', 'rPr', 'sectPr', 'pPrChange'];
+    if (name === 'spacing') following.push('ind');
+    props.insertBefore(property, children(props).find(el => following.includes(el.localName)) ?? null);
+  }
+  return property;
+}
+
+function clearPageEdgeSpacing(paragraph: Element, side: 'before' | 'after') {
+  const spacing = flowProperty(paragraph, 'spacing');
+  for (const suffix of ['', 'Lines', 'Autospacing']) setW(spacing, side + suffix, '0');
+}
+
 function preservePartialParagraph(source: Element, block: Element, styles: Document | undefined, cutStart: boolean, cutEnd: boolean) {
   if (!word(source, 'p')) throw new Error(FLOW_DEPENDENT_PARAGRAPH);
   const text = (p: Element) => elements(p, W, 't').map(el => el.textContent).join('');
@@ -457,28 +479,10 @@ function preservePartialParagraph(source: Element, block: Element, styles: Docum
   if (property('numPr') || property('framePr') || property('pBdr') || (cutEnd && alignment && !['left', 'right', 'center', 'start', 'end'].includes(wAttr(alignment, 'val')))) {
     throw new Error(FLOW_DEPENDENT_PARAGRAPH);
   }
-  const doc = block.ownerDocument;
-  let target = children(block).find(el => word(el, 'pPr'));
-  if (!target) {
-    target = doc.createElementNS(W, 'w:pPr');
-    block.insertBefore(target, block.firstChild);
-  }
-  function setProperty(name: string, following: string[]) {
-    const item = children(target!).find(el => word(el, name));
-    if (item) return item;
-    const result = doc.createElementNS(W, 'w:' + name);
-    target!.insertBefore(result, children(target!).find(el => following.includes(el.localName)) ?? null);
-    return result;
-  }
-  const following = ['contextualSpacing', 'mirrorIndents', 'suppressOverlap', 'jc', 'textDirection', 'textAlignment', 'textboxTightWrap', 'outlineLvl', 'divId', 'cnfStyle', 'rPr', 'sectPr', 'pPrChange'];
-  if (cutStart || cutEnd) {
-    const spacing = setProperty('spacing', ['ind', ...following]);
-    for (const side of [...(cutStart ? ['before'] : []), ...(cutEnd ? ['after'] : [])]) {
-      for (const suffix of ['', 'Lines', 'Autospacing']) setW(spacing, side + suffix, '0');
-    }
-  }
+  if (cutEnd) clearPageEdgeSpacing(block, 'after');
   if (cutStart) {
-    const indent = setProperty('ind', following);
+    clearPageEdgeSpacing(block, 'before');
+    const indent = flowProperty(block, 'ind');
     for (const key of ['firstLine', 'firstLineChars', 'hanging', 'hangingChars']) setW(indent, key, '0');
   }
 }
@@ -519,6 +523,7 @@ export async function splitWordPages(file: File, groups: number[][], layout?: Wo
       if (!section) throw new Error('Không xác định được section của trang Word đã chọn.');
       const block = doc.importNode(piece.node, true);
       if (piece.partial) preservePartialParagraph(pkg.parts[piece.index], block, styles, piece.cutStart, piece.cutEnd);
+      if (piece.suppressBeforeSpacing) clearPageEdgeSpacing(block, 'before');
       const properties = word(block, 'p') && children(block).find(el => word(el, 'pPr'));
       const end = properties && children(properties).find(el => word(el, 'sectPr'));
       if (end) properties.removeChild(end);
