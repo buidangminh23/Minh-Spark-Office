@@ -55,7 +55,13 @@ function useMeshState(mesh: PeerMesh | null) {
   const [status, setStatus] = useState<MeshStatus>('connecting');
   useEffect(() => {
     if (!mesh) return;
-    return mesh.onPeers((next) => { setPeers(next); setStatus(mesh.status()); });
+    let alive = true;
+    const stop = mesh.onPeers((next) => queueMicrotask(() => {
+      if (!alive) return;
+      setPeers(next);
+      setStatus(mesh.status());
+    }));
+    return () => { alive = false; stop(); };
   }, [mesh]);
   return { peers, status };
 }
@@ -66,10 +72,19 @@ function useCaretColors(session: Session | null) {
     if (!session) return;
     const awareness = session.live.awareness;
     const stopUnique = keepCaretColorUnique(awareness, session.store.user.uid);
-    const update = () => setColors(caretColorsByUid(awareness));
+    let alive = true;
+    let queued = false;
+    const update = () => {
+      if (queued) return;
+      queued = true;
+      queueMicrotask(() => {
+        queued = false;
+        if (alive) setColors(caretColorsByUid(awareness));
+      });
+    };
     update();
     awareness.on('change', update);
-    return () => { stopUnique(); awareness.off('change', update); };
+    return () => { alive = false; stopUnique(); awareness.off('change', update); };
   }, [session]);
   return colors;
 }
@@ -78,7 +93,11 @@ function useSaveState(live: LiveDocument | null) {
   const [state, setState] = useState<{ value: SaveState; at: number }>({ value: 'saved', at: Date.now() });
   useEffect(() => {
     if (!live) return;
-    return live.onSaveState((value, at) => setState({ value, at }));
+    let alive = true;
+    const stop = live.onSaveState((value, at) => queueMicrotask(() => {
+      if (alive) setState({ value, at });
+    }));
+    return () => { alive = false; stop(); };
   }, [live]);
   return state;
 }
