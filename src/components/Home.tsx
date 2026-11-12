@@ -199,6 +199,7 @@ export default function Home(props: HomeProps) {
     shell.current?.scrollIntoView({ block: 'start' });
   }, [view]);
 
+  const clearShareRequest = useCallback(() => setShareRequest(null), []);
   useEffect(() => onShareFile((request) => {
     setShareRequest(request);
     setView('team');
@@ -380,7 +381,7 @@ export default function Home(props: HomeProps) {
         <div className="ws-content">
           {showTeams ? (
             <Suspense fallback={<p className="tm-muted" role="status">Đang tải nhóm…</p>}>
-              <TeamsPage files={files} inviteToken={inviteToken} onInviteDone={finishInvite} onCreateFromContent={props.onCreateFromContent} onOpenShared={props.onOpenShared} shareRequest={shareRequest} onShareHandled={() => setShareRequest(null)} />
+              <TeamsPage files={files} inviteToken={inviteToken} onInviteDone={finishInvite} onCreateFromContent={props.onCreateFromContent} onOpenShared={props.onOpenShared} shareRequest={shareRequest} onShareHandled={clearShareRequest} />
             </Suspense>
           ) : showDashboard ? (
             <>

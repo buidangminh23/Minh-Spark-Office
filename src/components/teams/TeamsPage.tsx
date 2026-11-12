@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, FileStack, Files, Plus, Settings2, UserPlus, Users } from 'lucide-react';
 import { useAccount } from '../Authentication';
 import { Popover } from '../HomeParts';
@@ -28,6 +28,8 @@ function writeSelected(uid: string, teamId: string) {
 }
 
 export type SharedOpen = (item: TeamItem, membership: TeamMembership, store: TeamStore) => void;
+
+const SHARE_WAIT_MS = 10_000;
 
 export function TeamsPage({ files, inviteToken, onInviteDone, onCreateFromContent, onOpenShared, shareRequest = null, onShareHandled }: {
   files: FileMeta[];
@@ -64,23 +66,28 @@ export function TeamsPage({ files, inviteToken, onInviteDone, onCreateFromConten
   useEffect(() => { if (tab === 'settings' && !role) setTab('templates'); }, [tab, role]);
 
   const [publishFileId, setPublishFileId] = useState<string | null>(null);
+  const shareCallbacks = useRef({ ui, onShareHandled });
+  shareCallbacks.current = { ui, onShareHandled };
   useEffect(() => {
-    if (!shareRequest || !ready || memberships.loading) return;
-    if (!user) { onShareHandled?.(); return; }
-    if (!current) {
-      ui.toast('Hãy tạo nhóm hoặc nhận lời mời trước, rồi chia sẻ tài liệu cho cả nhóm.');
-      onShareHandled?.();
+    if (!shareRequest || !ready) return;
+    const { ui: toastUi, onShareHandled: done } = shareCallbacks.current;
+    if (!user) { done?.(); return; }
+    if (current) {
+      if (can(current.role, 'publish')) {
+        setTab(shareRequest.kind === 'doc' ? 'documents' : 'templates');
+        setPublishFileId(shareRequest.fileId);
+      } else {
+        toastUi.toast('Bạn chỉ có quyền xem trong nhóm này nên chưa chia sẻ tài liệu lên nhóm được.', true);
+      }
+      done?.();
       return;
     }
-    if (!can(current.role, 'publish')) {
-      ui.toast('Bạn chỉ có quyền xem trong nhóm này nên chưa chia sẻ tài liệu lên nhóm được.', true);
-      onShareHandled?.();
-      return;
-    }
-    setTab(shareRequest.kind === 'doc' ? 'documents' : 'templates');
-    setPublishFileId(shareRequest.fileId);
-    onShareHandled?.();
-  }, [shareRequest, ready, user, current, memberships.loading, onShareHandled, ui]);
+    const timer = setTimeout(() => {
+      shareCallbacks.current.ui.toast('Hãy tạo nhóm hoặc nhận lời mời trước, rồi chia sẻ tài liệu cho cả nhóm.');
+      shareCallbacks.current.onShareHandled?.();
+    }, SHARE_WAIT_MS);
+    return () => clearTimeout(timer);
+  }, [shareRequest, ready, user, current]);
 
   const select = (teamId: string) => {
     setSelectedId(teamId);
