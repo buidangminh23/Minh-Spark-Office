@@ -389,6 +389,12 @@ button.symbol-cell.symbol-cell-invisible { padding: 0; font-size: 10px; font-wei
 .merge-note { border-left: 3px solid #f59e0b; background: #fffbeb; color: #92400e; font-size: 12px; line-height: 1.5; padding: var(--doc-gap-2) var(--doc-gap-3); border-radius: 4px; margin-top: var(--doc-gap-3); }
 .merge-problems { margin: var(--doc-gap-2) 0 0; padding-left: var(--doc-gap-6); max-height: 300px; overflow: auto; font-size: 13px; line-height: 1.6; }
 .merge-nav { display: flex; align-items: center; gap: var(--doc-gap-1); }
+.doc-editor .tiptap ol[data-list-style='multi-outline'] { list-style-type: decimal; }
+.doc-editor .tiptap ol[data-list-style='multi-outline'] > li > ol { list-style-type: lower-alpha; }
+.doc-editor .tiptap ol[data-list-style='multi-outline'] > li > ol > li > ol { list-style-type: lower-roman; }
+.doc-editor .tiptap ol[data-list-style='multi-legal'], .doc-editor .tiptap ol[data-list-style='multi-legal'] ol { list-style: none; counter-reset: legal; }
+.doc-editor .tiptap ol[data-list-style='multi-legal'] li { counter-increment: legal; }
+.doc-editor .tiptap ol[data-list-style='multi-legal'] li > :first-child::before { content: counters(legal, '.') '. '; }
 .cell-align-grid { display: grid; grid-template-columns: repeat(3, 24px); grid-auto-rows: 24px; gap: 2px; align-content: center; }
 .cell-align-btn { display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 1px solid transparent; border-radius: 4px; background: transparent; cursor: pointer; }
 .cell-align-btn:hover { background: #e8eef8; border-color: #c7d4ea; }

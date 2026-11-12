@@ -345,8 +345,14 @@ async function blockNode(node: JSONContent, context: Context): Promise<(Paragrap
     case 'bulletList':
     case 'orderedList': {
       const ordered = node.type === 'orderedList';
-      const instance = ordered ? ++orderedInstanceCounter : context.listInstance;
       const style = node.attrs?.listStyle ? String(node.attrs.listStyle) : '';
+      const inheritMulti = !style && ordered && context.ordered && context.listDepth > 0 && Boolean(context.listReference) && (listFormats.get(context.listReference ?? '') ?? '').startsWith('ol:multi-');
+      if (inheritMulti) {
+        const nested: (Paragraph | Table)[] = [];
+        for (const item of node.content ?? []) nested.push(...(await listItem(item, { ...context, listDepth: context.listDepth + 1 })));
+        return nested;
+      }
+      const instance = ordered ? ++orderedInstanceCounter : context.listInstance;
       const reference = style ? `minh-${ordered ? 'ol' : 'ul'}-${listFormats.size}` : '';
       const known = style ? [...listFormats.entries()].find(([, value]) => value === `${ordered ? 'ol' : 'ul'}:${style}`)?.[0] : '';
       if (style && !known) listFormats.set(reference, `${ordered ? 'ol' : 'ul'}:${style}`);
@@ -558,16 +564,22 @@ const docStyles = (page: PageSettings) => {
   return { default: defaults, paragraphStyles };
 };
 
+const MULTILEVEL_FORMATS: Record<string, (level: number) => { format: (typeof LevelFormat)[keyof typeof LevelFormat]; text: string }> = {
+  'multi-outline': (level) => ({ format: [LevelFormat.DECIMAL, LevelFormat.LOWER_LETTER, LevelFormat.LOWER_ROMAN][level % 3], text: `%${level + 1}.` }),
+  'multi-legal': (level) => ({ format: LevelFormat.DECIMAL, text: `${Array.from({ length: level + 1 }, (_, i) => `%${i + 1}`).join('.')}.` }),
+};
+
 const listLevels = () => {
   const config: { reference: string; levels: unknown[] }[] = [];
   for (const [reference, value] of listFormats) {
     const [kind, style] = value.split(':');
     const levels = Array.from({ length: 9 }, (_, level) => {
       const number = NUMBER_FORMATS[style];
+      const multi = MULTILEVEL_FORMATS[style]?.(level);
       return {
         level,
-        format: kind === 'ol' ? (number?.format ?? LevelFormat.DECIMAL) : LevelFormat.BULLET,
-        text: kind === 'ol' ? (number?.text(level + 1) ?? `%${level + 1}.`) : (BULLET_TEXT[style] ?? style),
+        format: multi?.format ?? (kind === 'ol' ? (number?.format ?? LevelFormat.DECIMAL) : LevelFormat.BULLET),
+        text: multi?.text ?? (kind === 'ol' ? (number?.text(level + 1) ?? `%${level + 1}.`) : (BULLET_TEXT[style] ?? style)),
         alignment: AlignmentType.START,
         style: { paragraph: { indent: { left: 720 * (level + 1), hanging: 360 } } },
       };
