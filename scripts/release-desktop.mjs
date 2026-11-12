@@ -245,7 +245,7 @@ function buildLinux(version) {
     'rm -rf dist',
     'tar -xf "$1"',
     'docker build -t minh-spark-office-linux:22.04 -f scripts/linux-build.Dockerfile scripts',
-    'docker run --rm --init --memory=10g --cpus=4 -v "$build:/build" -v minh-spark-office-cargo:/root/.cargo/registry minh-spark-office-linux:22.04',
+    'docker run --rm --init --memory=10g --cpus=4 -v "$build:/build" -v minh-spark-office-cargo:/root/.cargo/registry -v minh-spark-office-tauri-cache:/root/.cache minh-spark-office-linux:22.04',
     'cd release',
     'sha256sum -c SHA256SUMS-linux.txt',
     'cp "MinhSparkOffice-$3-linux-x64.deb" "MinhSparkOffice-$3-linux-x64.AppImage" SHA256SUMS-linux.txt "$2/"',
