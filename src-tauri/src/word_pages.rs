@@ -36,19 +36,14 @@ pub(crate) async fn word_physical_pages(data: String) -> Result<PageLayout, Stri
 mod platform {
     use super::PageLayout;
     use base64::{engine::general_purpose::STANDARD, Engine};
+    use crate::win_job::{Job, Workspace};
     use std::fs::{self, File};
-    use std::io::{ErrorKind, Write};
-    use std::os::windows::{io::AsRawHandle, process::CommandExt};
+    use std::io::Write;
+    use std::os::windows::process::CommandExt;
     use std::path::PathBuf;
-    use std::process::{Child, Command, Stdio};
+    use std::process::{Command, Stdio};
     use std::sync::Mutex;
-    use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-    use windows::Win32::Foundation::{CloseHandle, HANDLE};
-    use windows::Win32::System::JobObjects::{
-        AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
-        SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
-        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
-    };
+    use std::time::{Duration, Instant};
 
     const MAX_INPUT: usize = 50 * 1024 * 1024;
     const MAX_OUTPUT: u64 = 16 * 1024 * 1024;
@@ -57,64 +52,6 @@ mod platform {
     const WORD_ERROR: &str =
         "Cần cài Microsoft Word trên Windows để xác định các trang của tài liệu này.";
     static ACTIVE: Mutex<()> = Mutex::new(());
-
-    struct Workspace(PathBuf);
-
-    impl Workspace {
-        fn create() -> std::io::Result<Self> {
-            let stamp = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_nanos();
-            for attempt in 0..16 {
-                let dir = std::env::temp_dir()
-                    .join(format!("mso-word-{}-{stamp}-{attempt}", std::process::id()));
-                match fs::create_dir(&dir) {
-                    Ok(()) => return Ok(Self(dir)),
-                    Err(e) if e.kind() == ErrorKind::AlreadyExists => continue,
-                    Err(e) => return Err(e),
-                }
-            }
-            Err(std::io::Error::from(ErrorKind::AlreadyExists))
-        }
-    }
-
-    impl Drop for Workspace {
-        fn drop(&mut self) {
-            let _ = fs::remove_dir_all(&self.0);
-        }
-    }
-
-    struct Job(HANDLE);
-
-    impl Job {
-        fn create() -> windows::core::Result<Self> {
-            unsafe {
-                let job = Self(CreateJobObjectW(None, None)?);
-                let mut info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
-                info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-                SetInformationJobObject(
-                    job.0,
-                    JobObjectExtendedLimitInformation,
-                    (&info as *const JOBOBJECT_EXTENDED_LIMIT_INFORMATION).cast(),
-                    std::mem::size_of_val(&info) as u32,
-                )?;
-                Ok(job)
-            }
-        }
-
-        fn attach(&self, child: &Child) -> windows::core::Result<()> {
-            unsafe { AssignProcessToJobObject(self.0, HANDLE(child.as_raw_handle())) }
-        }
-    }
-
-    impl Drop for Job {
-        fn drop(&mut self) {
-            unsafe {
-                let _ = CloseHandle(self.0);
-            }
-        }
-    }
 
     pub(super) fn read_layout(data: &str) -> Result<PageLayout, String> {
         let _active = ACTIVE
@@ -127,7 +64,7 @@ mod platform {
         if bytes.len() > MAX_INPUT || !bytes.starts_with(b"PK\x03\x04") {
             return Err(INPUT_ERROR.into());
         }
-        let workspace = Workspace::create().map_err(|_| LAYOUT_ERROR)?;
+        let workspace = Workspace::create("mso-word").map_err(|_| LAYOUT_ERROR)?;
         let dir = &workspace.0;
         fs::write(dir.join("input.docx"), bytes).map_err(|_| LAYOUT_ERROR)?;
         let script = dir.join("word_pages.ps1");

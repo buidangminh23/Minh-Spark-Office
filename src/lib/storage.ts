@@ -111,6 +111,9 @@ export type PageSettings = {
   language?: string;
   properties?: DocProperties;
   autocorrect?: boolean;
+  mergeType?: 'letters' | 'emails' | 'envelopes' | 'labels' | 'directory';
+  mergeEmail?: { to?: string; cc?: string; subject?: string; format?: 'html' | 'text' | 'attachment' };
+  headingNumbers?: 'none' | 'decimal' | 'legal' | 'chapter';
 };
 
 export type DocContent = {
@@ -131,6 +134,34 @@ export type SheetPrintSettings = {
   signedBy?: string;
   signedRole?: string;
   signedAt?: number;
+  paper?: string;
+  marginPreset?: string;
+  customMargins?: { top: number; right: number; bottom: number; left: number };
+  scaleMode?: 'auto' | 'actual' | 'fit-width' | 'fit-page' | 'custom';
+  customScale?: number;
+  printTitleRows?: number;
+  printHeadings?: boolean;
+  header?: SheetHeaderFooter;
+  footer?: SheetHeaderFooter;
+  backgrounds?: Record<string, string>;
+};
+
+export type SheetHeaderFooter = { left: string; center: string; right: string };
+
+export type SheetQuery = { id: string; name: string; kind: 'web' | 'csv' | 'picture'; source: string; tableIndex: number; sheetName: string; refreshedAt: number };
+export type SheetCustomView = { id: string; name: string; sheetId: string; zoom: number; frozenRows: number; frozenColumns: number; hiddenRows: number[]; hiddenColumns: number[]; selection: string; showGridlines: boolean };
+export type SheetAllowRange = { id: string; title: string; range: string; passwordHash?: string };
+export type SheetProtectionState = {
+  structure?: { passwordHash?: string };
+  sheets?: Record<string, { passwordHash?: string; allowRanges: SheetAllowRange[] }>;
+};
+export type SheetExcelState = {
+  calcMode?: 'automatic' | 'manual';
+  scenarios?: { id: string; name: string; comment: string; cells: { a1: string; value: string }[] }[];
+  customViews?: SheetCustomView[];
+  queries?: SheetQuery[];
+  protection?: SheetProtectionState;
+  officeScripts?: { id: string; name: string; code: string }[];
 };
 
 export type SheetContent = {
@@ -141,6 +172,7 @@ export type SheetContent = {
   outlines?: Record<string, { rows: SheetOutlineGroup[]; cols: SheetOutlineGroup[] }>;
   macros?: unknown[];
   vba?: VbaProjectData;
+  excel?: SheetExcelState;
 };
 export type PdfContent = {
   kind: 'pdf';

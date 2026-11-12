@@ -5,6 +5,7 @@ import { NodeSelection } from '@tiptap/pm/state';
 import type { ResizableNodeView } from '@tiptap/core';
 import { enhanceImageView } from './resizeObjects';
 import { safeImageSrc } from './safeUrl';
+import { nextFontSize } from '../../lib/fontSizeStep';
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -21,7 +22,7 @@ declare module '@tiptap/core' {
       insertPageBreak: () => ReturnType;
     };
     fontSizeStep: {
-      stepFontSize: (direction: 1 | -1) => ReturnType;
+      stepFontSize: (direction: 1 | -1, base?: number) => ReturnType;
     };
     commentMark: {
       setComment: (commentId: string) => ReturnType;
@@ -34,7 +35,7 @@ declare module '@tiptap/core' {
       insertMergeField: (name: string) => ReturnType;
     };
     imageLayout: {
-      setImageLayout: (attrs: { align?: string; width?: string | null; alt?: string; src?: string; frame?: string | null }) => ReturnType;
+      setImageLayout: (attrs: { align?: string; width?: string | null; alt?: string; src?: string; frame?: string | null; originalSrc?: string | null }) => ReturnType;
     };
   }
 }
@@ -224,12 +225,10 @@ export const FontSizeStep = Extension.create({
   name: 'fontSizeStep',
   addCommands() {
     return {
-      stepFontSize: (direction) => ({ editor, chain }) => {
+      stepFontSize: (direction, base) => ({ editor, chain }) => {
         const raw = String(editor.getAttributes('textStyle').fontSize ?? '');
-        const current = parseFloat(raw) * (raw.endsWith('px') ? 0.75 : 1) || DEFAULT_FONT_SIZE;
-        const next = direction > 0
-          ? FONT_SIZES.find((size) => size > current) ?? current + 4
-          : [...FONT_SIZES].reverse().find((size) => size < current) ?? Math.max(1, current - 1);
+        const current = parseFloat(raw) * (raw.endsWith('px') ? 0.75 : 1) || base || DEFAULT_FONT_SIZE;
+        const next = nextFontSize(FONT_SIZES, current, direction);
         return chain().setFontSize(`${next}pt`).run();
       },
     };
@@ -380,6 +379,11 @@ export const LayoutImage = Image.extend({
         default: null,
         parseHTML: (element) => element.getAttribute('data-frame'),
         renderHTML: (attributes) => (attributes.frame ? { 'data-frame': attributes.frame } : {}),
+      },
+      originalSrc: {
+        default: null,
+        parseHTML: () => null,
+        renderHTML: () => ({}),
       },
       meta: {
         default: null,

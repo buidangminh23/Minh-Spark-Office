@@ -36,6 +36,8 @@ import {
   type SubtotalFn,
   type AccessibilityIssue,
 } from './sheetPro';
+import ComboBox from '../../components/ComboBox';
+import { SHEET_FONT_SIZES } from '../../lib/fontSizeStep';
 
 export function ProDialog({
   title,
@@ -242,10 +244,10 @@ export function FormatCellsModal({
               ))}
             </select>
           </label>
-          <label className="field">
+          <div className="field">
             <span className="field-label">Cỡ chữ</span>
-            <input className="text-field" type="number" min={6} max={96} value={st.fontSize} onChange={(e) => set('fontSize', Math.max(6, Math.min(96, Number(e.target.value) || 11)))} />
-          </label>
+            <ComboBox label="Cỡ chữ" value={st.fontSize} options={SHEET_FONT_SIZES} numeric={{ min: 6, max: 96 }} onCommit={(value) => set('fontSize', Number(value))} />
+          </div>
           <div className="pro-checks">
             <label className="check-field"><input type="checkbox" checked={st.bold} onChange={(e) => set('bold', e.target.checked)} /><span>Đậm</span></label>
             <label className="check-field"><input type="checkbox" checked={st.italic} onChange={(e) => set('italic', e.target.checked)} /><span>Nghiêng</span></label>
@@ -680,10 +682,10 @@ export function ShapeInsertModal({
               <span className="field-label">Cao (px)</span>
               <input className="text-field" type="number" min={30} max={700} value={spec.height} onChange={(e) => set('height', Math.max(30, Math.min(700, Number(e.target.value) || 30)))} />
             </label>
-            <label className="field">
+            <div className="field">
               <span className="field-label">Cỡ chữ</span>
-              <input className="text-field" type="number" min={8} max={72} value={spec.fontSize} onChange={(e) => set('fontSize', Math.max(8, Math.min(72, Number(e.target.value) || 14)))} />
-            </label>
+              <ComboBox label="Cỡ chữ" value={spec.fontSize} options={SHEET_FONT_SIZES} numeric={{ min: 8, max: 72 }} onCommit={(value) => set('fontSize', Number(value))} />
+            </div>
             <label className="field">
               <span className="field-label">Độ dày viền</span>
               <input className="text-field" type="number" min={0} max={12} value={spec.strokeWidth} onChange={(e) => set('strokeWidth', Math.max(0, Math.min(12, Number(e.target.value) || 0)))} />

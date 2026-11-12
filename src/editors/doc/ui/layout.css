@@ -45,14 +45,14 @@
 
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
-.style-gallery { display: flex; align-items: stretch; height: 74px; border: 1px solid var(--line, #d7dce5); border-radius: 6px; background: #fff; overflow: hidden; }
-.style-strip { display: flex; gap: 4px; width: min(46vw, 508px); padding: 3px; overflow-x: auto; scrollbar-width: none; }
+.style-gallery { flex: 1 0 auto; display: flex; align-items: stretch; height: 74px; border: 1px solid var(--line, #d7dce5); border-radius: 6px; background: #fff; overflow: hidden; }
+.style-strip { flex: 1 0 min(46vw, 508px); display: flex; gap: 4px; width: min(46vw, 508px); padding: 3px; overflow-x: auto; scrollbar-width: none; }
 .style-strip::-webkit-scrollbar { display: none; }
 .style-strip-nav { display: flex; flex-direction: column; flex: none; width: 18px; border-left: 1px solid var(--line, #d7dce5); }
 .style-strip-nav > button, .style-strip-nav .ribbon-dropdown > button { flex: 1; display: grid; place-items: center; width: 18px; min-width: 18px; min-height: 0; height: 100%; padding: 0; border: 0; border-radius: 0; background: transparent; color: #586071; }
 .style-strip-nav > button:hover, .style-strip-nav .ribbon-dropdown > button:hover { background: #eef2fb; }
 .style-strip-nav .ribbon-dropdown { flex: 1; display: flex; }
-.style-thumb { flex: none; display: flex; flex-direction: column; gap: 1px; width: 66px; height: 66px; padding: 3px; overflow: hidden; text-align: left; background: #fff; border: 1px solid #e3e7ef; border-radius: 3px; cursor: pointer; }
+.style-thumb { flex: 1 0 66px; display: flex; flex-direction: column; gap: 1px; width: 66px; height: 66px; padding: 3px; overflow: hidden; text-align: left; background: #fff; border: 1px solid #e3e7ef; border-radius: 3px; cursor: pointer; }
 .style-thumb:hover { border-color: #7fa3e0; }
 .style-thumb.on { border-color: var(--accent-doc, #2b579a); box-shadow: inset 0 0 0 1px var(--accent-doc, #2b579a); }
 .thumb-title { display: block; font-size: 10px; line-height: 12px; white-space: nowrap; overflow: hidden; }
@@ -60,7 +60,7 @@
 .thumb-body { display: block; font-size: 4.5px; line-height: 5.5px; color: #4b5563; overflow: hidden; }
 .style-gallery-full { padding: var(--doc-gap-1, 4px); }
 .style-grid { display: grid; grid-template-columns: repeat(auto-fill, 72px); gap: var(--doc-gap-1, 4px); margin-bottom: var(--doc-gap-2, 8px); }
-.style-grid .style-thumb { width: 72px; height: 72px; }
+.style-grid .style-thumb { flex: none; width: 72px; height: 72px; }
 
 .swatch-row { display: inline-flex; gap: 1px; flex: none; }
 .swatch-row i { width: 12px; height: 12px; display: block; }
@@ -123,3 +123,5 @@
 .selection-row.is-hidden .selection-name { color: #9aa3b2; }
 .selection-name { flex: 1; min-width: 0; height: 26px; padding: 0 4px; font-size: 12.5px; background: transparent; border: 1px solid transparent; border-radius: 3px; }
 .selection-name:focus { background: #fff; border-color: var(--accent-doc, #2b579a); outline: 0; }
+
+.doc-editor .ribbon-section:has(> .ribbon-controls > .style-gallery) { flex: 1 0 auto; }

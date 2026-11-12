@@ -8,6 +8,7 @@ import {
   Footer,
   Header,
   HeadingLevel,
+  HeightRule,
   HorizontalPositionAlign,
   HorizontalPositionRelativeFrom,
   ImageRun,
@@ -27,6 +28,7 @@ import {
   TableLayoutType,
   TableRow,
   TabStopType,
+  TextDirection,
   TextRun,
   TextWrappingSide,
   TextWrappingType,
@@ -44,6 +46,7 @@ import { latexToMath as docxLatexToMath } from 'docx/math';
 import { latexToMath as fallbackLatexToMath } from './docxMath';
 import { expandChemistry } from './chemLatex';
 import { normalizePresentation } from '../editors/doc/equationStyle';
+import { blockLabel, type BlockKind } from '../editors/doc/mailMerge';
 
 const TWIP = 15;
 const ALIGN: Record<string, (typeof AlignmentType)[keyof typeof AlignmentType]> = {
@@ -232,6 +235,8 @@ async function inlineChildren(nodes: JSONContent[] = [], context: Context, base:
       children.push(new FootnoteReferenceRun(Number(id)));
     } else if (node.type === 'mergeField') {
       children.push(new TextRun({ ...runOptions(node.marks as Mark[], base), text: `«${String(node.attrs?.name ?? '')}»` }));
+    } else if (node.type === 'mergeBlock') {
+      children.push(new TextRun({ ...runOptions(node.marks as Mark[], base), text: `«${blockLabel(String(node.attrs?.kind ?? 'next') as BlockKind, String(node.attrs?.options ?? '{}'))}»` }));
     } else if (node.type === 'hardBreak') {
       children.push(new TextRun({ text: '', break: 1 }));
     } else if (node.type === 'image') {
@@ -340,8 +345,14 @@ async function blockNode(node: JSONContent, context: Context): Promise<(Paragrap
     case 'bulletList':
     case 'orderedList': {
       const ordered = node.type === 'orderedList';
-      const instance = ordered ? ++orderedInstanceCounter : context.listInstance;
       const style = node.attrs?.listStyle ? String(node.attrs.listStyle) : '';
+      const inheritMulti = !style && ordered && context.ordered && context.listDepth > 0 && Boolean(context.listReference) && (listFormats.get(context.listReference ?? '') ?? '').startsWith('ol:multi-');
+      if (inheritMulti) {
+        const nested: (Paragraph | Table)[] = [];
+        for (const item of node.content ?? []) nested.push(...(await listItem(item, { ...context, listDepth: context.listDepth + 1 })));
+        return nested;
+      }
+      const instance = ordered ? ++orderedInstanceCounter : context.listInstance;
       const reference = style ? `minh-${ordered ? 'ol' : 'ul'}-${listFormats.size}` : '';
       const known = style ? [...listFormats.entries()].find(([, value]) => value === `${ordered ? 'ol' : 'ul'}:${style}`)?.[0] : '';
       if (style && !known) listFormats.set(reference, `${ordered ? 'ol' : 'ul'}:${style}`);
@@ -419,6 +430,8 @@ const cellBorders = (value: unknown) => {
   return Object.fromEntries(['top', 'bottom', 'left', 'right'].map((edge) => [edge, on.includes(edge) ? THIN('334155') : NO_BORDER]));
 };
 
+const TEXT_DIRECTION: Record<string, (typeof TextDirection)[keyof typeof TextDirection]> = { 'vertical-rl': TextDirection.TOP_TO_BOTTOM_RIGHT_TO_LEFT, 'vertical-lr': TextDirection.BOTTOM_TO_TOP_LEFT_TO_RIGHT };
+const TABLE_ALIGN: Record<string, (typeof AlignmentType)[keyof typeof AlignmentType]> = { center: AlignmentType.CENTER, right: AlignmentType.RIGHT };
 const V_ALIGN: Record<string, (typeof VerticalAlignTable)[keyof typeof VerticalAlignTable]> = { top: VerticalAlignTable.TOP, middle: VerticalAlignTable.CENTER, bottom: VerticalAlignTable.BOTTOM };
 
 async function tableNode(node: JSONContent, context: Context): Promise<Table> {
@@ -433,6 +446,10 @@ async function tableNode(node: JSONContent, context: Context): Promise<Table> {
   });
   const hasWidths = columnWidths.some(Boolean);
   const fallback = columnWidths.length ? Math.round((context.contentWidth * TWIP) / columnWidths.length) : 0;
+  const padding = node.attrs?.cellPadding === null || node.attrs?.cellPadding === undefined ? null : Math.round(Number(node.attrs.cellPadding) * TWIP);
+  const cellMargins = padding === null ? { top: 80, bottom: 80, left: 120, right: 120 } : { top: padding, bottom: padding, left: padding, right: padding };
+  const autofit = String(node.attrs?.autofit ?? '');
+  const tableWidth = Number(node.attrs?.tableWidth);
   for (const row of node.content ?? []) {
     const cells: TableCell[] = [];
     let header = false;
@@ -451,19 +468,26 @@ async function tableNode(node: JSONContent, context: Context): Promise<Table> {
         columnSpan: Number(cell.attrs?.colspan) > 1 ? Number(cell.attrs?.colspan) : undefined,
         rowSpan: Number(cell.attrs?.rowspan) > 1 ? Number(cell.attrs?.rowspan) : undefined,
         shading: background ? { type: ShadingType.CLEAR, fill: background, color: 'auto' } : undefined,
-        margins: { top: 80, bottom: 80, left: 120, right: 120 },
+        margins: cellMargins,
+        textDirection: TEXT_DIRECTION[String(cell.attrs?.textDirection ?? '')],
         verticalAlign: V_ALIGN[String(cell.attrs?.vAlign ?? '')],
         borders: cellBorders(cell.attrs?.cellBorders),
       }));
     }
-    rows.push(new TableRow({ children: cells, tableHeader: header && rowIndex === 0 }));
+    const rowHeight = Number(row.attrs?.rowHeight);
+    rows.push(new TableRow({
+      children: cells,
+      tableHeader: Boolean(row.attrs?.repeatHeader) || (header && rowIndex === 0),
+      ...(rowHeight > 0 ? { height: { value: Math.round(rowHeight * TWIP), rule: HeightRule.ATLEAST } } : {}),
+    }));
     rowIndex++;
   }
   return new Table({
     rows,
-    width: { size: 100, type: WidthType.PERCENTAGE },
+    width: tableWidth > 0 ? { size: tableWidth, type: WidthType.PERCENTAGE } : autofit === 'contents' ? { size: 0, type: WidthType.AUTO } : { size: 100, type: WidthType.PERCENTAGE },
     borders: TABLE_BORDERS[preset] as never,
-    ...(hasWidths ? { columnWidths: columnWidths.map((value) => value || fallback), layout: TableLayoutType.FIXED } : {}),
+    ...(TABLE_ALIGN[String(node.attrs?.tableAlign ?? '')] ? { alignment: TABLE_ALIGN[String(node.attrs?.tableAlign)] } : {}),
+    ...(hasWidths ? { columnWidths: columnWidths.map((value) => value || fallback), layout: autofit === 'contents' ? TableLayoutType.AUTOFIT : TableLayoutType.FIXED } : {}),
   });
 }
 
@@ -540,16 +564,22 @@ const docStyles = (page: PageSettings) => {
   return { default: defaults, paragraphStyles };
 };
 
+const MULTILEVEL_FORMATS: Record<string, (level: number) => { format: (typeof LevelFormat)[keyof typeof LevelFormat]; text: string }> = {
+  'multi-outline': (level) => ({ format: [LevelFormat.DECIMAL, LevelFormat.LOWER_LETTER, LevelFormat.LOWER_ROMAN][level % 3], text: `%${level + 1}.` }),
+  'multi-legal': (level) => ({ format: LevelFormat.DECIMAL, text: `${Array.from({ length: level + 1 }, (_, i) => `%${i + 1}`).join('.')}.` }),
+};
+
 const listLevels = () => {
   const config: { reference: string; levels: unknown[] }[] = [];
   for (const [reference, value] of listFormats) {
     const [kind, style] = value.split(':');
     const levels = Array.from({ length: 9 }, (_, level) => {
       const number = NUMBER_FORMATS[style];
+      const multi = MULTILEVEL_FORMATS[style]?.(level);
       return {
         level,
-        format: kind === 'ol' ? (number?.format ?? LevelFormat.DECIMAL) : LevelFormat.BULLET,
-        text: kind === 'ol' ? (number?.text(level + 1) ?? `%${level + 1}.`) : (BULLET_TEXT[style] ?? style),
+        format: multi?.format ?? (kind === 'ol' ? (number?.format ?? LevelFormat.DECIMAL) : LevelFormat.BULLET),
+        text: multi?.text ?? (kind === 'ol' ? (number?.text(level + 1) ?? `%${level + 1}.`) : (BULLET_TEXT[style] ?? style)),
         alignment: AlignmentType.START,
         style: { paragraph: { indent: { left: 720 * (level + 1), hanging: 360 } } },
       };

@@ -4,7 +4,8 @@ import type { SheetPrintSettings } from '../../lib/storage';
 import type { SheetData, WorkbookData } from '../../lib/sheetTypes';
 import { exportSheetToStyledHtml } from '../../lib/xlsxConvert';
 import { PrintDialog } from '../../components/print/PrintDialog';
-import type { PrintItem, PrintSlice, PrintSource } from '../../components/print/printTypes';
+import type { PrintItem, PrintSettings, PrintSlice, PrintSource } from '../../components/print/printTypes';
+import type { MarginPreset, PaperKey } from '../../lib/print/printLayout';
 
 type SheetScope = 'active' | 'all';
 type AreaMode = 'data' | 'selection' | 'custom';
@@ -103,9 +104,18 @@ export function SheetPrintDialog({ workbook, activeSheetId, title, activeRangeA1
   const [areaMode, setAreaMode] = useState<AreaMode>(settings.printArea ? 'custom' : 'data');
   const [customArea, setCustomArea] = useState(settings.printArea ?? '');
   const [gridlines, setGridlines] = useState(settings.showGridlines);
-  const [repeatRows, setRepeatRows] = useState(0);
+  const [repeatRows, setRepeatRows] = useState(settings.printTitleRows ?? 0);
+  const [headings, setHeadings] = useState(Boolean(settings.printHeadings));
   const [measured, setMeasured] = useState<MeasuredSheet[] | null>(null);
-  const [paper, setPaper] = useState<{ paper: string; orientation: string }>({ paper: settings.paperSize, orientation: settings.orientation });
+  const [paper, setPaper] = useState<Pick<PrintSettings, 'paper' | 'orientation' | 'marginPreset' | 'customMargins' | 'scaleMode' | 'customScale'> | null>(null);
+  const initial = useMemo<Partial<PrintSettings>>(() => {
+    const next: Partial<PrintSettings> = { paper: (settings.paper ?? settings.paperSize) as PaperKey, orientation: settings.orientation };
+    if (settings.marginPreset) next.marginPreset = settings.marginPreset as MarginPreset;
+    if (settings.customMargins) next.customMargins = settings.customMargins;
+    if (settings.scaleMode) next.scaleMode = settings.scaleMode;
+    if (settings.customScale) next.customScale = settings.customScale;
+    return next;
+  }, [settings]);
 
   const printArea = areaMode === 'selection' ? activeRangeA1 : areaMode === 'custom' ? customArea.trim() : '';
   const sheetIds = useMemo(
@@ -128,6 +138,7 @@ export function SheetPrintDialog({ workbook, activeSheetId, title, activeRangeA1
               printArea: scope === 'active' ? printArea : '',
               fitToPage: false,
               pageBreakRows: settings.pageBreaks?.[sheet.id],
+              showHeadings: headings,
               signedBy: settings.signedBy,
               signedRole: settings.signedRole,
               signedAt: settings.signedAt,
@@ -138,7 +149,7 @@ export function SheetPrintDialog({ workbook, activeSheetId, title, activeRangeA1
       setMeasured(result);
     }, 30);
     return () => window.clearTimeout(timer);
-  }, [sheetIds, workbook, title, gridlines, printArea, scope, settings.signedBy, settings.signedRole, settings.signedAt, settings.pageBreaks]);
+  }, [sheetIds, workbook, title, gridlines, printArea, scope, settings.signedBy, settings.signedRole, settings.signedAt, settings.pageBreaks, headings]);
 
   const source: PrintSource = useMemo(
     () => ({
@@ -146,22 +157,34 @@ export function SheetPrintDialog({ workbook, activeSheetId, title, activeRangeA1
       title,
       flowsVertically: true,
       loading: measured === null,
-      items: (measured ?? []).map((sheet) => toItem(sheet, repeatRows)),
+      items: (measured ?? []).map((sheet) => toItem(sheet, repeatRows + (headings ? 1 : 0))),
+      bands: { header: settings.header, footer: settings.footer, sheet: workbook.sheets[activeSheetId]?.name ?? '', file: title },
     }),
-    [title, measured, repeatRows],
+    [title, measured, repeatRows, headings, settings.header, settings.footer, workbook, activeSheetId],
   );
 
   const persisted = (): SheetPrintSettings => ({
     ...settings,
     showGridlines: gridlines,
     printArea: areaMode === 'data' ? '' : printArea,
-    paperSize: (['A4', 'A3', 'Letter'] as const).includes(paper.paper as 'A4') ? (paper.paper as SheetPrintSettings['paperSize']) : settings.paperSize,
-    orientation: paper.orientation === 'portrait' || paper.orientation === 'landscape' ? paper.orientation : settings.orientation,
+    printTitleRows: repeatRows,
+    printHeadings: headings,
+    ...(paper
+      ? {
+          paper: paper.paper,
+          paperSize: (['A4', 'A3', 'Letter'] as const).includes(paper.paper as 'A4') ? (paper.paper as SheetPrintSettings['paperSize']) : settings.paperSize,
+          orientation: paper.orientation === 'portrait' || paper.orientation === 'landscape' ? paper.orientation : settings.orientation,
+          marginPreset: paper.marginPreset,
+          customMargins: paper.customMargins,
+          scaleMode: paper.scaleMode,
+          customScale: paper.customScale,
+        }
+      : {}),
   });
 
   const close = () => {
     const next = persisted();
-    if (next.showGridlines !== settings.showGridlines || next.printArea !== (settings.printArea ?? '') || next.paperSize !== settings.paperSize || next.orientation !== settings.orientation) onSaveSettings(next);
+    if (JSON.stringify(next) !== JSON.stringify(settings)) onSaveSettings(next);
     onClose();
   };
 
@@ -196,6 +219,7 @@ export function SheetPrintDialog({ workbook, activeSheetId, title, activeRangeA1
         </select>
       </label>
       <label className="mp-check"><input type="checkbox" checked={gridlines} onChange={(e) => setGridlines(e.target.checked)} /><span>In đường kẻ ô</span></label>
+      <label className="mp-check"><input type="checkbox" checked={headings} onChange={(e) => setHeadings(e.target.checked)} /><span>In tiêu đề hàng và cột (A, B, 1, 2)</span></label>
       <button className="btn mp-auto-btn" onClick={() => onDownloadHtml(persisted())}><Download size={14} /><span>Tải bản in HTML</span></button>
     </>
   );
@@ -205,7 +229,13 @@ export function SheetPrintDialog({ workbook, activeSheetId, title, activeRangeA1
       source={source}
       onClose={close}
       extraOptions={extra}
-      onSettingsChange={(s) => setPaper((prev) => (prev.paper === s.paper && prev.orientation === s.orientation ? prev : { paper: s.paper, orientation: s.orientation }))}
+      initial={initial}
+      onSettingsChange={(s) =>
+        setPaper((prev) => {
+          const next = { paper: s.paper, orientation: s.orientation, marginPreset: s.marginPreset, customMargins: s.customMargins, scaleMode: s.scaleMode, customScale: s.customScale };
+          return prev && JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
+        })
+      }
     />
   );
 }

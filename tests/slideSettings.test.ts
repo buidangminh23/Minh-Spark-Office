@@ -56,7 +56,7 @@ test('home tab can never be hidden', () => {
   assert.equal(ids[0], 'home');
   assert.ok(!ids.includes('insert'));
   assert.ok(ids.includes('view'));
-  assert.equal(visibleRibbonTabs(SLIDE_DEFAULTS.slideTabs).length, 9);
+  assert.equal(visibleRibbonTabs(SLIDE_DEFAULTS.slideTabs).length, 10);
 });
 
 test('unknown theme falls back to Office Classic', () => {

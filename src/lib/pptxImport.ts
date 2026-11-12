@@ -13,6 +13,15 @@ import type {
 import { createSlideFromLayout } from './slideTemplates';
 import { child, childrenOf, descendants, localName, parseXml, path, type XmlNode } from './miniXml';
 import { shapeFromPrst } from './slideShapes';
+import { SLIDE_ASPECTS, slideBaseWidth } from './settings/slideOptions';
+
+function nearestAspect(ratio: number): PresentationData['aspectRatio'] {
+  let best = SLIDE_ASPECTS[0];
+  for (const item of SLIDE_ASPECTS) {
+    if (Math.abs(item.width / 540 - ratio) < Math.abs(best.width / 540 - ratio)) best = item;
+  }
+  return best.id;
+}
 
 export interface PptxImportReport {
   slides: number;
@@ -1259,9 +1268,9 @@ export async function importPptxDetailed(
   const size = descendants(presentationDoc, 'p:sldSz')[0];
   const slideCx = parseInt(size?.attrs.cx ?? '12192000', 10) || 12192000;
   const slideCy = parseInt(size?.attrs.cy ?? '6858000', 10) || 6858000;
-  const aspectRatio: PresentationData['aspectRatio'] = slideCx / slideCy < 1.5 ? '4:3' : '16:9';
+  const aspectRatio: PresentationData['aspectRatio'] = nearestAspect(slideCx / slideCy);
   const canvasH = 540;
-  const canvasW = aspectRatio === '4:3' ? 720 : 960;
+  const canvasW = slideBaseWidth(aspectRatio);
 
   const layerCache = new Map<string, Promise<LayerInfo | undefined>>();
   const themeCache = new Map<string, Promise<Theme>>();

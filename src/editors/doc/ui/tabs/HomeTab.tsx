@@ -1,12 +1,14 @@
-import { AlignCenter, AlignJustify, AlignLeft, AlignRight, Bold, ClipboardPaste, Copy, Eraser, Highlighter, Indent, Italic, List, ListOrdered, ListTodo, Mic, MicOff, Outdent, Paintbrush, Pilcrow, Quote, Replace, Scissors, Search, Sparkles, Strikethrough, Subscript, Superscript, TextSelect, Type, Underline, ArrowDownAZ, Code, Volume2, VolumeX, Baseline, PaintBucket, CaseSensitive, ChevronDown, Pencil, Plus, Redo2, RefreshCw, Undo2 } from 'lucide-react';
+import { ListTree, MousePointer2, PanelsTopLeft, SquareDashed, WandSparkles, AlignCenter, AlignJustify, AlignLeft, AlignRight, Bold, ClipboardPaste, Copy, Eraser, Highlighter, Indent, Italic, List, ListOrdered, ListTodo, Mic, MicOff, Outdent, Paintbrush, Pilcrow, Quote, Replace, Scissors, Search, Sparkles, Strikethrough, Subscript, Superscript, TextSelect, Type, Underline, ArrowDownAZ, Code, Volume2, VolumeX, Baseline, PaintBucket, CaseSensitive, ChevronDown, ChevronUp, Pencil, Plus, Redo2, RefreshCw, Undo2 } from 'lucide-react';
 import { useDoc } from '../../DocContext';
 import type { FormatState } from '../../useFormatState';
 import { FONT_SIZES } from '../../extensions';
 import { changeCase, copySelection, pastePlainText, pasteRich, sortParagraphs } from '../../actions';
 import { BUILTIN_STYLE_ORDER, activeStyleId, applyDocStyle, resolveStyles, styleSample } from '../../docStyles';
 import FontPicker from '../FontPicker';
+import ComboBox from '../../../../components/ComboBox';
 import { AddinRibbonButtons, useAnyAddinEnabled } from '../../../../addins/AddinPane';
 import { DocFeatureMenu } from './DocFeatures';
+import { MULTILEVEL_LISTS, PARAGRAPH_BORDERS, TEXT_EFFECTS, UNDERLINE_STYLES, changeListLevel, selectNextObject, selectionPane, setMultilevel, setParagraphBorder, setTextEffect, setUnderline } from '../../homeExtras';
 import { Big, ColorPicker, Dropdown, Group, MenuItem, MenuSeparator, Row, Rows, Small } from '../RibbonParts';
 
 const BULLET_STYLES = [{ value: 'disc', label: '●  Chấm tròn' }, { value: 'circle', label: '○  Tròn rỗng' }, { value: 'square', label: '■  Vuông' }, { value: '–', label: '–  Gạch ngang' }, { value: '+', label: '+  Dấu cộng' }, { value: '✓', label: '✓  Dấu tích' }, { value: '»', label: '»  Mũi tên' }];
@@ -67,10 +69,9 @@ export default function HomeTab({ fmt }: { fmt: FormatState }) {
         <Rows>
           <Row>
             <FontPicker value={fmt.fontFamily || ctx.page.fontFamily || 'Arial'} onPick={(font) => chain().setFontFamily(font).run()} onError={(message) => ctx.ui.toast(message, true)} />
-            <input className="ribbon-select size-input" list="doc-font-sizes" title="Cỡ chữ" value={fmt.fontSize || String(ctx.page.fontSize ?? 12)} onChange={(e) => { const n = parseFloat(e.target.value); if (n > 0 && n <= 400) chain().setFontSize(`${n}pt`).run(); }} />
-            <datalist id="doc-font-sizes">{FONT_SIZES.map((s) => <option key={s} value={s} />)}</datalist>
-            <Small icon={<span className="grow-icon">A<sup>▲</sup></span>} title="Tăng cỡ chữ (Ctrl+])" onClick={() => editor.chain().focus().stepFontSize(1).run()} />
-            <Small icon={<span className="grow-icon small">A<sub>▼</sub></span>} title="Giảm cỡ chữ (Ctrl+[)" onClick={() => editor.chain().focus().stepFontSize(-1).run()} />
+            <ComboBox variant="ribbon" width={54} label="Cỡ chữ" value={fmt.fontSize || String(ctx.page.fontSize ?? 12)} options={FONT_SIZES} numeric={{ min: 1, max: 1638 }} onCommit={(size) => chain().setFontSize(`${size}pt`).run()} />
+            <Small icon={<span className="grow-icon">A<ChevronUp size={9} strokeWidth={3} /></span>} title="Tăng cỡ chữ (Ctrl+])" onClick={() => editor.chain().focus().stepFontSize(1, ctx.page.fontSize).run()} />
+            <Small icon={<span className="grow-icon small">A<ChevronDown size={9} strokeWidth={3} /></span>} title="Giảm cỡ chữ (Ctrl+[)" onClick={() => editor.chain().focus().stepFontSize(-1, ctx.page.fontSize).run()} />
             <Dropdown title="Đổi kiểu chữ hoa/thường" trigger={<CaseSensitive size={15} />}>
               {(close) => (
                 <>
@@ -88,10 +89,16 @@ export default function HomeTab({ fmt }: { fmt: FormatState }) {
             <Small icon={<Bold size={14} />} title="Đậm (Ctrl+B)" active={fmt.bold} onClick={() => chain().toggleBold().run()} />
             <Small icon={<Italic size={14} />} title="Nghiêng (Ctrl+I)" active={fmt.italic} onClick={() => chain().toggleItalic().run()} />
             <Small icon={<Underline size={14} />} title="Gạch chân (Ctrl+U)" active={fmt.underline} onClick={() => chain().toggleUnderline().run()} />
+            <Dropdown title="Kiểu gạch chân" trigger={<span className="sr-only">Kiểu gạch chân</span>}>
+              {(close) => <>{UNDERLINE_STYLES.map((item) => <MenuItem key={item.id} label={<span style={{ textDecoration: `underline ${item.id}` }}>{item.label}</span>} onClick={() => { close(); setUnderline(ctx, item.id); }} />)}<MenuSeparator /><MenuItem label="Màu và kiểu khác…" onClick={() => { close(); ctx.openDialog('font'); }} /></>}
+            </Dropdown>
             <Small icon={<Strikethrough size={14} />} title="Gạch ngang (Ctrl+Shift+X)" active={fmt.strike} onClick={() => chain().toggleStrike().run()} />
             <Small icon={<Subscript size={14} />} title="Chỉ số dưới (Ctrl+,)" active={fmt.subscript} onClick={() => chain().toggleSubscript().run()} />
             <Small icon={<Superscript size={14} />} title="Chỉ số trên (Ctrl+.)" active={fmt.superscript} onClick={() => chain().toggleSuperscript().run()} />
             <Small icon={<Code size={14} />} title="Mã nội dòng (Ctrl+E)" active={fmt.code} onClick={() => chain().toggleCode().run()} />
+            <Dropdown title="Hiệu ứng chữ" trigger={<WandSparkles size={14} />}>
+              {(close) => TEXT_EFFECTS.map((item) => <MenuItem key={item.id} label={<span style={{ textShadow: item.shadow ?? undefined }}>{item.label}</span>} onClick={() => { close(); setTextEffect(ctx, item.shadow); }} />)}
+            </Dropdown>
             <ColorPicker title="Màu tô sáng chữ" icon={<Highlighter size={14} />} swatch={fmt.highlight || '#fff59d'} noneLabel="Không tô" onPick={(color) => (color ? chain().setHighlight({ color }).run() : chain().unsetHighlight().run())} />
             <ColorPicker title="Màu chữ" icon={<Baseline size={14} />} swatch={fmt.color || '#d7473c'} noneLabel="Tự động (đen)" onPick={(color) => (color ? chain().setColor(color).run() : chain().unsetColor().run())} />
           </Row>
@@ -108,6 +115,14 @@ export default function HomeTab({ fmt }: { fmt: FormatState }) {
             <Small icon={<ListOrdered size={14} />} title="Đánh số" active={fmt.orderedList} onClick={() => chain().toggleOrderedList().run()} />
             <Dropdown title="Kiểu đánh số" trigger={<span className="sr-only">Kiểu đánh số</span>}>
               {(close) => NUMBER_STYLES.map((item) => <MenuItem key={item.value} label={item.label} onClick={() => { close(); setList('orderedList', item.value); }} />)}
+            </Dropdown>
+            <Dropdown title="Danh sách nhiều cấp" trigger={<ListTree size={14} />} width={260}>
+              {(close) => <>
+                {MULTILEVEL_LISTS.map((item) => <MenuItem key={item.id} label={item.label} onClick={() => { close(); setMultilevel(ctx, item.id); }} />)}
+                <MenuSeparator />
+                <MenuItem label="Xuống một cấp (Tab)" onClick={() => { close(); changeListLevel(ctx, true); }} />
+                <MenuItem label="Lên một cấp (Shift+Tab)" onClick={() => { close(); changeListLevel(ctx, false); }} />
+              </>}
             </Dropdown>
             <Small icon={<ListTodo size={14} />} title="Danh sách việc cần làm" active={fmt.taskList} onClick={() => chain().toggleTaskList().run()} />
             <Small icon={<Outdent size={14} />} title="Giảm thụt lề (Shift+Tab)" onClick={() => chain().decreaseIndent().run()} />
@@ -132,6 +147,9 @@ export default function HomeTab({ fmt }: { fmt: FormatState }) {
               )}
             </Dropdown>
             <ColorPicker title="Tô nền đoạn chọn" icon={<PaintBucket size={14} />} swatch="#e0f2fe" noneLabel="Không tô nền" onPick={(color) => (color ? chain().setBackgroundColor(color).run() : chain().unsetBackgroundColor().run())} />
+            <Dropdown title="Viền đoạn văn" trigger={<SquareDashed size={14} />}>
+              {(close) => <>{PARAGRAPH_BORDERS.map((item) => <MenuItem key={item.id || 'none'} label={item.label} onClick={() => { close(); setParagraphBorder(ctx, item.id); }} />)}<MenuSeparator /><MenuItem label="Viền và tô nền…" onClick={() => { close(); ctx.openDialog('paragraph'); }} /></>}
+            </Dropdown>
             <Small icon={<Quote size={14} />} title="Trích dẫn" active={fmt.blockquote} onClick={() => chain().toggleBlockquote().run()} />
           </Row>
         </Rows>
@@ -164,7 +182,13 @@ export default function HomeTab({ fmt }: { fmt: FormatState }) {
         <Rows>
           <Small icon={<Search size={14} />} label="Tìm" title="Tìm (Ctrl+F)" onClick={() => ctx.setView({ showFind: true, findReplace: false })} />
           <Small icon={<Replace size={14} />} label="Thay thế" title="Thay thế (Ctrl+H)" onClick={() => ctx.setView({ showFind: true, findReplace: true })} />
-          <Small icon={<TextSelect size={14} />} label="Chọn tất cả" title="Chọn tất cả (Ctrl+A)" onClick={() => chain().selectAll().run()} />
+          <Dropdown title="Chọn" trigger={<><TextSelect size={14} /><span>Chọn</span></>}>
+            {(close) => <>
+              <MenuItem icon={<TextSelect size={14} />} label="Chọn tất cả" hint="Ctrl+A" onClick={() => { close(); chain().selectAll().run(); }} />
+              <MenuItem icon={<MousePointer2 size={14} />} label="Chọn đối tượng" hint="ảnh, bảng, hộp chữ kế tiếp" onClick={() => { close(); selectNextObject(ctx); }} />
+              <MenuItem icon={<PanelsTopLeft size={14} />} label="Ngăn chọn…" onClick={() => { close(); void selectionPane(ctx); }} />
+            </>}
+          </Dropdown>
         </Rows>
       </Group>
 

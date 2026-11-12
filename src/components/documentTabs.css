@@ -163,6 +163,41 @@
   pointer-events: none;
 }
 
+.doc-frame-lost {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background: var(--paper);
+  text-align: center;
+}
+
+.doc-frame-lost h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.doc-frame-lost p {
+  max-width: 440px;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.doc-frame-lost-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 24px;
+}
+
 .has-doc-tabs .ws-sidebar,
 .has-doc-tabs .app-shell > .sidebar {
   top: var(--doc-tabs-height);

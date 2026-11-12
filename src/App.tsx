@@ -1082,6 +1082,7 @@ function MainApp({ onEditing, frameId }: { onEditing: (editing: boolean) => void
           onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
           onNewDocument={(html) => void handleCreateDoc(html)}
           onOpenFile={(file) => void handleImportFile(file)}
+          onOpenSaved={(meta, content) => { refreshFilesSoon(); showDocument(meta, content); }}
           onBack={handleCloseEditor}
         />
       );
@@ -1175,7 +1176,7 @@ const frameId = tabFrameId();
 
 function Workspace({ userId, onEditing, editing }: { userId: string | null; onEditing: (editing: boolean) => void; editing: boolean }) {
   const workspace = useMemo(() => userId ? accountWorkspace(userId) : createDraftWorkspaceStorage(), [userId]);
-  useEffect(() => syncedWorkspace(workspace)?.start(), [workspace]);
+  useEffect(() => (frameId ? undefined : syncedWorkspace(workspace)?.start()), [workspace]);
   return (
     <WorkspaceContext value={workspace}>
       <UiProvider>

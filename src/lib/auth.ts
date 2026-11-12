@@ -1,5 +1,5 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
-import { browserLocalPersistence, browserSessionPersistence, connectAuthEmulator, getAuth, setPersistence } from 'firebase/auth';
+import { browserLocalPersistence, browserPopupRedirectResolver, browserSessionPersistence, connectAuthEmulator, getAuth, indexedDBLocalPersistence, initializeAuth, type Auth } from 'firebase/auth';
 
 const config = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -8,16 +8,16 @@ const config = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-const AUTH_EMULATOR_FLAG = 'office-auth-emulator';
-
-let emulatorReady: Promise<void> | null = null;
-
 export const authConfigured = Object.values(config).every((value) => typeof value === 'string' && value.trim());
 
-function devAuthEmulator() {
+const AUTH_EMULATOR_FLAG = 'office-auth-emulator';
+
+let authentication: Promise<Auth> | null = null;
+
+function devEmulator(name: 'auth' | 'firestore') {
   if (!import.meta.env.DEV) return '';
-  const target = String(import.meta.env.VITE_AUTH_EMULATOR ?? '');
-  if (!target) return '';
+  const target = String((name === 'auth' ? import.meta.env.VITE_AUTH_EMULATOR : import.meta.env.VITE_FIRESTORE_EMULATOR) ?? '');
+  if (!target || name === 'firestore') return target;
   try {
     if (new URLSearchParams(window.location.search).has('authEmu')) sessionStorage.setItem(AUTH_EMULATOR_FLAG, '1');
     return sessionStorage.getItem(AUTH_EMULATOR_FLAG) ? target : '';
@@ -26,24 +26,38 @@ function devAuthEmulator() {
   }
 }
 
-export async function initializeAuthentication() {
-  if (!authConfigured) throw new Error('auth/missing-config');
-  const fresh = !getApps().length;
-  const app = fresh ? initializeApp(config) : getApp();
-  const firestoreEmulator = import.meta.env.DEV ? String(import.meta.env.VITE_FIRESTORE_EMULATOR ?? '') : '';
-  if (fresh && firestoreEmulator) {
-    emulatorReady = import('firebase/firestore').then(({ connectFirestoreEmulator, getFirestore }) => {
-      const [host, port] = firestoreEmulator.split(':');
-      connectFirestoreEmulator(getFirestore(app), host, Number(port));
-    });
-  }
-  await emulatorReady;
-  const auth = getAuth(app);
-  const authEmulator = devAuthEmulator();
-  if (fresh && authEmulator) connectAuthEmulator(auth, `http://${authEmulator}`, { disableWarnings: true });
-  auth.languageCode = 'vi';
-  await setPersistence(auth, authEmulator ? browserSessionPersistence : browserLocalPersistence);
-  return auth;
+async function connectDevEmulators(app: ReturnType<typeof getApp>, auth: Auth, fresh: boolean) {
+  if (!fresh) return;
+  const authTarget = devEmulator('auth');
+  if (authTarget) connectAuthEmulator(auth, `http://${authTarget}`, { disableWarnings: true });
+  const firestore = devEmulator('firestore');
+  if (!firestore) return;
+  const { connectFirestoreEmulator, getFirestore } = await import('firebase/firestore');
+  const [host, port] = firestore.split(':');
+  connectFirestoreEmulator(getFirestore(app), host, Number(port));
+}
+
+export function initializeAuthentication(): Promise<Auth> {
+  if (!authConfigured) return Promise.reject(new Error('auth/missing-config'));
+  authentication ??= (async () => {
+    const fresh = !getApps().length;
+    const app = fresh ? initializeApp(config) : getApp();
+    const emulated = Boolean(devEmulator('auth'));
+    let auth: Auth;
+    try {
+      auth = initializeAuth(app, { persistence: emulated ? [browserSessionPersistence] : [browserLocalPersistence, indexedDBLocalPersistence], popupRedirectResolver: browserPopupRedirectResolver });
+    } catch {
+      auth = getAuth(app);
+    }
+    if (import.meta.env.DEV) await connectDevEmulators(app, auth, fresh);
+    auth.languageCode = 'vi';
+    await auth.authStateReady();
+    return auth;
+  })().catch((error: unknown) => {
+    authentication = null;
+    throw error;
+  });
+  return authentication;
 }
 
 export function authenticationError(error: unknown): string {

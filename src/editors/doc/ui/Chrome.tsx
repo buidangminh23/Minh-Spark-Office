@@ -1,3 +1,4 @@
+import { isDesktop } from '../../../lib/desktop';
 import { useEffect, useMemo, useState } from 'react';
 import { useSettings, type DocTab } from '../../../lib/appSettings';
 import { openSettings } from '../../../components/settings/settingsShared';
@@ -158,7 +159,7 @@ export function Backstage({ onClose }: { onClose: () => void }) {
                   ctx.ui.toast('Trình duyệt chặn ghi clipboard', true);
                 }
               }}><Clipboard size={22} color="#2b579a" /><div><strong>Sao chép có định dạng</strong><span>Dán thẳng vào Gmail, Outlook, Google Docs</span></div></button>
-              <button className="export-tile" onClick={() => { window.location.href = `mailto:?subject=${encodeURIComponent(ctx.title)}`; }}><Mail size={22} color="#d7473c" /><div><strong>Gửi email</strong><span>Mở ứng dụng email với tiêu đề sẵn (đính kèm tệp .docx đã xuất)</span></div></button>
+              <button className="export-tile" onClick={() => { const mailto = `mailto:?subject=${encodeURIComponent(ctx.title)}`; if (isDesktop()) window.open(mailto, '_blank'); else window.location.href = mailto; }}><Mail size={22} color="#d7473c" /><div><strong>Gửi email</strong><span>Mở ứng dụng email với tiêu đề sẵn (đính kèm tệp .docx đã xuất)</span></div></button>
               <button className="export-tile" onClick={() => act(() => void exportAsDocx(ctx))}><FileText size={22} color="#2b579a" /><div><strong>Tải .docx để gửi</strong><span>Gửi qua Zalo, email, Drive</span></div></button>
             </div>
           </>

@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
-import { House, Plus, X } from 'lucide-react';
+import { ArrowLeft, House, Plus, X } from 'lucide-react';
 import { useAccount } from './Authentication';
 import { useUi } from './ui';
 import { WorkspaceStatus } from './WorkspaceStatus';
@@ -12,6 +12,7 @@ import { getSettings } from '../lib/appSettings';
 import { restoredSharedMeta } from '../lib/live/sharedTabs';
 import {
   cycleTarget,
+  frameShowsTab,
   gotoTarget,
   installTabHost,
   shortcutPlatform,
@@ -155,16 +156,35 @@ export function DocumentTabs({ onEditing, children }: { onEditing: (editing: boo
   const frames = useRef(new Map<string, HTMLIFrameElement>());
   const listeners = useRef(new Map<string, (ids: string[]) => void>());
   const closed = useRef<string[]>([]);
+  const latestStorage = useRef(storage);
+  latestStorage.current = storage;
   const latest = useRef(state);
   latest.current = state;
   const [loaded, setLoaded] = useState<ReadonlySet<string>>(() => new Set());
+  const [lost, setLost] = useState<ReadonlySet<string>>(() => new Set());
   if (state.active && !loaded.has(state.active)) setLoaded(new Set(loaded).add(state.active));
   const homeVisible = state.active === null;
   const ids = useMemo(() => state.tabs.flatMap((tab) => (loaded.has(tab.id) ? [tab.id] : [])), [state.tabs, loaded]);
   const loadedIds = useRef(ids);
   loadedIds.current = ids;
 
+  const markLost = (id: string, isLost: boolean) => setLost((current) => {
+    if (current.has(id) === isLost) return current;
+    const next = new Set(current);
+    if (isLost) next.add(id); else next.delete(id);
+    return next;
+  });
+  const frameLoaded = (id: string, frame: HTMLIFrameElement) => {
+    const showsTab = frameShowsTab(frame, id);
+    if (!showsTab) apis.current.delete(id);
+    markLost(id, !showsTab);
+  };
+  const backToDocument = (id: string) => {
+    const frame = frames.current.get(id);
+    if (frame) frame.src = tabFrameUrl(id);
+  };
   const drop = (id: string) => {
+    markLost(id, false);
     handoffs.current.delete(id);
     apis.current.delete(id);
     listeners.current.delete(id);
@@ -237,6 +257,7 @@ export function DocumentTabs({ onEditing, children }: { onEditing: (editing: boo
         return () => { if (listeners.current.get(id) === listener) listeners.current.delete(id); };
       },
       print: (request, frame) => printFrameDocument(request, frame),
+      workspace: () => latestStorage.current,
     };
     return installTabHost(host);
   }, [setState]);
@@ -309,8 +330,21 @@ export function DocumentTabs({ onEditing, children }: { onEditing: (editing: boo
               data-active={state.active === tab.id}
               inert={state.active !== tab.id}
               allow="clipboard-read; clipboard-write; fullscreen; camera; microphone; display-capture"
+              onLoad={(event) => frameLoaded(tab.id, event.currentTarget)}
             />
           ))}
+          {state.active && lost.has(state.active) && (
+            <div className="doc-frame-lost" role="alert">
+              <h2>Trang này không mở được trong tab</h2>
+              <p>Tab vừa chuyển sang một trang khác nên bị chặn. Bấm Quay lại để mở lại tài liệu.</p>
+              <div className="doc-frame-lost-actions">
+                <button type="button" className="btn btn-doc" autoFocus onClick={() => backToDocument(state.active!)}>
+                  <ArrowLeft size={16} aria-hidden="true" />Quay lại tài liệu
+                </button>
+                <button type="button" className="btn" onClick={() => void close(state.active!)}>Đóng tab</button>
+              </div>
+            </div>
+          )}
         </div>
         {homeVisible && <WorkspaceStatus />}
       </div>

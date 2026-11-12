@@ -24,7 +24,8 @@ const UPLOAD_BATCH_CHUNKS = 12;
 const DELETE_BATCH_CHUNKS = 400;
 const PARALLEL_BATCHES = 3;
 const PARALLEL_READS = 8;
-const READ_ATTEMPTS = 3;
+const READ_ATTEMPTS = 4;
+const READ_RETRY_MS = 400;
 
 const revisionPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
 const invalid = (): never => { throw new Error('cloud/invalid-data: Invalid cloud manifest or chunk'); };
@@ -72,6 +73,10 @@ async function inPool<T>(count: number, width: number, task: (index: number) => 
 
 class RevisionChanged extends Error {}
 class ChunkMissing extends Error {}
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+const isContention = (error: unknown) => /failed-precondition|aborted/.test(String((error as { code?: unknown })?.code ?? ''));
+
 
 type Snapshot = { data: Manifest; chunks: string[] } | null;
 
@@ -222,9 +227,10 @@ export function createFirestoreWorkspace(auth: Pick<Auth, 'currentUser'>, databa
         snapshot = await readOnce(id, file);
         break;
       } catch (error) {
-        const transient = error instanceof ChunkMissing || error instanceof RevisionChanged;
+        const transient = error instanceof ChunkMissing || error instanceof RevisionChanged || isContention(error);
         if (!transient) throw error;
-        if (attempt >= READ_ATTEMPTS) return invalid();
+        if (attempt >= READ_ATTEMPTS) throw new Error('cloud/read-raced: aborted while this file is being saved from another device');
+        await sleep(READ_RETRY_MS * attempt);
       }
     }
     assertAccount();
@@ -251,7 +257,7 @@ export function createFirestoreWorkspace(auth: Pick<Auth, 'currentUser'>, databa
       return entries;
     },
     read,
-    async write(record, expectedRevision) {
+    async write(record, expectedRevision, planned) {
       assertAccount();
       const id = record.id;
       const deleted = record.deleted;
@@ -264,11 +270,12 @@ export function createFirestoreWorkspace(auth: Pick<Auth, 'currentUser'>, databa
       const encoded = deleted ? { chunks: [], compressedBytes: 0, uncompressedBytes: 0, sha256: '' } : await encodeCloudPayload(record.content, record.versions, meta!);
       assertAccount();
       const schema = cloudSchemaFor(encoded);
-      const revision = crypto.randomUUID();
+      const revision = planned && revisionPattern.test(planned) ? planned : crypto.randomUUID();
       const replaced: { manifest: Manifest | null } = { manifest: null };
       const staged = schema === 2 && encoded.chunks.length > 0;
       const body = { schema, revision, deleted, meta, chunkCount: encoded.chunks.length, encoding: CLOUD_ENCODING, compressedBytes: encoded.compressedBytes, uncompressedBytes: encoded.uncompressedBytes, sha256: encoded.sha256 };
       activeUploads.add(revision);
+      let committing = false;
       try {
         try {
           if (staged) {
@@ -276,6 +283,7 @@ export function createFirestoreWorkspace(auth: Pick<Auth, 'currentUser'>, databa
             await writeChunks(file, revision, encoded.chunks);
             assertAccount();
           }
+          committing = true;
           await runTransaction(database, async (transaction) => {
             assertAccount();
             const existing = await transaction.get(file);
@@ -292,10 +300,12 @@ export function createFirestoreWorkspace(auth: Pick<Auth, 'currentUser'>, databa
             } else if (previous?.schema === 1) {
               for (let index = 0; index < previous.chunkCount; index++) transaction.delete(doc(file, 'chunks', String(index)));
             }
+            if (previous?.schema === 2 && previous.chunkCount > 0) updateJournal((current) => recordOrphanSuspect(current, previous.revision, id, previous.chunkCount, now()));
             transaction.set(file, { ...body, updatedAt: serverTimestamp() });
           });
         } catch (error) {
-          if (staged) await removeQuietly(file, revision, encoded.chunks.length);
+          const notCommitted = !committing || error instanceof RevisionChanged || String((error as Error)?.message ?? '').startsWith('cloud/upload-interrupted');
+          if (staged && notCommitted) await removeQuietly(file, revision, encoded.chunks.length);
           assertAccount();
           if (error instanceof RevisionChanged) throw new RemoteConflictError(await read(id));
           throw error;

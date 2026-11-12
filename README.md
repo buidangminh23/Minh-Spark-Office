@@ -94,3 +94,11 @@ After any change to `public/install-macos.sh` or the macOS release artifacts, ru
 ## Opening local files
 
 Windows installers register Open With entries and Default Apps capabilities for DOCX, XLSX, XLSM, XLS, CSV, TSV, PDF, TXT and MD without overwriting existing default handlers or UserChoice. The application offers a button to open Windows Default Apps settings. macOS advertises alternate document handlers and shows Finder instructions for choosing a default. The native queue accepts only OS-provided paths, bounds file sizes and waits until the current editor is closed before opening another document. A second launch focuses the existing window.
+
+## Linux releases
+
+The Linux x86_64 release includes a Debian package and an AppImage, built in Ubuntu 22.04 for Ubuntu 22.04+ and Debian 12+. The release orchestrator uses Docker in WSL (`MINHSPARK_LINUX_DISTRO`, default `Ubuntu-26.04`) and keeps its isolated build cache in `~/.cache/minh-spark-office/linux-build`. Run `npm run release:desktop` on the signing workstation to build and publish Windows, macOS and Linux together.
+
+For a standalone Linux build, prepare the frontend with `npm run build` and `node scripts/prepare-desktop.mjs`, then run `bash scripts/build-linux.sh` in the environment defined by `scripts/linux-build.Dockerfile`. Transfer the two artifacts and verify `SHA256SUMS-linux.txt` before running `node scripts/package-linux.mjs` on the signing workstation. Signing keys stay on Windows. The shared update manifest has separate `linux-x86_64-deb` and `linux-x86_64-appimage` targets; the generic Linux target uses AppImage.
+
+Install the Debian package with `sudo apt install ./MinhSparkOffice-<version>-linux-x64.deb`; apt resolves system WebKitGTK dependencies. Debian updates may request administrator authorization through polkit. For AppImage, grant executable permission and launch it from a writable directory. Systems without FUSE can use `--appimage-extract-and-run`. AppImage bundles WebKitGTK and media support but still requires a compatible Linux desktop and glibc. Linux printing uses the system print dialog. Document handlers are offered in Open With and do not replace existing defaults.

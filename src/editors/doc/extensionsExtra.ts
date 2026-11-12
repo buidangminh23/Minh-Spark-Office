@@ -392,6 +392,22 @@ export const ListStyles = Extension.create({
 
 const tableStyleKey = new PluginKey('tableStyleDecorations');
 
+const numberAttr = (raw: string | null) => (raw === null || raw === '' || Number.isNaN(Number(raw)) ? null : Number(raw));
+
+const tableDecoration = (attrs: Record<string, unknown>) => {
+  const out: Record<string, string> = { 'data-table-style': String(attrs.tableStyle ?? 'grid') };
+  const style: string[] = [];
+  if (attrs.autofit) out['data-autofit'] = String(attrs.autofit);
+  if (attrs.tableAlign) out['data-table-align'] = String(attrs.tableAlign);
+  if (attrs.tableWidth) style.push(`--table-width: ${Number(attrs.tableWidth)}%`);
+  if (attrs.cellPadding !== null && attrs.cellPadding !== undefined) {
+    out['data-cell-padding'] = '';
+    style.push(`--cell-pad: ${Number(attrs.cellPadding)}px`);
+  }
+  if (style.length) out.style = style.join('; ');
+  return out;
+};
+
 export const TableExtras = Extension.create({
   name: 'tableExtras',
   addGlobalAttributes() {
@@ -403,6 +419,41 @@ export const TableExtras = Extension.create({
             default: 'grid',
             parseHTML: (element: HTMLElement) => element.getAttribute('data-table-style') ?? 'grid',
             renderHTML: (attributes: Record<string, unknown>) => ({ 'data-table-style': attributes.tableStyle }),
+          },
+          autofit: {
+            default: null,
+            parseHTML: (element: HTMLElement) => element.getAttribute('data-autofit'),
+            renderHTML: (attributes: Record<string, unknown>) => (attributes.autofit ? { 'data-autofit': attributes.autofit } : {}),
+          },
+          tableAlign: {
+            default: null,
+            parseHTML: (element: HTMLElement) => element.getAttribute('data-table-align'),
+            renderHTML: (attributes: Record<string, unknown>) => (attributes.tableAlign ? { 'data-table-align': attributes.tableAlign } : {}),
+          },
+          tableWidth: {
+            default: null,
+            parseHTML: (element: HTMLElement) => numberAttr(element.getAttribute('data-table-width')),
+            renderHTML: (attributes: Record<string, unknown>) => (attributes.tableWidth ? { 'data-table-width': attributes.tableWidth } : {}),
+          },
+          cellPadding: {
+            default: null,
+            parseHTML: (element: HTMLElement) => numberAttr(element.getAttribute('data-cell-padding')),
+            renderHTML: (attributes: Record<string, unknown>) => (attributes.cellPadding !== null && attributes.cellPadding !== undefined ? { 'data-cell-padding': attributes.cellPadding } : {}),
+          },
+        },
+      },
+      {
+        types: ['tableRow'],
+        attributes: {
+          rowHeight: {
+            default: null,
+            parseHTML: (element: HTMLElement) => numberAttr(element.getAttribute('data-row-height')),
+            renderHTML: (attributes: Record<string, unknown>) => (attributes.rowHeight ? { 'data-row-height': attributes.rowHeight, style: `height: ${attributes.rowHeight}px` } : {}),
+          },
+          repeatHeader: {
+            default: null,
+            parseHTML: (element: HTMLElement) => (element.hasAttribute('data-repeat-header') ? true : null),
+            renderHTML: (attributes: Record<string, unknown>) => (attributes.repeatHeader ? { 'data-repeat-header': '' } : {}),
           },
         },
       },
@@ -419,6 +470,11 @@ export const TableExtras = Extension.create({
             parseHTML: (element: HTMLElement) => element.getAttribute('data-cell-borders'),
             renderHTML: (attributes: Record<string, unknown>) => (attributes.cellBorders ? { 'data-cell-borders': attributes.cellBorders } : {}),
           },
+          textDirection: {
+            default: null,
+            parseHTML: (element: HTMLElement) => element.getAttribute('data-text-direction'),
+            renderHTML: (attributes: Record<string, unknown>) => (attributes.textDirection ? { 'data-text-direction': attributes.textDirection } : {}),
+          },
         },
       },
     ];
@@ -431,7 +487,7 @@ export const TableExtras = Extension.create({
           const decorations: Decoration[] = [];
           state.doc.descendants((node, pos) => {
             if (node.type.name === 'table') {
-              decorations.push(Decoration.node(pos, pos + node.nodeSize, { 'data-table-style': String(node.attrs.tableStyle ?? 'grid') }));
+              decorations.push(Decoration.node(pos, pos + node.nodeSize, tableDecoration(node.attrs)));
               return false;
             }
             return true;

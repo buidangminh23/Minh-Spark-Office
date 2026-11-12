@@ -29,6 +29,7 @@ const PLAYER_SCRIPT = `
   var pageIndicator = document.getElementById('pageIndicator');
   var currentIdx = 0;
   if (deck.aspectRatio === '4:3') stage.className = 'slide-stage is-4x3';
+  else if (deck.aspectRatio && deck.aspectRatio !== '16:9') stage.style.setProperty('aspect-ratio', String(({ '16:10': 864, A4: 764, '1:1': 540 })[deck.aspectRatio] / 540 || 16 / 9));
 
   function backgroundCss(background) {
     if (!background || !background.value) return '#FFFFFF';

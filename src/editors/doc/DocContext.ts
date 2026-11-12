@@ -1,8 +1,9 @@
 import { currentAuthorName } from '../../lib/currentAuthor';
 import { createContext, useContext } from 'react';
 import type { Editor } from '@tiptap/react';
-import type { CommentItem, FileMeta, PageSettings, WorkspaceStorage } from '../../lib/storage';
+import type { CommentItem, DocContent, FileMeta, PageSettings, WorkspaceStorage } from '../../lib/storage';
 import type { useUi } from '../../components/ui';
+import type { MergeSource } from './mailMerge';
 
 export type ViewMode = 'print' | 'web' | 'read' | 'outline' | 'draft';
 export type EditMode = 'editing' | 'suggesting' | 'viewing';
@@ -12,7 +13,8 @@ export type DialogId = 'history' | 'mailmerge' | 'shortcuts' | 'signature' | 'ai
   | 'inkmath' | 'inkhelp'
   | 'pagesetup' | 'columns' | 'watermark' | 'pageborders' | 'themecolors' | 'themefonts' | 'linenumbers' | 'wrapoptions'
   | 'footnotes' | 'toc' | 'tableoffigures' | 'insertindex' | 'toa' | 'markcitation' | 'sources' | 'trackoptions' | 'markupfilter' | 'readability' | 'combine'
-  | 'zoom' | 'macros' | 'sidebyside' | 'autocorrect' | 'immersive' | 'commandpalette' | 'diagram' | 'preflight' | 'docToSlide' | 'print';
+  | 'zoom' | 'macros' | 'sidebyside' | 'autocorrect' | 'immersive' | 'commandpalette' | 'diagram' | 'preflight' | 'docToSlide' | 'print'
+  | 'envelopes' | 'labels' | 'mergeemail' | 'mergewizard' | 'mergerecipients' | 'mergematch' | 'mergeaddress' | 'mergegreeting' | 'mergerule' | 'mergefind' | 'mergecheck' | 'onlinepictures';
 
 export type InkTool = 'pen' | 'highlighter' | 'eraser' | 'select' | 'lasso';
 export type MarkupMode = 'all' | 'simple' | 'none' | 'original';
@@ -56,9 +58,11 @@ export type ViewState = {
   reviewPane: 'none' | 'vertical' | 'horizontal';
   commentsMode: 'contextual' | 'list';
   recording: boolean;
+  highlightMerge: boolean;
+  tableGridlines: boolean;
 };
 
-export type MergeData = { headers: string[]; rows: Record<string, string>[]; source: string };
+export type MergeData = MergeSource & { source: string };
 
 export type DocCtx = {
   storage: WorkspaceStorage;
@@ -92,6 +96,7 @@ export type DocCtx = {
   saveNow: () => void;
   onNewDocument: (html?: string) => void;
   onOpenFile: (file: File) => void;
+  onOpenSaved: (meta: FileMeta, content: DocContent) => void;
   onBack: () => void;
 };
 

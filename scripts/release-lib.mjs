@@ -59,11 +59,13 @@ export const releaseArtifactNames = (version) => [
   `MinhSparkOffice-${version}-windows-x64-en-US.msi`,
   `MinhSparkOffice-${version}-macos-arm64.dmg`,
   `MinhSparkOffice-${version}-macos-arm64.app.tar.gz`,
+  `MinhSparkOffice-${version}-linux-x64.deb`,
+  `MinhSparkOffice-${version}-linux-x64.AppImage`,
 ];
 
 export const RETAINED_RELEASES = 3;
 
-const UPDATER_SUFFIXES = ['-windows-x64-vi-Setup.exe', '-windows-x64-en-US.msi', '-macos-arm64.app.tar.gz'];
+const UPDATER_SUFFIXES = ['-windows-x64-vi-Setup.exe', '-windows-x64-en-US.msi', '-macos-arm64.app.tar.gz', '-linux-x64.deb', '-linux-x64.AppImage'];
 
 const compareVersions = (a, b) => {
   const left = a.split('.').map(Number);
@@ -81,6 +83,6 @@ export const retainedUpdaterFiles = (files, version, count = RETAINED_RELEASES) 
   return versions.flatMap((candidate) => UPDATER_SUFFIXES.map((suffix) => `MinhSparkOffice-${candidate}${suffix}`)).filter((name) => available.has(name));
 };
 
-export const EXPECTED_UPDATER_PLATFORMS = ['windows-x86_64-nsis', 'windows-x86_64', 'windows-x86_64-msi', 'darwin-aarch64'];
+export const EXPECTED_UPDATER_PLATFORMS = ['windows-x86_64-nsis', 'windows-x86_64', 'windows-x86_64-msi', 'darwin-aarch64', 'linux-x86_64', 'linux-x86_64-deb', 'linux-x86_64-appimage'];
 
 export const missingPlatforms = (manifest) => EXPECTED_UPDATER_PLATFORMS.filter((platform) => !manifest?.platforms?.[platform]?.signature);

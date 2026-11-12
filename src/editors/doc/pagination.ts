@@ -13,7 +13,8 @@ const SCHEDULE_MS = 60;
 
 export type VerticalAlign = 'top' | 'center' | 'justify' | 'bottom';
 export type PaginationConfig = { pageHeight: number; marginTop: number; marginBottom: number; zoom: number; contentWidth: number; verticalAlign?: VerticalAlign };
-export type PageBreakInfo = { pos: number; height: number; kind: 'block' | 'inline' | 'row'; colspan: number };
+export type RepeatHeader = { html: string[]; height: number };
+export type PageBreakInfo = { pos: number; height: number; kind: 'block' | 'inline' | 'row'; colspan: number; header?: RepeatHeader };
 export type PageNote = { text: string; number: number };
 export type PageExtra = { pos: number; height: number; inline?: boolean };
 export type PaginationResult = { pages: number; breaks: PageBreakInfo[]; notes: PageNote[][]; extras: PageExtra[] };
@@ -177,8 +178,8 @@ function computeLayout(view: EditorView, config: PaginationConfig, current: Page
   let noteNumber = 0;
 
   const yOf = (rectY: number, pos: number) => (rectY - paperTop) / z - removedAt(pos) + shift;
-  const addBreak = (pos: number, height: number, kind: PageBreakInfo['kind'], colspan = 1) => {
-    breaks.push({ pos, height, kind, colspan });
+  const addBreak = (pos: number, height: number, kind: PageBreakInfo['kind'], colspan = 1, header?: RepeatHeader) => {
+    breaks.push({ pos, height: height + (header?.height ?? 0), kind, colspan, ...(header ? { header } : {}) });
     shift += height;
     page += 1;
     breakOfPage[page] = breaks.length - 1;
@@ -208,7 +209,7 @@ function computeLayout(view: EditorView, config: PaginationConfig, current: Page
     if (bottom() + nextMin > limit() && top() > contentTop(page) + 2) {
       const split = unit.kind === 'text' && !unit.keepNext ? findSplit(view, unit, limit(), yOf) : null;
       if (split) addBreak(split.pos, contentTop(page + 1) - split.lineTop, 'inline');
-      else addBreak(unit.breakPos, contentTop(page + 1) - top(), blockKind, unit.colspan);
+      else addBreak(unit.breakPos, contentTop(page + 1) - top(), blockKind, unit.colspan, unit.kind === 'row' ? repeatHeaderFor(view, unit.pos, z) : undefined);
     }
 
     let guard = 0;
@@ -264,11 +265,45 @@ function computeLayout(view: EditorView, config: PaginationConfig, current: Page
   return { pages, breaks, notes, extras };
 }
 
+function repeatHeaderFor(view: EditorView, rowPos: number, z: number): RepeatHeader | undefined {
+  const $row = view.state.doc.resolve(rowPos);
+  const table = $row.parent;
+  if (table.type.name !== 'table') return undefined;
+  const rowIndex = $row.index();
+  const html: string[] = [];
+  let height = 0;
+  let pos = $row.start();
+  for (let index = 0; index < rowIndex; index++) {
+    const row = table.child(index);
+    if (!row.attrs.repeatHeader) break;
+    const dom = view.nodeDOM(pos);
+    if (dom instanceof HTMLElement) {
+      const clone = dom.cloneNode(true) as HTMLElement;
+      clone.removeAttribute('data-repeat-header');
+      clone.querySelectorAll('[contenteditable], .column-resize-handle').forEach((el) => (el.classList.contains('column-resize-handle') ? el.remove() : el.removeAttribute('contenteditable')));
+      html.push(clone.outerHTML);
+      height += dom.getBoundingClientRect().height / z;
+    }
+    pos += row.nodeSize;
+  }
+  return html.length && html.length < table.childCount ? { html, height } : undefined;
+}
+
+const repeatRowNode = (html: string) => {
+  const holder = document.createElement('tbody');
+  holder.innerHTML = html;
+  const row = holder.firstElementChild as HTMLElement;
+  row.classList.add('repeat-header-row');
+  row.setAttribute('contenteditable', 'false');
+  row.setAttribute('aria-hidden', 'true');
+  return row;
+};
+
 const sameBreaks = (a: PageBreakInfo[], b: PageBreakInfo[]) => a.length === b.length && a.every((item, i) => item.pos === b[i].pos && item.kind === b[i].kind && Math.abs(item.height - b[i].height) < 1);
 const sameExtras = (a: PageExtra[], b: PageExtra[]) => a.length === b.length && a.every((item, i) => item.pos === b[i].pos && Math.abs(item.height - b[i].height) < 1);
 
 function spacerNode(info: PageBreakInfo) {
-  const height = `calc(${(info.height - pageGap()).toFixed(2)}px + var(--page-gap))`;
+  const height = `calc(${(info.height - (info.header?.height ?? 0) - pageGap()).toFixed(2)}px + var(--page-gap))`;
   if (info.kind === 'row') {
     const row = document.createElement('tr');
     row.className = 'page-spacer-row';
@@ -298,6 +333,11 @@ const buildSet = (doc: PMNode, breaks: PageBreakInfo[], extras: PageExtra[]) => 
     key: `page-${info.kind}-${info.height.toFixed(1)}`,
     ...(info.kind === 'inline' ? { marks: [] } : {}),
   })),
+  ...breaks.flatMap((info) => (info.header?.html ?? []).map((html, index) => Decoration.widget(info.pos, () => repeatRowNode(html), {
+    side: -0.5 + index * 0.001,
+    ignoreSelection: true,
+    key: `repeat-${info.pos}-${index}-${info.height.toFixed(1)}`,
+  }))),
   ...extras.map((info) => Decoration.widget(info.pos, () => extraNode(info), { side: 0, ignoreSelection: true, key: `extra-${info.height.toFixed(1)}`, ...(info.inline ? { marks: [] } : {}) })),
 ]);
 

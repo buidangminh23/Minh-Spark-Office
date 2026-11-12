@@ -11,6 +11,10 @@ import { ensureFont, FONT_CATALOG, GROUP_LABELS } from '../fonts';
 import { listObjects, patchObject, selectedImage, WRAP_LABELS, wrapOf, zOrder, type WrapKind } from '../layoutObjects';
 import Modal from './Modal';
 import './layout.css';
+import ComboBox from '../../../components/ComboBox';
+
+const WATERMARK_TEXTS = ['BẢN NHÁP', 'MẬT', 'TUYỆT MẬT', 'LƯU HÀNH NỘI BỘ', 'KHẨN', 'MẪU', 'CONFIDENTIAL', 'DRAFT'];
+const WATERMARK_SIZES = [24, 32, 40, 48, 64, 80, 96, 120, 160, 200];
 
 const CM = 37.8;
 const toCm = (px: number) => Math.round((px / CM) * 100) / 100;
@@ -164,11 +168,10 @@ function WatermarkDialog({ onClose }: { onClose: () => void }) {
           <div className="page-setup-form">
             {kind === 'text' ? (
               <>
-                <label className="field"><span className="field-label">Nội dung</span><input className="text-field" list="watermark-texts" value={text} onChange={(e) => setText(e.target.value)} /></label>
-                <datalist id="watermark-texts">{['BẢN NHÁP', 'MẬT', 'TUYỆT MẬT', 'LƯU HÀNH NỘI BỘ', 'KHẨN', 'MẪU', 'CONFIDENTIAL', 'DRAFT'].map((item) => <option key={item} value={item} />)}</datalist>
+                <div className="field"><span className="field-label">Nội dung</span><ComboBox label="Nội dung hình mờ" value={text} options={WATERMARK_TEXTS} onCommit={setText} onInput={setText} /></div>
                 <div className="form-grid">
                   <label className="field"><span className="field-label">Phông</span><FontSelect value={font} onChange={setFont} /></label>
-                  <label className="field"><span className="field-label">Cỡ chữ (px)</span><input className="text-field" type="number" min={16} max={200} value={size} onChange={(e) => setSize(Number(e.target.value) || 64)} /></label>
+                  <div className="field"><span className="field-label">Cỡ chữ (px)</span><ComboBox label="Cỡ chữ hình mờ (px)" value={size} options={WATERMARK_SIZES} numeric={{ min: 16, max: 200, step: 1 }} onCommit={(value) => setSize(Number(value))} /></div>
                   <label className="field"><span className="field-label">Màu</span><input className="text-field color-field" type="color" value={color} onChange={(e) => setColor(e.target.value)} /></label>
                 </div>
               </>

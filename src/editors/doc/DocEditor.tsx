@@ -44,6 +44,8 @@ import './ui/view.css';
 import { INSERT_EXTENSIONS } from './extInsert';
 import { LAYOUT_EXTENSIONS } from './extLayout';
 import { REVIEW_EXTENSIONS } from './extReview';
+import { MAILING_EXTENSIONS } from './extMailings';
+import { consumePrintOnOpen } from './docLaunch';
 import { VIEW_EXTENSIONS } from './extView';
 import { NODE_EDITORS } from './nodeEditors';
 import InsertExtras from './ui/InsertExtras';
@@ -51,13 +53,16 @@ import DrawExtras from './ui/DrawExtras';
 import LayoutExtras, { LayoutPanels } from './ui/LayoutExtras';
 import ReviewExtras, { ReviewPanels } from './ui/ReviewExtras';
 import ViewExtras, { SplitPane, ViewPanels } from './ui/ViewExtras';
+import MailingsExtras from './ui/MailingsExtras';
+import OnlinePicturesDialog from './ui/OnlinePicturesDialog';
+import MailingsTab from './ui/tabs/MailingsTab';
 
 import HomeTab from './ui/tabs/HomeTab';
 import { AddinPanel } from '../../addins/AddinPane';
 import { docHost } from '../../addins/hosts';
 import InsertTab from './ui/tabs/InsertTab';
 import { DesignTab, LayoutTab } from './ui/tabs/LayoutTabs';
-import { MailingsTab, ReferencesTab, ReviewTab } from './ui/tabs/ReviewTabs';
+import { ReferencesTab, ReviewTab } from './ui/tabs/ReviewTabs';
 import DrawTab from './ui/tabs/DrawTab';
 import { HelpTab, OutlineTab, ViewTab, ZOOM_STEPS } from './ui/tabs/ViewTabs';
 import { ImageTab, TableTab } from './ui/tabs/ContextTabs';
@@ -95,6 +100,7 @@ interface DocEditorProps {
   onBack: () => void;
   onNewDocument?: (html?: string) => void;
   onOpenFile?: (file: File) => void;
+  onOpenSaved?: (meta: FileMeta, content: DocContent) => void;
   live?: DocLiveBinding;
 }
 
@@ -116,7 +122,7 @@ const AUTO_VERSION_MS = 10 * 60 * 1000;
 const VIEW_KEY = 'minh-docs-view';
 
 const loadView = (): ViewState => {
-  const base: ViewState = { inkTool: null, inkColor: '#1d4ed8', inkWidth: 3, focusMode: false, dark: false, ribbonCollapsed: false, zoom: 100, viewMode: 'print', editMode: 'editing', showRuler: true, showGrid: false, showMarks: false, showNav: true, spellcheck: true, sidePanel: null, showFind: false, findReplace: false, hideInk: false, inkInput: 'any', inkEraser: 'stroke', inkToShape: false, inkRuler: null, inkReplay: null, penId: null, pageMove: 'vertical', splitView: false, sideBySide: null, syncScroll: true, outlineLevel: 9, markup: 'all', markupComments: true, markupInsDel: true, markupFormatting: true, markupAuthor: null, reviewPane: 'none', commentsMode: 'list', recording: false };
+  const base: ViewState = { inkTool: null, inkColor: '#1d4ed8', inkWidth: 3, focusMode: false, dark: false, ribbonCollapsed: false, zoom: 100, viewMode: 'print', editMode: 'editing', showRuler: true, showGrid: false, showMarks: false, showNav: true, spellcheck: true, sidePanel: null, showFind: false, findReplace: false, hideInk: false, inkInput: 'any', inkEraser: 'stroke', inkToShape: false, inkRuler: null, inkReplay: null, penId: null, pageMove: 'vertical', splitView: false, sideBySide: null, syncScroll: true, outlineLevel: 9, markup: 'all', markupComments: true, markupInsDel: true, markupFormatting: true, markupAuthor: null, reviewPane: 'none', commentsMode: 'list', recording: false, highlightMerge: false, tableGridlines: false };
   try {
     const saved = JSON.parse(localStorage.getItem(VIEW_KEY) ?? '{}') as Partial<ViewState>;
     return { ...base, viewMode: saved.viewMode === 'read' ? 'print' : saved.viewMode ?? base.viewMode, ...viewFromSettings({ ribbonCollapsed: saved.ribbonCollapsed ?? base.ribbonCollapsed }) };
@@ -145,7 +151,7 @@ const applyFormat = (editor: Editor, format: CopiedFormat) => {
 
 const MIN_AUTO_ZOOM = 25;
 
-export default function DocEditor({ meta, content, onSave, onBack, onNewDocument, onOpenFile, live }: DocEditorProps) {
+export default function DocEditor({ meta, content, onSave, onBack, onNewDocument, onOpenFile, onOpenSaved, live }: DocEditorProps) {
   const ui = useUi();
   const { user } = useAccount();
   const storage = useWorkspace();
@@ -239,6 +245,7 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
       ...INSERT_EXTENSIONS,
       ...LAYOUT_EXTENSIONS,
       ...REVIEW_EXTENSIONS,
+      ...MAILING_EXTENSIONS,
       ...VIEW_EXTENSIONS,
       ...(live ? [Collaboration.configure({ document: live.ydoc, field: 'default' }), CollaborationCaret.configure({ provider: { awareness: live.awareness }, user: live.user })] : []),
     ],
@@ -279,6 +286,10 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
   useEffect(() => {
     setRefs(editor, page.sources ?? [], page.citationStyle ?? 'apa');
   }, [editor, page.sources, page.citationStyle]);
+
+  useEffect(() => {
+    if (!editor.isDestroyed) editor.commands.setMergePreview(merge, merge && mergePreview !== null ? mergePreview : null);
+  }, [editor, merge, mergePreview]);
 
   useEffect(() => {
     if (!editor) return;
@@ -490,6 +501,12 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
 
   const print = useCallback(() => setDialog('print'), []);
 
+  useEffect(() => {
+    if (!consumePrintOnOpen(meta.id)) return;
+    const timer = window.setTimeout(() => setDialog('print'), 400);
+    return () => window.clearTimeout(timer);
+  }, [meta.id]);
+
   const ctx: DocCtx = {
     storage,
     editor, ui, meta, title, page, setPage, view, setView, comments,
@@ -498,6 +515,7 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
     readAloud, dictation, formatPainter, markDirty, saveNow,
     onNewDocument: onNewDocument ?? (() => ui.toast('Mở danh sách tệp để tạo tài liệu mới')),
     onOpenFile: onOpenFile ?? (() => undefined),
+    onOpenSaved: onOpenSaved ?? (() => ui.toast('Đã lưu tệp mới trong danh sách tệp')),
     onBack: () => { void persist(false).then((saved) => { if (saved) onBack(); }); },
   };
   ctxRef.current = ctx;
@@ -712,6 +730,8 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
         <LayoutExtras dialog={dialog} onClose={closeDialog} />
         <ReviewExtras dialog={dialog} onClose={closeDialog} />
         <ViewExtras dialog={dialog} onClose={closeDialog} />
+        <MailingsExtras dialog={dialog} onClose={closeDialog} />
+        {dialog === 'onlinepictures' && <OnlinePicturesDialog onClose={closeDialog} />}
         </SafeBoundary>
       </div>
     </DocContext.Provider>

@@ -14,7 +14,7 @@ export const SLIDE_FONT_SIZES = [12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48,
 
 export const SLIDE_RIBBON_TABS: ReadonlyArray<readonly [SlideRibbonTabId, string]> = [
   ['home', 'Trang đầu'], ['insert', 'Chèn'], ['draw', 'Vẽ'], ['design', 'Thiết kế'], ['transitions', 'Chuyển tiếp'],
-  ['animations', 'Hoạt hình'], ['slideshow', 'Trình chiếu'], ['review', 'Xem lại'], ['view', 'Xem'],
+  ['animations', 'Hoạt hình'], ['slideshow', 'Trình chiếu'], ['record', 'Ghi'], ['review', 'Xem lại'], ['view', 'Xem'],
 ];
 
 export const SLIDE_QAT_LABELS: Record<SlideQatCommand, string> = {
@@ -34,8 +34,20 @@ export const SLIDE_QAT_LABELS: Record<SlideQatCommand, string> = {
 export const LASER_COLORS: Record<SlideLaserColor, string> = { red: '#FF0033', green: '#16C60C', blue: '#0078D4' };
 export const PEN_COLORS: Record<SlidePenColor, string> = { red: '#EF4444', blue: '#2563EB', green: '#16A34A', black: '#0F172A', yellow: '#FACC15' };
 
-export function slideBaseWidth(aspectRatio: SlideAspectRatio) {
-  return aspectRatio === '4:3' ? 720 : 960;
+export const SLIDE_ASPECTS: ReadonlyArray<{ id: SlideAspectRatio; label: string; description: string; width: number; widthIn: number; heightIn: number }> = [
+  { id: '16:9', label: 'Màn hình rộng (16:9)', description: '33,867 cm x 19,05 cm', width: 960, widthIn: 13.333, heightIn: 7.5 },
+  { id: '4:3', label: 'Chuẩn (4:3)', description: '25,4 cm x 19,05 cm', width: 720, widthIn: 10, heightIn: 7.5 },
+  { id: '16:10', label: 'Màn hình 16:10', description: '25,4 cm x 15,875 cm', width: 864, widthIn: 12, heightIn: 7.5 },
+  { id: 'A4', label: 'Giấy A4 (297 x 210 mm)', description: '27,517 cm x 19,05 cm', width: 764, widthIn: 10.61, heightIn: 7.5 },
+  { id: '1:1', label: 'Vuông (1:1)', description: '19,05 cm x 19,05 cm', width: 540, widthIn: 7.5, heightIn: 7.5 },
+];
+
+export function slideBaseWidth(aspectRatio: SlideAspectRatio | undefined) {
+  return SLIDE_ASPECTS.find((item) => item.id === aspectRatio)?.width ?? 960;
+}
+
+export function slideAspectInfo(aspectRatio: SlideAspectRatio | undefined) {
+  return SLIDE_ASPECTS.find((item) => item.id === aspectRatio) ?? SLIDE_ASPECTS[0];
 }
 
 export function gridStepPercent(gridSize: number, aspectRatio: SlideAspectRatio) {

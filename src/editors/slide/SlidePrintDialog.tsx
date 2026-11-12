@@ -3,6 +3,7 @@ import type { PresentationData, SlideData } from '../../lib/slideTypes';
 import { PrintDialog } from '../../components/print/PrintDialog';
 import type { PrintItem, PrintSource } from '../../components/print/printTypes';
 import { SlideCanvas } from './SlideCanvas';
+import { slideBaseWidth } from '../../lib/settings/slideOptions';
 
 type Layout = 'full' | 'notes' | 'h2' | 'h3' | 'h4' | 'h6' | 'h9';
 
@@ -64,7 +65,7 @@ type Props = { presentation: PresentationData; title: string; activeIndex: numbe
 export function SlidePrintDialog({ presentation, title, activeIndex, onClose }: Props) {
   const [layout, setLayout] = useState<Layout>('full');
   const [includeHidden, setIncludeHidden] = useState(false);
-  const width = presentation.aspectRatio === '4:3' ? 720 : 960;
+  const width = slideBaseWidth(presentation.aspectRatio);
   const option = LAYOUTS.find((l) => l.value === layout)!;
 
   const source: PrintSource = useMemo(() => {

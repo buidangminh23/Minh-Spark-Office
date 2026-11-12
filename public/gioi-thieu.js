@@ -31,7 +31,7 @@
       const response = await fetch(STATS_URL, { cache: 'no-store' });
       if (!response.ok) throw new Error(String(response.status));
       const stats = await response.json();
-      for (const key of ['users', 'downloadsWindows', 'downloadsMac']) {
+      for (const key of ['users', 'downloadsWindows', 'downloadsMac', 'downloadsLinux']) {
         if (Number.isFinite(stats[key])) animate(key, stats[key]);
       }
       live.dataset.state = 'on';
@@ -72,9 +72,12 @@
     });
   });
 
-  if (/Mac/.test(navigator.platform) && !/iPhone|iPad/.test(navigator.userAgent)) {
-    const hero = document.getElementById('hero-download');
-    hero.href = '#macos';
-    hero.querySelector('use').setAttribute('href', '#i-apple');
+  const platform = /Mac/.test(navigator.platform) && !/iPhone|iPad/.test(navigator.userAgent)
+    ? 'macos'
+    : /Linux/.test(navigator.userAgent) && !/Android/.test(navigator.userAgent) ? 'linux' : 'windows';
+  for (const name of ['windows', 'macos', 'linux']) {
+    const button = document.getElementById(`hero-${name}`);
+    button.classList.toggle('lp-btn-primary', name === platform);
+    button.classList.toggle('lp-btn-ghost', name !== platform);
   }
 })();

@@ -3,6 +3,7 @@ import JSZip from 'jszip';
 import type { PresentationData, SlideBackground, SlideElement, SlideTransition } from './slideTypes';
 import { downloadBlob } from './download';
 import { getShapeDef, parseSimplePath } from './slideShapes';
+import { slideAspectInfo } from './settings/slideOptions';
 
 const DEFAULT_SHAPE_FILL = '0284C7';
 const WHITE = 'FFFFFF';
@@ -110,7 +111,7 @@ export function mapShapeLine(el: SlideElement): PptxGenJS.ShapeLineProps | undef
 const SLIDE_HEIGHT_IN = 7.5;
 
 function slideWidthIn(presentation: PresentationData): number {
-  return presentation.aspectRatio === '4:3' ? 10 : 13.333;
+  return slideAspectInfo(presentation.aspectRatio).widthIn;
 }
 
 function fontFace(el: SlideElement, fallback = 'Segoe UI'): string {
@@ -274,7 +275,12 @@ export function createPptxDocument(presentation: PresentationData): PptxGenJS {
   const pres = new PptxGenJS();
   const widthIn = slideWidthIn(presentation);
 
-  pres.layout = presentation.aspectRatio === '4:3' ? 'LAYOUT_4x3' : 'LAYOUT_WIDE';
+  if (presentation.aspectRatio === '4:3') pres.layout = 'LAYOUT_4x3';
+  else if (presentation.aspectRatio === '16:9' || !presentation.aspectRatio) pres.layout = 'LAYOUT_WIDE';
+  else {
+    pres.defineLayout({ name: 'MINH_CUSTOM', width: widthIn, height: SLIDE_HEIGHT_IN });
+    pres.layout = 'MINH_CUSTOM';
+  }
   pres.title = presentation.title || 'Minh Spark Office Presentation';
   pres.author = presentation.author || 'Minh Spark Office';
 

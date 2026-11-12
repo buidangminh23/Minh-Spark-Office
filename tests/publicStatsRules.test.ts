@@ -18,6 +18,10 @@ describe('publicStats rules', { skip: !process.env.FIRESTORE_EMULATOR_HOST }, ()
     await assertSucceeds(setDoc(ref, { count: increment(1) }, { merge: true }));
     await assertSucceeds(updateDoc(ref, { count: increment(1) }));
     await assertSucceeds(getDoc(ref));
+    const linux = doc(db, 'publicStats', 'downloadsLinux');
+    await assertSucceeds(setDoc(linux, { count: increment(1) }, { merge: true }));
+    await assertSucceeds(getDoc(linux));
+    await assertFails(updateDoc(linux, { count: increment(5) }));
     await assertFails(updateDoc(ref, { count: increment(5) }));
     await assertFails(updateDoc(ref, { count: 0 }));
     await assertFails(updateDoc(ref, { count: increment(1), note: 'x' }));

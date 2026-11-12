@@ -3,17 +3,32 @@ import { useMemo } from 'react';
 import { PRINT_ROOT_ID } from '../../lib/print/printRun';
 import type { PrintSheet } from './printPages';
 import type { OutputPage, PrintRun } from './printOutput';
-import type { PrintSettings, PrintSource } from './printTypes';
+import type { PrintBandText, PrintSettings, PrintSource } from './printTypes';
+import { expandHeaderFooter } from '../../lib/print/headerFooter';
 
 const today = () => new Date().toLocaleDateString('vi-VN');
 const mm = (value: number) => `${value}mm`;
+const hasText = (band?: PrintBandText) => Boolean(band && (band.left || band.center || band.right));
+
+function CustomBand({ band, position, offset, margins, source, number, total }: { band: PrintBandText; position: 'top' | 'bottom'; offset: number; margins: { left: number; right: number }; source: PrintSource; number: number; total: number }) {
+  const ctx = { page: number, pages: total, sheet: source.bands?.sheet ?? '', file: source.bands?.file ?? source.title, now: new Date() };
+  return (
+    <div className={`mp-band mp-band-${position} mp-band-custom`} style={{ [position]: mm(offset), left: mm(margins.left), right: mm(margins.right) }}>
+      <span>{expandHeaderFooter(band.left, ctx)}</span>
+      <span>{expandHeaderFooter(band.center, ctx)}</span>
+      <span>{expandHeaderFooter(band.right, ctx)}</span>
+    </div>
+  );
+}
 
 export function PrintSheetView({ sheet, source, settings, number, total, guides = false }: { sheet: PrintSheet; source: PrintSource; settings: PrintSettings; number: number; total: number; guides?: boolean }) {
   const { margins, paper } = sheet;
   const bandTop = margins.top >= settings.headerMm + 3;
   const bandBottom = margins.bottom >= settings.footerMm + 3;
-  const showHeader = bandTop && (settings.showTitle || settings.showDate) && !source.fixedPaper;
-  const showFooter = bandBottom && settings.pageNumbers && !source.fixedPaper;
+  const customHeader = hasText(source.bands?.header) ? source.bands?.header : undefined;
+  const customFooter = hasText(source.bands?.footer) ? source.bands?.footer : undefined;
+  const showHeader = bandTop && !customHeader && (settings.showTitle || settings.showDate) && !source.fixedPaper;
+  const showFooter = bandBottom && !customFooter && settings.pageNumbers && !source.fixedPaper;
   return (
     <div
       className={`mp-sheet ${settings.grayscale ? 'is-gray' : ''}`}
@@ -41,6 +56,8 @@ export function PrintSheetView({ sheet, source, settings, number, total, guides 
           <span>{settings.showDate ? today() : ''}</span>
         </div>
       )}
+      {customHeader && bandTop && <CustomBand band={customHeader} position="top" offset={settings.headerMm} margins={margins} source={source} number={number} total={total} />}
+      {customFooter && bandBottom && <CustomBand band={customFooter} position="bottom" offset={settings.footerMm} margins={margins} source={source} number={number} total={total} />}
       {showFooter && (
         <div className="mp-band mp-band-bottom" style={{ bottom: mm(settings.footerMm), left: mm(margins.left), right: mm(margins.right) }}>
           <span>Trang {number} / {total}</span>
