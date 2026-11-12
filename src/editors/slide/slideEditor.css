@@ -560,6 +560,80 @@
   outline-offset: 1px;
 }
 
+.ppt-element.is-multi-selected {
+  outline: 1.5px solid var(--ppt-accent);
+}
+
+.ppt-selection-frame {
+  position: absolute;
+  border: 1px dashed #64748B;
+  pointer-events: none;
+  z-index: 880;
+}
+
+.ppt-marquee {
+  position: absolute;
+  border: 1px solid var(--ppt-accent);
+  background: rgba(216, 59, 1, 0.08);
+  pointer-events: none;
+  z-index: 890;
+}
+
+.ppt-tool-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+  background: transparent;
+  border-color: transparent;
+}
+
+.ppt-shape-gallery {
+  position: fixed;
+  z-index: 1300;
+  overflow-y: auto;
+  padding: 10px 12px 12px;
+  background: #FFFFFF;
+  border: 1px solid #CBD5E1;
+  border-radius: 6px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+}
+
+.ppt-shape-gallery h5 {
+  margin: 8px 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #475569;
+}
+
+.ppt-shape-gallery section:first-child h5 {
+  margin-top: 0;
+}
+
+.ppt-shape-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(10, 28px);
+  gap: 4px;
+}
+
+.ppt-shape-gallery-grid button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: #334155;
+  cursor: pointer;
+}
+
+.ppt-shape-gallery-grid button:hover {
+  background: var(--ppt-accent-light);
+  border-color: var(--ppt-accent);
+  color: var(--ppt-accent);
+}
+
 /* Resize Handles */
 .ppt-resize-handle {
   position: absolute;
@@ -636,6 +710,10 @@
   padding: 8px;
   pointer-events: none;
   font-weight: 600;
+}
+
+.ppt-shape-text-overlay > * {
+  min-width: 0;
 }
 
 /* Table Element */

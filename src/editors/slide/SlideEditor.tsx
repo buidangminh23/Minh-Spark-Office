@@ -58,6 +58,19 @@ import { SlideDiffModal } from './SlideDiffModal';
 import { SlideMasterModal } from './SlideMasterModal';
 import { SlideSheetsLinkModal } from './SlideSheetsLinkModal';
 import { SlideCustomShowsModal } from './SlideCustomShowsModal';
+import {
+  alignElements,
+  applyPatch,
+  canGroup,
+  canUngroup,
+  distributeElements,
+  expandSelection,
+  groupElements,
+  ungroupElements,
+  type AlignMode,
+  type DistributeMode,
+  type ElementPatch,
+} from '../../lib/slideArrange';
 import { isEditableKeyTarget } from './slideKeyTarget';
 import { playSlideTransition, previewSlideAnimations } from './slideFx';
 import {
@@ -67,6 +80,8 @@ import {
   getAnimationDef,
 } from '../../lib/slideEffects';
 import './slideEditor.css';
+
+const aspectRatioValue = (ratio: PresentationData['aspectRatio']) => (ratio === '4:3' ? 4 / 3 : 16 / 9);
 
 const exportToPptx = async (...args: Parameters<typeof import('../../lib/pptxExport').exportToPptx>) =>
   (await import('../../lib/pptxExport')).exportToPptx(...args);
@@ -103,7 +118,16 @@ export default function SlideEditor({
   const ui = useUi();
   const [presentation, setPresentation] = useState<PresentationData>(content.presentation);
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
-  const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
+  const [selection, setSelection] = useState<{ primary: string | null; ids: string[] }>({ primary: null, ids: [] });
+  const selectedElementId = selection.primary;
+  const selectedIds = selection.ids;
+  const setSelectedElementId = useCallback((id: string | null) => {
+    setSelection({ primary: id, ids: id ? [id] : [] });
+  }, []);
+  const selectElements = useCallback((ids: string[], primary: string | null) => {
+    setSelection({ primary: primary ?? ids[ids.length - 1] ?? null, ids });
+  }, []);
+  const historyHoldRef = useRef(false);
   const [activeTab, setActiveTab] = useState<RibbonTab>('home');
   const [zoomSetting, setZoomSetting] = useState<number | null>(null);
   const [fitZoom, setFitZoom] = useState(100);
@@ -172,7 +196,7 @@ export default function SlideEditor({
   const [copiedAnimation, setCopiedAnimation] = useState<ElementAnimation | null>(null);
 
   // Clipboard
-  const [clipboardElement, setClipboardElement] = useState<SlideElement | null>(null);
+  const [clipboardElements, setClipboardElements] = useState<SlideElement[]>([]);
 
   // Undo / Redo stacks
   const [undoStack, setUndoStack] = useState<PresentationData[]>([]);
@@ -184,6 +208,7 @@ export default function SlideEditor({
 
   const currentSlide = presentation.slides[activeSlideIndex] || presentation.slides[0];
   const selectedElement = currentSlide?.elements.find((el) => el.id === selectedElementId) || null;
+  const selectedElements = currentSlide?.elements.filter((el) => selectedIds.includes(el.id)) ?? [];
 
   // Auto-switch contextual tab when element is selected
   const selectedElementType = selectedElement?.type;
@@ -318,6 +343,7 @@ export default function SlideEditor({
   });
 
   const duplicateElementRef = useRef<() => void>(() => {});
+  const groupShortcutRef = useRef<(ungroup: boolean) => void>(() => {});
 
   // Global Keyboard Shortcuts
   useEffect(() => {
@@ -349,6 +375,10 @@ export default function SlideEditor({
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
         e.preventDefault();
         if (selectedElementId) duplicateElementRef.current();
+      } else if ((e.ctrlKey || e.metaKey) && key === 'g') {
+        if (isEditableKeyTarget(e.target)) return;
+        e.preventDefault();
+        groupShortcutRef.current(e.shiftKey);
       } else if (e.key === 'F5') {
         e.preventDefault();
         if (e.shiftKey) {
@@ -365,8 +395,41 @@ export default function SlideEditor({
   }, [handleExplicitSave, handleUndo, handleRedo, selectedElementId]);
 
   // Update elements
-  const updateSlideElement = (elementId: string, updates: Partial<SlideElement>) => {
+  const beginInteraction = () => {
+    if (historyHoldRef.current) return;
     pushHistory(presentation);
+    historyHoldRef.current = true;
+  };
+
+  const endInteraction = () => {
+    historyHoldRef.current = false;
+  };
+
+  const updateSlideElements = (patch: ElementPatch) => {
+    if (Object.keys(patch).length === 0) return;
+    if (!historyHoldRef.current) pushHistory(presentation);
+    setPresentation((current) => ({
+      ...current,
+      slides: current.slides.map((s, idx) =>
+        idx === activeSlideIndex ? { ...s, elements: applyPatch(s.elements, patch) } : s
+      ),
+    }));
+  };
+
+  const deleteSlideElements = (ids: string[]) => {
+    if (ids.length === 0) return;
+    pushHistory(presentation);
+    setPresentation((current) => ({
+      ...current,
+      slides: current.slides.map((s, idx) =>
+        idx === activeSlideIndex ? { ...s, elements: s.elements.filter((el) => !ids.includes(el.id)) } : s
+      ),
+    }));
+    setSelectedElementId(null);
+  };
+
+  const updateSlideElement = (elementId: string, updates: Partial<SlideElement>) => {
+    if (!historyHoldRef.current) pushHistory(presentation);
     setPresentation((current) => ({
       ...current,
       slides: current.slides.map((s, idx) => {
@@ -395,23 +458,40 @@ export default function SlideEditor({
   };
 
   // Duplicate Element
-  const handleDuplicateElement = () => {
-    if (!selectedElement) return;
-    pushHistory(presentation);
-    const duplicated: SlideElement = {
-      ...selectedElement,
-      id: `el-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      x: Math.min(90, selectedElement.x + 3),
-      y: Math.min(90, selectedElement.y + 3),
-    };
+  const cloneElements = (source: SlideElement[], offset: number): SlideElement[] => {
+    const stamp = Date.now();
+    const groupIds = new Map<string, string>();
+    return source.map((el, index) => {
+      let groupId = el.groupId;
+      if (groupId) {
+        if (!groupIds.has(groupId)) groupIds.set(groupId, `grp-${stamp}-${groupIds.size}`);
+        groupId = groupIds.get(groupId);
+      }
+      return {
+        ...el,
+        id: `el-${stamp}-${index}-${Math.random().toString(36).slice(2, 6)}`,
+        groupId,
+        x: Math.min(100 - el.width, el.x + offset),
+        y: Math.min(100 - el.height, el.y + offset),
+      };
+    });
+  };
 
-    const updatedSlides = presentation.slides.map((s, idx) =>
-      idx === activeSlideIndex ? { ...s, elements: [...s.elements, duplicated] } : s
-    );
-    const newPres = { ...presentation, slides: updatedSlides };
-    setPresentation(newPres);
-    setSelectedElementId(duplicated.id);
-    ui.toast('Đã nhân bản phần tử');
+  const insertClones = (clones: SlideElement[]) => {
+    pushHistory(presentation);
+    setPresentation((current) => ({
+      ...current,
+      slides: current.slides.map((s, idx) =>
+        idx === activeSlideIndex ? { ...s, elements: [...s.elements, ...clones] } : s
+      ),
+    }));
+    selectElements(clones.map((el) => el.id), clones[clones.length - 1]?.id ?? null);
+  };
+
+  const handleDuplicateElement = () => {
+    if (selectedElements.length === 0) return;
+    insertClones(cloneElements(selectedElements, 3));
+    ui.toast(selectedElements.length > 1 ? `Đã nhân bản ${selectedElements.length} đối tượng` : 'Đã nhân bản phần tử');
   };
 
   useEffect(() => {
@@ -420,35 +500,51 @@ export default function SlideEditor({
 
   // Clipboard Cut / Copy / Paste
   const handleCut = () => {
-    if (!selectedElement) return;
-    setClipboardElement({ ...selectedElement });
-    deleteSlideElement(selectedElement.id);
-    ui.toast('Đã cắt phần tử');
+    if (selectedElements.length === 0) return;
+    setClipboardElements(selectedElements.map((el) => ({ ...el })));
+    deleteSlideElements(selectedElements.map((el) => el.id));
+    ui.toast(selectedElements.length > 1 ? `Đã cắt ${selectedElements.length} đối tượng` : 'Đã cắt phần tử');
   };
 
   const handleCopy = () => {
-    if (!selectedElement) return;
-    setClipboardElement({ ...selectedElement });
-    ui.toast('Đã sao chép phần tử');
+    if (selectedElements.length === 0) return;
+    setClipboardElements(selectedElements.map((el) => ({ ...el })));
+    ui.toast(selectedElements.length > 1 ? `Đã sao chép ${selectedElements.length} đối tượng` : 'Đã sao chép phần tử');
   };
 
   const handlePaste = () => {
-    if (!clipboardElement) return;
-    pushHistory(presentation);
-    const pasted: SlideElement = {
-      ...clipboardElement,
-      id: `el-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      x: Math.min(90, clipboardElement.x + 4),
-      y: Math.min(90, clipboardElement.y + 4),
-    };
+    if (clipboardElements.length === 0) return;
+    insertClones(cloneElements(clipboardElements, 4));
+    ui.toast(clipboardElements.length > 1 ? `Đã dán ${clipboardElements.length} đối tượng` : 'Đã dán phần tử');
+  };
 
-    const updatedSlides = presentation.slides.map((s, idx) =>
-      idx === activeSlideIndex ? { ...s, elements: [...s.elements, pasted] } : s
-    );
-    const newPres = { ...presentation, slides: updatedSlides };
-    setPresentation(newPres);
-    setSelectedElementId(pasted.id);
-    ui.toast('Đã dán phần tử');
+  // Group, align and distribute
+  const handleGroup = () => {
+    if (!currentSlide || !canGroup(currentSlide.elements, selectedIds)) {
+      ui.toast('Hãy chọn từ hai đối tượng trở lên để nhóm');
+      return;
+    }
+    updateSlideElements(groupElements(currentSlide.elements, selectedIds, `grp-${Date.now()}`));
+    selectElements(expandSelection(currentSlide.elements, selectedIds), selectedElementId);
+    ui.toast('Đã nhóm các đối tượng');
+  };
+
+  const handleUngroup = () => {
+    if (!currentSlide || !canUngroup(currentSlide.elements, selectedIds)) {
+      ui.toast('Các đối tượng đang chọn chưa được nhóm');
+      return;
+    }
+    updateSlideElements(ungroupElements(currentSlide.elements, selectedIds));
+    ui.toast('Đã bỏ nhóm');
+  };
+
+  useEffect(() => {
+    groupShortcutRef.current = (ungroup) => (ungroup ? handleUngroup() : handleGroup());
+  });
+
+  const handleDistributeElements = (mode: DistributeMode) => {
+    if (!currentSlide || selectedIds.length === 0) return;
+    updateSlideElements(distributeElements(currentSlide.elements, selectedIds, mode));
   };
 
   // Layers Arrangement
@@ -475,20 +571,9 @@ export default function SlideEditor({
   };
 
   // Element Alignment
-  const handleAlignElement = (align: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom') => {
-    if (!selectedElement) return;
-    let { x, y } = selectedElement;
-    if (align === 'left') x = 5;
-    if (align === 'center') x = (100 - selectedElement.width) / 2;
-    if (align === 'right') x = 95 - selectedElement.width;
-    if (align === 'top') y = 5;
-    if (align === 'middle') y = (100 - selectedElement.height) / 2;
-    if (align === 'bottom') y = 95 - selectedElement.height;
-
-    updateSlideElement(selectedElement.id, {
-      x: Math.round(x * 10) / 10,
-      y: Math.round(y * 10) / 10,
-    });
+  const handleAlignElement = (align: AlignMode) => {
+    if (!currentSlide || selectedIds.length === 0) return;
+    updateSlideElements(alignElements(currentSlide.elements, selectedIds, align));
   };
 
   // Add Freehand Ink Element
@@ -759,17 +844,18 @@ export default function SlideEditor({
     ui.toast('Đã thêm hình ảnh vào trang chiếu');
   };
 
-  const handleAddQrCode = (url: string) => {
+  const handleAddQrCode = async (url: string) => {
+    const { default: QRCode } = await import('qrcode');
+    const qrDataUrl = await QRCode.toDataURL(url, { width: 512, margin: 1 });
     pushHistory(presentation);
-    const qrDataUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(url)}`;
     const newEl: SlideElement = {
       id: `el-qr-${Date.now()}`,
       type: 'image',
       src: qrDataUrl,
       x: 40,
-      y: 30,
+      y: 32,
       width: 20,
-      height: 35,
+      height: aspectRatioValue(presentation.aspectRatio) * 20,
       borderRadius: 8,
     };
 
@@ -1446,7 +1532,13 @@ export default function SlideEditor({
         onOpenFileMenu={() => setIsBackstageOpen(true)}
         selectedElement={selectedElement}
         onUpdateSelectedElement={(updates) => selectedElementId && updateSlideElement(selectedElementId, updates)}
-        onDeleteSelectedElement={() => selectedElementId && deleteSlideElement(selectedElementId)}
+        onDeleteSelectedElement={() => deleteSlideElements(selectedIds)}
+        selectionCount={selectedIds.length}
+        canGroup={Boolean(currentSlide) && canGroup(currentSlide.elements, selectedIds)}
+        canUngroup={Boolean(currentSlide) && canUngroup(currentSlide.elements, selectedIds)}
+        onGroup={handleGroup}
+        onUngroup={handleUngroup}
+        onDistribute={handleDistributeElements}
         onAddSlide={handleAddSlide}
         onAddShape={handleAddShape}
         onAddText={handleAddText}
@@ -1596,11 +1688,20 @@ export default function SlideEditor({
                     aspectRatio={presentation.aspectRatio}
                     zoom={zoom}
                     selectedElementId={selectedElementId}
+                    selectedElementIds={selectedIds}
                     slideMaster={presentation.slideMaster}
                     slideIndex={activeSlideIndex}
                     onSelectElement={handleSelectElementWithPainter}
+                    onSelectElements={(ids, primary) => {
+                      if (ids.length <= 1) handleSelectElementWithPainter(ids[0] ?? null);
+                      else selectElements(ids, primary);
+                    }}
                     onUpdateElement={updateSlideElement}
+                    onUpdateElements={updateSlideElements}
                     onDeleteElement={deleteSlideElement}
+                    onDeleteElements={deleteSlideElements}
+                    onInteractionStart={beginInteraction}
+                    onInteractionEnd={endInteraction}
                     showGridlines={showGridlines}
                     showGuides={showGuides}
                     drawMode={drawMode}
@@ -1819,13 +1920,23 @@ export default function SlideEditor({
       <SlideContextMenu
         position={contextMenuPos}
         targetElementId={contextMenuElementId}
-        canPaste={!!clipboardElement}
+        canPaste={clipboardElements.length > 0}
+        selectionCount={selectedIds.length}
+        canGroup={Boolean(currentSlide) && canGroup(currentSlide.elements, selectedIds)}
+        canUngroup={Boolean(currentSlide) && canUngroup(currentSlide.elements, selectedIds)}
+        onGroup={handleGroup}
+        onUngroup={handleUngroup}
+        onAlign={handleAlignElement}
+        onDistribute={handleDistributeElements}
         onClose={() => setContextMenuPos(null)}
         onCut={handleCut}
         onCopy={handleCopy}
         onPaste={handlePaste}
         onDuplicate={handleDuplicateElement}
-        onDelete={() => contextMenuElementId && deleteSlideElement(contextMenuElementId)}
+        onDelete={() => {
+          if (selectedIds.length > 1) deleteSlideElements(selectedIds);
+          else if (contextMenuElementId) deleteSlideElement(contextMenuElementId);
+        }}
         onEditText={() => {
           // Double click triggers edit
         }}

@@ -19,6 +19,16 @@ import {
   Plus,
   Layout,
   Sparkles,
+  Group,
+  Ungroup,
+  AlignStartVertical,
+  AlignCenterVertical,
+  AlignEndVertical,
+  AlignStartHorizontal,
+  AlignCenterHorizontal,
+  AlignEndHorizontal,
+  AlignHorizontalDistributeCenter,
+  AlignVerticalDistributeCenter,
 } from 'lucide-react';
 import type { ShapeType, SlideLayout } from '../../lib/slideTypes';
 
@@ -31,6 +41,13 @@ interface SlideContextMenuProps {
   position: ContextMenuPosition | null;
   targetElementId: string | null;
   canPaste: boolean;
+  selectionCount?: number;
+  canGroup?: boolean;
+  canUngroup?: boolean;
+  onGroup?: () => void;
+  onUngroup?: () => void;
+  onAlign?: (mode: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom') => void;
+  onDistribute?: (mode: 'horizontal' | 'vertical') => void;
   onClose: () => void;
   onCut: () => void;
   onCopy: () => void;
@@ -53,6 +70,13 @@ export function SlideContextMenu({
   position,
   targetElementId,
   canPaste,
+  selectionCount = 0,
+  canGroup = false,
+  canUngroup = false,
+  onGroup,
+  onUngroup,
+  onAlign,
+  onDistribute,
   onClose,
   onCut,
   onCopy,
@@ -97,7 +121,7 @@ export function SlideContextMenu({
 
   // Keep menu on screen
   const menuX = Math.min(position.x, window.innerWidth - 240);
-  const menuY = Math.min(position.y, window.innerHeight - 340);
+  const menuY = Math.max(8, Math.min(position.y, window.innerHeight - 520));
 
   return (
     <div
@@ -159,6 +183,33 @@ export function SlideContextMenu({
           >
             <Edit3 size={16} /> <span>Chỉnh sửa văn bản</span>
           </button>
+
+          {(canGroup || canUngroup) && (
+            <>
+              {canGroup && (
+                <button className="ppt-ctx-item" onClick={() => { onGroup?.(); onClose(); }}>
+                  <Group size={16} /> <span>Nhóm{selectionCount > 1 ? ` ${selectionCount} đối tượng` : ''}</span>
+                </button>
+              )}
+              {canUngroup && (
+                <button className="ppt-ctx-item" onClick={() => { onUngroup?.(); onClose(); }}>
+                  <Ungroup size={16} /> <span>Bỏ nhóm</span>
+                </button>
+              )}
+            </>
+          )}
+
+          <div className="ppt-ctx-group-label">{selectionCount > 1 ? 'Căn các đối tượng đang chọn:' : 'Căn theo trang chiếu:'}</div>
+          <div className="ppt-ctx-shape-grid" style={{ gridTemplateColumns: 'repeat(8, 1fr)' }}>
+            <button onClick={() => { onAlign?.('left'); onClose(); }} title="Căn trái"><AlignStartVertical size={14} /></button>
+            <button onClick={() => { onAlign?.('center'); onClose(); }} title="Căn giữa theo chiều ngang"><AlignCenterVertical size={14} /></button>
+            <button onClick={() => { onAlign?.('right'); onClose(); }} title="Căn phải"><AlignEndVertical size={14} /></button>
+            <button onClick={() => { onAlign?.('top'); onClose(); }} title="Căn trên"><AlignStartHorizontal size={14} /></button>
+            <button onClick={() => { onAlign?.('middle'); onClose(); }} title="Căn giữa theo chiều dọc"><AlignCenterHorizontal size={14} /></button>
+            <button onClick={() => { onAlign?.('bottom'); onClose(); }} title="Căn dưới"><AlignEndHorizontal size={14} /></button>
+            <button onClick={() => { onDistribute?.('horizontal'); onClose(); }} title="Giãn đều theo chiều ngang"><AlignHorizontalDistributeCenter size={14} /></button>
+            <button onClick={() => { onDistribute?.('vertical'); onClose(); }} title="Giãn đều theo chiều dọc"><AlignVerticalDistributeCenter size={14} /></button>
+          </div>
 
           {/* Change shape submenu */}
           <div className="ppt-ctx-group-label">Đổi hình dạng:</div>

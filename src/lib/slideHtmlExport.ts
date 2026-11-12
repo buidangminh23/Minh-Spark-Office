@@ -1,4 +1,5 @@
-import type { PresentationData } from './slideTypes';
+import type { PresentationData, SlideElement } from './slideTypes';
+import { getShapeDef } from './slideShapes';
 
 const DEFAULT_TITLE = 'Bài Thuyết Trình Minh Slides';
 
@@ -99,8 +100,18 @@ const PLAYER_SCRIPT = `
       var gradient = el.fillType === 'gradient' && el.gradient;
       node.style.background = el.fillType === 'none' ? 'transparent' : (gradient || el.fill || 'transparent');
       if (el.stroke && el.strokeWidth) node.style.border = el.strokeWidth + 'px ' + (el.borderStyle || 'solid') + ' ' + el.stroke;
-      if (el.shapeType === 'circle') node.style.borderRadius = '50%';
-      else if (el.shapeType === 'rounded-rectangle') node.style.borderRadius = (el.borderRadius || 12) + 'px';
+      if (el.shapeLine) {
+        var lineColor = el.stroke && el.stroke !== 'transparent' ? el.stroke : (el.fill || '#0284C7');
+        node.style.border = 'none';
+        node.style.background = 'linear-gradient(' + lineColor + ', ' + lineColor + ') center / 100% ' + (el.strokeWidth || 2) + 'px no-repeat';
+      } else if (el.shapeMask) {
+        node.style.webkitMaskImage = el.shapeMask;
+        node.style.maskImage = el.shapeMask;
+        node.style.webkitMaskSize = '100% 100%';
+        node.style.maskSize = '100% 100%';
+        node.style.webkitMaskRepeat = 'no-repeat';
+        node.style.maskRepeat = 'no-repeat';
+      }
     }
     applyText(node, el);
     node.textContent = el.text || '';
@@ -137,9 +148,24 @@ const PLAYER_SCRIPT = `
 })();
 `;
 
+function withShapeMask(el: SlideElement): SlideElement & { shapeMask?: string; shapeLine?: boolean } {
+  if (el.type !== 'shape') return el;
+  const custom = el.shapeType === 'custom' && el.customPath;
+  const def = getShapeDef(el.shapeType);
+  if (!custom && def.line) return { ...el, shapeLine: true };
+  if (!custom && def.id === 'rectangle') return el;
+  const d = custom ? el.customPath : def.d;
+  const rule = custom || def.evenOdd ? 'evenodd' : 'nonzero';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="${d}" fill-rule="${rule}"/></svg>`;
+  return { ...el, shapeMask: `url("data:image/svg+xml,${encodeURIComponent(svg)}")` };
+}
+
 export function buildStandaloneHtml(presentation: PresentationData): string {
   const title = escapeHtmlText(presentation.title || DEFAULT_TITLE);
-  const deck = { aspectRatio: presentation.aspectRatio, slides: presentation.slides };
+  const deck = {
+    aspectRatio: presentation.aspectRatio,
+    slides: presentation.slides.map((slide) => ({ ...slide, elements: slide.elements.map(withShapeMask) })),
+  };
   return `<!DOCTYPE html>
 <html lang="vi">
 <head>

@@ -780,8 +780,8 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
         ui.toast(`Đã nạp tệp PDF "${file.name}"`);
       } else if (isPpt) {
         ui.showBusy('Đang đọc bài thuyết trình…');
-        const { importFromPptx } = await import('./lib/pptxImport');
-        const presentation = await importFromPptx(bytes.buffer as ArrayBuffer, file.name);
+        const { importPptxDetailed } = await import('./lib/pptxImport');
+        const { presentation, report: pptxReport } = await importPptxDetailed(bytes.buffer as ArrayBuffer, file.name);
         const id = `slide-${Date.now()}`;
         const meta: FileMeta = {
           id,
@@ -804,7 +804,11 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
         activeDocument.current = meta;
         setActiveMeta(meta);
         setActiveContent(content);
-        ui.toast(`Đã nạp bài thuyết trình "${file.name}"`);
+        ui.toast(
+          pptxReport.skipped.length > 0
+            ? `Đã nạp "${file.name}": ${pptxReport.slides} trang, ${pptxReport.elements} đối tượng. Chưa đọc được: ${pptxReport.skipped.slice(0, 2).join('; ')}`
+            : `Đã nạp bài thuyết trình "${file.name}": ${pptxReport.slides} trang, ${pptxReport.elements} đối tượng`
+        );
       } else if (isImage) {
         ui.showBusy(`Đang nạp hình ảnh ${file.name}…`);
         const { readImageFile } = await import('./lib/imageFormats');

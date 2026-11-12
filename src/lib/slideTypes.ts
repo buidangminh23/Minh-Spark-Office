@@ -9,21 +9,7 @@ export type SlideLayout =
   | 'content-caption'
   | 'picture-caption';
 
-export type ShapeType =
-  | 'rectangle'
-  | 'rounded-rectangle'
-  | 'circle'
-  | 'triangle'
-  | 'right-arrow'
-  | 'left-arrow'
-  | 'up-arrow'
-  | 'down-arrow'
-  | 'star'
-  | 'callout'
-  | 'heart'
-  | 'diamond'
-  | 'hexagon'
-  | 'line';
+export type ShapeType = string;
 
 export type ChartType = 'bar' | 'column' | 'line' | 'pie' | 'doughnut';
 
@@ -188,6 +174,9 @@ export interface SlideElement {
   rotation?: number; // degrees 0-360
   opacity?: number;
   zIndex?: number;
+  groupId?: string;
+  flipH?: boolean;
+  flipV?: boolean;
 
   // Text properties
   text?: string;
@@ -208,6 +197,7 @@ export interface SlideElement {
 
   // Shape properties
   shapeType?: ShapeType;
+  customPath?: string;
   fill?: string;
   fillType?: 'solid' | 'gradient' | 'none';
   gradient?: string;

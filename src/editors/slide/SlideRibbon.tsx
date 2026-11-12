@@ -108,10 +108,22 @@ import {
   Waves,
   Wind,
   Zap,
+  Group,
+  Ungroup,
+  AlignStartVertical,
+  AlignCenterVertical,
+  AlignEndVertical,
+  AlignStartHorizontal,
+  AlignCenterHorizontal,
+  AlignEndHorizontal,
+  AlignHorizontalDistributeCenter,
+  AlignVerticalDistributeCenter,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { EffectIcon, ToneDot } from './slideIcons';
 import { useRibbonPopovers } from './useRibbonPopovers';
+import { SlideShapeGallery } from './SlideShapeGallery';
+import { shapeLabel } from '../../lib/slideShapes';
 import type {
   SlideElement,
   SlideLayout,
@@ -362,6 +374,12 @@ interface SlideRibbonProps {
   selectedElement: SlideElement | null;
   onUpdateSelectedElement: (updates: Partial<SlideElement>) => void;
   onDeleteSelectedElement: () => void;
+  selectionCount?: number;
+  canGroup?: boolean;
+  canUngroup?: boolean;
+  onGroup?: () => void;
+  onUngroup?: () => void;
+  onDistribute?: (mode: 'horizontal' | 'vertical') => void;
   onAddSlide: (layout: SlideLayout) => void;
   onAddShape: (shapeType: ShapeType) => void;
   onAddText: () => void;
@@ -486,6 +504,12 @@ export function SlideRibbon(props: SlideRibbonProps) {
     selectedElement,
     onUpdateSelectedElement,
     onDeleteSelectedElement,
+    selectionCount = 0,
+    canGroup = false,
+    canUngroup = false,
+    onGroup,
+    onUngroup,
+    onDistribute,
     onAddSlide,
     onAddShape,
     onAddText,
@@ -624,6 +648,44 @@ export function SlideRibbon(props: SlideRibbonProps) {
     { id: 'brand', group: 'Nhận diện', label: 'Bảng màu thương hiệu', description: 'Lấy 5 màu từ logo và áp cho cả bài', icon: <Palette size={16} color="#7C3AED" />, run: () => onOpenBrandPalette?.() },
     { id: 'watermark', group: 'Nhận diện', label: 'Hình mờ bản quyền', description: 'Đặt chữ hoặc hình mờ cho bài thuyết trình', icon: <ShieldCheck size={16} color="#059669" />, run: () => onOpenWatermarkModal?.() },
   ];
+
+  const arrangeGroup = (
+    <div className="ppt-ribbon-group">
+      <div className="ppt-group-content" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 28px)', gap: '2px' }}>
+        <button className="ppt-tool-btn" disabled={selectionCount === 0} onClick={() => onAlignElement('left')} title="Căn đối tượng sang trái">
+          <AlignStartVertical size={15} />
+        </button>
+        <button className="ppt-tool-btn" disabled={selectionCount === 0} onClick={() => onAlignElement('center')} title="Căn đối tượng vào giữa theo chiều ngang">
+          <AlignCenterVertical size={15} />
+        </button>
+        <button className="ppt-tool-btn" disabled={selectionCount === 0} onClick={() => onAlignElement('right')} title="Căn đối tượng sang phải">
+          <AlignEndVertical size={15} />
+        </button>
+        <button className="ppt-tool-btn" disabled={selectionCount === 0} onClick={() => onDistribute?.('horizontal')} title="Giãn đều các đối tượng theo chiều ngang">
+          <AlignHorizontalDistributeCenter size={15} />
+        </button>
+        <button className="ppt-tool-btn" disabled={!canGroup} onClick={onGroup} title="Nhóm các đối tượng đang chọn (Ctrl+G)">
+          <Group size={15} />
+        </button>
+        <button className="ppt-tool-btn" disabled={selectionCount === 0} onClick={() => onAlignElement('top')} title="Căn đối tượng lên trên">
+          <AlignStartHorizontal size={15} />
+        </button>
+        <button className="ppt-tool-btn" disabled={selectionCount === 0} onClick={() => onAlignElement('middle')} title="Căn đối tượng vào giữa theo chiều dọc">
+          <AlignCenterHorizontal size={15} />
+        </button>
+        <button className="ppt-tool-btn" disabled={selectionCount === 0} onClick={() => onAlignElement('bottom')} title="Căn đối tượng xuống dưới">
+          <AlignEndHorizontal size={15} />
+        </button>
+        <button className="ppt-tool-btn" disabled={selectionCount === 0} onClick={() => onDistribute?.('vertical')} title="Giãn đều các đối tượng theo chiều dọc">
+          <AlignVerticalDistributeCenter size={15} />
+        </button>
+        <button className="ppt-tool-btn" disabled={!canUngroup} onClick={onUngroup} title="Bỏ nhóm (Ctrl+Shift+G)">
+          <Ungroup size={15} />
+        </button>
+      </div>
+      <div className="ppt-group-footer">{selectionCount > 1 ? `Sắp xếp (${selectionCount} đối tượng)` : 'Sắp xếp'}</div>
+    </div>
+  );
 
   return (
     <div className="ppt-ribbon-container">
@@ -970,9 +1032,12 @@ export function SlideRibbon(props: SlideRibbonProps) {
                 <button className="ppt-tool-btn" onClick={() => onAddShape('star')} title="Ngôi sao">
                   <Star size={16} />
                 </button>
+                <SlideShapeGallery onPick={onAddShape} />
               </div>
               <div className="ppt-group-footer">Hình vẽ</div>
             </div>
+
+            {arrangeGroup}
 
             {/* Editing / Find & Format */}
             <div className="ppt-ribbon-group">
@@ -1118,6 +1183,7 @@ export function SlideRibbon(props: SlideRibbonProps) {
 
             <div className="ppt-ribbon-group">
               <div className="ppt-group-content">
+                <SlideShapeGallery onPick={onAddShape} label="Hình dạng" large />
                 <button className="ppt-tool-btn-large" onClick={onAddText} title="Chèn hộp văn bản tự do">
                   <Type size={20} color="#0F172A" />
                   <span>Hộp chữ</span>
@@ -2047,7 +2113,7 @@ export function SlideRibbon(props: SlideRibbonProps) {
                             const name = el.text
                               ? `"${el.text.slice(0, 18)}…"`
                               : el.type === 'shape'
-                              ? `Hình: ${el.shapeType || 'khối'}`
+                              ? `Hình: ${shapeLabel(el.shapeType)}`
                               : el.type === 'image'
                               ? `Hình ảnh [${i + 1}]`
                               : `Phần tử [${i + 1}]`;
@@ -2472,6 +2538,7 @@ export function SlideRibbon(props: SlideRibbonProps) {
         {/* CONTEXTUAL TAB: SHAPE FORMAT */}
         {activeTab === 'shape-format' && isShapeSelected && (
           <>
+            {arrangeGroup}
             {/* Insert Shapes Palette */}
             <div className="ppt-ribbon-group">
               <div className="ppt-group-content" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '2px' }}>
@@ -2493,6 +2560,11 @@ export function SlideRibbon(props: SlideRibbonProps) {
                 <button className="ppt-tool-btn" onClick={onAddText} title="Hộp văn bản">
                   <Type size={14} />
                 </button>
+                <SlideShapeGallery onPick={onAddShape} />
+                <SlideShapeGallery
+                  onPick={(shape) => onUpdateSelectedElement({ shapeType: shape, customPath: undefined })}
+                  title="Đổi hình đang chọn sang hình khác"
+                />
               </div>
               <div className="ppt-group-footer">Chèn hình</div>
             </div>
@@ -2735,6 +2807,7 @@ export function SlideRibbon(props: SlideRibbonProps) {
         {/* CONTEXTUAL TAB: PICTURE FORMAT */}
         {activeTab === 'picture-format' && isImageSelected && (
           <>
+            {arrangeGroup}
             {/* Adjustments */}
             <div className="ppt-ribbon-group">
               <div className="ppt-group-content">
@@ -2880,6 +2953,7 @@ export function SlideRibbon(props: SlideRibbonProps) {
         {/* CONTEXTUAL TAB: TABLE DESIGN */}
         {activeTab === 'table-design' && isTableSelected && (
           <>
+            {arrangeGroup}
             {/* Table Style Options */}
             <div className="ppt-ribbon-group">
               <div className="ppt-group-content">
@@ -3029,6 +3103,7 @@ export function SlideRibbon(props: SlideRibbonProps) {
         {/* CONTEXTUAL TAB: CHART DESIGN */}
         {activeTab === 'chart-design' && isChartSelected && (
           <>
+            {arrangeGroup}
             {/* Chart Types */}
             <div className="ppt-ribbon-group">
               <div className="ppt-group-content">
