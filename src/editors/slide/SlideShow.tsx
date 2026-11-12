@@ -40,6 +40,18 @@ import {
   PartyPopper,
 } from 'lucide-react';
 import type { SlideData } from '../../lib/slideTypes';
+import {
+  buildAnimationTimeline,
+  countClickSteps,
+  hiddenElementIds as computeHiddenElementIds,
+  matchMorphElements,
+  playedItems,
+  transitionDurationOf,
+  type MorphGeometry,
+  type TimelineItem,
+  type TimelineStep,
+} from '../../lib/slideEffects';
+import { SlideFxPlayer, playSlideTransition } from './slideFx';
 import { SlideCanvas } from './SlideCanvas';
 import { useUi } from '../../components/ui';
 import { downloadBlob } from '../../lib/download';
@@ -65,6 +77,8 @@ interface SlideShowProps {
   isPresenterMode?: boolean;
   onClose: () => void;
 }
+
+const SLIDE_BASE_HEIGHT = 540;
 
 function useFitZoom(baseW: number, baseH: number) {
   const [node, setNode] = useState<HTMLDivElement | null>(null);
@@ -180,7 +194,24 @@ export function SlideShow({
 
   // Animation step-by-step state
   const [animStep, setAnimStep] = useState(0);
-  const [previewingAnimElementId, setPreviewingAnimElementId] = useState<string | null>(null);
+  const [autoPlayed, setAutoPlayed] = useState(false);
+  const [visibilityOverrides, setVisibilityOverrides] = useState<Record<string, 'show' | 'hide'>>({});
+  const [outgoingSlide, setOutgoingSlide] = useState<SlideData | null>(null);
+  const [morph, setMorph] = useState<{ overrides: Record<string, MorphGeometry>; duration: number } | null>(null);
+  const [transitionRun, setTransitionRun] = useState(0);
+  const inLayerRef = useRef<HTMLDivElement | null>(null);
+  const outLayerRef = useRef<HTMLDivElement | null>(null);
+  const enterAtEndRef = useRef(false);
+  const applyPlayedRef = useRef(false);
+  const previousIndexRef = useRef(initialIndex);
+  const cancelTransitionRef = useRef<(() => void) | null>(null);
+  const [fxPlayer] = useState(
+    () =>
+      new SlideFxPlayer(
+        () => inLayerRef.current,
+        () => ({ width: slideBaseW, height: SLIDE_BASE_HEIGHT })
+      )
+  );
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -203,27 +234,140 @@ export function SlideShow({
     }
   }, [currentIndex, animStep, currentSlide?.id]);
 
-  // Entrance animations on current slide
   const currentElements = currentSlide.elements;
-  const entranceElements = useMemo(() => currentElements.filter((el) => {
-    if (el.animations && el.animations.length > 0) {
-      return el.animations.some((a) => a.category === 'entrance' && a.type !== 'none');
-    }
-    if (el.animation && el.animation.type !== 'none') {
-      const t = el.animation.type;
-      return !t.includes('out') && !t.includes('disappear') && !t.includes('pulse') && !t.includes('spin') && !t.includes('teeter');
-    }
-    return false;
-  }), [currentElements]);
+  const timeline = useMemo(() => buildAnimationTimeline(currentElements), [currentElements]);
+  const clickSteps = useMemo(() => timeline.filter((step) => !step.auto), [timeline]);
+  const clickCount = clickSteps.length;
 
-  const hiddenElementIds = entranceElements
-    .filter((_, idx) => idx >= animStep)
-    .map((el) => el.id);
+  const hiddenElementIds = useMemo(() => {
+    const computed = new Set(computeHiddenElementIds(timeline, animStep, autoPlayed));
+    for (const [id, visibility] of Object.entries(visibilityOverrides)) {
+      if (visibility === 'hide') computed.add(id);
+      else computed.delete(id);
+    }
+    return [...computed];
+  }, [timeline, animStep, autoPlayed, visibilityOverrides]);
+
+  const beginStep = useCallback(
+    (step: TimelineStep) => {
+      const overrides: Record<string, 'show' | 'hide'> = {};
+      for (const item of step.items) {
+        if (overrides[item.elementId]) continue;
+        if (item.anim.category === 'entrance') overrides[item.elementId] = 'hide';
+        if (item.anim.category === 'exit') overrides[item.elementId] = 'show';
+      }
+      setVisibilityOverrides(overrides);
+      const hasLaterExit = (item: TimelineItem) =>
+        step.items.some(
+          (other) => other.elementId === item.elementId && other.anim.category === 'exit' && other.start >= item.start
+        );
+      const release = (elementId: string) =>
+        setVisibilityOverrides((current) => {
+          if (!(elementId in current)) return current;
+          const next = { ...current };
+          delete next[elementId];
+          return next;
+        });
+      fxPlayer.playStep(step, currentElements, {
+        onStart: (item) => {
+          if (item.anim.sound && item.anim.sound !== 'none') playTransitionSound(item.anim.sound);
+          if (item.anim.category !== 'entrance') return;
+          if (hasLaterExit(item)) {
+            setVisibilityOverrides((current) => ({ ...current, [item.elementId]: 'show' }));
+          } else {
+            release(item.elementId);
+          }
+        },
+        onFinish: (item) => {
+          if (item.anim.category === 'exit') release(item.elementId);
+        },
+      });
+    },
+    [fxPlayer, currentElements]
+  );
+
+  const beginStepRef = useRef(beginStep);
+  const timelineRef = useRef(timeline);
+  useLayoutEffect(() => {
+    beginStepRef.current = beginStep;
+    timelineRef.current = timeline;
+  });
+
+  const startAutoStep = useCallback(() => {
+    setAutoPlayed(true);
+    const autoStep = timelineRef.current.find((step) => step.auto);
+    if (autoStep && autoStep.items.length > 0) beginStepRef.current(autoStep);
+  }, []);
+
+  useLayoutEffect(() => {
+    const previousIndex = previousIndexRef.current;
+    previousIndexRef.current = currentIndex;
+    fxPlayer.reset();
+    cancelTransitionRef.current?.();
+    cancelTransitionRef.current = null;
+    setVisibilityOverrides({});
+    setMorph(null);
+    if (enterAtEndRef.current) {
+      enterAtEndRef.current = false;
+      applyPlayedRef.current = true;
+      setAutoPlayed(true);
+      setOutgoingSlide(null);
+      return;
+    }
+    setAnimStep(0);
+    setAutoPlayed(false);
+    const transition = currentSlide.transition;
+    const previousSlide = previousIndex === currentIndex ? null : slides[previousIndex] ?? null;
+    if (previousSlide && transition?.type === 'morph') {
+      setMorph({
+        overrides: matchMorphElements(previousSlide.elements, currentSlide.elements),
+        duration: transitionDurationOf(transition),
+      });
+    }
+    setOutgoingSlide(previousSlide);
+    setTransitionRun((run) => run + 1);
+  }, [currentIndex]);
+
+  useLayoutEffect(() => {
+    if (transitionRun === 0) return;
+    const incoming = inLayerRef.current;
+    if (!incoming) {
+      startAutoStep();
+      return;
+    }
+    const frames: number[] = [];
+    if (morph) {
+      frames.push(
+        requestAnimationFrame(() => {
+          frames.push(requestAnimationFrame(() => setMorph((state) => (state ? { ...state, overrides: {} } : state))));
+        })
+      );
+    }
+    cancelTransitionRef.current = playSlideTransition({
+      outgoing: outLayerRef.current,
+      incoming,
+      transition: transitionRun === 1 ? undefined : currentSlide.transition,
+      onDone: () => {
+        cancelTransitionRef.current = null;
+        setOutgoingSlide(null);
+        setMorph(null);
+        startAutoStep();
+      },
+    });
+    return () => frames.forEach((frame) => cancelAnimationFrame(frame));
+  }, [transitionRun]);
+
+  useLayoutEffect(() => {
+    if (!applyPlayedRef.current) return;
+    applyPlayedRef.current = false;
+    fxPlayer.applyPlayed(playedItems(timeline, animStep, autoPlayed), currentElements);
+  }, [fxPlayer, timeline, animStep, autoPlayed, currentElements]);
+
+  useEffect(() => () => fxPlayer.reset(), [fxPlayer]);
 
   // Play transition sound on slide change
   useEffect(() => {
     playTransitionSound(currentSlide.transition?.sound || 'none');
-    setAnimStep(0);
     // Clear drawing canvas on slide change
     if (drawCanvasRef.current) {
       const ctx = drawCanvasRef.current.getContext('2d');
@@ -237,26 +381,18 @@ export function SlideShow({
       setBlankMode('none');
       return;
     }
-    if (animStep < entranceElements.length) {
-      const nextEl = entranceElements[animStep];
+    if (animStep < clickCount) {
+      fxPlayer.flush();
       setAnimStep((s) => s + 1);
-      setPreviewingAnimElementId(nextEl.id);
-      const animSound = nextEl.animations?.[0]?.sound || (nextEl.animation as any)?.sound;
-      if (animSound && animSound !== 'none') {
-        playTransitionSound(animSound);
-      }
-      setTimeout(() => setPreviewingAnimElementId(null), 800);
-    } else {
-      let nextIdx = currentIndex + 1;
-      while (nextIdx < slides.length && slides[nextIdx].hidden) {
-        nextIdx++;
-      }
-      if (nextIdx < slides.length) {
-        setCurrentIndex(nextIdx);
-        setAnimStep(0);
-      }
+      beginStep(clickSteps[animStep]);
+      return;
     }
-  }, [blankMode, animStep, entranceElements, currentIndex, slides]);
+    let nextIdx = currentIndex + 1;
+    while (nextIdx < slides.length && slides[nextIdx].hidden) {
+      nextIdx++;
+    }
+    if (nextIdx < slides.length) setCurrentIndex(nextIdx);
+  }, [blankMode, animStep, clickCount, clickSteps, beginStep, fxPlayer, currentIndex, slides]);
 
   // Step back presentation
   const handleStepBack = useCallback(() => {
@@ -265,29 +401,21 @@ export function SlideShow({
       return;
     }
     if (animStep > 0) {
+      fxPlayer.reset();
+      setVisibilityOverrides({});
+      applyPlayedRef.current = true;
       setAnimStep((s) => s - 1);
-    } else {
-      let prevIdx = currentIndex - 1;
-      while (prevIdx >= 0 && slides[prevIdx].hidden) {
-        prevIdx--;
-      }
-      if (prevIdx >= 0) {
-        setCurrentIndex(prevIdx);
-        const prevSlide = slides[prevIdx];
-        const prevAnimCount = prevSlide.elements.filter((el) => {
-          if (el.animations && el.animations.length > 0) {
-            return el.animations.some((a) => a.category === 'entrance' && a.type !== 'none');
-          }
-          if (el.animation && el.animation.type !== 'none') {
-            const t = el.animation.type;
-            return !t.includes('out') && !t.includes('disappear') && !t.includes('pulse') && !t.includes('spin') && !t.includes('teeter');
-          }
-          return false;
-        }).length;
-        setAnimStep(prevAnimCount);
-      }
+      return;
     }
-  }, [blankMode, animStep, currentIndex, slides]);
+    let prevIdx = currentIndex - 1;
+    while (prevIdx >= 0 && slides[prevIdx].hidden) {
+      prevIdx--;
+    }
+    if (prevIdx < 0) return;
+    enterAtEndRef.current = true;
+    setAnimStep(countClickSteps(buildAnimationTimeline(slides[prevIdx].elements)));
+    setCurrentIndex(prevIdx);
+  }, [blankMode, animStep, fxPlayer, currentIndex, slides]);
 
   const handleAdvanceRef = useRef(handleAdvance);
   useLayoutEffect(() => {
@@ -295,19 +423,19 @@ export function SlideShow({
   });
 
   const advanceAfterSeconds = currentSlide.transition?.advanceAfterSeconds;
-  const entranceCount = entranceElements.length;
   useEffect(() => {
-    if (!advanceAfterSeconds || advanceAfterSeconds <= 0 || animStep < entranceCount) return;
+    if (!advanceAfterSeconds || advanceAfterSeconds <= 0 || animStep < clickCount) return;
     const timer = setTimeout(() => {
       handleAdvanceRef.current();
     }, advanceAfterSeconds * 1000);
     return () => clearTimeout(timer);
-  }, [currentIndex, advanceAfterSeconds, animStep, entranceCount]);
+  }, [currentIndex, advanceAfterSeconds, animStep, clickCount]);
 
   // Key navigation & hotkeys
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (isEditableKeyTarget(e.target) && e.key !== 'Escape') return;
+      e.stopPropagation();
       if (e.key.toLowerCase() === 'l') {
         e.preventDefault();
         setIsLaserActive((v) => !v);
@@ -363,8 +491,8 @@ export function SlideShow({
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [handleAdvance, handleStepBack, onClose]);
 
   // Web Speech API for Vietnamese Subtitles
@@ -624,9 +752,10 @@ export function SlideShow({
     return `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
   };
 
-  const transitionClass = currentSlide.transition?.type !== 'none'
-    ? `ppt-transition-${currentSlide.transition?.type}`
-    : '';
+  const stageLayerStyle: React.CSSProperties = {
+    width: `${(slideBaseW * stageFit.zoom) / 100}px`,
+    height: `${(SLIDE_BASE_HEIGHT * stageFit.zoom) / 100}px`,
+  };
 
   // Render Presenter View
   if (isPresenterMode) {
@@ -679,18 +808,19 @@ export function SlideShow({
         <div className="ppt-presenter-body">
           {/* Main Current Slide */}
           <div className="ppt-presenter-main-slide" ref={presenterMainFit.ref}>
-            <SlideCanvas
-              slide={currentSlide}
-              aspectRatio={aspectRatio}
-              zoom={presenterMainFit.zoom}
-              selectedElementId={null}
-              onSelectElement={() => {}}
-              onUpdateElement={() => {}}
-              hiddenElementIds={hiddenElementIds}
-              previewingAnimElementId={previewingAnimElementId}
-              showAnimBadges={false}
-              readOnly
-            />
+            <div className="ppt-ss-inline-layer" ref={inLayerRef}>
+              <SlideCanvas
+                slide={currentSlide}
+                aspectRatio={aspectRatio}
+                zoom={presenterMainFit.zoom}
+                selectedElementId={null}
+                onSelectElement={() => {}}
+                onUpdateElement={() => {}}
+                hiddenElementIds={hiddenElementIds}
+                showAnimBadges={false}
+                readOnly
+              />
+            </div>
           </div>
 
           {/* Right Sidebar: Next slide & Notes */}
@@ -742,15 +872,15 @@ export function SlideShow({
           </button>
           <span style={{ fontSize: '14px', fontWeight: 600 }}>
             Trang chiếu {currentIndex + 1} / {slides.length}
-            {entranceElements.length > 0 && (
+            {clickCount > 0 && (
               <span style={{ color: '#38BDF8', marginLeft: '8px' }}>
-                (Hoạt hình: {animStep}/{entranceElements.length})
+                (Hoạt hình: {animStep}/{clickCount})
               </span>
             )}
           </span>
           <button
             onClick={handleAdvance}
-            disabled={currentIndex === slides.length - 1 && animStep === entranceElements.length}
+            disabled={currentIndex === slides.length - 1 && animStep === clickCount}
             className="ppt-ss-btn"
             title="Tiến tới (Mũi tên phải / Phím cách)"
           >
@@ -860,7 +990,22 @@ export function SlideShow({
       )}
 
       {/* 2. Main Slide Canvas */}
-      <div className={`ppt-slideshow-canvas ${transitionClass}`} ref={stageFit.ref}>
+      <div className="ppt-slideshow-canvas" ref={stageFit.ref}>
+        {outgoingSlide && (
+          <div className="ppt-ss-layer" ref={outLayerRef} style={stageLayerStyle}>
+            <SlideCanvas
+              slide={outgoingSlide}
+              aspectRatio={aspectRatio}
+              zoom={stageFit.zoom}
+              selectedElementId={null}
+              onSelectElement={() => {}}
+              onUpdateElement={() => {}}
+              showAnimBadges={false}
+              readOnly
+            />
+          </div>
+        )}
+        <div className="ppt-ss-layer" ref={inLayerRef} style={stageLayerStyle}>
         <SlideCanvas
           slide={currentSlide}
           aspectRatio={aspectRatio}
@@ -880,10 +1025,12 @@ export function SlideShow({
           }}
           onUpdateElement={() => {}}
           hiddenElementIds={hiddenElementIds}
-          previewingAnimElementId={previewingAnimElementId}
+          geometryOverrides={morph?.overrides}
+          geometryTransitionSec={morph?.duration ?? 0}
           showAnimBadges={false}
           readOnly
         />
+        </div>
       </div>
 
       {/* 3. In-Show Annotation Canvas Layer */}
@@ -1461,16 +1608,16 @@ export function SlideShow({
 
         <span style={{ fontSize: '12px', fontWeight: 600, minWidth: '70px', textAlign: 'center' }}>
           {currentIndex + 1} / {slides.length}
-          {entranceElements.length > 0 && (
+          {clickCount > 0 && (
             <span style={{ color: '#F59E0B', marginLeft: '4px', fontSize: '10px' }}>
-              [{animStep}/{entranceElements.length}]
+              [{animStep}/{clickCount}]
             </span>
           )}
         </span>
 
         <button
           className="ppt-ss-btn"
-          disabled={currentIndex === slides.length - 1 && animStep === entranceElements.length}
+          disabled={currentIndex === slides.length - 1 && animStep === clickCount}
           onClick={handleAdvance}
           title="Tiến tới (Mũi tên phải / Phím cách)"
         >

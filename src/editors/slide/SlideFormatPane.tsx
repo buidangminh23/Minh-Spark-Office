@@ -18,6 +18,14 @@ import {
   Clapperboard,
 } from 'lucide-react';
 import type { SlideData, SlideElement, SlideBackground, AnimationType } from '../../lib/slideTypes';
+import { ANIMATION_DEFS, normalizeAnimationType } from '../../lib/slideEffects';
+
+const ANIMATION_GROUPS = [
+  { category: 'entrance', label: 'Xuất hiện' },
+  { category: 'emphasis', label: 'Nhấn mạnh' },
+  { category: 'exit', label: 'Thoát' },
+  { category: 'motion-path', label: 'Đường chuyển động' },
+] as const;
 
 interface SlideFormatPaneProps {
   selectedElement: SlideElement | null;
@@ -748,7 +756,7 @@ export function SlideFormatPane({
                 <span className="ppt-format-label">Hiệu ứng:</span>
                 <select
                   className="ppt-select"
-                  value={selectedElement.animation?.type || 'none'}
+                  value={normalizeAnimationType(selectedElement.animations?.[0]?.type || selectedElement.animation?.type || 'none')}
                   onChange={(e) =>
                     onUpdateElement({
                       animation: {
@@ -756,16 +764,20 @@ export function SlideFormatPane({
                         duration: selectedElement.animation?.duration || 0.5,
                         delay: selectedElement.animation?.delay || 0,
                       },
+                      animations: undefined,
                     })
                   }
                 >
                   <option value="none">Không hiệu ứng</option>
-                  <option value="appear">Xuất hiện (Appear)</option>
-                  <option value="fade-in">Mờ dần vào (Fade In)</option>
-                  <option value="fly-in-up">Bay từ dưới lên (Fly In Up)</option>
-                  <option value="fly-in-left">Bay từ trái sang (Fly In Left)</option>
-                  <option value="zoom-in">Phóng to (Zoom In)</option>
-                  <option value="bounce">Nảy bóng (Bounce)</option>
+                  {ANIMATION_GROUPS.map((group) => (
+                    <optgroup key={group.category} label={group.label}>
+                      {ANIMATION_DEFS.filter((def) => def.category === group.category).map((def) => (
+                        <option key={def.type} value={def.type}>
+                          {def.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
                 </select>
               </div>
 

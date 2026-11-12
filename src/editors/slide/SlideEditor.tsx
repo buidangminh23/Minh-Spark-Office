@@ -59,6 +59,13 @@ import { SlideMasterModal } from './SlideMasterModal';
 import { SlideSheetsLinkModal } from './SlideSheetsLinkModal';
 import { SlideCustomShowsModal } from './SlideCustomShowsModal';
 import { isEditableKeyTarget } from './slideKeyTarget';
+import { playSlideTransition, previewSlideAnimations } from './slideFx';
+import {
+  animationLabel,
+  collectSlideAnimations,
+  elementAnimations,
+  getAnimationDef,
+} from '../../lib/slideEffects';
 import './slideEditor.css';
 
 const exportToPptx = async (...args: Parameters<typeof import('../../lib/pptxExport').exportToPptx>) =>
@@ -159,8 +166,8 @@ export default function SlideEditor({
   const [watermarkText, setWatermarkText] = useState(presentation.watermark?.text || 'BẢN QUYỀN - MINH SPARK');
   const [watermarkEnabled, setWatermarkEnabled] = useState(presentation.watermark?.enabled ?? false);
   const [watermarkOpacity, setWatermarkOpacity] = useState(presentation.watermark?.opacity ?? 0.15);
-  const [isPreviewingTransition, setIsPreviewingTransition] = useState(false);
-  const [previewingAnimElementId, setPreviewingAnimElementId] = useState<string | null>(null);
+  const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
+  const stopPreviewRef = useRef<(() => void) | null>(null);
   const [animationPainterActive, setAnimationPainterActive] = useState(false);
   const [copiedAnimation, setCopiedAnimation] = useState<ElementAnimation | null>(null);
 
@@ -360,16 +367,16 @@ export default function SlideEditor({
   // Update elements
   const updateSlideElement = (elementId: string, updates: Partial<SlideElement>) => {
     pushHistory(presentation);
-    const updatedSlides = presentation.slides.map((s, idx) => {
-      if (idx !== activeSlideIndex) return s;
-      return {
-        ...s,
-        elements: s.elements.map((el) => (el.id === elementId ? { ...el, ...updates } : el)),
-      };
-    });
-
-    const newPres: PresentationData = { ...presentation, slides: updatedSlides };
-    setPresentation(newPres);
+    setPresentation((current) => ({
+      ...current,
+      slides: current.slides.map((s, idx) => {
+        if (idx !== activeSlideIndex) return s;
+        return {
+          ...s,
+          elements: s.elements.map((el) => (el.id === elementId ? { ...el, ...updates } : el)),
+        };
+      }),
+    }));
   };
 
   const deleteSlideElement = (elementId: string) => {
@@ -1156,24 +1163,44 @@ export default function SlideEditor({
   };
 
 
+  const playAnimationPreview = (
+    elements: SlideElement[],
+    onlyElementId?: string | null,
+    onlyAnimationId?: string | null
+  ) => {
+    stopPreviewRef.current?.();
+    setIsPreviewPlaying(true);
+    stopPreviewRef.current = previewSlideAnimations({
+      root: canvasContainer,
+      elements,
+      size: { width: slideBaseWidth, height: SLIDE_BASE_HEIGHT },
+      onlyElementId,
+      onlyAnimationId,
+      onDone: () => {
+        stopPreviewRef.current = null;
+        setIsPreviewPlaying(false);
+      },
+    });
+  };
+
+  const withElementUpdates = (elementId: string, updates: Partial<SlideElement>) =>
+    currentSlide.elements.map((el) => (el.id === elementId ? { ...el, ...updates } : el));
+
   const handlePreviewTransition = () => {
-    const sound = currentSlide?.transition?.sound || 'none';
-    playTransitionSound(sound);
-    setIsPreviewingTransition(true);
-    const durMs = Math.max(500, (currentSlide?.transition?.duration || 0.8) * 1000);
-    setTimeout(() => {
-      setIsPreviewingTransition(false);
-    }, durMs);
+    const canvasNode = canvasContainer?.querySelector<HTMLElement>('.ppt-slide-canvas');
+    if (!canvasNode) return;
+    playTransitionSound(currentSlide?.transition?.sound || 'none');
+    playSlideTransition({
+      outgoing: null,
+      incoming: canvasNode,
+      transition: currentSlide?.transition,
+      onDone: () => {},
+    });
   };
 
   const handlePreviewAnimation = () => {
-    if (selectedElementId) {
-      setPreviewingAnimElementId(selectedElementId);
-      setTimeout(() => setPreviewingAnimElementId(null), 1000);
-    } else {
-      setPreviewingAnimElementId('ALL');
-      setTimeout(() => setPreviewingAnimElementId(null), 1200);
-    }
+    const hasOwnAnimation = selectedElement ? elementAnimations(selectedElement).length > 0 : false;
+    playAnimationPreview(currentSlide.elements, hasOwnAnimation ? selectedElementId : null);
   };
 
   const handleAddAnimation = (type: AnimationType, category: AnimationCategory) => {
@@ -1182,44 +1209,34 @@ export default function SlideEditor({
       return;
     }
 
+    if (type === 'none') {
+      updateSlideElement(selectedElement.id, { animations: [], animation: undefined });
+      ui.toast('Đã gỡ hoạt hình khỏi đối tượng');
+      return;
+    }
+
+    const def = getAnimationDef(type);
+    const duration = def?.duration ?? 0.5;
+    const direction = def?.direction as AnimationDirection | undefined;
+    const lastOrder = Math.max(0, ...collectSlideAnimations(currentSlide.elements).map(({ anim }) => anim.order || 0));
     const newAnim: ElementAnimation = {
       id: `anim-${Date.now()}`,
       type,
       category,
-      duration: 0.5,
+      duration,
       delay: 0,
       trigger: 'on-click',
-      direction: 'bottom',
-      order: (selectedElement.animations?.length || 0) + 1,
+      direction,
+      order: lastOrder + 1,
     };
 
-    const existingAnims = selectedElement.animations || (selectedElement.animation && selectedElement.animation.type !== 'none' ? [{
-      id: `anim-prev-${Date.now()}`,
-      type: selectedElement.animation.type,
-      category: 'entrance' as const,
-      duration: selectedElement.animation.duration || 0.5,
-      delay: selectedElement.animation.delay || 0,
-      trigger: selectedElement.animation.trigger || 'on-click',
-      direction: selectedElement.animation.direction || 'bottom',
-      order: 1,
-    }] : []);
-
-    const updatedAnims = [...existingAnims, newAnim];
-    updateSlideElement(selectedElement.id, {
-      animations: updatedAnims,
-      animation: {
-        type,
-        duration: 0.5,
-        delay: 0,
-        direction: 'bottom',
-        trigger: 'on-click',
-      },
-    });
-
-    // Quick visual preview on canvas
-    setPreviewingAnimElementId(selectedElement.id);
-    setTimeout(() => setPreviewingAnimElementId(null), 800);
-    ui.toast(`Đã gán hoạt hình "${type}"`);
+    const updates: Partial<SlideElement> = {
+      animations: [...elementAnimations(selectedElement), newAnim],
+      animation: { type, duration, delay: 0, direction, trigger: 'on-click' },
+    };
+    updateSlideElement(selectedElement.id, updates);
+    playAnimationPreview(withElementUpdates(selectedElement.id, updates), selectedElement.id, newAnim.id);
+    ui.toast(`Đã gán hoạt hình "${animationLabel(type)}"`);
   };
 
   const handleUpdateAnimationTiming = (timing: {
@@ -1304,8 +1321,6 @@ export default function SlideEditor({
           trigger: copiedAnimation.trigger,
         },
       });
-      setPreviewingAnimElementId(elId);
-      setTimeout(() => setPreviewingAnimElementId(null), 800);
       ui.toast('Đã dán định dạng hoạt hình vào đối tượng mới!');
       setAnimationPainterActive(false);
       setCopiedAnimation(null);
@@ -1596,8 +1611,6 @@ export default function SlideEditor({
                       setContextMenuPos({ x: e.clientX, y: e.clientY });
                       setContextMenuElementId(elId);
                     }}
-                    isPreviewingTransition={isPreviewingTransition}
-                    previewingAnimElementId={previewingAnimElementId}
                     showAnimBadges={activeTab === 'animations' || isAnimationPaneOpen}
                     watermark={presentation.watermark}
                   />
@@ -1687,7 +1700,7 @@ export default function SlideEditor({
             onUpdateElement={updateSlideElement}
             onClose={() => setIsAnimationPaneOpen(false)}
             onPlayPreview={handlePreviewAnimation}
-            isPlayingPreview={previewingAnimElementId !== null}
+            isPlayingPreview={isPreviewPlaying}
           />
         )}
 

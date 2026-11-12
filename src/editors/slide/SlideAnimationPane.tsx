@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import type { SlideData, SlideElement, ElementAnimation, AnimationTrigger } from '../../lib/slideTypes';
 import { SlideAnimationDialog } from './SlideAnimationDialog';
+import { animationLabel, collectSlideAnimations, elementAnimations } from '../../lib/slideEffects';
 
 interface SlideAnimationPaneProps {
   slide: SlideData;
@@ -37,42 +38,7 @@ export function SlideAnimationPane({
   onPlayPreview,
   isPlayingPreview,
 }: SlideAnimationPaneProps) {
-  // Collect all animations from all elements on this slide
-  const animationList: {
-    element: SlideElement;
-    anim: ElementAnimation;
-  }[] = [];
-
-  slide.elements.forEach((el) => {
-    if (el.animations && el.animations.length > 0) {
-      el.animations.forEach((anim) => {
-        animationList.push({ element: el, anim });
-      });
-    } else if (el.animation && el.animation.type !== 'none') {
-      // Legacy single animation fallback
-      const cat = el.animation.type.includes('path-')
-        ? 'motion-path'
-        : el.animation.type.includes('fade-out') || el.animation.type.includes('disappear') || el.animation.type.includes('fly-out')
-        ? 'exit'
-        : el.animation.type.includes('pulse') || el.animation.type.includes('spin') || el.animation.type.includes('teeter')
-        ? 'emphasis'
-        : 'entrance';
-
-      animationList.push({
-        element: el,
-        anim: {
-          id: `anim-${el.id}`,
-          type: el.animation.type,
-          category: cat,
-          duration: el.animation.duration || 0.5,
-          delay: el.animation.delay || 0,
-          trigger: el.animation.trigger || 'on-click',
-          direction: el.animation.direction,
-          order: 1,
-        },
-      });
-    }
-  });
+  const animationList = collectSlideAnimations(slide.elements);
 
   const [activeItemMenuId, setActiveItemMenuId] = useState<string | null>(null);
   const [dialogState, setDialogState] = useState<{
@@ -93,19 +59,16 @@ export function SlideAnimationPane({
     if (direction === 'down' && index === animationList.length - 1) return;
 
     const targetIdx = direction === 'up' ? index - 1 : index + 1;
-    const itemA = animationList[index];
-    const itemB = animationList[targetIdx];
+    const reordered = [...animationList];
+    [reordered[index], reordered[targetIdx]] = [reordered[targetIdx], reordered[index]];
+    const orderById = new Map(reordered.map((item, position) => [item.anim.id, position + 1]));
 
-    const updatedA = { ...itemA.anim, order: targetIdx + 1 };
-    const updatedB = { ...itemB.anim, order: index + 1 };
-
-    if (itemA.element.animations) {
-      const newAnims = itemA.element.animations.map((a) => (a.id === itemA.anim.id ? updatedA : a));
-      onUpdateElement(itemA.element.id, { animations: newAnims });
-    }
-    if (itemB.element.animations) {
-      const newAnims = itemB.element.animations.map((a) => (a.id === itemB.anim.id ? updatedB : a));
-      onUpdateElement(itemB.element.id, { animations: newAnims });
+    for (const element of slide.elements) {
+      const current = elementAnimations(element);
+      if (current.length === 0) continue;
+      const renumbered = current.map((anim) => ({ ...anim, order: orderById.get(anim.id) ?? anim.order }));
+      if (renumbered.every((anim, position) => anim.order === current[position].order) && element.animations) continue;
+      onUpdateElement(element.id, { animations: renumbered });
     }
   };
 
@@ -322,7 +285,7 @@ export function SlideAnimationPane({
                   <div className="ppt-anim-item-details">
                     <div className="ppt-anim-item-title">{displayName}</div>
                     <div className="ppt-anim-item-type" style={{ color: categoryColor }}>
-                      {item.anim.type} ({item.anim.duration}s)
+                      {animationLabel(item.anim.type)} ({item.anim.duration}s)
                       {item.anim.sound && item.anim.sound !== 'none' ? <Volume2 size={12} aria-label="Có âm thanh" /> : null}
                       {item.anim.animateText === 'paragraph' ? <Pilcrow size={12} aria-label="Theo từng đoạn" /> : null}
                     </div>

@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect, type ReactNode } from 'react';
 import { Lock, Sheet, Copy, ZoomIn, Cuboid, Clapperboard, Pause, Play, RotateCcw, ChartNoAxesColumn } from 'lucide-react';
 import type { SlideData, SlideElement, ShapeType } from '../../lib/slideTypes';
+import { collectSlideAnimations, type MorphGeometry } from '../../lib/slideEffects';
 import { ToneDot } from './slideIcons';
 import { isEditableKeyTarget } from './slideKeyTarget';
 
@@ -20,8 +21,8 @@ interface SlideCanvasProps {
   inkWidth?: number;
   onAddInkElement?: (el: Partial<SlideElement>) => void;
   onContextMenu?: (e: React.MouseEvent, elementId: string | null) => void;
-  isPreviewingTransition?: boolean;
-  previewingAnimElementId?: string | null;
+  geometryOverrides?: Record<string, MorphGeometry>;
+  geometryTransitionSec?: number;
   showAnimBadges?: boolean;
   hiddenElementIds?: string[];
   watermark?: {
@@ -55,8 +56,8 @@ export function SlideCanvas({
   inkWidth = 3,
   onAddInkElement,
   onContextMenu,
-  isPreviewingTransition = false,
-  previewingAnimElementId = null,
+  geometryOverrides,
+  geometryTransitionSec = 0,
   showAnimBadges = true,
   hiddenElementIds = [],
   watermark,
@@ -376,33 +377,16 @@ export function SlideCanvas({
       ? 'not-allowed'
       : 'default';
 
-  // Map all animated elements to sequential 1-based order
   const animBadgeMap: Record<string, { num: number; category: 'entrance' | 'emphasis' | 'exit' | 'motion-path'; animType?: string }> = {};
-  let animCount = 1;
-  slide.elements.forEach((el) => {
-    if ((el.animations && el.animations.length > 0) || (el.animation && el.animation.type !== 'none')) {
-      const firstAnim = el.animations?.[0];
-      let cat: 'entrance' | 'emphasis' | 'exit' | 'motion-path' = 'entrance';
-      if (firstAnim?.category) {
-        cat = firstAnim.category;
-        cat = firstAnim.category;
-      } else if (el.animation?.type) {
-        const t = el.animation.type;
-        if (t.includes('path-')) cat = 'motion-path';
-        else if (t.includes('out') || t.includes('disappear')) cat = 'exit';
-        else if (t.includes('pulse') || t.includes('spin') || t.includes('teeter') || t.includes('grow-shrink') || t.includes('wave') || t.includes('darken') || t.includes('lighten')) cat = 'emphasis';
-        else cat = 'entrance';
-      }
-      animBadgeMap[el.id] = { num: animCount++, category: cat, animType: firstAnim?.type || el.animation?.type };
-    }
+  collectSlideAnimations(slide.elements).forEach(({ element, anim }, index) => {
+    if (animBadgeMap[element.id]) return;
+    animBadgeMap[element.id] = { num: index + 1, category: anim.category, animType: anim.type };
   });
 
   return (
     <div
       ref={containerRef}
-      className={`ppt-slide-canvas ${aspectRatio === '4:3' ? 'ratio-4-3' : ''} ${
-        isPreviewingTransition ? `is-previewing-transition trans-${slide.transition?.type || 'fade'}` : ''
-      }`}
+      className={`ppt-slide-canvas ${aspectRatio === '4:3' ? 'ratio-4-3' : ''}`}
       style={{ ...backgroundStyle, cursor: canvasCursor }}
       onPointerDown={handleCanvasPointerDown}
       onClick={() => {
@@ -554,17 +538,21 @@ export function SlideCanvas({
         const isSelected = !readOnly && el.id === selectedElementId;
         const isHidden = hiddenElementIds.includes(el.id);
         const isEditing = el.id === editingTextId;
-        const isAnimPreview = previewingAnimElementId === 'ALL' || previewingAnimElementId === el.id;
-        const animType = el.animations?.[0]?.type || el.animation?.type || 'fade-in';
+        const morph = geometryOverrides?.[el.id];
         const animBadge = animBadgeMap[el.id];
 
         const elStyle: React.CSSProperties = {
-          left: `${el.x}%`,
-          top: `${el.y}%`,
-          width: `${el.width}%`,
-          height: `${el.height}%`,
-          transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined,
-          opacity: isHidden ? 0 : (el.opacity ?? 1),
+          left: `${morph?.x ?? el.x}%`,
+          top: `${morph?.y ?? el.y}%`,
+          width: `${morph?.width ?? el.width}%`,
+          height: `${morph?.height ?? el.height}%`,
+          transform: (morph?.rotation ?? el.rotation) ? `rotate(${morph?.rotation ?? el.rotation}deg)` : undefined,
+          opacity: isHidden ? 0 : (morph?.opacity ?? el.opacity ?? 1),
+          transition: geometryTransitionSec > 0
+            ? ['left', 'top', 'width', 'height', 'transform', 'opacity']
+                .map((property) => `${property} ${geometryTransitionSec}s cubic-bezier(0.65, 0, 0.35, 1)`)
+                .join(', ')
+            : undefined,
           pointerEvents: isHidden ? 'none' : undefined,
           zIndex: el.zIndex ?? (isSelected ? 20 : 10),
           boxShadow: el.shapeShadow
@@ -575,9 +563,8 @@ export function SlideCanvas({
         return (
           <div
             key={el.id}
-            className={`ppt-element ${isSelected ? 'is-selected' : ''} ${
-              isAnimPreview ? `is-previewing-anim anim-${animType}` : ''
-            }`}
+            className={`ppt-element ${isSelected ? 'is-selected' : ''}`}
+            data-el-id={el.id}
             style={elStyle}
             onPointerDown={(e) => handlePointerDown(e, el)}
             onClick={(e) => {

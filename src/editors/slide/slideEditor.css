@@ -813,49 +813,9 @@
 }
 
 /* Slide Transition Animations */
-.ppt-transition-fade {
-  animation: pptFadeIn 0.5s ease-in-out;
-}
-
-.ppt-transition-push {
-  animation: pptPushIn 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.ppt-transition-wipe {
-  animation: pptWipeIn 0.6s ease-in-out;
-}
-
-.ppt-transition-zoom {
-  animation: pptZoomIn 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.ppt-transition-flip {
-  animation: pptFlipIn 0.6s ease-in-out;
-}
-
 @keyframes pptFadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
-}
-
-@keyframes pptPushIn {
-  from { transform: translateX(100%); }
-  to { transform: translateX(0); }
-}
-
-@keyframes pptWipeIn {
-  from { clip-path: inset(0 100% 0 0); }
-  to { clip-path: inset(0 0 0 0); }
-}
-
-@keyframes pptZoomIn {
-  from { transform: scale(0.6); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
-}
-
-@keyframes pptFlipIn {
-  from { transform: rotateY(90deg); opacity: 0; }
-  to { transform: rotateY(0); opacity: 1; }
 }
 
 /* Laser Pointer */
@@ -2659,109 +2619,6 @@
   color: #DC2626;
 }
 
-/* Keyframe animations for in-canvas preview */
-.ppt-slide-canvas.is-previewing-transition {
-  animation-duration: 0.8s;
-  animation-timing-function: ease-in-out;
-}
-
-.ppt-slide-canvas.is-previewing-transition.trans-fade {
-  animation-name: pptFadeIn;
-}
-
-.ppt-slide-canvas.is-previewing-transition.trans-push {
-  animation-name: pptPushFromBottom;
-}
-
-.ppt-slide-canvas.is-previewing-transition.trans-wipe {
-  animation-name: pptWipe;
-}
-
-.ppt-slide-canvas.is-previewing-transition.trans-split {
-  animation-name: pptSplit;
-}
-
-.ppt-slide-canvas.is-previewing-transition.trans-zoom {
-  animation-name: pptZoomIn;
-}
-
-.ppt-slide-canvas.is-previewing-transition.trans-flip {
-  animation-name: pptFlipIn;
-}
-
-@keyframes pptPushFromBottom {
-  from { transform: translateY(40px) scale(0.95); opacity: 0; }
-  to { transform: translateY(0) scale(1); opacity: 1; }
-}
-
-@keyframes pptWipe {
-  from { clip-path: inset(0 100% 0 0); }
-  to { clip-path: inset(0 0 0 0); }
-}
-
-@keyframes pptSplit {
-  from { clip-path: inset(50% 0 50% 0); }
-  to { clip-path: inset(0 0 0 0); }
-}
-
-/* Element preview animations */
-.ppt-element.is-previewing-anim.anim-fly-in {
-  animation: pptFlyIn 0.6s ease-out forwards;
-}
-
-.ppt-element.is-previewing-anim.anim-fade-in {
-  animation: pptFadeIn 0.6s ease-out forwards;
-}
-
-.ppt-element.is-previewing-anim.anim-zoom-in {
-  animation: pptZoomIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-}
-
-.ppt-element.is-previewing-anim.anim-bounce-in {
-  animation: pptBounce 0.7s ease forwards;
-}
-
-.ppt-element.is-previewing-anim.anim-pulse {
-  animation: pptPulse 0.6s ease-in-out infinite alternate;
-}
-
-.ppt-element.is-previewing-anim.anim-spin {
-  animation: pptSpin 1s linear;
-}
-
-.ppt-element.is-previewing-anim.anim-teeter {
-  animation: pptTeeter 0.6s ease-in-out;
-}
-
-@keyframes pptFlyIn {
-  from { transform: translateY(60px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-
-@keyframes pptBounce {
-  0% { transform: scale(0.3); opacity: 0; }
-  50% { transform: scale(1.08); opacity: 1; }
-  70% { transform: scale(0.95); }
-  100% { transform: scale(1); opacity: 1; }
-}
-
-@keyframes pptPulse {
-  0% { transform: scale(1); }
-  100% { transform: scale(1.1); }
-}
-
-@keyframes pptSpin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-@keyframes pptTeeter {
-  0%, 100% { transform: rotate(0deg); }
-  25% { transform: rotate(-8deg); }
-  75% { transform: rotate(8deg); }
-}
-
-
 /* PowerPoint Transitions & Animations Gallery Styling */
 .ppt-ribbon-gallery-group {
   display: flex;
@@ -3009,7 +2866,6 @@
   background: #DC2626;
   border: 1px solid #B91C1C;
 }
-
 
 /* --- OFFICE FLUENT RIBBON GALLERY SHELL & POPOVER --- */
 .ppt-ribbon-gallery-shell {
@@ -3345,259 +3201,12 @@
 }
 
 /* --- ANIMATION KEYFRAMES FOR ENTRANCE, EMPHASIS, EXIT & MOTION PATHS --- */
-.ppt-element.is-previewing-anim.anim-appear {
-  animation: pptAppear 0.1s forwards;
-}
-
-.ppt-element.is-previewing-anim.anim-float-in {
-  animation: pptFloatIn 0.8s ease-out forwards;
-}
-
-.ppt-element.is-previewing-anim.anim-split-in {
-  animation: pptSplitIn 0.6s ease-out forwards;
-}
-
-.ppt-element.is-previewing-anim.anim-wipe-in {
-  animation: pptWipeIn 0.6s ease-out forwards;
-}
-
-.ppt-element.is-previewing-anim.anim-swivel-in {
-  animation: pptSwivelIn 0.8s ease-out forwards;
-}
-
-.ppt-element.is-previewing-anim.anim-wheel-in {
-  animation: pptWheelIn 0.8s ease-out forwards;
-}
-
-.ppt-element.is-previewing-anim.anim-grow-turn {
-  animation: pptGrowTurn 0.7s ease-out forwards;
-}
-
-.ppt-element.is-previewing-anim.anim-grow-shrink {
-  animation: pptGrowShrink 0.8s ease-in-out infinite alternate;
-}
-
-.ppt-element.is-previewing-anim.anim-color-pulse {
-  animation: pptColorPulse 0.7s ease-in-out infinite alternate;
-}
-
-.ppt-element.is-previewing-anim.anim-wave {
-  animation: pptWave 0.8s ease-in-out;
-}
-
-.ppt-element.is-previewing-anim.anim-darken {
-  filter: brightness(0.5);
-  transition: filter 0.5s ease;
-}
-
-.ppt-element.is-previewing-anim.anim-lighten {
-  filter: brightness(1.6);
-  transition: filter 0.5s ease;
-}
 
 /* Exit Animations */
-.ppt-element.is-previewing-anim.anim-disappear {
-  animation: pptDisappear 0.1s forwards;
-}
-
-.ppt-element.is-previewing-anim.anim-fade-out {
-  animation: pptFadeOut 0.6s ease-out forwards;
-}
-
-.ppt-element.is-previewing-anim.anim-fly-out {
-  animation: pptFlyOut 0.6s ease-in forwards;
-}
-
-.ppt-element.is-previewing-anim.anim-float-out {
-  animation: pptFloatOut 0.8s ease-in forwards;
-}
-
-.ppt-element.is-previewing-anim.anim-split-out {
-  animation: pptSplitOut 0.6s ease-in forwards;
-}
-
-.ppt-element.is-previewing-anim.anim-wipe-out {
-  animation: pptWipeOut 0.6s ease-in forwards;
-}
-
-.ppt-element.is-previewing-anim.anim-zoom-out {
-  animation: pptZoomOut 0.5s ease-in forwards;
-}
-
-.ppt-element.is-previewing-anim.anim-bounce-out {
-  animation: pptBounceOut 0.7s ease-in forwards;
-}
-
-.ppt-element.is-previewing-anim.anim-swivel-out {
-  animation: pptSwivelOut 0.8s ease-in forwards;
-}
 
 /* Motion Paths */
-.ppt-element.is-previewing-anim.anim-path-line-down {
-  animation: pptMotionDown 1s ease-in-out forwards;
-}
-
-.ppt-element.is-previewing-anim.anim-path-line-up {
-  animation: pptMotionUp 1s ease-in-out forwards;
-}
-
-.ppt-element.is-previewing-anim.anim-path-line-left {
-  animation: pptMotionLeft 1s ease-in-out forwards;
-}
-
-.ppt-element.is-previewing-anim.anim-path-line-right {
-  animation: pptMotionRight 1s ease-in-out forwards;
-}
-
-.ppt-element.is-previewing-anim.anim-path-arc {
-  animation: pptMotionArc 1.2s ease-in-out forwards;
-}
-
-.ppt-element.is-previewing-anim.anim-path-circle {
-  animation: pptMotionCircle 1.5s linear forwards;
-}
-
-.ppt-element.is-previewing-anim.anim-path-loop {
-  animation: pptMotionLoop 1.8s ease-in-out forwards;
-}
 
 /* KEYFRAMES */
-@keyframes pptAppear {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes pptFloatIn {
-  from { transform: translateY(40px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-
-@keyframes pptSplitIn {
-  from { transform: scaleX(0); opacity: 0; }
-  to { transform: scaleX(1); opacity: 1; }
-}
-
-@keyframes pptWipeIn {
-  from { clip-path: inset(0 100% 0 0); opacity: 0; }
-  to { clip-path: inset(0 0 0 0); opacity: 1; }
-}
-
-@keyframes pptSwivelIn {
-  from { transform: rotateY(90deg); opacity: 0; }
-  to { transform: rotateY(0deg); opacity: 1; }
-}
-
-@keyframes pptWheelIn {
-  from { transform: rotate(-180deg) scale(0.5); opacity: 0; }
-  to { transform: rotate(0deg) scale(1); opacity: 1; }
-}
-
-@keyframes pptGrowTurn {
-  from { transform: scale(0.2) rotate(-90deg); opacity: 0; }
-  to { transform: scale(1) rotate(0deg); opacity: 1; }
-}
-
-@keyframes pptGrowShrink {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.2); }
-  100% { transform: scale(0.85); }
-}
-
-@keyframes pptColorPulse {
-  0% { filter: hue-rotate(0deg); }
-  100% { filter: hue-rotate(180deg); }
-}
-
-@keyframes pptWave {
-  0%, 100% { transform: translateY(0); }
-  25% { transform: translateY(-10px) rotate(-3deg); }
-  75% { transform: translateY(10px) rotate(3deg); }
-}
-
-@keyframes pptDisappear {
-  from { opacity: 1; }
-  to { opacity: 0; }
-}
-
-@keyframes pptFadeOut {
-  from { opacity: 1; }
-  to { opacity: 0; }
-}
-
-@keyframes pptFlyOut {
-  from { transform: translateY(0); opacity: 1; }
-  to { transform: translateY(80px); opacity: 0; }
-}
-
-@keyframes pptFloatOut {
-  from { transform: translateY(0); opacity: 1; }
-  to { transform: translateY(-40px); opacity: 0; }
-}
-
-@keyframes pptSplitOut {
-  from { transform: scaleX(1); opacity: 1; }
-  to { transform: scaleX(0); opacity: 0; }
-}
-
-@keyframes pptWipeOut {
-  from { clip-path: inset(0 0 0 0); opacity: 1; }
-  to { clip-path: inset(0 0 0 100%); opacity: 0; }
-}
-
-@keyframes pptZoomOut {
-  from { transform: scale(1); opacity: 1; }
-  to { transform: scale(0.2); opacity: 0; }
-}
-
-@keyframes pptBounceOut {
-  0% { transform: scale(1); }
-  30% { transform: scale(1.1); }
-  100% { transform: scale(0); opacity: 0; }
-}
-
-@keyframes pptSwivelOut {
-  from { transform: rotateY(0deg); opacity: 1; }
-  to { transform: rotateY(90deg); opacity: 0; }
-}
-
-@keyframes pptMotionDown {
-  0% { transform: translateY(0); }
-  100% { transform: translateY(60px); }
-}
-
-@keyframes pptMotionUp {
-  0% { transform: translateY(0); }
-  100% { transform: translateY(-60px); }
-}
-
-@keyframes pptMotionLeft {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-60px); }
-}
-
-@keyframes pptMotionRight {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(60px); }
-}
-
-@keyframes pptMotionArc {
-  0% { transform: translate(0, 0); }
-  50% { transform: translate(35px, -30px); }
-  100% { transform: translate(70px, 0); }
-}
-
-@keyframes pptMotionCircle {
-  0% { transform: rotate(0deg) translate(25px) rotate(0deg); }
-  100% { transform: rotate(360deg) translate(25px) rotate(-360deg); }
-}
-
-@keyframes pptMotionLoop {
-  0% { transform: translate(0, 0); }
-  25% { transform: translate(25px, -20px); }
-  50% { transform: translate(0, 0); }
-  75% { transform: translate(-25px, 20px); }
-  100% { transform: translate(0, 0); }
-}
 
 /* ==========================================================================
    MINH SPARK OFFICE PRESENTATION SUPERPOWERS & DESIGNER STYLES
@@ -3983,4 +3592,26 @@
     font-size: 0;
     gap: 0;
   }
+}
+
+.ppt-slideshow-canvas {
+  perspective: 1800px;
+}
+
+.ppt-ss-layer {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.ppt-ss-inline-layer {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
