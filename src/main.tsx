@@ -5,6 +5,7 @@ import App from './App.tsx'
 import { DismissDesktopSplash } from './components/DismissDesktopSplash'
 import { countThisDeviceOnce } from './lib/usageStats'
 import { reloadOnceForStaleChunk } from './lib/staleChunk'
+import { startInterfaceLanguage } from './lib/i18n/language'
 
 window.addEventListener('vite:preloadError', (event) => {
   if (reloadOnceForStaleChunk()) event.preventDefault()
@@ -14,9 +15,14 @@ const MirrorWindow = lazy(() => import('./editors/doc/ui/MirrorWindow'))
 const mirrorChannel = new URLSearchParams(window.location.search).get('mirror')
 if (!mirrorChannel) countThisDeviceOnce()
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <DismissDesktopSplash />
-    {mirrorChannel ? <Suspense fallback={null}><MirrorWindow channel={mirrorChannel} /></Suspense> : <App />}
-  </StrictMode>,
-)
+const renderApp = () =>
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <DismissDesktopSplash />
+      {mirrorChannel ? <Suspense fallback={null}><MirrorWindow channel={mirrorChannel} /></Suspense> : <App />}
+    </StrictMode>,
+  )
+
+void startInterfaceLanguage()
+  .catch((error) => console.warn('Interface language could not start:', error))
+  .finally(renderApp)

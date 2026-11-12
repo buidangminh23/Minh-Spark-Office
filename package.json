@@ -11,7 +11,8 @@
     "test": "node --import tsx --test tests/*.test.ts",
     "desktop:build": "pwsh -NoProfile -File scripts/build-desktop.ps1",
     "desktop:stage": "pwsh -NoProfile -File scripts/build-desktop.ps1 -StageWeb",
-    "release:desktop": "node scripts/release-desktop.mjs"
+    "release:desktop": "node scripts/release-desktop.mjs",
+    "i18n:missing": "node scripts/i18n-missing.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.6.0",
