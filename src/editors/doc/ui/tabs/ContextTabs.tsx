@@ -1,4 +1,4 @@
-import { AlignCenter, AlignLeft, AlignRight, ArrowDownAZ, ArrowUpDown, BetweenHorizontalStart, Grid3x3, Maximize2, SquareDashedMousePointer, PanelTop, ScanLine, TextCursor, ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, ArrowUpToLine, ChevronDown, Columns2, Crop, FileText, Frame, Image as ImageIcon, Merge, PaintBucket, Replace, Rows2, Settings2, Sigma, SplitSquareHorizontal, Table as TableIcon, Trash2, Type, UnfoldHorizontal, WrapText } from 'lucide-react';
+import { Blend, Eraser, FileArchive, Palette, RotateCcw, AlignCenter, AlignLeft, AlignRight, ArrowDownAZ, ArrowUpDown, BetweenHorizontalStart, Grid3x3, Maximize2, SquareDashedMousePointer, PanelTop, ScanLine, TextCursor, ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, ArrowUpToLine, ChevronDown, Columns2, Crop, FileText, Frame, Image as ImageIcon, Merge, PaintBucket, Replace, Rows2, Settings2, Sigma, SplitSquareHorizontal, Table as TableIcon, Trash2, Type, UnfoldHorizontal, WrapText } from 'lucide-react';
 import { useEditorState } from '@tiptap/react';
 import { useDoc } from '../../DocContext';
 import type { FormatState } from '../../useFormatState';
@@ -9,6 +9,8 @@ import { Big, ColorPicker, Dropdown, Group, MenuItem, Rows, Small } from '../Rib
 import { setWrap, WRAP_LABELS, wrapOf, type WrapKind } from '../../layoutObjects';
 import { alignCells, cellMargins, currentColumnWidth, currentRowHeight, distributeRows, repeatsHeader, selectInTable, setAutofit, setColumnWidth, setRowHeight, setTextDirection, splitTable, tableProperties, toggleRepeatHeader, type CellAlign, type SelectTarget } from '../../tableLayout';
 import { Spinner } from './LayoutTabs';
+import { ART_EFFECTS } from '../../imageEffects';
+import { applyImageArtEffect, compressImage, removeImageBackground, resetImage, setImageTransparency } from '../../imageTools';
 
 const CM = 37.8;
 const toCm = (px: number | null) => (px ? Math.round((px / CM) * 100) / 100 : 0);
@@ -24,7 +26,7 @@ const TABLE_STYLES = [
   { id: 'blue', label: 'Tiêu đề xanh' }, { id: 'dark', label: 'Tiêu đề tối' }, { id: 'green', label: 'Tiêu đề lục' }, { id: 'report', label: 'Báo cáo' },
 ];
 const CELL_BORDERS = [{ id: '', label: 'Theo kiểu bảng' }, { id: 'all', label: 'Viền đủ bốn phía' }, { id: 'none', label: 'Không viền' }, { id: 'bottom', label: 'Chỉ viền dưới' }, { id: 'top', label: 'Chỉ viền trên' }, { id: 'sides', label: 'Chỉ viền hai bên' }];
-const IMAGE_FRAMES = [{ id: '', label: 'Không khung' }, { id: 'thin', label: 'Viền mảnh' }, { id: 'thick', label: 'Viền dày' }, { id: 'shadow', label: 'Đổ bóng' }, { id: 'rounded', label: 'Bo góc' }, { id: 'circle', label: 'Hình tròn' }, { id: 'polaroid', label: 'Ảnh in' }];
+const IMAGE_FRAMES = [{ id: '', label: 'Không khung' }, { id: 'thin', label: 'Viền mảnh' }, { id: 'thick', label: 'Viền dày' }, { id: 'shadow', label: 'Đổ bóng' }, { id: 'rounded', label: 'Bo góc' }, { id: 'circle', label: 'Hình tròn' }, { id: 'polaroid', label: 'Ảnh in' }, { id: 'soft-shadow', label: 'Bóng mềm' }, { id: 'reflection', label: 'Phản chiếu' }, { id: 'bevel', label: 'Vát cạnh' }, { id: 'tilt-left', label: 'Phối cảnh 3D, nghiêng trái' }, { id: 'tilt-right', label: 'Phối cảnh 3D, nghiêng phải' }];
 
 export function TableTab({ fmt }: { fmt: FormatState }) {
   const ctx = useDoc();
@@ -148,6 +150,17 @@ export function ImageTab() {
   };
   return (
     <>
+      <Group label="Điều chỉnh">
+        <Big icon={<Eraser size={22} color="#7c3aed" />} label="Xoá nền" title="Xoá vùng nền liền mạch quanh mép ảnh, nền thành trong suốt" onClick={() => void removeImageBackground(ctx)} />
+        <Dropdown large title="Hiệu ứng nghệ thuật" trigger={<><Palette size={22} color="#2b579a" /><span>Hiệu ứng</span></>} width={220}>
+          {(close) => ART_EFFECTS.map((item) => <MenuItem key={item.id} label={item.label} onClick={() => { close(); void applyImageArtEffect(ctx, item.id); }} />)}
+        </Dropdown>
+        <Rows>
+          <Small icon={<Blend size={14} />} label="Trong suốt" title="Đặt độ trong suốt cho cả ảnh" onClick={() => void setImageTransparency(ctx)} />
+          <Small icon={<FileArchive size={14} />} label="Nén ảnh" title="Giảm kích thước tệp ảnh cho email, web hoặc in" onClick={() => void compressImage(ctx)} />
+          <Small icon={<RotateCcw size={14} />} label="Đặt lại ảnh" title="Bỏ mọi chỉnh sửa, lấy lại ảnh gốc" onClick={() => resetImage(ctx)} />
+        </Rows>
+      </Group>
       <Group label="Sắp xếp">
         <Small icon={<Type size={14} />} label="Cùng dòng" title="Ảnh nằm cùng dòng chữ, kéo để đổi chỗ trong dòng" active={wrap === 'inline'} onClick={() => setWrap(ctx, 'inline')} />
         <Small icon={<AlignLeft size={14} />} label="Trái" title="Ảnh bên trái, chữ bao quanh" active={!floating && align === 'left'} onClick={() => placeInFlow('left')} />

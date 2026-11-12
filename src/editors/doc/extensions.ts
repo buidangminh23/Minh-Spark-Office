@@ -34,7 +34,7 @@ declare module '@tiptap/core' {
       insertMergeField: (name: string) => ReturnType;
     };
     imageLayout: {
-      setImageLayout: (attrs: { align?: string; width?: string | null; alt?: string; src?: string; frame?: string | null }) => ReturnType;
+      setImageLayout: (attrs: { align?: string; width?: string | null; alt?: string; src?: string; frame?: string | null; originalSrc?: string | null }) => ReturnType;
     };
   }
 }
@@ -380,6 +380,11 @@ export const LayoutImage = Image.extend({
         default: null,
         parseHTML: (element) => element.getAttribute('data-frame'),
         renderHTML: (attributes) => (attributes.frame ? { 'data-frame': attributes.frame } : {}),
+      },
+      originalSrc: {
+        default: null,
+        parseHTML: () => null,
+        renderHTML: () => ({}),
       },
       meta: {
         default: null,

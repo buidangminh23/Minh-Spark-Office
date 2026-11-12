@@ -223,7 +223,7 @@ export function ImageEditDialog({ onClose }: { onClose: () => void }) {
   const apply = () => {
     try {
       const url = canvas.current!.toDataURL(src.startsWith('data:image/jpeg') ? 'image/jpeg' : 'image/png', 0.92);
-      editor.chain().focus().setImageLayout({ src: url }).run();
+      editor.chain().focus().setImageLayout({ src: url, originalSrc: String(editor.getAttributes('image').originalSrc ?? '') || src }).run();
       onClose();
     } catch {
       ui.toast('Ảnh từ trang web khác không cho phép sửa. Hãy tải ảnh lên từ máy.', true);
