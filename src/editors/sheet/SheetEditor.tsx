@@ -40,6 +40,18 @@ import {
   whenSheetEditorFocused,
 } from '@univerjs/preset-sheets-core';
 import { EXTRA_FUNCTION_DESCRIPTIONS, EXTRA_FUNCTIONS } from './extraFunctions';
+import {
+  EXCEL_NUMBER_FORMATS,
+  PAGE_COLUMN_STEP,
+  PAGE_ROW_STEP,
+  ZOOM_STEP_PCT,
+  clampIndex,
+  formatClockTime,
+  isNumberFormatAction,
+  resolveSheetShortcut,
+  structureScope,
+  type SheetShortcutAction,
+} from './sheetShortcuts';
 import { BACKSPACE_CLEAR_PRIORITY, selectionCoversMultipleCells } from './backspaceClear';
 import UniverPresetSheetsCoreViVN from '@univerjs/preset-sheets-core/locales/vi-VN';
 import { UniverSheetsConditionalFormattingPreset, CFValueType } from '@univerjs/preset-sheets-conditional-formatting';
@@ -775,6 +787,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
   }, []);
 
   const isProtectedRef = useRef(false);
+  const isCellEditingRef = useRef(false);
   const getEditableContext = useCallback(() => {
     if (isProtectedRef.current) {
       ui.toast('Bảng tính đang khoá bảo vệ (chỉ đọc). Vào Review → Mở khoá Sheet để chỉnh sửa.', true);
@@ -1048,6 +1061,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
           }
         });
         const editStartSub = api.addEvent(api.Event.SheetEditStarted, ({ worksheet, row, column }) => {
+          isCellEditingRef.current = true;
           try {
             editSnapshotRef.current = captureEditSnapshot(worksheet, row, column);
           } catch {
@@ -1065,6 +1079,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
           editRawRef.current = isConfirm ? value.toPlainText().replace(/\r?\n$/, '') : null;
         });
         const editEndSub = api.addEvent(api.Event.SheetEditEnded, (params) => {
+          isCellEditingRef.current = false;
           setAutoCompleteHint(null);
           const raw = editRawRef.current;
           const snapshot = editSnapshotRef.current;
@@ -3835,6 +3850,224 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
     focusMode,
     ui,
   ]);
+
+  const shortcutRunnerRef = useRef<(action: SheetShortcutAction) => void>(() => undefined);
+  shortcutRunnerRef.current = (action) => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const { api, fWorkbook, fWorksheet, fRange } = ctx;
+    const box = fRange.getRange();
+    const maxRows = fWorksheet.getMaxRows();
+    const maxColumns = fWorksheet.getMaxColumns();
+    const rowSpan = box.endRow - box.startRow + 1;
+    const colSpan = box.endColumn - box.startColumn + 1;
+    const lastRow = Math.max(0, fWorksheet.getLastRow());
+    const lastColumn = Math.max(0, fWorksheet.getLastColumn());
+    const select = (row: number, column: number, rows = 1, columns = 1) => {
+      fWorksheet.getRange(clampIndex(row, maxRows), clampIndex(column, maxColumns), Math.max(1, rows), Math.max(1, columns)).activate();
+    };
+    const jump = (row: number, column: number) => {
+      const targetRow = clampIndex(row, maxRows);
+      const targetColumn = clampIndex(column, maxColumns);
+      select(targetRow, targetColumn);
+      fWorksheet.scrollToCell(targetRow, targetColumn);
+    };
+    const switchSheet = (offset: number) => {
+      const sheets = fWorkbook.getSheets();
+      const index = sheets.findIndex((sheet) => sheet.getSheetId() === fWorksheet.getSheetId());
+      const target = sheets[index + offset];
+      if (target) fWorkbook.setActiveSheet(target);
+    };
+    const edit = (run: () => void) => {
+      if (!getEditableContext()) return;
+      run();
+      setSavedStatus('saving');
+    };
+    const copyFromAbove = (asFormula: boolean) => {
+      if (box.startRow === 0) return;
+      const above = fWorksheet.getRange(box.startRow - 1, box.startColumn, 1, 1);
+      const formula = asFormula ? above.getFormula() : '';
+      const value = above.getValue();
+      edit(() => fWorksheet.getRange(box.startRow, box.startColumn, 1, 1).setValue(formula || (value ?? '')));
+    };
+    const scope = structureScope(box, maxRows, maxColumns);
+
+    if (isNumberFormatAction(action)) {
+      edit(() => fRange.setNumberFormat(EXCEL_NUMBER_FORMATS[action]));
+      return;
+    }
+    switch (action) {
+      case 'goTo':
+        syncDefinedNames();
+        setModal('goto');
+        break;
+      case 'insertFunction':
+        setModal('formulas');
+        break;
+      case 'recalculate':
+        api.getFormula()?.executeCalculation();
+        ui.toast('Đã tính lại toàn bộ công thức');
+        break;
+      case 'saveAs':
+        void handleExportXlsx();
+        break;
+      case 'newSheet':
+        void handleStructureMutation('insertSheet');
+        break;
+      case 'editNote':
+        void handleInsertCellNote();
+        break;
+      case 'insertChart':
+        setModal('chart');
+        break;
+      case 'nameManager':
+        syncDefinedNames();
+        setModal('nameManager');
+        break;
+      case 'printPreview':
+        setModal('pageSetup');
+        break;
+      case 'rowStart':
+        jump(box.startRow, 0);
+        break;
+      case 'extendRowStart':
+        select(box.startRow, 0, rowSpan, box.endColumn + 1);
+        break;
+      case 'pageDown':
+        jump(box.startRow + PAGE_ROW_STEP, box.startColumn);
+        break;
+      case 'pageUp':
+        jump(box.startRow - PAGE_ROW_STEP, box.startColumn);
+        break;
+      case 'pageRight':
+        jump(box.startRow, box.startColumn + PAGE_COLUMN_STEP);
+        break;
+      case 'pageLeft':
+        jump(box.startRow, box.startColumn - PAGE_COLUMN_STEP);
+        break;
+      case 'gotoStart':
+        jump(0, 0);
+        break;
+      case 'gotoEnd':
+        jump(lastRow, lastColumn);
+        break;
+      case 'extendToStart':
+        select(0, 0, box.endRow + 1, box.endColumn + 1);
+        break;
+      case 'extendToEnd':
+        select(box.startRow, box.startColumn, lastRow - box.startRow + 1, lastColumn - box.startColumn + 1);
+        break;
+      case 'nextSheet':
+        switchSheet(1);
+        break;
+      case 'prevSheet':
+        switchSheet(-1);
+        break;
+      case 'selectRow':
+        select(box.startRow, 0, rowSpan, maxColumns);
+        break;
+      case 'selectColumn':
+        select(0, box.startColumn, maxRows, colSpan);
+        break;
+      case 'selectAll':
+        select(0, 0, maxRows, maxColumns);
+        break;
+      case 'currentRegion':
+        fRange.getDataRegion().activate();
+        break;
+      case 'showActiveCell':
+        fWorksheet.scrollToCell(box.startRow, box.startColumn);
+        break;
+      case 'bold':
+        edit(() => void api.executeCommand('sheet.command.set-range-bold'));
+        break;
+      case 'italic':
+        edit(() => void api.executeCommand('sheet.command.set-range-italic'));
+        break;
+      case 'underline':
+        edit(() => void api.executeCommand('sheet.command.set-range-underline'));
+        break;
+      case 'strikethrough':
+        edit(() => void api.executeCommand('sheet.command.set-range-stroke'));
+        break;
+      case 'hideColumns':
+        void handleStructureMutation('hideCols');
+        break;
+      case 'unhideColumns':
+        void handleStructureMutation('unhideCols');
+        break;
+      case 'unhideRows':
+        void handleStructureMutation('unhideRows');
+        break;
+      case 'borderOutline':
+        edit(() => fRange.setBorder(BorderType.OUTSIDE, BorderStyleTypes.THIN));
+        break;
+      case 'borderNone':
+        edit(() => fRange.setBorder(BorderType.ALL, BorderStyleTypes.NONE));
+        break;
+      case 'insertCells':
+        void handleStructureMutation(scope === 'rows' ? 'insertRowAbove' : scope === 'columns' ? 'insertColLeft' : 'shiftCellsDown');
+        break;
+      case 'deleteCells':
+        void handleStructureMutation(scope === 'rows' ? 'deleteRows' : scope === 'columns' ? 'deleteCols' : 'shiftCellsUp');
+        break;
+      case 'insertTime':
+        edit(() => fRange.setValue(formatClockTime(new Date())));
+        break;
+      case 'copyFormulaAbove':
+        copyFromAbove(true);
+        break;
+      case 'copyValueAbove':
+        copyFromAbove(false);
+        break;
+      case 'pasteValues':
+        void handlePasteMode('values');
+        break;
+      case 'pasteSpecial':
+        setPopover({ kind: 'paste', left: Math.max(8, window.innerWidth / 2 - 125), top: 160 });
+        break;
+      case 'toggleFormulaBar':
+        setShowFormulaBar((visible) => !visible);
+        break;
+      case 'formatCells':
+        openFormatCellsRef.current();
+        break;
+      case 'tracePrecedents':
+        handleTracePrecedents();
+        break;
+      case 'traceDependents':
+        handleTraceDependents();
+        break;
+      case 'createTable':
+        handleFormatAsTable(TABLE_THEMES[0]);
+        break;
+      case 'redo':
+        edit(() => void fWorkbook.redo());
+        break;
+      case 'zoomIn':
+        handleSetZoom(zoomPct + ZOOM_STEP_PCT);
+        break;
+      case 'zoomOut':
+        handleSetZoom(zoomPct - ZOOM_STEP_PCT);
+        break;
+    }
+  };
+
+  useEffect(() => {
+    const onShortcutKeyDown = (event: KeyboardEvent) => {
+      const action = resolveSheetShortcut(event);
+      if (!action) return;
+      const target = event.target;
+      const isTypingInField =
+        target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement;
+      if (isTypingInField || isCellEditingRef.current || document.querySelector('.dialog-backdrop')) return;
+      event.preventDefault();
+      event.stopPropagation();
+      shortcutRunnerRef.current(action);
+    };
+    window.addEventListener('keydown', onShortcutKeyDown, true);
+    return () => window.removeEventListener('keydown', onShortcutKeyDown, true);
+  }, []);
 
   const handleInsertHyperlink = async () => {
     const ctx = getEditableContext();

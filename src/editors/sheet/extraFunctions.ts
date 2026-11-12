@@ -279,6 +279,67 @@ class Amordegrc extends BaseFunction {
   }
 }
 
+const EURO_RATES: Record<string, { rate: number; decimals: number }> = {
+  BEF: { rate: 40.3399, decimals: 0 },
+  LUF: { rate: 40.3399, decimals: 0 },
+  DEM: { rate: 1.95583, decimals: 2 },
+  ESP: { rate: 166.386, decimals: 0 },
+  FRF: { rate: 6.55957, decimals: 2 },
+  IEP: { rate: 0.787564, decimals: 2 },
+  ITL: { rate: 1936.27, decimals: 0 },
+  NLG: { rate: 2.20371, decimals: 2 },
+  ATS: { rate: 13.7603, decimals: 2 },
+  PTE: { rate: 200.482, decimals: 0 },
+  FIM: { rate: 5.94573, decimals: 2 },
+  GRD: { rate: 340.75, decimals: 0 },
+  SIT: { rate: 239.64, decimals: 2 },
+  EUR: { rate: 1, decimals: 2 },
+};
+const MIN_TRIANGULATION_PRECISION = 3;
+
+const roundTo = (value: number, decimals: number) => {
+  const factor = 10 ** decimals;
+  return Math.round((value + Number.EPSILON * Math.sign(value)) * factor) / factor;
+};
+
+export function euroConvert(amount: number, source: string, target: string, fullPrecision: boolean, triangulationPrecision: number | null): number | null {
+  const from = EURO_RATES[source.toUpperCase()];
+  const to = EURO_RATES[target.toUpperCase()];
+  if (!from || !to) return null;
+  if (triangulationPrecision !== null && triangulationPrecision < MIN_TRIANGULATION_PRECISION) return null;
+  if (from === to) return amount;
+  const euros = amount / from.rate;
+  const intermediate = triangulationPrecision === null ? euros : roundTo(euros, Math.trunc(triangulationPrecision));
+  const converted = intermediate * to.rate;
+  return fullPrecision ? converted : roundTo(converted, to.decimals);
+}
+
+class Euroconvert extends BaseFunction {
+  minParams = 3;
+  maxParams = 5;
+
+  calculate(amount: Variant, source: Variant, target: Variant, fullPrecision?: Variant, triangulationPrecision?: Variant) {
+    const amountValue = scalarNumber(amount, 0);
+    const fullValue = scalarNumber(fullPrecision, 0);
+    const triangulationCell = firstCell(triangulationPrecision);
+    const triangulationValue = triangulationCell == null || triangulationCell.isNull() ? null : scalarNumber(triangulationPrecision, 0);
+    for (const item of [amountValue, fullValue, triangulationValue]) {
+      if (item instanceof ErrorValueObject) return item;
+    }
+    const sourceCell = firstCell(source);
+    const targetCell = firstCell(target);
+    if (!sourceCell || !targetCell || sourceCell.isError() || targetCell.isError()) return errorOf(ErrorType.VALUE);
+    const result = euroConvert(
+      amountValue as number,
+      String(sourceCell.getValue()),
+      String(targetCell.getValue()),
+      (fullValue as number) !== 0,
+      triangulationValue as number | null
+    );
+    return result === null ? errorOf(ErrorType.VALUE) : NumberValueObject.create(result);
+  }
+}
+
 export function toFullWidth(text: string): string {
   const katakana = text.replace(/[｡-ﾟ]+/g, (run) => run.normalize('NFKC'));
   let result = '';
@@ -445,6 +506,7 @@ class Trimrange extends BaseFunction {
 
 export const EXTRA_FUNCTIONS: Array<[FunctionCtor, IFunctionNames]> = [
   [Amordegrc, 'AMORDEGRC'],
+  [Euroconvert, 'EUROCONVERT'],
   [ForecastEts, 'FORECAST.ETS'],
   [ForecastEtsConfint, 'FORECAST.ETS.CONFINT'],
   [ForecastEtsSeasonality, 'FORECAST.ETS.SEASONALITY'],
@@ -491,6 +553,13 @@ export const EXTRA_FUNCTION_DESCRIPTIONS: IFunctionInfo[] = [
     ['kỳ', 'Kỳ cần tính khấu hao.', '1', true],
     ['tỷ_lệ', 'Tỷ lệ khấu hao.', '15%', true],
     ['cơ_sở', '0 hoặc bỏ trống: 360 ngày (NASD); 1: thực tế; 3: 365 ngày; 4: 360 ngày (châu Âu).', '1', false],
+  ]),
+  describe('EUROCONVERT', FunctionType.Financial, 'Đổi một số tiền giữa đồng euro và đồng tiền cũ của các nước khu vực euro theo tỷ giá cố định của EU.', [
+    ['số', 'Số tiền cần đổi.', '1.20', true],
+    ['nguồn', 'Mã ISO ba chữ của đồng tiền gốc, ví dụ DEM, FRF, ITL, EUR.', '"DEM"', true],
+    ['đích', 'Mã ISO ba chữ của đồng tiền cần đổi sang.', '"EUR"', true],
+    ['đủ_độ_chính_xác', 'TRUE: giữ mọi chữ số; FALSE hoặc bỏ trống: làm tròn theo quy định của đồng tiền đích.', 'FALSE', false],
+    ['độ_chính_xác_tam_giác', 'Số chữ số thập phân (từ 3 trở lên) của giá trị euro trung gian khi đổi giữa hai đồng tiền thành viên.', '3', false],
   ]),
   describe('FORECAST.ETS', FunctionType.Statistical, 'Dự báo giá trị tương lai bằng làm trơn hàm mũ ba lần (AAA), có xét xu hướng và mùa vụ.', [
     ETS_TARGET,

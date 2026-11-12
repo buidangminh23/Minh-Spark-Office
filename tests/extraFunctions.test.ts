@@ -12,6 +12,7 @@ import {
   EXTRA_FUNCTIONS,
   EXTRA_FUNCTION_DESCRIPTIONS,
   amordegrcCoefficient,
+  euroConvert,
   infoText,
   toFullWidth,
   trimBounds,
@@ -20,6 +21,7 @@ import { detectSeasonality, normSInv } from '../src/editors/sheet/forecastEts';
 
 const EXPECTED_NAMES = [
   'AMORDEGRC',
+  'EUROCONVERT',
   'FORECAST.ETS',
   'FORECAST.ETS.CONFINT',
   'FORECAST.ETS.SEASONALITY',
@@ -43,7 +45,7 @@ const column = (values: Array<number | null>) => ArrayValueObject.createByArray(
 const valueOf = (result: unknown) => (result as BaseValueObject).getValue();
 const call = (name: string, ...args: unknown[]) => valueOf(fn(name).calculate(...(args as BaseValueObject[])));
 
-test('all eleven missing Excel functions are registered with Vietnamese descriptions', () => {
+test('all twelve missing Excel functions are registered with Vietnamese descriptions', () => {
   assert.deepEqual(EXTRA_FUNCTIONS.map(([, name]) => name), EXPECTED_NAMES);
   assert.deepEqual(EXTRA_FUNCTION_DESCRIPTIONS.map((item) => item.functionName), EXPECTED_NAMES);
   for (const item of EXTRA_FUNCTION_DESCRIPTIONS) {
@@ -189,4 +191,15 @@ test('normSInv matches known quantiles', () => {
   assert.ok(Math.abs(normSInv(0.975) - 1.959963984540054) < 1e-8);
   assert.ok(Math.abs(normSInv(0.5)) < 1e-12);
   assert.ok(Math.abs(normSInv(0.01) + 2.3263478740408408) < 1e-8);
+});
+
+test('EUROCONVERT matches the Microsoft examples', () => {
+  assert.equal(euroConvert(1.2, 'DEM', 'EUR', false, null), 0.61);
+  assert.equal(euroConvert(1, 'FRF', 'EUR', true, 3), 0.152);
+  assert.equal(euroConvert(1, 'FRF', 'DEM', false, 3), 0.3);
+  assert.ok(Math.abs((euroConvert(1, 'FRF', 'DEM', true, 3) as number) - 0.29728616) < 1e-8);
+  assert.equal(euroConvert(5, 'EUR', 'eur', false, null), 5);
+  assert.equal(euroConvert(1, 'USD', 'EUR', false, null), null);
+  assert.equal(euroConvert(1, 'FRF', 'DEM', false, 2), null);
+  assert.equal(call('EUROCONVERT', num(1.2), StringValueObject.create('DEM'), StringValueObject.create('EUR')), 0.61);
 });

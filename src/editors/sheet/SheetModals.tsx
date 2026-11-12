@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { SHEET_SHORTCUT_HELP } from './sheetShortcuts';
 import {
   X,
   Search,
@@ -2078,18 +2079,7 @@ export function ShareAndProtectModal({
 }
 
 export function HelpShortcutsModal({ onClose }: { onClose: () => void }) {
-  const shortcuts = [
-    ['Ctrl + S', 'Lưu bảng tính ngay lập tức vào bộ nhớ trình duyệt'],
-    ['Ctrl + Z / Ctrl + Y', 'Hoàn tác (Undo) / Làm lại (Redo) thao tác'],
-    ['Ctrl + B / I / U', 'In đậm / In nghiêng / Gạch chân ô đang chọn'],
-    ['Ctrl + F / Ctrl + H', 'Mở hộp thoại Tìm kiếm & Thay thế dữ liệu'],
-    ['Ctrl + G', 'Đi tới nhanh toạ độ ô hoặc vùng đã đặt tên (Go To)'],
-    ['Alt + =', 'Tự động chèn công thức AutoSum =SUM(...) thông minh'],
-    ['Ctrl + D / Ctrl + R', 'Sao chép điền dữ liệu xuống dưới (Fill Down) / sang phải (Fill Right)'],
-    ['Ctrl + ;', 'Chèn nhanh ngày tháng hiện tại vào ô đang chọn'],
-    ['Ctrl + P', 'Mở giao diện Xem trước trang in & Xuất PDF Vector'],
-    ['F2 / Enter', 'Chỉnh sửa trực tiếp công thức hoặc giá trị trong ô'],
-  ];
+  const shortcuts = SHEET_SHORTCUT_HELP;
 
   return (
     <div className="dialog-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
@@ -2100,11 +2090,11 @@ export function HelpShortcutsModal({ onClose }: { onClose: () => void }) {
         <h2>Phím tắt & Hướng dẫn nhanh Minh Sheets</h2>
         <div className="dialog-subtitle">Tăng tốc thao tác kế toán, tài chính và xử lý bảng biểu chuyên nghiệp.</div>
 
-        <div style={{ border: '1px solid var(--line)', borderRadius: 8, overflow: 'hidden' }}>
+        <div style={{ border: '1px solid var(--line)', borderRadius: 8, overflow: 'auto', maxHeight: '60vh' }}>
           <table className="file-table" style={{ fontSize: 12.5 }}>
             <thead>
               <tr>
-                <th style={{ width: 170 }}>Tổ hợp phím</th>
+                <th style={{ width: 250 }}>Tổ hợp phím</th>
                 <th>Chức năng thực thi</th>
               </tr>
             </thead>
