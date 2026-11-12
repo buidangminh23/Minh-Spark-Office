@@ -15,7 +15,7 @@ scope.onmessage = async (event) => {
       scope.postMessage({ id: request.id, ok: true, result: await readSpreadsheet(request.buffer, request.fileName) });
       return;
     }
-    const buffer = await writeWorkbookXlsx(request.workbook);
+    const buffer = await writeWorkbookXlsx(request.workbook, { macroEnabled: request.macroEnabled });
     scope.postMessage({ id: request.id, ok: true, result: buffer }, [buffer]);
   } catch (error) {
     scope.postMessage({ id: request.id, ok: false, message: error instanceof Error ? error.message : String(error) });

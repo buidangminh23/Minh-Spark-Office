@@ -8,6 +8,9 @@ import {
   describeStep,
   encodeTarget,
   macroForShortcut,
+  shortcutLabel,
+  shortcutLetter,
+  shortcutWarning,
   nextMacroName,
   normalizeShortcut,
   remapParams,
@@ -38,7 +41,7 @@ const selection = (startRow: number, startColumn: number, endRow = startRow, end
   params: { selections: [{ range: { startRow, endRow, startColumn, endColumn } }] },
 });
 
-test('the recorder keeps only top-level sheet commands and the selection before each one', () => {
+test('the recorder keeps top-level commands, expands toggles into their style and keeps the selection', () => {
   let clock = 0;
   const recorder = new MacroRecorder(() => clock);
   recorder.executed(selection(1, 1), 's1');
@@ -58,7 +61,7 @@ test('the recorder keeps only top-level sheet commands and the selection before 
   const steps = recorder.finish();
   assert.deepEqual(
     steps.map((step) => (step.kind === 'select' ? `select ${boxToA1(step.box)}` : step.id)),
-    ['select C3', 'sheet.command.set-range-bold', 'sheet.command.set-range-values']
+    ['select C3', 'sheet.command.set-style', 'sheet.command.set-range-values']
   );
   assert.equal(recorder.count, 2);
 });
@@ -127,10 +130,20 @@ test('button targets round-trip and reject unknown values', () => {
 
 test('shortcuts are single letters, avoid taken keys and find their macro', () => {
   assert.equal(normalizeShortcut(' ctrl+shift+k '), 'K');
+  assert.equal(normalizeShortcut('k'), 'k');
   assert.equal(normalizeShortcut('7'), '');
+  assert.equal(shortcutLabel('k'), 'Ctrl + K');
+  assert.equal(shortcutLabel('K'), 'Ctrl + Shift + K');
   const macros = [macro({ shortcut: 'K' }), macro({ id: 'm2', name: 'Khác' })];
-  assert.match(shortcutProblem('V', macros, 'm2') ?? '', /đã dùng/);
+  assert.equal(shortcutProblem('V', macros, 'm2'), null);
+  assert.match(shortcutWarning('v') ?? '', /Dán/);
+  assert.equal(shortcutWarning('q'), null);
   assert.match(shortcutProblem('K', macros, 'm2') ?? '', /Lập báo cáo/);
+  assert.equal(shortcutProblem('k', macros, 'm2'), null);
+  assert.match(shortcutProblem('q', macros, 'm2', { q: 'TongHop' }) ?? '', /VBA "TongHop"/);
+  assert.equal(shortcutLetter({ code: 'KeyQ', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false }), 'q');
+  assert.equal(shortcutLetter({ code: 'KeyQ', ctrlKey: true, metaKey: false, altKey: false, shiftKey: true }), 'Q');
+  assert.equal(shortcutLetter({ code: 'Digit1', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false }), null);
   assert.equal(shortcutProblem('K', macros, 'm1'), null);
   assert.equal(shortcutProblem('', macros, 'm2'), null);
   const press = (code: string, shiftKey = true, altKey = false) => ({ code, ctrlKey: true, metaKey: false, altKey, shiftKey });
@@ -176,8 +189,32 @@ test('sanitizeMacros drops anything that is not a replayable sheet command', () 
   ];
   const [clean, ...rest] = sanitizeMacros(dirty);
   assert.equal(rest.length, 0);
-  assert.equal(clean.shortcut, 'K');
+  assert.equal(clean.shortcut, 'k');
   assert.equal(clean.relative, true);
   assert.deepEqual(clean.steps.map((step) => step.kind), ['command', 'select']);
   assert.deepEqual(sanitizeMacros(undefined), []);
+});
+
+test('app actions are recorded with their selection and survive sanitising', () => {
+  const recorder = new MacroRecorder(() => 0);
+  recorder.recordApp('s1', 'outline', { action: 'group' }, { startRow: 1, endRow: 4, startColumn: 0, endColumn: 0 });
+  recorder.recordApp('s1', 'printSetting', { orientation: 'landscape' });
+  const steps = recorder.finish();
+  assert.deepEqual(steps.map((step) => step.kind), ['select', 'app', 'app']);
+  assert.equal(recorder.count, 2);
+  assert.equal(describeStep(steps[1]), 'Nhóm hàng / cột');
+  assert.equal(describeStep(steps[2]), 'Đổi thiết lập in');
+  const [clean] = sanitizeMacros([macro({ steps })]);
+  assert.equal(clean.steps.length, 3);
+});
+
+test('a pasted step can be swapped for the values it produced', () => {
+  const recorder = new MacroRecorder(() => 0);
+  recorder.before(command('sheet.command.paste', { value: 'clipboard' }));
+  const pasted = recorder.executed(command('sheet.command.paste', { value: 'clipboard' }), 's1');
+  assert.ok(pasted);
+  const values = { kind: 'command' as const, sheetId: 's1', id: 'sheet.command.set-range-values', params: { value: [[{ v: 1 }]] } };
+  assert.equal(recorder.replace(pasted, values), true);
+  assert.equal(recorder.replace(pasted, values), false);
+  assert.deepEqual(recorder.finish(), [values]);
 });

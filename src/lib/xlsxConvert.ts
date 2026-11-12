@@ -29,6 +29,11 @@ export async function exportWorkbookToXlsx(data: WorkbookData): Promise<Blob> {
   return new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
 
+export async function exportWorkbookToXlsm(data: WorkbookData): Promise<Blob> {
+  const buffer = await writeWorkbookXlsxOffThread(data, true);
+  return new Blob([buffer], { type: 'application/vnd.ms-excel.sheet.macroEnabled.12' });
+}
+
 const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const MONTH_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];

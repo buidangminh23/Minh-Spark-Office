@@ -2,6 +2,7 @@ import { createStore, get, set, update, promisifyRequest, type UseStore } from '
 import { createContext, useContext } from 'react';
 import type { JSONContent } from '@tiptap/react';
 import type { WorkbookData } from './sheetTypes';
+import type { VbaProjectData } from './vbaProject';
 import type { PresentationData } from './slideTypes';
 import { PAPER_KEYS, paperLabel, paperPx, type PaperKey } from './paperSizes';
 import { validateCloudMeta, validateCloudPayload } from './cloudCodec';
@@ -139,6 +140,7 @@ export type SheetContent = {
   printSettings?: SheetPrintSettings;
   outlines?: Record<string, { rows: SheetOutlineGroup[]; cols: SheetOutlineGroup[] }>;
   macros?: unknown[];
+  vba?: VbaProjectData;
 };
 export type PdfContent = {
   kind: 'pdf';

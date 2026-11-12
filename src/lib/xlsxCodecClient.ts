@@ -4,7 +4,7 @@ import type { CodecRequest, CodecResponse } from './xlsxCodecProtocol';
 const WORKER_IDLE_MS = 30_000;
 
 type Pending = { resolve: (value: WorkbookData | ArrayBuffer) => void; reject: (error: Error) => void };
-type CodecJob = { op: 'read'; buffer: ArrayBuffer; fileName: string } | { op: 'write'; workbook: WorkbookData };
+type CodecJob = { op: 'read'; buffer: ArrayBuffer; fileName: string } | { op: 'write'; workbook: WorkbookData; macroEnabled?: boolean };
 
 class CodecWorkerUnavailable extends Error {}
 
@@ -77,7 +77,7 @@ const runOnWorker = (job: CodecJob) => new Promise<WorkbookData | ArrayBuffer>((
 
 const runOnMainThread = async (job: CodecJob) => {
   const codec = await import('./xlsxCodec');
-  return job.op === 'read' ? codec.readSpreadsheet(job.buffer, job.fileName) : codec.writeWorkbookXlsx(job.workbook);
+  return job.op === 'read' ? codec.readSpreadsheet(job.buffer, job.fileName) : codec.writeWorkbookXlsx(job.workbook, { macroEnabled: job.macroEnabled });
 };
 
 const run = async (job: CodecJob) => {
@@ -92,5 +92,5 @@ const run = async (job: CodecJob) => {
 export const readSpreadsheetOffThread = async (buffer: ArrayBuffer, fileName: string) =>
   await run({ op: 'read', buffer, fileName }) as WorkbookData;
 
-export const writeWorkbookXlsxOffThread = async (workbook: WorkbookData) =>
-  await run({ op: 'write', workbook }) as ArrayBuffer;
+export const writeWorkbookXlsxOffThread = async (workbook: WorkbookData, macroEnabled = false) =>
+  await run({ op: 'write', workbook, macroEnabled }) as ArrayBuffer;

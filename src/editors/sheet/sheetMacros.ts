@@ -5,9 +5,13 @@ export interface MacroBox {
   endColumn: number;
 }
 
+export const APP_ACTIONS = ['outline', 'outlineLevel', 'pageBreak', 'printSetting'] as const;
+export type AppAction = (typeof APP_ACTIONS)[number];
+
 export type MacroStep =
   | { kind: 'select'; sheetId: string; box: MacroBox }
-  | { kind: 'command'; sheetId: string; id: string; params: unknown };
+  | { kind: 'command'; sheetId: string; id: string; params: unknown }
+  | { kind: 'app'; sheetId: string; action: AppAction; payload: unknown };
 
 export interface SheetMacro {
   id: string;
@@ -27,7 +31,36 @@ export const MAX_MACRO_STEPS = 2000;
 export const MAX_MACRO_NAME_LENGTH = 60;
 export const COMMAND_TYPE_COMMAND = 0;
 const DEPTH_RESET_MS = 4000;
-const RESERVED_SHORTCUT_LETTERS = 'FLPUVWXZ';
+const EXPAND_TO_CHILDREN = /^sheet\.command\.(set-bold|set-italic|set-underline|set-stroke|set-overline|set-range-bold|set-range-italic|set-range-underline|set-range-stroke)$/;
+const BUILTIN_CTRL_KEYS: Record<string, string> = {
+  a: 'Chọn tất cả',
+  b: 'In đậm',
+  c: 'Sao chép',
+  d: 'Điền xuống',
+  f: 'Tìm',
+  g: 'Đi tới',
+  h: 'Thay thế',
+  i: 'In nghiêng',
+  k: 'Chèn liên kết',
+  n: 'Bảng tính mới',
+  o: 'Mở tệp',
+  p: 'In',
+  r: 'Điền sang phải',
+  s: 'Lưu',
+  u: 'Gạch chân',
+  v: 'Dán',
+  x: 'Cắt',
+  y: 'Làm lại',
+  z: 'Hoàn tác',
+  F: 'Định dạng phông chữ',
+  L: 'Bật/tắt bộ lọc',
+  P: 'Định dạng phông chữ',
+  U: 'Mở rộng thanh công thức',
+  V: 'Dán đặc biệt',
+  W: 'Phím tắt của Minh Sheets',
+  X: 'Phím tắt của Minh Sheets',
+  Z: 'Phím tắt của Minh Sheets',
+};
 
 export const BUILTIN_MACROS = [
   ['normalizeTable', 'Chuẩn hoá bảng'],
@@ -48,7 +81,7 @@ export const BUILTIN_MACROS = [
 
 export type BuiltinMacroId = (typeof BUILTIN_MACROS)[number][0];
 
-export type MacroTarget = { kind: 'builtin'; id: BuiltinMacroId } | { kind: 'macro'; id: string };
+export type MacroTarget = { kind: 'builtin'; id: BuiltinMacroId } | { kind: 'macro'; id: string } | { kind: 'vba'; id: string };
 
 export function encodeTarget(target: MacroTarget): string {
   return `${target.kind}:${target.id}`;
@@ -62,35 +95,54 @@ export function decodeTarget(value: unknown): MacroTarget | null {
   const id = value.slice(separator + 1);
   if (!id) return null;
   if (kind === 'macro') return { kind, id };
+  if (kind === 'vba') return /^[\p{L}\w]+\.[\p{L}\w]+$/u.test(id) ? { kind, id } : null;
   if (kind === 'builtin' && BUILTIN_MACROS.some(([builtinId]) => builtinId === id)) return { kind, id: id as BuiltinMacroId };
   return null;
 }
 
 export function targetLabel(target: MacroTarget, macros: SheetMacro[]): string {
   if (target.kind === 'builtin') return BUILTIN_MACROS.find(([id]) => id === target.id)?.[1] ?? target.id;
+  if (target.kind === 'vba') return `${target.id.split('.')[1]} (VBA)`;
   return macros.find((macro) => macro.id === target.id)?.name ?? 'Macro đã bị xoá';
 }
 
 export function normalizeShortcut(input: string): string {
-  const letter = input.trim().slice(-1).toUpperCase();
-  return /^[A-Z]$/.test(letter) ? letter : '';
+  const trimmed = input.trim();
+  const letter = trimmed.slice(-1);
+  if (!/^[A-Za-z]$/.test(letter)) return '';
+  return /shift/i.test(trimmed) ? letter.toUpperCase() : letter;
 }
 
-export function shortcutProblem(letter: string, macros: SheetMacro[], ownId: string): string | null {
+export const shortcutLabel = (letter: string) => (letter === letter.toUpperCase() ? `Ctrl + Shift + ${letter}` : `Ctrl + ${letter.toUpperCase()}`);
+
+export function shortcutProblem(letter: string, macros: SheetMacro[], ownId: string, taken: Record<string, string> = {}): string | null {
   if (!letter) return null;
-  if (RESERVED_SHORTCUT_LETTERS.includes(letter)) return `Ctrl + Shift + ${letter} đã dùng cho lệnh khác của Minh Sheets`;
   const holder = macros.find((macro) => macro.shortcut === letter && macro.id !== ownId);
-  return holder ? `Ctrl + Shift + ${letter} đang gán cho macro "${holder.name}"` : null;
+  if (holder) return `${shortcutLabel(letter)} đang gán cho macro "${holder.name}"`;
+  const other = taken[letter];
+  if (other && other !== ownId) return `${shortcutLabel(letter)} đang gán cho macro VBA "${other}"`;
+  return null;
+}
+
+export function shortcutWarning(letter: string): string | null {
+  const builtin = BUILTIN_CTRL_KEYS[letter];
+  return builtin ? `${shortcutLabel(letter)} đang là "${builtin}"; khi gán, macro sẽ chạy thay lệnh này (giống Excel)` : null;
+}
+
+export function shortcutLetter(event: { code: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean; shiftKey: boolean }): string | null {
+  if (!(event.ctrlKey || event.metaKey) || event.altKey) return null;
+  const match = /^Key([A-Z])$/.exec(event.code);
+  if (!match) return null;
+  return event.shiftKey ? match[1] : match[1].toLowerCase();
 }
 
 export function macroForShortcut(
   event: { code: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean; shiftKey: boolean },
   macros: SheetMacro[]
 ): SheetMacro | null {
-  if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.altKey) return null;
-  const match = /^Key([A-Z])$/.exec(event.code);
-  if (!match) return null;
-  return macros.find((macro) => macro.shortcut === match[1]) ?? null;
+  const letter = shortcutLetter(event);
+  if (!letter) return null;
+  return macros.find((macro) => macro.shortcut === letter) ?? null;
 }
 
 export function uniqueMacroName(base: string, macros: SheetMacro[]): string {
@@ -192,7 +244,7 @@ export interface RecordedCommand {
 
 export class MacroRecorder {
   private steps: MacroStep[] = [];
-  private depth = 0;
+  private stack: string[] = [];
   private lastActivity = 0;
   private pendingSelection: MacroStep | null = null;
 
@@ -209,32 +261,53 @@ export class MacroRecorder {
   before(command: RecordedCommand): void {
     if (!this.isRecordable(command)) return;
     const time = this.now();
-    if (time - this.lastActivity > DEPTH_RESET_MS) this.depth = 0;
+    if (time - this.lastActivity > DEPTH_RESET_MS) this.stack = [];
     this.lastActivity = time;
-    this.depth += 1;
+    this.stack.push(command.id);
   }
 
-  executed(command: RecordedCommand, sheetId: string): void {
-    if (command.id === SELECTION_OPERATION_ID) {
-      if (this.depth > 0) return;
-      const box = firstSelectionBox(command.params);
-      if (box) this.pendingSelection = { kind: 'select', sheetId, box };
-      return;
-    }
-    if (!this.isRecordable(command)) return;
-    this.lastActivity = this.now();
-    this.depth = Math.max(0, this.depth - 1);
-    if (this.depth > 0 || this.steps.length >= MAX_MACRO_STEPS) return;
-    const params = cloneParams(command.params);
+  private push(step: MacroStep): boolean {
+    if (this.steps.length >= MAX_MACRO_STEPS) return false;
     if (this.pendingSelection) {
       this.steps.push(this.pendingSelection);
       this.pendingSelection = null;
     }
-    this.steps.push({ kind: 'command', sheetId, id: command.id, params });
+    this.steps.push(step);
+    return true;
+  }
+
+  executed(command: RecordedCommand, sheetId: string): MacroStep | null {
+    if (command.id === SELECTION_OPERATION_ID) {
+      if (this.stack.length > 0) return null;
+      const box = firstSelectionBox(command.params);
+      if (box) this.pendingSelection = { kind: 'select', sheetId, box };
+      return null;
+    }
+    if (!this.isRecordable(command)) return null;
+    this.lastActivity = this.now();
+    const index = this.stack.lastIndexOf(command.id);
+    if (index >= 0) this.stack.splice(index, 1);
+    const parent = this.stack[this.stack.length - 1];
+    const wanted = this.stack.length === 0 ? !EXPAND_TO_CHILDREN.test(command.id) : this.stack.length === 1 && EXPAND_TO_CHILDREN.test(parent);
+    if (!wanted) return null;
+    const step: MacroStep = { kind: 'command', sheetId, id: command.id, params: cloneParams(command.params) };
+    return this.push(step) ? step : null;
+  }
+
+  recordApp(sheetId: string, action: AppAction, payload: unknown, selection?: MacroBox): void {
+    if (selection) this.pendingSelection = { kind: 'select', sheetId, box: selection };
+    this.push({ kind: 'app', sheetId, action, payload: cloneParams(payload) });
+  }
+
+  replace(previous: MacroStep, next: MacroStep): boolean {
+    const index = this.steps.lastIndexOf(previous);
+    if (index < 0) return false;
+    this.steps[index] = next;
+    return true;
   }
 
   get count(): number {
-    return this.steps.filter((step) => step.kind === 'command').length;
+    return this.steps.filter((step) => step.kind !== 'select').length;
   }
 
   finish(): MacroStep[] {
@@ -250,7 +323,9 @@ export function firstSelectionBox(params: unknown): MacroBox | null {
 }
 
 export function isReplayable(step: MacroStep): boolean {
-  return step.kind === 'select' || step.id.startsWith(MACRO_COMMAND_PREFIX);
+  if (step.kind === 'select') return true;
+  if (step.kind === 'app') return (APP_ACTIONS as readonly string[]).includes(step.action);
+  return step.id.startsWith(MACRO_COMMAND_PREFIX);
 }
 
 const COMMAND_LABELS: Array<[pattern: RegExp, label: string]> = [
@@ -288,8 +363,23 @@ export function boxToA1(box: MacroBox): string {
   return start === end ? start : `${start}:${end}`;
 }
 
+const OUTLINE_LABELS: Record<string, string> = {
+  group: 'Nhóm hàng / cột',
+  ungroup: 'Bỏ nhóm',
+  collapse: 'Thu gọn nhóm',
+  expand: 'Mở rộng nhóm',
+  clear: 'Xoá toàn bộ dàn ý',
+};
+
 export function describeStep(step: MacroStep): string {
   if (step.kind === 'select') return `Chọn vùng ${boxToA1(step.box)}`;
+  if (step.kind === 'app') {
+    const payload = (step.payload ?? {}) as Record<string, unknown>;
+    if (step.action === 'outline') return OUTLINE_LABELS[String(payload.action)] ?? 'Dàn ý';
+    if (step.action === 'outlineLevel') return `Hiện dàn ý mức ${String(payload.level)}`;
+    if (step.action === 'pageBreak') return payload.action === 'clear' ? 'Xoá ngắt trang' : 'Chèn / bỏ ngắt trang';
+    return 'Đổi thiết lập in';
+  }
   const label = COMMAND_LABELS.find(([pattern]) => pattern.test(step.id))?.[1];
   return label ?? step.id.slice(MACRO_COMMAND_PREFIX.length);
 }
@@ -307,7 +397,8 @@ export function sanitizeMacros(value: unknown): SheetMacro[] {
         typeof step === 'object' &&
         typeof (step as MacroStep).sheetId === 'string' &&
         (((step as MacroStep).kind === 'select' && isBox((step as { box?: unknown }).box)) ||
-          ((step as MacroStep).kind === 'command' && typeof (step as { id?: unknown }).id === 'string' && isReplayable(step as MacroStep)))
+          ((step as MacroStep).kind === 'command' && typeof (step as { id?: unknown }).id === 'string' && isReplayable(step as MacroStep)) ||
+          ((step as MacroStep).kind === 'app' && (APP_ACTIONS as readonly string[]).includes(String((step as { action?: unknown }).action))))
     );
     macros.push({
       id: macro.id,

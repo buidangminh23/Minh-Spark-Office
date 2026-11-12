@@ -1,5 +1,8 @@
 import ExcelJS from 'exceljs';
+import JSZip from 'jszip';
 import * as XLSX from 'xlsx';
+import { buildVbaProject, fromBase64, readVbaProject, updateVbaProject } from './vbaProject';
+import { RECORDED_VBA_MODULE, addMinhBundle, addVbaProject, readCodeNames, readMinhBundle } from './xlsmPackage';
 import type { CellStyle, CellValue, ImportTruncation, WorkbookData } from './sheetTypes';
 import { emptySheet, emptyWorkbook, uid } from './workbookBasics';
 import { EXCEL_EPOCH, MAX_IMPORT_COLS, MAX_IMPORT_ROWS, importedFontFamily, inferDelimitedValue, normalizeHexColor, resolveCellStyle, toNfc } from './xlsxShared';
@@ -282,13 +285,116 @@ export async function readSpreadsheet(buffer: ArrayBuffer, fileName: string): Pr
   const bytes = new Uint8Array(buffer);
   if (extension === 'csv' || extension === 'tsv' || extension === 'txt') return sheetJsToWorkbook(buffer, name, true);
   if (isZip(bytes) && (extension === 'xlsx' || extension === 'xlsm' || extension === '')) {
+    const archive = bytes.slice();
+    let data: WorkbookData;
     try {
-      return await excelJsToWorkbook(buffer, name);
+      data = await excelJsToWorkbook(buffer, name);
     } catch {
-      return sheetJsToWorkbook(buffer, name);
+      data = sheetJsToWorkbook(buffer, name);
     }
+    await attachAutomation(data, archive);
+    return data;
   }
   return sheetJsToWorkbook(buffer, name);
+}
+
+async function attachAutomation(data: WorkbookData, archive: Uint8Array) {
+  let zip: JSZip;
+  try {
+    zip = await JSZip.loadAsync(archive);
+  } catch {
+    return;
+  }
+  const sheetNames = data.sheetOrder.map((id) => data.sheets[id]?.name ?? '');
+  const vbaFile = zip.file('xl/vbaProject.bin');
+  if (vbaFile) {
+    try {
+      const project = readVbaProject(await vbaFile.async('uint8array'));
+      const codeNames = await readCodeNames(zip);
+      project.workbookCodeName = codeNames.workbook ?? 'ThisWorkbook';
+      project.sheetCodeNames = {};
+      codeNames.sheets.forEach((codeName, index) => {
+        if (codeName && sheetNames[index]) project.sheetCodeNames![sheetNames[index]] = codeName;
+      });
+      data.vba = project;
+    } catch (error) {
+      console.warn('VBA project could not be read:', error);
+      data.vba = undefined;
+      data.vbaError = error instanceof Error ? error.message : String(error);
+    }
+  }
+  const bundle = (await readMinhBundle(zip)) as WorkbookData['automation'] | null;
+  if (bundle && typeof bundle === 'object') {
+    data.automation = bundle;
+    if (data.vba && bundle.macros?.length) data.vba = { ...data.vba, modules: data.vba.modules.filter((module) => module.name !== RECORDED_VBA_MODULE) };
+    for (const button of bundle.buttons ?? []) {
+      const sheetId = data.sheetOrder.find((id) => data.sheets[id]?.name === button.sheet);
+      if (!sheetId || typeof button.row !== 'number' || typeof button.column !== 'number') continue;
+      const sheet = data.sheets[sheetId];
+      const row = (sheet.cellData[button.row] ??= {});
+      const cell = (row[button.column] ??= {});
+      cell.custom = { ...(cell.custom ?? {}), minhMacro: button.target };
+    }
+  }
+}
+
+const AUTOMATION_KEY = 'minhMacro';
+
+function collectButtons(data: WorkbookData) {
+  const buttons: Array<{ sheet: string; row: number; column: number; target: string }> = [];
+  for (const id of data.sheetOrder) {
+    const sheet = data.sheets[id];
+    if (!sheet) continue;
+    for (const [rowKey, row] of Object.entries(sheet.cellData ?? {})) {
+      for (const [columnKey, cell] of Object.entries(row ?? {})) {
+        const target = cell?.custom?.[AUTOMATION_KEY];
+        if (typeof target === 'string' && target) buttons.push({ sheet: sheet.name, row: Number(rowKey), column: Number(columnKey), target });
+      }
+    }
+  }
+  return buttons;
+}
+
+function sheetCodeNames(data: WorkbookData, reserved: Set<string>): string[] {
+  const known = data.vba?.sheetCodeNames ?? {};
+  const used = new Set(reserved);
+  const names: string[] = [];
+  data.sheetOrder.forEach((id, index) => {
+    const sheet = data.sheets[id];
+    let codeName = sheet ? known[sheet.name] : undefined;
+    if (!codeName || used.has(codeName.toLowerCase())) {
+      let counter = index + 1;
+      do {
+        codeName = `Sheet${counter}`;
+        counter += 1;
+      } while (used.has(codeName.toLowerCase()));
+    }
+    used.add(codeName.toLowerCase());
+    names.push(codeName);
+  });
+  return names;
+}
+
+async function finishPackage(data: WorkbookData, written: ArrayBuffer, macroEnabled: boolean): Promise<ArrayBuffer> {
+  const buttons = collectButtons(data);
+  const hasBundle = !!data.automation?.macros?.length || buttons.length > 0;
+  const project = data.vba;
+  if (!hasBundle && !macroEnabled) return written;
+  const zip = await JSZip.loadAsync(written);
+  if (hasBundle) await addMinhBundle(zip, { version: 1, macros: data.automation?.macros ?? [], buttons });
+  if (macroEnabled) {
+    const modules = project?.modules ?? [];
+    const workbookCodeName = project?.workbookCodeName ?? 'ThisWorkbook';
+    const reserved = new Set(modules.filter((module) => module.kind !== 'document').map((module) => module.name.toLowerCase()));
+    reserved.add(workbookCodeName.toLowerCase());
+    const codeNames = { workbookCodeName, sheetCodeNames: sheetCodeNames(data, reserved) };
+    const source = project ?? { modules: [], codePage: 1252 };
+    const raw = project?.raw ? fromBase64(project.raw) : null;
+    const vbaBytes = raw ? updateVbaProject(raw, source, codeNames) : buildVbaProject(source, codeNames);
+    await addVbaProject(zip, vbaBytes, { workbook: workbookCodeName, sheets: codeNames.sheetCodeNames });
+  }
+  const output = await zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
+  return output.buffer.slice(output.byteOffset, output.byteOffset + output.byteLength) as ArrayBuffer;
 }
 
 const resolveStyle = resolveCellStyle;
@@ -306,7 +412,7 @@ const toExcelValue = (cell: CellValue): ExcelJS.CellValue => {
   return String(cell.v);
 };
 
-export async function writeWorkbookXlsx(data: WorkbookData): Promise<ArrayBuffer> {
+export async function writeWorkbookXlsx(data: WorkbookData, options: { macroEnabled?: boolean } = {}): Promise<ArrayBuffer> {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'Minh Office';
   workbook.created = new Date();
@@ -380,6 +486,6 @@ export async function writeWorkbookXlsx(data: WorkbookData): Promise<ArrayBuffer
   }
   if (!workbook.worksheets.length) workbook.addWorksheet('Sheet1');
   const written = await workbook.xlsx.writeBuffer() as ArrayBuffer | Uint8Array;
-  if (written instanceof ArrayBuffer) return written;
-  return written.buffer.slice(written.byteOffset, written.byteOffset + written.byteLength) as ArrayBuffer;
+  const buffer = written instanceof ArrayBuffer ? written : (written.buffer.slice(written.byteOffset, written.byteOffset + written.byteLength) as ArrayBuffer);
+  return finishPackage(data, buffer, options.macroEnabled === true);
 }

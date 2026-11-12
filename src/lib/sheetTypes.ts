@@ -1,3 +1,5 @@
+import type { VbaProjectData } from './vbaProject';
+
 export type ColorStyle = { rgb?: string };
 export type BorderSide = { s: number; cl?: ColorStyle };
 
@@ -25,6 +27,7 @@ export type CellValue = {
   t?: number;
   s?: string | CellStyle | null;
   p?: { body?: { dataStream?: string } };
+  custom?: Record<string, unknown>;
 };
 
 export type SheetData = {
@@ -57,4 +60,15 @@ export type WorkbookData = {
   sheets: Record<string, SheetData>;
   resources?: unknown[];
   importTruncation?: ImportTruncation[];
+  vba?: VbaProjectData;
+  vbaError?: string;
+  automation?: AutomationBundle;
+};
+
+export type AutomationButton = { sheet: string; row: number; column: number; target: string };
+
+export type AutomationBundle = {
+  version: number;
+  macros?: unknown[];
+  buttons?: AutomationButton[];
 };

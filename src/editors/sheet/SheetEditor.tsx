@@ -77,19 +77,28 @@ import {
   decodeTarget,
   encodeTarget,
   isReplayable,
-  macroForShortcut,
   nextMacroName,
   remapParams,
   sanitizeMacros,
   shiftBox,
   shiftParams,
+  shortcutLabel,
+  shortcutLetter,
   shortcutProblem,
   targetLabel,
   uniqueMacroName,
+  type AppAction,
   type BuiltinMacroId,
+  type MacroStep,
   type MacroTarget,
   type SheetMacro,
 } from './sheetMacros';
+import { VbaEditorModal } from './VbaEditorModal';
+import { createExcelHost, listVbaMacros, messageBoxAnswer, runVbaMacro, vbaSources } from './vba/runVba';
+import { listProcedures } from './vba/vbaInterpreter';
+import { recordedMacrosToVba } from './vba/recordedToVba';
+import { defaultAttributes, withProcShortcut, type VbaModuleData, type VbaProjectData } from '../../lib/vbaProject';
+import { RECORDED_VBA_MODULE } from '../../lib/xlsmPackage';
 import { MacroButtonModal, MacroManagerModal, MacroRecordModal, type MacroButtonColor, type MacroRecordOptions } from './SheetMacroModals';
 import { BACKSPACE_CLEAR_PRIORITY, selectionCoversMultipleCells } from './backspaceClear';
 import UniverPresetSheetsCoreViVN from '@univerjs/preset-sheets-core/locales/vi-VN';
@@ -222,6 +231,7 @@ import {
   Square,
   MousePointerClick,
   ListVideo,
+  PencilRuler,
 } from 'lucide-react';
 
 import {
@@ -239,6 +249,7 @@ import {
   exportSheetToTsv,
   exportSheetToJson,
   exportWorkbookToXlsx,
+  exportWorkbookToXlsm,
   exportSingleSheetToXlsx,
   exportSheetToStyledHtml,
   renderSheetToPngBlob,
@@ -632,6 +643,11 @@ const inlineSheetStyles = (sheet: SheetData, styles: Record<string, CellStyle>):
   };
 };
 
+type OutlineAction = 'group' | 'ungroup' | 'collapse' | 'expand' | 'clear';
+const PASTE_COMMAND = /^sheet\.command\.[\w-]*paste/;
+const MAX_PASTE_SNAPSHOT_CELLS = 50_000;
+const MAX_VBA_OUTPUT_LINES = 500;
+const CONVERTED_VBA_MODULE = 'MacroGhiLai';
 export default function SheetEditor({ meta, content, onSave, onBack }: SheetEditorProps) {
   const ui = useUi();
   const { user, login } = useAccount();
@@ -694,9 +710,28 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
   const [activeRangeA1, setActiveRangeA1] = useState('A1');
   const [nameBoxText, setNameBoxText] = useState('A1');
   const [outlines, setOutlines] = useState<Record<string, SheetOutline>>(() => content.outlines ?? {});
-  const [macros, setMacros] = useState<SheetMacro[]>(() => sanitizeMacros(content.macros));
+  const [macros, setMacros] = useState<SheetMacro[]>(() => sanitizeMacros(content.macros ?? content.workbook.automation?.macros));
   const macrosRef = useRef(macros);
   macrosRef.current = macros;
+  const [vbaProject, setVbaProject] = useState<VbaProjectData | null>(() => content.vba ?? content.workbook.vba ?? null);
+  const vbaProjectRef = useRef(vbaProject);
+  vbaProjectRef.current = vbaProject;
+  const vbaMacros = useMemo(() => listVbaMacros(vbaProject), [vbaProject]);
+  const vbaMacrosRef = useRef(vbaMacros);
+  vbaMacrosRef.current = vbaMacros;
+  const [vbaOutput, setVbaOutput] = useState<string[]>([]);
+  const [vbaEditorModule, setVbaEditorModule] = useState<string | undefined>(undefined);
+  const [designMode, setDesignMode] = useState(false);
+  const designModeRef = useRef(false);
+  designModeRef.current = designMode;
+  const suppressRecordRef = useRef(0);
+  const outlinesRef = useRef(outlines);
+  outlinesRef.current = outlines;
+  const printSettingsRef = useRef(printSettings);
+  printSettingsRef.current = printSettings;
+  const runVbaRef = useRef<(id: string) => void>(() => undefined);
+  const openVbaEditorRef = useRef<() => void>(() => undefined);
+  const pasteSnapshotRef = useRef<(recorder: MacroRecorder, step: MacroStep) => void>(() => undefined);
   const [recordedCount, setRecordedCount] = useState<number | null>(null);
   const recorderRef = useRef<MacroRecorder | null>(null);
   const recordMetaRef = useRef<(MacroRecordOptions & { origin: { row: number; column: number } }) | null>(null);
@@ -765,6 +800,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
     | 'macroRecord'
     | 'macros'
     | 'macroButton'
+    | 'vba'
     | 'formulas'
     | 'chart'
     | 'pivot'
@@ -1073,6 +1109,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
         printSettings,
         outlines,
         macros,
+        vba: vbaProject ?? undefined,
       }, explicit);
       if (saved) {
         if (changeRevision.current === savedRevision) setSavedStatus('saved');
@@ -1084,7 +1121,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
       ui.toast('Chưa lưu được bản nháp. Vui lòng giữ trang này mở và thử lại.', true);
       return false;
     }
-  }, [setSavedStatus, captureHydratedWorkbook, meta, title, onSave, comments, printSettings, outlines, macros, ui]);
+  }, [setSavedStatus, captureHydratedWorkbook, meta, title, onSave, comments, printSettings, outlines, macros, vbaProject, ui]);
 
   const handleSaveNow = useCallback(() => void persistWorkbook(true), [persistWorkbook]);
 
@@ -1164,12 +1201,13 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
           }, 0);
         });
         const macroBeforeSub = api.addEvent(api.Event.BeforeCommandExecute, (event) => {
-          if (!isReplayingRef.current) recorderRef.current?.before(event);
+          if (!isReplayingRef.current && !suppressRecordRef.current) recorderRef.current?.before(event);
         });
         const macroAfterSub = api.addEvent(api.Event.CommandExecuted, (event) => {
           const recorder = recorderRef.current;
-          if (!recorder || isReplayingRef.current) return;
-          recorder.executed(event, api.getActiveWorkbook()?.getActiveSheet()?.getSheetId() ?? '');
+          if (!recorder || isReplayingRef.current || suppressRecordRef.current) return;
+          const step = recorder.executed(event, api.getActiveWorkbook()?.getActiveSheet()?.getSheetId() ?? '');
+          if (step?.kind === 'command' && PASTE_COMMAND.test(step.id)) setTimeout(() => pasteSnapshotRef.current(recorder, step), 0);
           setRecordedCount(recorder.count);
         });
         const macroClickSub = api.addEvent(api.Event.CellClicked, ({ row, column }) => cellClickRef.current(row, column));
@@ -1260,6 +1298,10 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
       const clonedWb = JSON.parse(JSON.stringify(content.workbook)) as WorkbookData;
       const truncationNotice = describeImportTruncation(clonedWb.importTruncation);
       delete clonedWb.importTruncation;
+      const vbaNotice = clonedWb.vbaError ? `Tệp có mã VBA nhưng Minh Sheets chưa đọc được (${clonedWb.vbaError}). Dữ liệu bảng vẫn mở bình thường.` : '';
+      delete clonedWb.vba;
+      delete clonedWb.vbaError;
+      delete clonedWb.automation;
       univer.createUnit(UniverInstanceType.UNIVER_SHEET, clonedWb);
       registerBackspaceClearsSelection(univer);
       recalculateAndBindWorkbook(univerAPI);
@@ -1269,6 +1311,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
         syncUiFromSelection();
         syncDefinedNames();
         if (truncationNotice) ui.toast(truncationNotice, true);
+        if (vbaNotice) ui.toast(vbaNotice, true);
       }, 140);
     } catch (err) {
       console.error('Failed to initialize Univer:', err);
@@ -3234,7 +3277,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
   const handleCleanWorkbook = async () => {
     const ctx = getEditableContext();
     if (!ctx || !doctorData) throw new Error('Không có sổ tính để dọn');
-    const draft: SheetContent = { kind: 'sheet', workbook: captureHydratedWorkbook(), comments, printSettings, outlines, macros };
+    const draft: SheetContent = { kind: 'sheet', workbook: captureHydratedWorkbook(), comments, printSettings, outlines, macros, vba: vbaProject ?? undefined };
     try {
       const saved = await sourceStorage.saveVersion(meta.id, draft, 'Trước khi tối ưu');
       setVersions((prev) => [saved, ...prev]);
@@ -3629,15 +3672,55 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
     ui.toast('Đã tải tệp bản in HTML Vector sắc nét');
   };
 
+  const workbookWithAutomation = (withVba: boolean): WorkbookData => {
+    const wb = captureHydratedWorkbook();
+    if (macros.length) wb.automation = { version: 1, macros };
+    if (!withVba) return wb;
+    const base: VbaProjectData = vbaProject ?? { modules: [], codePage: 1252 };
+    const kept = base.modules.filter((module) => module.name !== RECORDED_VBA_MODULE);
+    if (!macros.length) {
+      wb.vba = { ...base, modules: kept };
+      return wb;
+    }
+    const reserved = new Set([...kept.map((module) => module.name), ...listProcedures(vbaSources({ ...base, modules: kept })).procedures.map((proc) => proc.name)]);
+    const converted = recordedMacrosToVba(macros, reserved);
+    const recordedModule: VbaModuleData = {
+      name: RECORDED_VBA_MODULE,
+      kind: 'standard',
+      code: converted.code,
+      attributes: defaultAttributes({ name: RECORDED_VBA_MODULE, kind: 'standard' }),
+      procAttributes: converted.procAttributes,
+    };
+    wb.vba = { ...base, modules: [...kept, recordedModule] };
+    return wb;
+  };
+
   const handleExportXlsx = async () => {
     try {
       ui.showBusy('Đang xuất tệp Excel (.xlsx)…');
-      const wb = captureHydratedWorkbook();
-      const blob = await exportWorkbookToXlsx(wb);
+      const blob = await exportWorkbookToXlsx(workbookWithAutomation(false));
       downloadBlob(blob, `${stripSpreadsheetExt(title)}.xlsx`);
-      ui.toast(`Đã tải xuống "${stripSpreadsheetExt(title)}.xlsx"`);
+      const hasVba = !!vbaProject?.modules.some((module) => module.code.trim());
+      ui.toast(
+        hasVba
+          ? `Đã tải xuống "${stripSpreadsheetExt(title)}.xlsx". Tệp .xlsx không chứa được mã VBA; dùng "Xuất .xlsm" để giữ macro cho Excel.`
+          : `Đã tải xuống "${stripSpreadsheetExt(title)}.xlsx"`
+      );
     } catch (err) {
       ui.toast((err as Error).message || 'Lỗi khi xuất XLSX', true);
+    } finally {
+      ui.showBusy(null);
+    }
+  };
+
+  const handleExportXlsm = async () => {
+    try {
+      ui.showBusy('Đang xuất tệp Excel có macro (.xlsm)…');
+      const blob = await exportWorkbookToXlsm(workbookWithAutomation(true));
+      downloadBlob(blob, `${stripSpreadsheetExt(title)}.xlsm`);
+      ui.toast(`Đã tải xuống "${stripSpreadsheetExt(title)}.xlsm" kèm macro VBA${macros.length ? ` (macro đã ghi nằm trong mô-đun ${RECORDED_VBA_MODULE})` : ''}`);
+    } catch (err) {
+      ui.toast((err as Error).message || 'Lỗi khi xuất XLSM', true);
     } finally {
       ui.showBusy(null);
     }
@@ -3939,7 +4022,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
 
   const applyOutline = (sheet: NonNullable<ReturnType<typeof getActiveContext>>['fWorksheet'], axis: OutlineAxis, nextGroups: OutlineGroup[]) => {
     const sheetId = sheet.getSheetId();
-    const current = outlines[sheetId] ?? EMPTY_OUTLINE;
+    const current = outlinesRef.current[sheetId] ?? EMPTY_OUTLINE;
     const changes = visibilityChanges(current[axis], nextGroups);
     for (const run of changes.show) {
       if (axis === 'rows') sheet.showRows(run.start, run.count);
@@ -3949,11 +4032,36 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
       if (axis === 'rows') sheet.hideRows(run.start, run.count);
       else sheet.hideColumns(run.start, run.count);
     }
+    outlinesRef.current = { ...outlinesRef.current, [sheetId]: { ...current, [axis]: nextGroups } };
     setOutlines((previous) => ({ ...previous, [sheetId]: { ...(previous[sheetId] ?? EMPTY_OUTLINE), [axis]: nextGroups } }));
     setSavedStatus('saving');
   };
 
-  const handleOutline = (action: 'group' | 'ungroup' | 'collapse' | 'expand' | 'clear') => {
+  const recordAppStep = (action: AppAction, payload: unknown) => {
+    const recorder = recorderRef.current;
+    if (!recorder || isReplayingRef.current) return;
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const range = ctx.fRange.getRange();
+    recorder.recordApp(ctx.fWorksheet.getSheetId(), action, payload, { startRow: range.startRow, endRow: range.endRow, startColumn: range.startColumn, endColumn: range.endColumn });
+    setRecordedCount(recorder.count);
+  };
+
+  const withoutRecording = (run: () => void) => {
+    suppressRecordRef.current += 1;
+    try {
+      run();
+    } finally {
+      suppressRecordRef.current -= 1;
+    }
+  };
+
+  const handleOutline = (action: OutlineAction) => {
+    recordAppStep('outline', { action });
+    withoutRecording(() => performOutline(action));
+  };
+
+  const performOutline = (action: OutlineAction) => {
     setPopover(null);
     const ctx = getEditableContext();
     if (!ctx) return;
@@ -3963,7 +4071,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
     const axis: OutlineAxis = scope === 'columns' ? 'cols' : 'rows';
     const start = axis === 'rows' ? box.startRow : box.startColumn;
     const end = axis === 'rows' ? box.endRow : box.endColumn;
-    const outline = outlines[fWorksheet.getSheetId()] ?? EMPTY_OUTLINE;
+    const outline = outlinesRef.current[fWorksheet.getSheetId()] ?? EMPTY_OUTLINE;
     const groups = outline[axis];
     const target = innermostGroup(groups, start, end);
 
@@ -4012,11 +4120,16 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
   };
 
   const handleOutlineLevel = (level: number) => {
+    recordAppStep('outlineLevel', { level });
+    withoutRecording(() => performOutlineLevel(level));
+  };
+
+  const performOutlineLevel = (level: number) => {
     setPopover(null);
     const ctx = getEditableContext();
     if (!ctx) return;
     const sheetId = ctx.fWorksheet.getSheetId();
-    const outline = outlines[sheetId] ?? EMPTY_OUTLINE;
+    const outline = outlinesRef.current[sheetId] ?? EMPTY_OUTLINE;
     if (!outline.rows.length && !outline.cols.length) {
       ui.toast('Trang tính này chưa có nhóm nào', true);
       return;
@@ -4034,23 +4147,42 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
         else ctx.fWorksheet.hideColumns(run.start, run.count);
       }
     }
+    outlinesRef.current = { ...outlinesRef.current, [sheetId]: { rows: nextRows, cols: nextCols } };
     setOutlines((previous) => ({ ...previous, [sheetId]: { rows: nextRows, cols: nextCols } }));
     setSavedStatus('saving');
     const deepest = Math.max(maxLevel(outline.rows), maxLevel(outline.cols));
     ui.toast(level > deepest ? 'Đã mở rộng toàn bộ nhóm' : `Đang hiện tới mức ${level} của dàn ý`);
   };
 
+  const applyPrintPatch = (patch: Partial<SheetPrintSettings>) => {
+    const next = { ...printSettingsRef.current, ...patch };
+    printSettingsRef.current = next;
+    setPrintSettings(next);
+    setSavedStatus('saving');
+  };
+
+  const updatePrintSettings = (patch: Partial<SheetPrintSettings>) => {
+    const { pageBreaks: _pageBreaks, signedBy: _signedBy, signedRole: _signedRole, signedAt: _signedAt, ...recorded } = patch;
+    if (Object.keys(recorded).length) recordAppStep('printSetting', recorded);
+    applyPrintPatch(patch);
+  };
+
   const handlePageBreak = (action: 'toggle' | 'clear') => {
+    recordAppStep('pageBreak', { action });
+    withoutRecording(() => performPageBreak(action));
+  };
+
+  const performPageBreak = (action: 'toggle' | 'clear') => {
     const ctx = getActiveContext();
     if (!ctx) return;
     const sheetId = ctx.fWorksheet.getSheetId();
-    const current = printSettings.pageBreaks?.[sheetId] ?? [];
+    const current = printSettingsRef.current.pageBreaks?.[sheetId] ?? [];
     if (action === 'clear') {
       if (!current.length) {
         ui.toast('Trang tính này chưa có ngắt trang thủ công', true);
         return;
       }
-      setPrintSettings((previous) => ({ ...previous, pageBreaks: { ...previous.pageBreaks, [sheetId]: [] } }));
+      applyPrintPatch({ pageBreaks: { ...printSettingsRef.current.pageBreaks, [sheetId]: [] } });
       setSavedStatus('saving');
       ui.toast(`Đã xoá ${current.length} ngắt trang thủ công của trang tính`);
       return;
@@ -4061,8 +4193,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
       return;
     }
     const next = toggleBreak(current, row);
-    setPrintSettings((previous) => ({ ...previous, pageBreaks: { ...previous.pageBreaks, [sheetId]: next } }));
-    setSavedStatus('saving');
+    applyPrintPatch({ pageBreaks: { ...printSettingsRef.current.pageBreaks, [sheetId]: next } });
     ui.toast(next.length > current.length ? `Đã chèn ngắt trang phía trên hàng ${row + 1} (xem ở In / Xem trước)` : `Đã bỏ ngắt trang phía trên hàng ${row + 1}`);
   };
 
@@ -4141,6 +4272,11 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
           sheet.getRange(box.startRow, box.startColumn, box.endRow - box.startRow + 1, box.endColumn - box.startColumn + 1).activate();
           continue;
         }
+        if (step.kind === 'app') {
+          runAppStep(step);
+          done += 1;
+          continue;
+        }
         const params = remapParams(shiftParams(step.params, rowDelta, columnDelta), unitId, sheet.getSheetId());
         await api.executeCommand(step.id, (params ?? undefined) as object | undefined);
         done += 1;
@@ -4156,9 +4292,127 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
   };
   runMacroRef.current = (macro) => void runRecordedMacro(macro);
 
+  const runAppStep = (step: Extract<MacroStep, { kind: 'app' }>) => {
+    const payload = (step.payload ?? {}) as Record<string, unknown>;
+    if (step.action === 'outline') performOutline(String(payload.action) as OutlineAction);
+    else if (step.action === 'outlineLevel') performOutlineLevel(Number(payload.level) || 1);
+    else if (step.action === 'pageBreak') performPageBreak(payload.action === 'clear' ? 'clear' : 'toggle');
+    else applyPrintPatch(payload as Partial<SheetPrintSettings>);
+  };
+
+  pasteSnapshotRef.current = (recorder, step) => {
+    if (recorderRef.current !== recorder) return;
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const range = ctx.fRange.getRange();
+    const cellCount = (range.endRow - range.startRow + 1) * (range.endColumn - range.startColumn + 1);
+    if (cellCount > MAX_PASTE_SNAPSHOT_CELLS) return;
+    const rows = (ctx.fRange.getCellDatas() ?? []) as Array<Array<Record<string, unknown> | null | undefined>>;
+    const value = rows.map((row) => row.map((cell) => (cell ? { v: cell.v, f: cell.f, s: cell.s, t: cell.t, p: cell.p } : {})));
+    recorder.replace(step, {
+      kind: 'command',
+      sheetId: ctx.fWorksheet.getSheetId(),
+      id: 'sheet.command.set-range-values',
+      params: {
+        unitId: ctx.fWorkbook.getId(),
+        subUnitId: ctx.fWorksheet.getSheetId(),
+        range: { startRow: range.startRow, endRow: range.endRow, startColumn: range.startColumn, endColumn: range.endColumn },
+        value: JSON.parse(JSON.stringify(value)),
+      },
+    });
+  };
+
+  const runVbaMacroById = (id: string, project: VbaProjectData | null = vbaProjectRef.current) => {
+    const name = id.split('.').pop() ?? id;
+    if (!project?.modules.length) {
+      ui.toast('Bảng tính chưa có mã VBA', true);
+      return;
+    }
+    if (recorderRef.current) {
+      ui.toast('Đang ghi macro: hãy Dừng ghi trước khi chạy macro VBA', true);
+      return;
+    }
+    if (isReplayingRef.current) return;
+    const ctx = getEditableContext();
+    if (!ctx) return;
+    const lines: string[] = [];
+    const withTitle = (title: string, prompt: string) => (title && title !== 'Microsoft Excel' ? `${title}\n\n${prompt}` : prompt);
+    const host = createExcelHost(ctx.api, {
+      msgBox: (prompt, buttons, title) => messageBoxAnswer(buttons, (text) => window.confirm(text), (text) => window.alert(text), withTitle(title, prompt)),
+      inputBox: (prompt, title, defaultValue) => window.prompt(withTitle(title, prompt), defaultValue) ?? '',
+      statusBar: (text) => {
+        if (text) ui.toast(text);
+      },
+      save: () => handleSaveNow(),
+      print: (text) => {
+        lines.push(text);
+      },
+    });
+    isReplayingRef.current = true;
+    let result: ReturnType<typeof runVbaMacro>;
+    try {
+      result = runVbaMacro(project, id, host);
+    } finally {
+      isReplayingRef.current = false;
+    }
+    if (lines.length) setVbaOutput((previous) => [...previous, ...lines].slice(-MAX_VBA_OUTPUT_LINES));
+    setSavedStatus('saving');
+    if (result.ok) ui.toast(`Đã chạy macro VBA "${name}"`);
+    else ui.toast(`Macro VBA "${name}" dừng: ${result.error}`, true);
+  };
+  runVbaRef.current = (id) => runVbaMacroById(id);
+
+  const openVbaEditor = (module?: string) => {
+    setVbaEditorModule(module);
+    setModal('vba');
+  };
+  openVbaEditorRef.current = () => openVbaEditor();
+
+  const saveVbaModules = (modules: VbaModuleData[]): VbaProjectData => {
+    const next: VbaProjectData = { ...(vbaProjectRef.current ?? { codePage: 1252 }), modules };
+    vbaProjectRef.current = next;
+    setVbaProject(next);
+    setSavedStatus('saving');
+    return next;
+  };
+
+  const handleVbaShortcut = (id: string, letter: string) => {
+    const [moduleName, procName] = id.split('.');
+    const project = vbaProjectRef.current;
+    if (!project || !procName) return;
+    const key = procName.toLowerCase();
+    saveVbaModules(
+      project.modules.map((module) =>
+        module.name === moduleName ? { ...module, procAttributes: { ...(module.procAttributes ?? {}), [key]: withProcShortcut(module.procAttributes?.[key], procName, letter) } } : module
+      )
+    );
+    ui.toast(letter ? `Đã gán ${shortcutLabel(letter)} cho macro VBA "${procName}"` : `Đã bỏ phím tắt của macro VBA "${procName}"`);
+  };
+
+  const handleConvertToVba = (id: string) => {
+    const macro = macros.find((item) => item.id === id);
+    if (!macro) return;
+    const project = vbaProjectRef.current ?? { modules: [], codePage: 1252 };
+    const reserved = new Set([...project.modules.map((module) => module.name), ...listProcedures(vbaSources(project)).procedures.map((proc) => proc.name)]);
+    const converted = recordedMacrosToVba([{ ...macro, shortcut: '' }], reserved);
+    const body = converted.code.replace(/^Option Explicit\r\n\r\n/, '');
+    const existing = project.modules.find((module) => module.name === CONVERTED_VBA_MODULE);
+    const nextModule: VbaModuleData = existing
+      ? { ...existing, code: `${existing.code.trimEnd()}\r\n\r\n${body}\r\n` }
+      : { name: CONVERTED_VBA_MODULE, kind: 'standard', code: `${converted.code}\r\n`, attributes: defaultAttributes({ name: CONVERTED_VBA_MODULE, kind: 'standard' }) };
+    saveVbaModules(existing ? project.modules.map((module) => (module === existing ? nextModule : module)) : [...project.modules, nextModule]);
+    ui.toast(`Đã viết macro "${macro.name}" thành Sub ${converted.procNames[macro.id]} trong mô-đun ${CONVERTED_VBA_MODULE}`);
+    openVbaEditor(CONVERTED_VBA_MODULE);
+  };
+
   const runMacroTarget = (target: MacroTarget) => {
     if (target.kind === 'builtin') {
       runBuiltinMacro(target.id);
+      return;
+    }
+    if (target.kind === 'vba') {
+      if (vbaMacros.some((item) => item.id === target.id)) runVbaMacroById(target.id);
+      else ui.toast(`Không còn macro VBA "${target.id}". Bật Chế độ thiết kế rồi vào Automate → Chèn nút để gán lại.`, true);
       return;
     }
     const macro = macros.find((item) => item.id === target.id);
@@ -4171,7 +4425,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
 
   cellClickRef.current = (row, column) => {
     const ctx = getActiveContext();
-    if (!ctx || recorderRef.current || isReplayingRef.current) return;
+    if (!ctx || recorderRef.current || isReplayingRef.current || designModeRef.current) return;
     const custom = ctx.fWorksheet.getRange(row, column, 1, 1).getCustomMetaData();
     const target = decodeTarget(custom?.[MACRO_CELL_KEY]);
     if (target) runMacroTarget(target);
@@ -4204,7 +4458,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
       id: `m${Date.now().toString(36)}`,
       name: uniqueMacroName(meta.name, macros),
       description: meta.description,
-      shortcut: shortcutProblem(meta.shortcut, macros, '') ? '' : meta.shortcut,
+      shortcut: shortcutProblem(meta.shortcut, macros, '', Object.fromEntries(vbaMacros.filter((item) => item.shortcut).map((item) => [item.shortcut, item.name]))) ? '' : meta.shortcut,
       relative: meta.relative,
       origin: meta.origin,
       steps,
@@ -4212,7 +4466,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
     };
     setMacros((previous) => [...previous, macro]);
     setSavedStatus('saving');
-    ui.toast(`Đã lưu macro "${macro.name}" (${recorder.count} thao tác)${macro.shortcut ? `, phím tắt Ctrl + Shift + ${macro.shortcut}` : ''}`);
+    ui.toast(`Đã lưu macro "${macro.name}" (${recorder.count} thao tác)${macro.shortcut ? `, phím tắt ${shortcutLabel(macro.shortcut)}` : ''}`);
   };
 
   const macroButtonTarget = (): MacroTarget | null => {
@@ -4240,7 +4494,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
       .setCustomMetaData({ [MACRO_CELL_KEY]: encodeTarget(target) });
     setModal(null);
     setSavedStatus('saving');
-    ui.toast(`Đã chèn nút "${label}" chạy ${targetLabel(target, macros)}. Bấm chuột vào nút để chạy.`);
+    ui.toast(`Đã chèn nút "${label}" chạy ${targetLabel(target, macros)}. ${designMode ? 'Tắt Chế độ thiết kế rồi bấm vào nút để chạy.' : 'Bấm chuột vào nút để chạy.'}`);
   };
 
   const handleRemoveMacroButton = () => {
@@ -4465,9 +4719,12 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
 
   useEffect(() => {
     const onShortcutKeyDown = (event: KeyboardEvent) => {
-      const macro = macroForShortcut(event, macrosRef.current);
-      const action = macro ? null : resolveSheetShortcut(event);
-      if (!macro && !action) return;
+      const letter = shortcutLetter(event);
+      const macro = letter ? (macrosRef.current.find((item) => item.shortcut === letter) ?? null) : null;
+      const vbaMacro = !macro && letter ? (vbaMacrosRef.current.find((item) => item.shortcut === letter) ?? null) : null;
+      const opensVbaEditor = event.altKey && !event.ctrlKey && !event.metaKey && event.key === 'F11';
+      const action = macro || vbaMacro || opensVbaEditor ? null : resolveSheetShortcut(event);
+      if (!macro && !vbaMacro && !opensVbaEditor && !action) return;
       const target = event.target;
       const isTypingInField =
         target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement;
@@ -4475,6 +4732,8 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
       event.preventDefault();
       event.stopPropagation();
       if (macro) runMacroRef.current(macro);
+      else if (vbaMacro) runVbaRef.current(vbaMacro.id);
+      else if (opensVbaEditor) openVbaEditorRef.current();
       else if (action) shortcutRunnerRef.current(action);
     };
     window.addEventListener('keydown', onShortcutKeyDown, true);
@@ -4634,7 +4893,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
   };
 
   const handleCreateSnapshot = async (label: string) => {
-    const draft: SheetContent = { kind: 'sheet', workbook: captureHydratedWorkbook(), comments, printSettings, outlines, macros };
+    const draft: SheetContent = { kind: 'sheet', workbook: captureHydratedWorkbook(), comments, printSettings, outlines, macros, vba: vbaProject ?? undefined };
     const currentMeta = { ...meta, name: title.trim() || meta.name, updatedAt: Date.now() };
     try {
       if (!user) await sourceStorage.saveFile(currentMeta, draft);
@@ -4660,6 +4919,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
     if (cont.printSettings) setPrintSettings(cont.printSettings);
     setOutlines(cont.outlines ?? {});
     setMacros(sanitizeMacros(cont.macros));
+    setVbaProject(cont.vba ?? null);
     setModal(null);
     setSavedStatus('saving');
     setTimeout(() => syncUiFromSelection(), 90);
@@ -4892,6 +5152,12 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
               <Download size={14} />
               <span>Xuất .xlsx</span>
             </button>
+            {(macros.length > 0 || vbaMacros.length > 0) && (
+              <button className="btn" onClick={() => void handleExportXlsm()} title="Xuất Excel có macro (.xlsm): giữ mã VBA và macro đã ghi để chạy trong Microsoft Excel">
+                <Download size={14} />
+                <span>Xuất .xlsm</span>
+              </button>
+            )}
             <button className="btn" onClick={() => handleExportDelimited('csv')} title="Xuất CSV (UTF-8)">
               <FileText size={14} />
               <span>CSV</span>
@@ -4995,6 +5261,10 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                     <button className="ribbon-btn-large" onClick={() => void handleExportXlsx()}>
                       <Download size={20} color="#107c41" />
                       <span>Excel .xlsx</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => void handleExportXlsm()} title="Excel có macro: giữ mã VBA và macro đã ghi">
+                      <Download size={20} color="#7c3aed" />
+                      <span>Excel .xlsm</span>
                     </button>
                     <button className="ribbon-btn-large" onClick={() => handleExportDelimited('csv')}>
                       <FileText size={20} color="#0d9488" />
@@ -5558,8 +5828,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                       className="ribbon-btn-large"
                       onClick={() => {
                         const next = printSettings.orientation === 'landscape' ? 'portrait' : 'landscape';
-                        setPrintSettings((p) => ({ ...p, orientation: next }));
-                        setSavedStatus('saving');
+                        updatePrintSettings({ orientation: next });
                         ui.toast(next === 'landscape' ? 'Đã đặt khổ giấy in: Ngang (Landscape)' : 'Đã đặt khổ giấy in: Dọc (Portrait)');
                       }}
                       title="Đổi hướng giấy in Ngang / Dọc"
@@ -5570,7 +5839,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                     <button
                       className="ribbon-btn-large"
                       onClick={() => {
-                        setPrintSettings((p) => ({ ...p, printArea: activeRangeA1 }));
+                        updatePrintSettings({ printArea: activeRangeA1 });
                         ui.toast(`Đã đặt Vùng in = ${activeRangeA1}`);
                       }}
                     >
@@ -5580,7 +5849,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                     <button
                       className="ribbon-btn-large"
                       onClick={() => {
-                        setPrintSettings((p) => ({ ...p, printArea: '' }));
+                        updatePrintSettings({ printArea: '' });
                         ui.toast('Đã xoá giới hạn vùng in (In toàn bộ Sheet)');
                       }}
                     >
@@ -6002,11 +6271,27 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                     )}
                     <button className="ribbon-btn-large" onClick={() => setModal('macros')} title="Xem, chạy, đổi tên, gán phím tắt, xoá macro — Alt + F8">
                       <ListVideo size={20} color="#107c41" />
-                      <span>Macro ({macros.length})</span>
+                      <span>Macro ({macros.length + vbaMacros.length})</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => openVbaEditor()} title="Viết, sửa và chạy mã VBA — Alt + F11">
+                      <Code2 size={20} color="#7c3aed" />
+                      <span>Visual Basic</span>
                     </button>
                     <button className="ribbon-btn-large" onClick={() => setModal('macroButton')} title="Biến ô hoặc vùng đang chọn thành nút bấm chạy macro">
                       <MousePointerClick size={20} color="#2563eb" />
                       <span>Chèn nút</span>
+                    </button>
+                    <button
+                      className={`ribbon-btn-large${designMode ? ' active' : ''}`}
+                      aria-pressed={designMode}
+                      onClick={() => {
+                        setDesignMode((previous) => !previous);
+                        ui.toast(designMode ? 'Đã tắt Chế độ thiết kế: bấm vào nút sẽ chạy macro' : 'Đã bật Chế độ thiết kế: bấm vào nút chỉ chọn ô để sửa chữ, màu hoặc gán lại macro');
+                      }}
+                      title="Bật để chọn và sửa nút bấm mà không chạy macro"
+                    >
+                      <PencilRuler size={20} color="#d97706" />
+                      <span>Chế độ thiết kế</span>
                     </button>
                   </div>
                   <div className="ribbon-group-label">Macro & nút bấm</div>
@@ -7103,10 +7388,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
           title={stripSpreadsheetExt(title)}
           activeRangeA1={activeRangeA1}
           settings={printSettings}
-          onSaveSettings={(next) => {
-            setPrintSettings(next);
-            setSavedStatus('saving');
-          }}
+          onSaveSettings={(next) => updatePrintSettings(next)}
           onDownloadHtml={handleDownloadPrintHtml}
           onClose={() => setModal(null)}
         />
@@ -7280,11 +7562,19 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
 
       {modal === 'help' && <HelpShortcutsModal onClose={() => setModal(null)} />}
       {modal === 'macroRecord' && (
-        <MacroRecordModal suggestedName={nextMacroName(macros)} macros={macros} startCellA1={activeCellA1} onStart={handleStartRecording} onClose={() => setModal(null)} />
+        <MacroRecordModal suggestedName={nextMacroName(macros)} macros={macros} vbaMacros={vbaMacros} startCellA1={activeCellA1} onStart={handleStartRecording} onClose={() => setModal(null)} />
       )}
       {modal === 'macros' && (
         <MacroManagerModal
           macros={macros}
+          vbaMacros={vbaMacros}
+          onRunVba={(id) => {
+            setModal(null);
+            runVbaMacroById(id);
+          }}
+          onVbaShortcut={handleVbaShortcut}
+          onEditVba={(module) => openVbaEditor(module)}
+          onConvertToVba={handleConvertToVba}
           onRun={(id) => {
             const macro = macros.find((item) => item.id === id);
             setModal(null);
@@ -7310,6 +7600,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
       {modal === 'macroButton' && (
         <MacroButtonModal
           macros={macros}
+          vbaMacros={vbaMacros}
           rangeA1={activeRangeA1}
           initialLabel={String(getActiveContext()?.fRange.getValue() ?? '') || 'Chạy macro'}
           initialTarget={macroButtonTarget()}
@@ -7317,6 +7608,29 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
           onRemove={macroButtonTarget() ? handleRemoveMacroButton : null}
           onClose={() => setModal(null)}
         />
+      )}
+      {modal === 'vba' && (
+        <VbaEditorModal
+          modules={vbaProject?.modules ?? []}
+          initialModule={vbaEditorModule}
+          output={vbaOutput}
+          onSave={(modules) => {
+            saveVbaModules(modules);
+            ui.toast('Đã lưu mã VBA');
+          }}
+          onRun={(macroId, modules) => runVbaMacroById(macroId, saveVbaModules(modules))}
+          onClearOutput={() => setVbaOutput([])}
+          onClose={() => setModal(null)}
+        />
+      )}
+      {designMode && (
+        <button
+          onClick={() => setDesignMode(false)}
+          style={{ position: 'fixed', left: 18, bottom: 54, zIndex: 60, display: 'flex', alignItems: 'center', gap: 8, padding: '9px 14px', borderRadius: 999, border: '1px solid #fde68a', background: '#fffbeb', color: '#92400e', fontWeight: 700, fontSize: 13, cursor: 'pointer', boxShadow: '0 6px 18px rgba(15,23,42,.18)' }}
+          title="Tắt Chế độ thiết kế để bấm nút chạy macro"
+        >
+          <PencilRuler size={15} /> <span>Chế độ thiết kế: bấm để tắt</span>
+        </button>
       )}
       {recordedCount !== null && (
         <button
