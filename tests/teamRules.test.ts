@@ -194,6 +194,15 @@ describe('team rules', { skip: !process.env.FIRESTORE_EMULATOR_HOST }, () => {
     await assertSucceeds(deleteDoc(doc(as('editor'), 'teams', TEAM, 'items', ITEM, 'chunks', `${REVISION}_0`)));
   });
 
+  test('templates accept PDF files and large payloads up to the codec limit', async () => {
+    const big = { ...item('editor'), kind: 'pdf', chunkCount: 597, compressedBytes: 268435456, uncompressedBytes: 536870912 };
+    await assertSucceeds(setDoc(doc(as('editor'), 'teams', TEAM, 'items', 'B'.repeat(20)), big));
+    await assertSucceeds(setDoc(doc(as('editor'), 'teams', TEAM, 'items', 'C'.repeat(20), 'chunks', `${REVISION}_596`), { revision: REVISION, index: 596, data: 'QUJD' }));
+    await assertFails(setDoc(doc(as('editor'), 'teams', TEAM, 'items', 'D'.repeat(20)), { ...big, chunkCount: 601, compressedBytes: 270000001 }));
+    await assertFails(setDoc(doc(as('editor'), 'teams', TEAM, 'items', 'E'.repeat(20)), { ...item('editor'), kind: 'image' }));
+    await assertFails(setDoc(doc(as('editor'), 'teams', TEAM, 'items', 'F'.repeat(20), 'chunks', `${REVISION}_600`), { revision: REVISION, index: 600, data: 'QUJD' }));
+  });
+
   test('shared documents are editable by every editor', async () => {
     await environment.withSecurityRulesDisabled(async (context) => {
       const raw = context.firestore() as unknown as Firestore;

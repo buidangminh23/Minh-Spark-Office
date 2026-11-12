@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Fix the app freezing after sitting idle: cloud sync no longer calls `ReadableStreamDefaultReader.releaseLock()`, which can deadlock WebKit's garbage collector on macOS and leave the whole window unclickable.
+- Share from the editors: the Docs "Chia sẻ" button opens the Share pane directly, and Docs, Sheets and PDF can send the current file to a team in one click.
+- Team invite links always point to office.minhspark.com, also when sent from the desktop app, and "Ứng dụng email" works there.
+- Viewers see the published content of a shared document instead of a blank page, and editors take over the first setup when nobody else is online.
+- Teams can share PDF files, and shared files may be as large as personal cloud files (up to 256 MB compressed).
+- Show errors from the "Lời mời dành cho bạn" list and retry it, and leave room for clock differences when creating invites.
+
 - Open any number of documents at once in tabs above the workspace (Word, Excel, PowerPoint, PDF and images together). Each tab keeps its own editor alive, so switching is instant and undo history, selection and scroll position survive.
 - Switch tabs from the keyboard on the web and in the desktop app (Alt on Windows/Linux, Control on macOS): Alt+] / Alt+[ next and previous tab, Alt+1 Home, Alt+2-8 that tab, Alt+9 the last tab, Alt+W close, Alt+Shift+T reopen the last closed tab, Alt+T back to Home to open or create a file. Ctrl+Tab / Ctrl+Shift+Tab and Ctrl+W also work in the desktop app, where no browser claims them. Tab tooltips show each shortcut.
 - Restore open tabs after reloading; closing a tab saves it first and keeps it open if saving fails.

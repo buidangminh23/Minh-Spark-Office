@@ -1,6 +1,8 @@
+import { MAX_COMPRESSED_BYTES, MAX_UNCOMPRESSED_BYTES } from './cloudCodec';
+
 export type TeamRole = 'owner' | 'admin' | 'editor' | 'viewer';
 export type TeamItemType = 'template' | 'document';
-export type TeamItemKind = 'doc' | 'sheet' | 'slide';
+export type TeamItemKind = 'doc' | 'sheet' | 'slide' | 'pdf';
 
 export type Team = {
   id: string;
@@ -102,9 +104,9 @@ const MIN_RANK: Record<TeamAction, number> = {
 export const TEAM_COLORS = ['#2563eb', '#7c3aed', '#db2777', '#dc2626', '#ea580c', '#ca8a04', '#16a34a', '#0d9488', '#0891b2', '#475569'] as const;
 
 export const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-export const TEAM_ITEM_MAX_COMPRESSED = 60 * 450000;
-export const TEAM_ITEM_MAX_UNCOMPRESSED = 128 * 1024 * 1024;
-export const TEAM_ITEM_KINDS: TeamItemKind[] = ['doc', 'sheet', 'slide'];
+export const TEAM_ITEM_MAX_COMPRESSED = MAX_COMPRESSED_BYTES;
+export const TEAM_ITEM_MAX_UNCOMPRESSED = MAX_UNCOMPRESSED_BYTES;
+export const TEAM_ITEM_KINDS: TeamItemKind[] = ['doc', 'sheet', 'slide', 'pdf'];
 
 export function isTeamRole(value: unknown): value is TeamRole {
   return value === 'owner' || value === 'admin' || value === 'editor' || value === 'viewer';
@@ -172,8 +174,22 @@ export function inviteToken(teamId: string, inviteId: string) {
   return `${teamId}.${inviteId}`;
 }
 
+export const PUBLIC_WEB_ORIGIN = 'https://office.minhspark.com';
+const LOCAL_DEV_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+export function shareOrigin(origin: string) {
+  try {
+    const url = new URL(origin);
+    if (url.protocol === 'https:' && !url.hostname.endsWith('localhost')) return url.origin;
+    if (url.protocol === 'http:' && LOCAL_DEV_HOSTS.has(url.hostname)) return url.origin;
+  } catch {
+    return PUBLIC_WEB_ORIGIN;
+  }
+  return PUBLIC_WEB_ORIGIN;
+}
+
 export function inviteLink(origin: string, teamId: string, inviteId: string) {
-  const url = new URL('/', origin);
+  const url = new URL('/', shareOrigin(origin));
   url.searchParams.set(INVITE_PARAM, inviteToken(teamId, inviteId));
   return url.toString();
 }

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Copy, Edit2, Ellipsis, FilePlus2, FolderOpen, RefreshCw, Search, Trash2, Users } from 'lucide-react';
 import { SuiteLogo } from '../SuiteLogo';
 import { Popover } from '../HomeParts';
@@ -10,11 +10,13 @@ import { can, canDeleteItem, canEditItem, type TeamItem, type TeamItemKind, type
 import { PublishDialog } from './PublishDialog';
 import { PersonAvatar, TmButton } from './TeamParts';
 
-const KIND_TABS: Array<'all' | TeamItemKind> = ['all', 'doc', 'sheet', 'slide'];
-const KIND_LABEL: Record<'all' | TeamItemKind, string> = { all: 'Tất cả', doc: 'Docs', sheet: 'Sheets', slide: 'Slides' };
+const KIND_TABS: Array<'all' | TeamItemKind> = ['all', 'doc', 'sheet', 'slide', 'pdf'];
+const KIND_LABEL: Record<'all' | TeamItemKind, string> = { all: 'Tất cả', doc: 'Docs', sheet: 'Sheets', slide: 'Slides', pdf: 'PDF' };
 
-export function TeamLibrary({ store, teamId, type, role, items, members, files, loading, error, onUse, onOpen }: {
+export function TeamLibrary({ store, teamId, type, role, items, members, files, loading, error, onUse, onOpen, publishFileId = null, onPublishFileUsed }: {
   store: TeamStore;
+  publishFileId?: string | null;
+  onPublishFileUsed?: () => void;
   teamId: string;
   type: TeamItemType;
   role: TeamRole;
@@ -32,6 +34,13 @@ export function TeamLibrary({ store, teamId, type, role, items, members, files, 
   const [category, setCategory] = useState('');
   const [query, setQuery] = useState('');
   const [publishing, setPublishing] = useState<false | 'new' | TeamItem>(false);
+  const [initialFileId, setInitialFileId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!publishFileId) return;
+    setInitialFileId(publishFileId);
+    setPublishing('new');
+    onPublishFileUsed?.();
+  }, [publishFileId, onPublishFileUsed]);
   const [menu, setMenu] = useState<string | null>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
   const ofType = useMemo(() => items.filter((item) => item.type === type), [items, type]);
@@ -162,8 +171,9 @@ export function TeamLibrary({ store, teamId, type, role, items, members, files, 
           files={files}
           categories={categories}
           replacing={publishing === 'new' ? undefined : publishing}
-          onClose={() => setPublishing(false)}
-          onDone={(message) => { setPublishing(false); ui.toast(message); }}
+          initialFileId={publishing === 'new' ? initialFileId : null}
+          onClose={() => { setPublishing(false); setInitialFileId(null); }}
+          onDone={(message) => { setPublishing(false); setInitialFileId(null); ui.toast(message); }}
         />
       )}
     </section>

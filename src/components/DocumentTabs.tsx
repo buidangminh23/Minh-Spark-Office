@@ -10,6 +10,7 @@ import { useDocumentCloser } from '../lib/documentCloser';
 import { printFrameDocument } from '../lib/print/tabPrint';
 import { getSettings } from '../lib/appSettings';
 import { restoredSharedMeta } from '../lib/live/sharedTabs';
+import { announceShareFile, settleWithin } from '../lib/teamShare';
 import {
   cycleTarget,
   frameShowsTab,
@@ -218,6 +219,11 @@ export function DocumentTabs({ onEditing, children }: { onEditing: (editing: boo
     const { tabs, active } = latest.current;
     const ids = tabs.map((tab) => tab.id);
     if (command.type === 'reopen') return reopen();
+    if (command.type === 'shareFile') {
+      select(null);
+      void settleWithin(apis.current.get(command.fileId)?.save(), false).then(() => announceShareFile({ fileId: command.fileId, kind: command.kind }));
+      return true;
+    }
     if (!tabs.length) return false;
     if (command.type === 'cycle') { select(cycleTarget(ids, active, command.step)); return true; }
     if (command.type === 'home') { select(null); return true; }

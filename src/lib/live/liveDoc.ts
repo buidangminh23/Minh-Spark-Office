@@ -5,6 +5,7 @@ import * as syncProtocol from 'y-protocols/sync';
 import { applyAwarenessUpdate, Awareness, encodeAwarenessUpdate } from 'y-protocols/awareness';
 import { doc, getDoc, onSnapshot, runTransaction, serverTimestamp, Timestamp, writeBatch, type Firestore } from 'firebase/firestore';
 import type { LivePeer, PeerMesh } from './peerMesh';
+import { MAX_CHUNKS } from '../cloudCodec';
 
 export const CHANNEL_SYNC = 0;
 export const CHANNEL_AWARENESS = 1;
@@ -100,7 +101,7 @@ export function createLiveDocument(db: Firestore, path: { teamId: string; itemId
   const persistOnce = async () => {
     const encoded = toBase64(Y.encodeStateAsUpdate(ydoc));
     const chunks = splitChunks(encoded);
-    if (chunks.length > 60) throw new Error('live/too-large');
+    if (chunks.length > MAX_CHUNKS) throw new Error('live/too-large');
     const revision = crypto.randomUUID();
     const expected = baseRevision;
     let previous: { revision: string; chunkCount: number } | null = null;

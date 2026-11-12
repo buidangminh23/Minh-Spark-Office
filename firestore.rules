@@ -136,14 +136,14 @@ service cloud.firestore {
     function validItem(data) {
       return data.keys().hasAll(['type', 'name', 'kind', 'description', 'category', 'authorUid', 'authorName', 'createdAt', 'updatedAt', 'updatedBy', 'updatedByName', 'revision', 'chunkCount', 'compressedBytes', 'uncompressedBytes', 'sha256', 'preview', 'size'])
         && data.keys().hasOnly(['type', 'name', 'kind', 'description', 'category', 'authorUid', 'authorName', 'createdAt', 'updatedAt', 'updatedBy', 'updatedByName', 'revision', 'chunkCount', 'compressedBytes', 'uncompressedBytes', 'sha256', 'preview', 'size'])
-        && data.type in ['template', 'document'] && data.kind in ['doc', 'sheet', 'slide']
+        && data.type in ['template', 'document'] && data.kind in ['doc', 'sheet', 'slide', 'pdf']
         && shortText(data.name, 1, 200) && shortText(data.description, 0, 1000) && shortText(data.category, 0, 60)
         && data.authorUid is string && shortText(data.authorName, 0, 120) && data.createdAt is timestamp
         && data.updatedAt == request.time && data.updatedBy == request.auth.uid && shortText(data.updatedByName, 0, 120)
-        && validRevision(data.revision) && data.chunkCount is int && data.chunkCount >= 1 && data.chunkCount <= 60
+        && validRevision(data.revision) && data.chunkCount is int && data.chunkCount >= 1 && data.chunkCount <= 600
         && data.compressedBytes is int && data.compressedBytes >= 1 && data.compressedBytes <= data.chunkCount * 450000
         && data.compressedBytes > (data.chunkCount - 1) * 450000
-        && data.uncompressedBytes is int && data.uncompressedBytes >= 1 && data.uncompressedBytes <= 134217728
+        && data.uncompressedBytes is int && data.uncompressedBytes >= 1 && data.uncompressedBytes <= 536870912
         && data.sha256 is string && data.sha256.matches('^[a-f0-9]{64}$') && shortText(data.preview, 0, 2000) && safeNumber(data.size);
     }
     function sameStoredPayload(after, before) {
@@ -222,7 +222,7 @@ service cloud.firestore {
           }
           allow read: if isMember(teamId);
           allow create: if myRank(teamId) >= 2
-            && chunkId.matches('^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}_([0-9]|[1-5][0-9])$')
+            && chunkId.matches('^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}_([0-9]|[1-9][0-9]|[1-5][0-9][0-9])$')
             && request.resource.data.keys().hasAll(['revision', 'index', 'data']) && request.resource.data.keys().hasOnly(['revision', 'index', 'data'])
             && request.resource.data.revision == chunkRevision() && request.resource.data.index is int
             && chunkId == request.resource.data.revision + '_' + string(request.resource.data.index)
@@ -271,7 +271,7 @@ service cloud.firestore {
             || (name == 'head' && request.resource.data.keys().hasAll(['revision', 'chunkCount', 'bytes', 'updatedBy', 'updatedByUid', 'updatedByName', 'at'])
               && request.resource.data.keys().hasOnly(['revision', 'chunkCount', 'bytes', 'updatedBy', 'updatedByUid', 'updatedByName', 'at'])
               && validRevision(request.resource.data.revision) && request.resource.data.chunkCount is int
-              && request.resource.data.chunkCount >= 1 && request.resource.data.chunkCount <= 60
+              && request.resource.data.chunkCount >= 1 && request.resource.data.chunkCount <= 600
               && request.resource.data.bytes is int && request.resource.data.updatedByUid == request.auth.uid
               && shortText(request.resource.data.updatedByName, 0, 120) && request.resource.data.at == request.time));
           allow delete: if myRank(teamId) >= 3 || (myRank(teamId) >= 2 && !exists(itemDoc(teamId, itemId)));
@@ -286,7 +286,7 @@ service cloud.firestore {
           }
           allow read: if isMember(teamId);
           allow create: if myRank(teamId) >= 2 && liveDocument()
-            && chunkId.matches('^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}_([0-9]|[1-5][0-9])$')
+            && chunkId.matches('^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}_([0-9]|[1-9][0-9]|[1-5][0-9][0-9])$')
             && request.resource.data.keys().hasAll(['revision', 'index', 'data']) && request.resource.data.keys().hasOnly(['revision', 'index', 'data'])
             && request.resource.data.revision == liveRevision() && request.resource.data.index is int
             && chunkId == request.resource.data.revision + '_' + string(request.resource.data.index)

@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { Check, Link2, Mail, MailPlus, Plus, Send, Trash2, UserMinus, X } from 'lucide-react';
 import { useUi } from '../ui';
+import { isDesktop } from '../../lib/desktop';
 import { teamErrorMessage, type TeamStore } from '../../lib/teamStore';
 import {
   assignableRoles,
@@ -37,6 +38,11 @@ function openCompose(url: string) {
   window.open(url, '_blank', 'noopener');
 }
 
+function openMailApp(url: string) {
+  if (isDesktop()) window.open(url, '_blank');
+  else window.location.href = url;
+}
+
 const MAX_BATCH = 20;
 
 function groupCompose(made: TeamInvite[], inviterName: string) {
@@ -69,7 +75,7 @@ function InviteActions({ invite, inviterName, compact }: { invite: TeamInvite; i
   return (
     <div className="tm-invite-actions">
       <TmButton variant={compact ? 'ghost' : 'primary'} icon={<Send size={16} aria-hidden="true" />} onClick={() => openCompose(gmailComposeUrl(invite.email, mail.subject, mail.body))}>{compact ? 'Gmail' : 'Gửi qua Gmail'}</TmButton>
-      {!compact && <TmButton icon={<Mail size={16} aria-hidden="true" />} onClick={() => { window.location.href = mailtoUrl(invite.email, mail.subject, mail.body); }}>Ứng dụng email</TmButton>}
+      {!compact && <TmButton icon={<Mail size={16} aria-hidden="true" />} onClick={() => openMailApp(mailtoUrl(invite.email, mail.subject, mail.body))}>Ứng dụng email</TmButton>}
       <TmButton variant={compact ? 'ghost' : 'default'} icon={copied ? <Check size={16} aria-hidden="true" /> : <Link2 size={16} aria-hidden="true" />} onClick={() => void copy()}>{copied ? 'Đã sao chép' : compact ? 'Liên kết' : 'Sao chép liên kết'}</TmButton>
     </div>
   );

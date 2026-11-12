@@ -5,6 +5,7 @@ import { Popover } from '../HomeParts';
 import { useUi } from '../ui';
 import type { FileContent, FileMeta } from '../../lib/storage';
 import { teamErrorMessage, type TeamStore } from '../../lib/teamStore';
+import type { ShareFileRequest } from '../../lib/teamShare';
 import { can, ROLE_LABEL, type TeamItem, type TeamMembership, type TeamRole } from '../../lib/teams';
 import { InviteAcceptDialog, PendingInvites } from './InviteAccept';
 import { TeamCreateForm, TeamOnboarding } from './TeamOnboarding';
@@ -28,8 +29,10 @@ function writeSelected(uid: string, teamId: string) {
 
 export type SharedOpen = (item: TeamItem, membership: TeamMembership, store: TeamStore) => void;
 
-export function TeamsPage({ files, inviteToken, onInviteDone, onCreateFromContent, onOpenShared }: {
+export function TeamsPage({ files, inviteToken, onInviteDone, onCreateFromContent, onOpenShared, shareRequest = null, onShareHandled }: {
   files: FileMeta[];
+  shareRequest?: ShareFileRequest | null;
+  onShareHandled?: () => void;
   inviteToken: { teamId: string; inviteId: string } | null;
   onInviteDone: () => void;
   onCreateFromContent: (name: string, content: FileContent) => void;
@@ -59,6 +62,25 @@ export function TeamsPage({ files, inviteToken, onInviteDone, onCreateFromConten
   }, [store, current, me]);
 
   useEffect(() => { if (tab === 'settings' && !role) setTab('templates'); }, [tab, role]);
+
+  const [publishFileId, setPublishFileId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!shareRequest || !ready || memberships.loading) return;
+    if (!user) { onShareHandled?.(); return; }
+    if (!current) {
+      ui.toast('Hãy tạo nhóm hoặc nhận lời mời trước, rồi chia sẻ tài liệu cho cả nhóm.');
+      onShareHandled?.();
+      return;
+    }
+    if (!can(current.role, 'publish')) {
+      ui.toast('Bạn chỉ có quyền xem trong nhóm này nên chưa chia sẻ tài liệu lên nhóm được.', true);
+      onShareHandled?.();
+      return;
+    }
+    setTab(shareRequest.kind === 'doc' ? 'documents' : 'templates');
+    setPublishFileId(shareRequest.fileId);
+    onShareHandled?.();
+  }, [shareRequest, ready, user, current, memberships.loading, onShareHandled, ui]);
 
   const select = (teamId: string) => {
     setSelectedId(teamId);
@@ -116,7 +138,7 @@ export function TeamsPage({ files, inviteToken, onInviteDone, onCreateFromConten
     );
   }
 
-  const error = storeError || memberships.error;
+  const error = storeError || memberships.error || myInvites.error;
   const loading = !store || memberships.loading;
 
   return (
@@ -183,6 +205,8 @@ export function TeamsPage({ files, inviteToken, onInviteDone, onCreateFromConten
               files={files}
               loading={data.items.loading}
               error={data.items.error}
+              publishFileId={publishFileId}
+              onPublishFileUsed={() => setPublishFileId(null)}
               onUse={(item) => void applyTemplate(item)}
               onOpen={(item) => onOpenShared(item, current, store)}
             />

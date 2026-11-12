@@ -957,10 +957,10 @@ function MainApp({ onEditing, frameId }: { onEditing: (editing: boolean) => void
 
   // Duplicate file
   const handleCreateFromContent = async (name: string, content: FileContent) => {
-    if (content.kind !== 'doc' && content.kind !== 'sheet' && content.kind !== 'slide') return;
+    if (content.kind !== 'doc' && content.kind !== 'sheet' && content.kind !== 'slide' && content.kind !== 'pdf') return;
     preloadEditor(content.kind);
-    const extension = content.kind === 'doc' ? '.docx' : content.kind === 'sheet' ? '.xlsx' : '.pptx';
-    const base = name.replace(/\.(docx?|xlsx|xlsm|xls|pptx?)$/i, '').trim() || 'Tài liệu từ mẫu';
+    const extension = content.kind === 'doc' ? '.docx' : content.kind === 'sheet' ? '.xlsx' : content.kind === 'pdf' ? '.pdf' : '.pptx';
+    const base = name.replace(/\.(docx?|xlsx|xlsm|xls|pptx?|pdf)$/i, '').trim() || 'Tài liệu từ mẫu';
     const now = Date.now();
     const meta: FileMeta = { id: `${content.kind}-${now}`, name: `${base}${extension}`, kind: content.kind, createdAt: now, updatedAt: now, openedAt: now, starred: false, deletedAt: null, size: JSON.stringify(content).length, preview: '' };
     await saveFile(meta, structuredClone(content));

@@ -13,7 +13,8 @@ export type TabCommand =
   | { type: 'goto'; index: number | 'last' }
   | { type: 'close' }
   | { type: 'reopen' }
-  | { type: 'home' };
+  | { type: 'home' }
+  | { type: 'shareFile'; fileId: string; kind: string };
 export type ShortcutPlatform = { mac: boolean; desktop: boolean };
 type ShortcutKey = Pick<KeyboardEvent, 'key' | 'code' | 'ctrlKey' | 'altKey' | 'metaKey' | 'shiftKey'>;
 

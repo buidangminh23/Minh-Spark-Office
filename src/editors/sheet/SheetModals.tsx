@@ -23,6 +23,7 @@ import {
   Table,
   Calculator,
   ShieldCheck,
+  Users as TeamUsers,
 } from 'lucide-react';
 import type { FileMeta, FileVersion } from '../../lib/storage';
 import type { WorkbookData } from '../../lib/sheetTypes';
@@ -2025,10 +2026,12 @@ export function ShareAndProtectModal({
   onExportXlsx,
   onExportJson,
   onToggleProtect,
+  onShareTeam,
   onClose,
 }: {
   title: string;
   isProtected: boolean;
+  onShareTeam?: () => void;
   onCopySummaryTsv: () => Promise<void>;
   onExportXlsx: () => Promise<void>;
   onExportJson: () => void;
@@ -2043,10 +2046,17 @@ export function ShareAndProtectModal({
         </button>
         <h2>Chia sẻ & Bảo vệ dữ liệu — {title}</h2>
         <div className="dialog-subtitle">
-          Toàn bộ dữ liệu lưu trữ cục bộ an toàn 100% trên trình duyệt, không tải lên máy chủ ngoài.
+          Gửi bảng tính cho người khác hoặc đưa lên nhóm để mọi thành viên dùng chung.
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {onShareTeam && (
+            <button className="btn" style={{ justifyContent: 'flex-start', padding: '10px 14px' }} onClick={onShareTeam}>
+              <TeamUsers size={16} color="#107c41" />
+              <span>Chia sẻ với nhóm (thành viên mở và dùng bản sao)</span>
+            </button>
+          )}
+
           <button className="btn" style={{ justifyContent: 'flex-start', padding: '10px 14px' }} onClick={() => void onCopySummaryTsv()}>
             <Copy size={16} color="#107c41" />
             <span>Sao chép toàn bộ bảng (TSV) để dán sang Zalo / Email / Word</span>

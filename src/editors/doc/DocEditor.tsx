@@ -66,7 +66,7 @@ import { ReferencesTab, ReviewTab } from './ui/tabs/ReviewTabs';
 import DrawTab from './ui/tabs/DrawTab';
 import { HelpTab, OutlineTab, ViewTab, ZOOM_STEPS } from './ui/tabs/ViewTabs';
 import { ImageTab, TableTab } from './ui/tabs/ContextTabs';
-import { Backstage, StatusBar, TabBar, type TabId } from './ui/Chrome';
+import { Backstage, StatusBar, TabBar, type BackstageSection, type TabId } from './ui/Chrome';
 import { ChangesPanel, CommentsPanel, OutlinePanel } from './ui/Panels';
 import { ContextMenu, FindBar, SelectionBubble, SlashMenu, AtMentionMenu } from './ui/Floating';
 import { Paper, PrintStyles, pageDimensions } from './ui/Paper';
@@ -499,6 +499,7 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
     },
   }), [painter, editor, ui]);
 
+  const [backstageSection, setBackstageSection] = useState<BackstageSection>('info');
   const print = useCallback(() => setDialog('print'), []);
 
   useEffect(() => {
@@ -654,7 +655,7 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
                 {!live && <button className="btn" onClick={() => setDialog('history')} title="Lịch sử phiên bản"><History size={15} /><span>Lịch sử</span></button>}
                 <button className={`btn ${view.sidePanel === 'comments' ? 'btn-primary' : ''}`} onClick={() => setView({ sidePanel: view.sidePanel === 'comments' ? null : 'comments' })} title="Bình luận"><MessageSquare size={15} /><span>Bình luận{openComments ? ` (${openComments})` : ''}</span></button>
                 <button className="btn" onClick={() => setView({ viewMode: 'read' })} title="Chế độ đọc"><BookOpen size={15} /><span>Đọc</span></button>
-                <button className="btn btn-doc" onClick={() => setDialog('backstage')} title="Xuất & chia sẻ"><Share2 size={15} /><span>Chia sẻ</span></button>
+                <button className="btn btn-doc" onClick={() => { setBackstageSection('share'); setDialog('backstage'); }} title="Xuất & chia sẻ"><Share2 size={15} /><span>Chia sẻ</span></button>
               </div>
             </header>
             <div className="ribbon">
@@ -696,7 +697,7 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
         {contextMenu && <SafeBoundary name="context-menu"><ContextMenu at={contextMenu} onClose={() => setContextMenu(null)} /></SafeBoundary>}
 
         <SafeBoundary key={dialog ?? 'none'} name={`dialog-${dialog}`}>
-        {dialog === 'backstage' && <Backstage onClose={closeDialog} />}
+        {dialog === 'backstage' && <Backstage initialSection={backstageSection} onClose={() => { setBackstageSection('info'); closeDialog(); }} />}
         {dialog === 'history' && <HistoryDialog onClose={closeDialog} />}
         {dialog === 'mailmerge' && <MailMergeDialog onClose={closeDialog} />}
         {dialog === 'shortcuts' && <ShortcutsDialog onClose={closeDialog} />}

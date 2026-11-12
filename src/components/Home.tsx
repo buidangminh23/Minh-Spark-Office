@@ -45,6 +45,7 @@ import { businessPitchPresentation, productLaunchPresentation, blankPresentation
 import { relativeTime } from '../lib/download';
 import { IMAGE_ACCEPT_STRING } from '../lib/imageFormatNames';
 import { editorIntentHandlers } from '../lib/editorModules';
+import { onShareFile, type ShareFileRequest } from '../lib/teamShare';
 import {
   sampleDocHtml,
   contractDocHtml,
@@ -151,6 +152,7 @@ export default function Home(props: HomeProps) {
   const RECENT_LIMIT = appSettings.recentCount;
   const [inviteToken, setInviteToken] = useState(() => (typeof window === 'undefined' ? null : parseInviteToken(new URLSearchParams(window.location.search).get(INVITE_PARAM))));
   const [view, setView] = useState<View>(() => (inviteToken ? 'team' : 'home'));
+  const [shareRequest, setShareRequest] = useState<ShareFileRequest | null>(null);
   const [kindTab, setKindTab] = useState<KindTab>('all');
   const [sortOrder, setSortOrder] = useState<SortOrder>('recent');
   const [starredOnly, setStarredOnly] = useState(false);
@@ -196,6 +198,13 @@ export default function Home(props: HomeProps) {
   useEffect(() => {
     shell.current?.scrollIntoView({ block: 'start' });
   }, [view]);
+
+  useEffect(() => onShareFile((request) => {
+    setShareRequest(request);
+    setView('team');
+    setKindTab('all');
+    setSearchQuery('');
+  }), []);
 
   const goTo = (next: View) => {
     setView(next);
@@ -371,7 +380,7 @@ export default function Home(props: HomeProps) {
         <div className="ws-content">
           {showTeams ? (
             <Suspense fallback={<p className="tm-muted" role="status">Đang tải nhóm…</p>}>
-              <TeamsPage files={files} inviteToken={inviteToken} onInviteDone={finishInvite} onCreateFromContent={props.onCreateFromContent} onOpenShared={props.onOpenShared} />
+              <TeamsPage files={files} inviteToken={inviteToken} onInviteDone={finishInvite} onCreateFromContent={props.onCreateFromContent} onOpenShared={props.onOpenShared} shareRequest={shareRequest} onShareHandled={() => setShareRequest(null)} />
             </Suspense>
           ) : showDashboard ? (
             <>

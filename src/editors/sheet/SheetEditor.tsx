@@ -401,6 +401,7 @@ import {
 import { nextFontSize, SHEET_FONT_SIZES } from '../../lib/fontSizeStep';
 import ComboBox from '../../components/ComboBox';
 import { useSheetLive, type SheetLiveBinding } from './useSheetLive';
+import { isShareableFileId, requestTeamShare } from '../../lib/teamShare';
 
 interface SheetEditorProps {
   meta: FileMeta;
@@ -7845,6 +7846,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
           onExportXlsx={handleExportXlsx}
           onExportJson={handleExportJsonFile}
           onToggleProtect={handleToggleProtect}
+          onShareTeam={isShareableFileId(meta.id) ? () => { setModal(null); requestTeamShare({ fileId: meta.id, kind: 'sheet' }); } : undefined}
           onClose={() => setModal(null)}
         />
       )}

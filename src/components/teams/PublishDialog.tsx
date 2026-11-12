@@ -7,10 +7,11 @@ import { teamErrorMessage, type TeamStore } from '../../lib/teamStore';
 import { TEAM_ITEM_KINDS, type TeamItem, type TeamItemKind, type TeamItemType } from '../../lib/teams';
 import { TmButton, TmField, TmModal } from './TeamParts';
 
-const stripExtension = (name: string) => name.replace(/\.(docx?|xlsx|xlsm|xls|csv|pptx?|md|txt|html?)$/i, '');
+const stripExtension = (name: string) => name.replace(/\.(docx?|xlsx|xlsm|xls|csv|pptx?|pdf|md|txt|html?)$/i, '');
 
-export function PublishDialog({ store, teamId, type, files, categories, replacing, onClose, onDone }: {
+export function PublishDialog({ store, teamId, type, files, categories, replacing, initialFileId = null, onClose, onDone }: {
   store: TeamStore;
+  initialFileId?: string | null;
   teamId: string;
   type: TeamItemType;
   files: FileMeta[];
@@ -24,8 +25,9 @@ export function PublishDialog({ store, teamId, type, files, categories, replacin
     .filter((file) => !file.deletedAt && (TEAM_ITEM_KINDS as string[]).includes(file.kind) && (!replacing || file.kind === replacing.kind))
     .sort((a, b) => b.updatedAt - a.updatedAt), [files, replacing]);
   const [query, setQuery] = useState('');
-  const [selected, setSelected] = useState<FileMeta | null>(null);
-  const [name, setName] = useState(replacing?.name ?? '');
+  const initialFile = useMemo(() => (initialFileId ? candidates.find((file) => file.id === initialFileId) ?? null : null), [candidates, initialFileId]);
+  const [selected, setSelected] = useState<FileMeta | null>(initialFile);
+  const [name, setName] = useState(replacing?.name ?? (initialFile ? stripExtension(initialFile.name) : ''));
   const [description, setDescription] = useState(replacing?.description ?? '');
   const [category, setCategory] = useState(replacing?.category ?? '');
   const [busy, setBusy] = useState(false);

@@ -72,6 +72,7 @@ export function watchWithRetry<T>(target: Watchable, onNext: (snapshot: T) => vo
   return () => { closed = true; if (timer) clearTimeout(timer); stop?.(); };
 }
 const CHUNK_BATCH = 8;
+const INVITE_CLOCK_MARGIN_MS = 60 * 60 * 1000;
 
 const millis = (value: unknown) => (value instanceof Timestamp ? value.toMillis() : typeof value === 'number' ? value : Date.now());
 const text = (value: unknown, max = 2000) => (typeof value === 'string' ? value.slice(0, max) : '');
@@ -221,7 +222,7 @@ export function createTeamStore(db: Firestore, user: TeamUser) {
 
   const subscribeMyInvites = (onChange: (invites: TeamInvite[]) => void, onError: (error: unknown) => void): Unsubscribe => {
     if (!email) { onChange([]); return () => undefined; }
-    return onSnapshot(query(collectionGroup(db, 'invites'), where('email', '==', email)), (snapshot) => onChange(snapshot.docs.flatMap((entry) => toInvite(entry) ?? []).filter((invite) => invite.expireAt > Date.now())), onError);
+    return watchWithRetry<QuerySnapshot<DocumentData>>(query(collectionGroup(db, 'invites'), where('email', '==', email)), (snapshot) => onChange(snapshot.docs.flatMap((entry) => toInvite(entry) ?? []).filter((invite) => invite.expireAt > Date.now())), onError);
   };
 
   const createTeam = async (input: { name: string; description: string; color: string }) => {
@@ -248,7 +249,7 @@ export function createTeamStore(db: Firestore, user: TeamUser) {
 
   const createInvite = async (team: Team, inviteEmail: string, role: Exclude<TeamRole, 'owner'>) => {
     const inviteId = randomId(24);
-    const expireAt = Date.now() + INVITE_TTL_MS - 60_000;
+    const expireAt = Date.now() + INVITE_TTL_MS - INVITE_CLOCK_MARGIN_MS;
     const batch = writeBatch(db);
     batch.set(inviteRef(team.id, inviteId), { email: normalizeEmail(inviteEmail), role, invitedBy: user.uid, invitedByName: user.name.slice(0, 120), teamName: team.name, createdAt: serverTimestamp(), expireAt: Timestamp.fromMillis(expireAt) });
     await batch.commit();
@@ -490,7 +491,7 @@ export function teamErrorMessage(error: unknown) {
   const code = error && typeof error === 'object' && 'code' in error ? String((error as { code: unknown }).code) : error instanceof Error ? error.message : '';
   if (code.includes('permission-denied')) return 'Bạn không có quyền thực hiện thao tác này trong nhóm.';
   if (code.includes('unavailable') || code.includes('network')) return 'Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại.';
-  if (code.includes('payload-too-large')) return 'Tài liệu quá lớn để chia sẻ (tối đa khoảng 27 MB sau khi nén).';
+  if (code.includes('payload-too-large')) return 'Tài liệu quá lớn để chia sẻ (vượt 256 MB sau khi nén).';
   if (code.includes('missing-chunk') || code.includes('invalid-data')) return 'Dữ liệu mẫu bị thiếu hoặc hỏng. Hãy nhờ người đăng mẫu đăng lại.';
   if (code.includes('failed-precondition')) return 'Máy chủ chưa sẵn sàng cho truy vấn này. Vui lòng thử lại sau ít phút.';
   return 'Chưa thực hiện được. Vui lòng thử lại.';

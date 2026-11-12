@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ShieldAlert, Users } from 'lucide-react';
+import * as Y from 'yjs';
+import { Awareness } from 'y-protocols/awareness';
 import { useAccount } from '../Authentication';
 import { useUi } from '../ui';
 import { loadEditor, loadedEditors } from '../../lib/editorModules';
@@ -19,6 +21,8 @@ import { TmButton } from './TeamParts';
 import { useTeamStore } from './useTeams';
 
 const SNAPSHOT_INTERVAL_MS = 120_000;
+const WAIT_PREVIEW_MS = 20_000;
+const SEED_RETRY_MS = 15_000;
 
 type Session = { store: TeamStore; item: TeamItem; role: TeamRole; content: FileContent; mesh: PeerMesh; live: LiveDocument; opened: OpenResult };
 type Phase = { kind: 'loading'; text: string } | { kind: 'error'; text: string } | { kind: 'ready'; session: Session };
@@ -142,6 +146,8 @@ export function SharedFrame({ frameId, onEditing }: { frameId: string; onEditing
   const [phase, setPhase] = useState<Phase>({ kind: 'loading', text: 'Đang mở tài liệu chung…' });
   const [editorReady, setEditorReady] = useState(false);
   const [waiting, setWaiting] = useState(false);
+  const [preview, setPreview] = useState(false);
+  const [seedLate, setSeedLate] = useState(false);
   const session = phase.kind === 'ready' ? phase.session : null;
   const meshState = useMeshState(session?.mesh ?? null);
   const saveState = useSaveState(session?.live ?? null);
@@ -187,12 +193,36 @@ export function SharedFrame({ frameId, onEditing }: { frameId: string; onEditing
 
   useEffect(() => {
     if (!session || !waiting) return;
-    const check = () => { if (hasLiveContent(session.live, session.item.kind)) setWaiting(false); };
-    session.live.ydoc.on('update', check);
-    const timer = setTimeout(() => setWaiting(false), 20_000);
+    let alive = true;
+    const ydoc = session.live.ydoc;
+    const hasContent = () => hasLiveContent(session.live, session.item.kind);
+    const check = () => { if (alive && hasContent()) { setWaiting(false); setPreview(false); } };
+    ydoc.on('update', check);
     check();
-    return () => { session.live.ydoc.off('update', check); clearTimeout(timer); };
+    const canWrite = can(session.role, 'editDocument');
+    const timer = canWrite ? null : setTimeout(() => { if (alive && !hasContent()) setPreview(true); }, WAIT_PREVIEW_MS);
+    const retry = canWrite ? setInterval(() => {
+      void session.live.open().then((result) => {
+        if (!alive) return;
+        if (result === 'seed') setSeedLate(true);
+        if (result !== 'wait') setWaiting(false);
+      }, (failure) => console.warn('shared: reopen failed', failure));
+    }, SEED_RETRY_MS) : null;
+    return () => {
+      alive = false;
+      ydoc.off('update', check);
+      if (timer) clearTimeout(timer);
+      if (retry) clearInterval(retry);
+    };
   }, [session, waiting]);
+
+  const previewBinding = useMemo(() => {
+    if (!preview) return null;
+    const ydoc = new Y.Doc();
+    return { ydoc, awareness: new Awareness(ydoc) };
+  }, [preview]);
+
+  useEffect(() => () => { previewBinding?.awareness.destroy(); previewBinding?.ydoc.destroy(); }, [previewBinding]);
 
   useEffect(() => {
     onEditing(Boolean(session));
@@ -245,7 +275,7 @@ export function SharedFrame({ frameId, onEditing }: { frameId: string; onEditing
   if (phase.kind === 'loading') return <SharedMessage icon={<Users size={32} />} title="Tài liệu chung" text={phase.text} />;
   if (phase.kind === 'error') return <SharedMessage icon={<ShieldAlert size={32} />} title="Không mở được tài liệu" text={phase.text} action={<TmButton onClick={() => host?.showHome()}>Về trang chủ</TmButton>} />;
   if (!session || !editorReady) return <SharedMessage icon={<Users size={32} />} title="Tài liệu chung" text="Đang tải trình soạn thảo…" />;
-  if (waiting) return <SharedMessage icon={<Users size={32} />} title="Đang chờ đồng bộ" text="Một thành viên khác đang chuẩn bị tài liệu này lần đầu. Vui lòng đợi vài giây…" />;
+  if (waiting && !previewBinding) return <SharedMessage icon={<Users size={32} />} title="Đang chờ đồng bộ" text="Một thành viên khác đang chuẩn bị tài liệu này lần đầu. Vui lòng đợi vài giây…" />;
 
   const meta = sharedMeta(session.item);
   const readOnly = !can(session.role, 'editDocument');
@@ -255,8 +285,22 @@ export function SharedFrame({ frameId, onEditing }: { frameId: string; onEditing
 
   if (session.item.kind === 'doc' && session.content.kind === 'doc' && loadedEditors.doc) {
     const DocEditor = loadedEditors.doc;
+    if (waiting && previewBinding) {
+      return (
+        <DocEditor
+          key="preview"
+          meta={meta}
+          content={session.content}
+          onSave={async () => true}
+          onRename={() => undefined}
+          onBack={back}
+          live={{ ydoc: previewBinding.ydoc, awareness: previewBinding.awareness, user: { name: session.store.user.name, color: colorForUid(session.store.user.uid) }, seed: true, readOnly: true, bar, onSeeded: () => undefined }}
+        />
+      );
+    }
     return (
       <DocEditor
+        key="live"
         meta={meta}
         content={session.content}
         onSave={(next, content) => onSave(next, content)}
@@ -266,7 +310,7 @@ export function SharedFrame({ frameId, onEditing }: { frameId: string; onEditing
           ydoc: session.live.ydoc,
           awareness: session.live.awareness,
           user: { name: session.store.user.name, color: colorForUid(session.store.user.uid) },
-          seed: session.opened === 'seed',
+          seed: session.opened === 'seed' || seedLate,
           readOnly,
           bar,
           onSeeded: () => { void session.live.save(true).then(() => ui.toast('Đã bật sửa chung cho tài liệu này.')); },
@@ -275,15 +319,19 @@ export function SharedFrame({ frameId, onEditing }: { frameId: string; onEditing
     );
   }
   const liveUser = { uid: session.store.user.uid, name: session.store.user.name, color: colorForUid(session.store.user.uid) };
-  const structured = { ydoc: session.live.ydoc, awareness: session.live.awareness, user: liveUser, readOnly, bar };
+  const previewing = Boolean(waiting && previewBinding);
+  const structured = previewing && previewBinding
+    ? { ydoc: previewBinding.ydoc, awareness: previewBinding.awareness, user: liveUser, readOnly: true, bar }
+    : { ydoc: session.live.ydoc, awareness: session.live.awareness, user: liveUser, readOnly, bar };
+  const editorKey = previewing ? 'preview' : 'live';
   const current = openedContent ?? session.content;
   if (current.kind === 'sheet' && loadedEditors.sheet) {
     const SheetEditor = loadedEditors.sheet;
-    return <SheetEditor meta={meta} content={current} onSave={(next, content) => onSave(next, content)} onRename={() => undefined} onBack={back} live={structured} />;
+    return <SheetEditor key={editorKey} meta={meta} content={current} onSave={(next, content) => onSave(next, content)} onRename={() => undefined} onBack={back} live={structured} />;
   }
   if (current.kind === 'slide' && loadedEditors.slide) {
     const SlideEditor = loadedEditors.slide;
-    return <SlideEditor meta={meta} content={current} onSave={(next, content) => onSave(next, content)} onRename={() => undefined} onBack={back} live={structured} />;
+    return <SlideEditor key={editorKey} meta={meta} content={current} onSave={(next, content) => onSave(next, content)} onRename={() => undefined} onBack={back} live={structured} />;
   }
   return <SharedMessage icon={<Users size={32} />} title="Chưa hỗ trợ" text="Loại tài liệu này chưa sửa chung được." action={<TmButton onClick={back}>Về trang chủ</TmButton>} />;
 }

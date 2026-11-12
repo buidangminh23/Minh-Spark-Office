@@ -2,7 +2,7 @@ import { isDesktop } from '../../../lib/desktop';
 import { useEffect, useMemo, useState } from 'react';
 import { useSettings, type DocTab } from '../../../lib/appSettings';
 import { openSettings } from '../../../components/settings/settingsShared';
-import { Settings2, Keyboard, Square, Wand2, ArrowLeft, Bookmark, BookText, Clipboard, Copy, Download, FileCode2, FileImage, FileText, FileType2, FolderOpen, History, Info, Mail, MonitorPlay, Package, Printer, Save, Share2, Table2, FilePlus2, X, BookOpen, ScrollText, Columns3, Minus, Plus, PencilLine } from 'lucide-react';
+import { Settings2, Keyboard, Square, Wand2, ArrowLeft, Bookmark, BookText, Clipboard, Copy, Download, FileCode2, FileImage, FileText, FileType2, FolderOpen, History, Info, Mail, MonitorPlay, Package, Printer, Save, Share2, Table2, FilePlus2, Users, X, BookOpen, ScrollText, Columns3, Minus, Plus, PencilLine } from 'lucide-react';
 import { useEditorState } from '@tiptap/react';
 import { pickFile, formatBytes } from '../../../lib/download';
 import { useAccount } from '../../../components/Authentication';
@@ -18,6 +18,7 @@ import { makeCopy } from '../actionsExtra';
 import { DOC_TEMPLATES } from '../docTemplates';
 import { ZOOM_STEPS } from './tabs/ViewTabs';
 import { currentAuthorName } from '../../../lib/currentAuthor';
+import { isShareableFileId, requestTeamShare } from '../../../lib/teamShare';
 
 type Section = 'info' | 'new' | 'open' | 'export' | 'share';
 
@@ -28,11 +29,13 @@ function FormatIcon({ format }: { format: ExportFormat }) {
   return <Icon size={22} color={format.color} />;
 }
 
-export function Backstage({ onClose }: { onClose: () => void }) {
+export type BackstageSection = Section;
+
+export function Backstage({ onClose, initialSection = 'info' }: { onClose: () => void; initialSection?: Section }) {
   const ctx = useDoc();
   const { login, user: sourceUser } = useAccount();
   const sourceStorage = useWorkspace();
-  const [section, setSection] = useState<Section>('info');
+  const [section, setSection] = useState<Section>(initialSection);
   const stats = useMemo(() => textStats(ctx.editor.getText({ blockSeparator: '\n' })), [ctx.editor]);
   const nav: { id: Section; label: string; icon: React.ReactNode }[] = [
     { id: 'info', label: 'Thông tin', icon: <Info size={16} /> },
@@ -151,6 +154,9 @@ export function Backstage({ onClose }: { onClose: () => void }) {
           <>
             <h1>Chia sẻ</h1>
             <div className="export-grid">
+              {isShareableFileId(ctx.meta.id) && (
+                <button className="export-tile" onClick={() => act(() => { requestTeamShare({ fileId: ctx.meta.id, kind: 'doc' }); })}><Users size={22} color="#2b579a" /><div><strong>Chia sẻ với nhóm</strong><span>Đưa tài liệu lên nhóm để mọi thành viên cùng mở và sửa chung</span></div></button>
+              )}
               <button className="export-tile" onClick={async () => {
                 try {
                   await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([standaloneHtmlFrom(ctx.editor, flattenForExport(ctx.editor), ctx.title.replace(/\.[^/.]+$/, ''), ctx.page)], { type: 'text/html' }), 'text/plain': new Blob([ctx.editor.getText({ blockSeparator: '\n' })], { type: 'text/plain' }) })]);
@@ -159,7 +165,7 @@ export function Backstage({ onClose }: { onClose: () => void }) {
                   ctx.ui.toast('Trình duyệt chặn ghi clipboard', true);
                 }
               }}><Clipboard size={22} color="#2b579a" /><div><strong>Sao chép có định dạng</strong><span>Dán thẳng vào Gmail, Outlook, Google Docs</span></div></button>
-              <button className="export-tile" onClick={() => { const mailto = `mailto:?subject=${encodeURIComponent(ctx.title)}`; if (isDesktop()) window.open(mailto, '_blank'); else window.location.href = mailto; }}><Mail size={22} color="#d7473c" /><div><strong>Gửi email</strong><span>Mở ứng dụng email với tiêu đề sẵn (đính kèm tệp .docx đã xuất)</span></div></button>
+              <button className="export-tile" onClick={() => { const mailto = `mailto:?subject=${encodeURIComponent(ctx.title)}`; if (isDesktop()) window.open(mailto, '_blank'); else window.location.href = mailto; }}><Mail size={22} color="#d7473c" /><div><strong>Gửi email</strong><span>Mở ứng dụng email với tiêu đề sẵn, rồi đính kèm tệp .docx đã tải</span></div></button>
               <button className="export-tile" onClick={() => act(() => void exportAsDocx(ctx))}><FileText size={22} color="#2b579a" /><div><strong>Tải .docx để gửi</strong><span>Gửi qua Zalo, email, Drive</span></div></button>
             </div>
           </>

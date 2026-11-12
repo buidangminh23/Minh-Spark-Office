@@ -37,6 +37,7 @@ import {
   Check,
   Play,
   Share,
+  Users as TeamUsers,
 } from 'lucide-react';
 
 import {
@@ -56,6 +57,7 @@ import { PdfPageScroller, PdfThumb, typicalWidth } from './PdfPageScroller';
 import { usePageNavigation } from './usePageNavigation';
 import { extractAllText, rasterizePages, trimmedCanvasPng } from './pdfRaster';
 import type { Margins, SignatureAnchor } from './pdfTools';
+import { isShareableFileId, requestTeamShare } from '../../lib/teamShare';
 
 const loadPdfTools = () => import('./pdfTools');
 
@@ -706,7 +708,7 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
               title="Chia sẻ tệp PDF"
             >
               <Share2 size={13} />
-              <span>Share ▾</span>
+              <span>Chia sẻ</span>
             </button>
           </div>
         </div>
@@ -1549,13 +1551,19 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
               {!hasRealPdf
                 ? NO_PDF_MESSAGE
                 : canShareFile
-                  ? 'Minh Office chưa tạo được liên kết chia sẻ. Bạn có thể gửi thẳng tệp PDF qua bảng chia sẻ của hệ thống, hoặc tải tệp xuống rồi đính kèm.'
-                  : 'Minh Office chưa tạo được liên kết chia sẻ, và thiết bị này không có bảng chia sẻ tệp. Hãy tải tệp xuống rồi đính kèm khi gửi.'}
+                  ? 'Đưa tệp lên nhóm để thành viên mở bản sao, gửi thẳng qua bảng chia sẻ của hệ thống, hoặc tải tệp xuống rồi đính kèm.'
+                  : 'Đưa tệp lên nhóm để thành viên mở bản sao, hoặc tải tệp xuống rồi đính kèm khi gửi qua Zalo, email, Drive.'}
             </p>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button className="btn" onClick={() => setShowShareModal(false)}>
                 Đóng
               </button>
+              {isShareableFileId(meta.id) && (
+                <button className="btn" disabled={!hasRealPdf} onClick={() => { setShowShareModal(false); void persistPdf(false).then(() => requestTeamShare({ fileId: meta.id, kind: 'pdf' })); }}>
+                  <TeamUsers size={13} />
+                  <span>Chia sẻ với nhóm</span>
+                </button>
+              )}
               <button className="btn" disabled={!hasRealPdf} onClick={() => { handleExportPdf(); setShowShareModal(false); }}>
                 <Download size={13} />
                 <span>Tải tệp xuống</span>
