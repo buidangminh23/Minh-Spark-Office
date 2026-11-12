@@ -35,6 +35,8 @@
 
 .ribbon-dropdown { position: relative; display: inline-flex; }
 .ribbon-dropdown .dropdown-caret { opacity: 0.6; flex: none; }
+.ribbon-dropdown > .ribbon-btn-large { display: grid; grid-template-columns: auto auto; align-content: center; justify-content: center; align-items: center; column-gap: 2px; row-gap: 3px; }
+.ribbon-dropdown > .ribbon-btn-large > :first-child { grid-column: 1 / -1; justify-self: center; }
 .ribbon-menu {
   position: absolute; top: calc(100% + var(--doc-gap-1)); left: 0; z-index: 80; min-width: 200px; max-height: min(70vh, 520px); overflow-y: auto;
   background: #fff; border: 1px solid var(--line-strong); border-radius: 8px; box-shadow: var(--shadow-lg); padding: var(--doc-gap-1); display: flex; flex-direction: column;
