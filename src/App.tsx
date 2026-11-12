@@ -5,6 +5,9 @@ import { accountWorkspace, syncedWorkspace } from './lib/workspaces';
 import { WorkspaceStatus } from './components/WorkspaceStatus';
 import { DesktopUpdater } from './components/DesktopUpdater';
 import { DesktopCloseGuard } from './components/DesktopCloseGuard';
+import { DocumentTabs, useDocumentTabs } from './components/DocumentTabs';
+import { addToTabSession, readTabSession, tabFrameId, tabHost } from './lib/documentTabs';
+import { saveActiveDocumentForExit } from './lib/documentCloser';
 import { createDesktopFileQueue } from './lib/desktopFileQueue';
 import { workspaceLifecycle } from './lib/workspaceLifecycle';
 import { DesktopSignIn, isDesktopSignInRequest } from './components/DesktopSignIn';
@@ -56,13 +59,16 @@ function useLoadedEditors(kind: EditorKind | null, onError: (error: unknown) => 
   return loadedEditors;
 }
 
-function EditorLoading({ kind }: { kind: FileKind }) {
+const OPEN_FAILED = 'Không mở được tài liệu này. Có thể tệp đã bị xoá hoặc chuyển vào thùng rác.';
+const BOOT_FAILED = 'Chưa mở được tài liệu. Hãy thử mở lại từ trang chủ.';
+
+function EditorLoading({ kind }: { kind?: FileKind }) {
   return (
     <div role="status" aria-label="Đang tải trình soạn thảo" style={{ position: 'fixed', inset: 0, display: 'grid', placeItems: 'center', background: '#f6f7fb', zIndex: 1000 }}>
       <div className="desktop-splash-content">
         <div className="desktop-splash-mark">
           <svg className="desktop-splash-ring" viewBox="0 0 132 132"><circle className="desktop-splash-track" cx="66" cy="66" r="64" /><circle className="desktop-splash-arc" cx="66" cy="66" r="64" /></svg>
-          <div className="desktop-splash-tile"><img src={suiteLogos[kind]} alt="" width="62" height="62" /></div>
+          <div className="desktop-splash-tile"><img src={kind ? suiteLogos[kind] : '/logo-icon.png'} alt="" width="62" height="62" /></div>
         </div>
         <p className="desktop-splash-name">Minh Spark Office</p>
       </div>
@@ -70,11 +76,13 @@ function EditorLoading({ kind }: { kind: FileKind }) {
   );
 }
 
-function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
+function MainApp({ onEditing, frameId }: { onEditing: (editing: boolean) => void; frameId: string | null }) {
   const ui = useUi();
   const toast = ui.toast;
   const { user, ready, login } = useAccount();
   const storage = useWorkspace();
+  const tabs = useDocumentTabs();
+  const host = useMemo(() => (frameId ? tabHost() : null), [frameId]);
   const { listFiles, loadContent, saveFile, updateMeta, removeFile, exportBackup, importBackup } = useWorkspace();
   const [files, setFiles] = useState<FileMeta[]>([]);
   const [activeMeta, setActiveMeta] = useState<FileMeta | null>(null);
@@ -89,82 +97,78 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
   });
   const [storageInfo, setStorageInfo] = useState<{ usage: number; quota: number } | null>(null);
 
-  const activeKind = activeMeta?.kind;
-
-  useEffect(() => {
-    const favicon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
-    if (favicon) favicon.href = activeKind ? suiteLogos[activeKind] : '/logo-icon.png';
-  }, [activeKind]);
-
   const initialized = useRef<typeof storage | null>(null);
   const currentStorage = useRef(storage);
   currentStorage.current = storage;
 
   const activeDocument = useRef(activeMeta);
   activeDocument.current = activeMeta;
-  const openDocumentKey = `minh-office-open:${user?.uid ?? 'drafts'}`;
+  const hasDocument = Boolean(activeMeta);
+
+  const showDocument = (meta: FileMeta, content: FileContent) => {
+    if (!frameId) { tabs?.open(meta, content); return; }
+    if (activeDocument.current) { host?.open(meta, content); return; }
+    activeDocument.current = meta;
+    setActiveMeta(meta);
+    setActiveContent(content);
+  };
+
+  const focusOpenTab = (meta: FileMeta) => {
+    if (frameId || !tabs?.isOpen(meta.id)) return false;
+    tabs.open(meta);
+    void updateMeta(meta.id, { openedAt: Date.now() }).catch(() => undefined);
+    return true;
+  };
 
   useEffect(() => {
+    if (!frameId) return;
     onEditing(Boolean(activeMeta));
     syncedWorkspace(storage)?.setActiveFile(activeMeta?.id ?? null);
     return () => { syncedWorkspace(storage)?.setActiveFile(null); onEditing(false); };
-  }, [activeMeta?.id, storage, onEditing]);
+  }, [frameId, activeMeta?.id, storage, onEditing]);
 
   useEffect(() => {
+    if (frameId) return;
     let mounted = true;
+    const stop = syncedWorkspace(storage)?.subscribe(() => {
+      void storage.listFiles().then((list) => { if (mounted) setFiles(list); });
+    });
+    return () => { mounted = false; stop?.(); };
+  }, [frameId, storage]);
+
+  useEffect(() => {
+    if (!frameId || !ready) return;
+    let alive = true;
+    const boot = async () => {
+      const handed = host?.take(frameId);
+      const copy = handed ? structuredClone(handed) : null;
+      const meta = copy?.meta ?? (await storage.listFiles()).find((file) => file.id === frameId && !file.deletedAt);
+      const content = copy?.content ?? (meta ? await storage.loadContent(meta.id) : undefined);
+      if (!alive) return;
+      if (!meta || !content || content.kind !== meta.kind) { host?.fail(frameId, OPEN_FAILED); return; }
+      activeDocument.current = meta;
+      setActiveMeta(meta);
+      setActiveContent(content);
+    };
+    boot().catch(() => { if (alive) host?.fail(frameId, BOOT_FAILED); });
+    return () => { alive = false; };
+  }, [frameId, ready, storage, host]);
+
+  useEffect(() => {
+    if (!frameId || !host || !hasDocument) return;
+    return host.attach(frameId, {
+      save: () => saveActiveDocumentForExit(),
+      rename: (name) => setActiveMeta((current) => (current ? { ...current, name } : current)),
+    });
+  }, [frameId, host, hasDocument]);
+
+  useEffect(() => {
+    if (!frameId || !host) return;
     const sync = syncedWorkspace(storage);
-    const refresh = () => { void storage.listFiles().then(async (list) => {
-      if (!mounted) return;
-      setFiles(list);
-      const requested = sessionStorage.getItem(openDocumentKey);
-      const meta = !activeDocument.current && requested ? list.find((file) => file.id === requested && !file.deletedAt) : undefined;
-      if (meta) sync?.setActiveFile(meta.id);
-      const content = meta ? await storage.loadContent(meta.id) : undefined;
-      if (mounted && meta && content && !activeDocument.current && sessionStorage.getItem(openDocumentKey) === requested) { activeDocument.current = meta; setActiveMeta(meta); setActiveContent(content); }
-    }); };
-    const stop = sync?.subscribe(refresh);
-    const openSaved = (event: Event) => {
-      const { uid, id } = (event as CustomEvent<{ uid: string; id: string }>).detail;
-      if (uid !== user?.uid) return;
-      void storage.listFiles().then(async (list) => {
-        const meta = list.find((file) => file.id === id);
-        if (activeDocument.current || sessionStorage.getItem(openDocumentKey) !== id) return;
-        if (meta) sync?.setActiveFile(meta.id);
-        const content = meta && await storage.loadContent(id);
-        if (mounted && meta && content && !activeDocument.current && sessionStorage.getItem(openDocumentKey) === id) { activeDocument.current = meta; setActiveMeta(meta); setActiveContent(content); }
-      });
-    };
-    window.addEventListener('office-open-saved', openSaved);
-    return () => { mounted = false; stop?.(); window.removeEventListener('office-open-saved', openSaved); };
-  }, [storage, user?.uid, openDocumentKey]);
-
-  useEffect(() => {
-    if (!ready) return;
-    let active = true;
-    const restore = async () => {
-      try {
-        const id = sessionStorage.getItem(openDocumentKey);
-        if (!id || activeDocument.current) return;
-        const meta = (await storage.listFiles()).find((file) => file.id === id && !file.deletedAt);
-        if (meta && !activeDocument.current) syncedWorkspace(storage)?.setActiveFile(meta.id);
-        const content = meta ? await storage.loadContent(meta.id) : undefined;
-        if (active && meta && content?.kind === meta.kind && !activeDocument.current) {
-          activeDocument.current = meta;
-          setActiveMeta(meta);
-          setActiveContent(content);
-        }
-      } catch {
-        if (active) toast('Chưa mở lại được bản nháp. Hãy thử mở từ danh sách tài liệu.', true);
-      }
-    };
-    void restore();
-    return () => { active = false; };
-  }, [ready, storage, openDocumentKey, toast]);
-
-  useEffect(() => {
-    if (!ready || !activeMeta) return;
-    try { sessionStorage.setItem(openDocumentKey, activeMeta.id); } catch { return; }
-  }, [ready, activeMeta, openDocumentKey]);
+    if (!sync) return;
+    sync.setOpenFiles(host.openIds());
+    return host.subscribe(frameId, (ids) => sync.setOpenFiles(ids));
+  }, [frameId, host, storage]);
 
   // Refresh files list and storage
   const refreshFiles = useCallback(async () => {
@@ -177,16 +181,17 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
   const refreshFilesSoon = () => { void refreshFiles().catch(() => undefined); };
 
   const handleCloseEditor = () => {
-    try { sessionStorage.removeItem(openDocumentKey); } catch {}
-    activeDocument.current = null;
-    setActiveMeta(null);
-    setActiveContent(null);
-    void refreshFiles();
+    host?.showHome();
   };
+
+  const homeVisible = tabs?.homeVisible ?? false;
+  useEffect(() => {
+    if (!frameId && homeVisible) void refreshFiles().catch(() => undefined);
+  }, [frameId, homeVisible, refreshFiles]);
 
   // Initial load & seed default files if empty
   useEffect(() => {
-    if (initialized.current === storage) return;
+    if (frameId || initialized.current === storage) return;
     initialized.current = storage;
     const init = async () => {
       const list = await listFiles();
@@ -282,19 +287,17 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
     };
 
     void init();
-  }, [listFiles, saveFile, storage, user]);
+  }, [frameId, listFiles, saveFile, storage, user]);
 
   // Open Document
   const handleOpenDoc = async (meta: FileMeta) => {
+    if (focusOpenTab(meta)) return;
     try {
       preloadEditor(meta.kind);
       ui.showBusy('Đang mở tài liệu…');
-      syncedWorkspace(storage)?.setActiveFile(meta.id);
       const content = await loadContent(meta.id);
       if (content && content.kind === 'doc') {
-        activeDocument.current = meta;
-        setActiveMeta(meta);
-        setActiveContent(content);
+        showDocument(meta, content);
         await updateMeta(meta.id, { openedAt: Date.now() });
       } else {
         ui.toast('Không tìm thấy nội dung tài liệu', true);
@@ -308,15 +311,13 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
 
   // Open Spreadsheet
   const handleOpenSheet = async (meta: FileMeta) => {
+    if (focusOpenTab(meta)) return;
     try {
       preloadEditor(meta.kind);
       ui.showBusy('Đang mở bảng tính…');
-      syncedWorkspace(storage)?.setActiveFile(meta.id);
       const content = await loadContent(meta.id);
       if (content && content.kind === 'sheet') {
-        activeDocument.current = meta;
-        setActiveMeta(meta);
-        setActiveContent(content);
+        showDocument(meta, content);
         await updateMeta(meta.id, { openedAt: Date.now() });
       } else {
         ui.toast('Không tìm thấy nội dung bảng tính', true);
@@ -352,8 +353,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
     };
     await saveFile(meta, content);
     refreshFilesSoon();
-    setActiveMeta(meta);
-    setActiveContent(content);
+    showDocument(meta, content);
     ui.toast('Đã tạo văn bản Word mới');
   };
 
@@ -383,22 +383,19 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
     };
     await saveFile(meta, content);
     refreshFilesSoon();
-    setActiveMeta(meta);
-    setActiveContent(content);
+    showDocument(meta, content);
     ui.toast('Đã tạo bảng tính Minh Sheets mới');
   };
 
   // Open PDF Document
   const handleOpenPdf = async (meta: FileMeta) => {
+    if (focusOpenTab(meta)) return;
     try {
       preloadEditor(meta.kind);
       ui.showBusy('Đang mở tài liệu PDF…');
-      syncedWorkspace(storage)?.setActiveFile(meta.id);
       const content = await loadContent(meta.id);
       if (content && content.kind === 'pdf') {
-        activeDocument.current = meta;
-        setActiveMeta(meta);
-        setActiveContent(content);
+        showDocument(meta, content);
         await updateMeta(meta.id, { openedAt: Date.now() });
       } else {
         ui.toast('Không tìm thấy nội dung tài liệu PDF', true);
@@ -433,22 +430,19 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
     };
     await saveFile(meta, content);
     refreshFilesSoon();
-    setActiveMeta(meta);
-    setActiveContent(content);
+    showDocument(meta, content);
     ui.toast('Đã tạo tài liệu Minh PDF mới');
   };
 
   // Open Slide Presentation
   const handleOpenSlide = async (meta: FileMeta) => {
+    if (focusOpenTab(meta)) return;
     try {
       preloadEditor(meta.kind);
       ui.showBusy('Đang mở bài thuyết trình…');
-      syncedWorkspace(storage)?.setActiveFile(meta.id);
       const content = await loadContent(meta.id);
       if (content && content.kind === 'slide') {
-        activeDocument.current = meta;
-        setActiveMeta(meta);
-        setActiveContent(content);
+        showDocument(meta, content);
         await updateMeta(meta.id, { openedAt: Date.now() });
       } else {
         ui.toast('Không tìm thấy nội dung bài thuyết trình', true);
@@ -483,23 +477,20 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
     };
     await saveFile(meta, content);
     refreshFilesSoon();
-    setActiveMeta(meta);
-    setActiveContent(content);
+    showDocument(meta, content);
     ui.toast('Đã tạo bài thuyết trình Minh Slides mới');
   };
 
 
   // Open Image Document
   const handleOpenImage = async (meta: FileMeta) => {
+    if (focusOpenTab(meta)) return;
     try {
       preloadEditor(meta.kind);
       ui.showBusy('Đang mở hình ảnh…');
-      syncedWorkspace(storage)?.setActiveFile(meta.id);
       const content = await loadContent(meta.id);
       if (content && content.kind === 'image') {
-        activeDocument.current = meta;
-        setActiveMeta(meta);
-        setActiveContent(content);
+        showDocument(meta, content);
         await updateMeta(meta.id, { openedAt: Date.now() });
       } else {
         ui.toast('Không tìm thấy nội dung hình ảnh', true);
@@ -535,8 +526,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
     };
     await saveFile(meta, content);
     refreshFilesSoon();
-    setActiveMeta(meta);
-    setActiveContent(content);
+    showDocument(meta, content);
     ui.toast('Đã tạo tài liệu Minh Docs từ hình ảnh');
   };
 
@@ -591,8 +581,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
     };
     await saveFile(meta, content);
     refreshFilesSoon();
-    setActiveMeta(meta);
-    setActiveContent(content);
+    showDocument(meta, content);
     ui.toast('Đã tạo bài thuyết trình Minh Slides từ hình ảnh');
   };
 
@@ -619,8 +608,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
     };
     await saveFile(meta, content);
     refreshFilesSoon();
-    setActiveMeta(meta);
-    setActiveContent(content);
+    showDocument(meta, content);
     ui.toast('Đã tạo bảng tính Minh Sheets từ hình ảnh');
   };
 
@@ -712,9 +700,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
         };
         await saveFile(meta, content);
         refreshFilesSoon();
-        activeDocument.current = meta;
-        setActiveMeta(meta);
-        setActiveContent(content);
+        showDocument(meta, content);
         ui.toast(`Đã nạp tệp Word "${file.name}"`);
       } else if (isText) {
         const source = new TextDecoder().decode(bytes);
@@ -724,9 +710,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
         const content: DocContent = { kind: 'doc', json: html as any, page: defaultPage() };
         await saveFile(meta, content);
         refreshFilesSoon();
-        activeDocument.current = meta;
-        setActiveMeta(meta);
-        setActiveContent(content);
+        showDocument(meta, content);
         ui.toast(`Đã mở "${file.name}"`);
       } else if (isXls) {
         ui.showBusy('Đang đọc dữ liệu bảng tính…');
@@ -751,9 +735,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
         };
         await saveFile(meta, content);
         refreshFilesSoon();
-        activeDocument.current = meta;
-        setActiveMeta(meta);
-        setActiveContent(content);
+        showDocument(meta, content);
         ui.toast(`Đã nạp bảng tính "${file.name}"`);
       } else if (isPdf) {
         ui.showBusy('Đang mở tệp PDF…');
@@ -781,9 +763,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
         };
         await saveFile(meta, content);
         refreshFilesSoon();
-        activeDocument.current = meta;
-        setActiveMeta(meta);
-        setActiveContent(content);
+        showDocument(meta, content);
         ui.toast(`Đã nạp tệp PDF "${file.name}"`);
       } else if (isPpt) {
         ui.showBusy('Đang đọc bài thuyết trình…');
@@ -808,9 +788,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
         };
         await saveFile(meta, content);
         refreshFilesSoon();
-        activeDocument.current = meta;
-        setActiveMeta(meta);
-        setActiveContent(content);
+        showDocument(meta, content);
         ui.toast(
           pptxReport.skipped.length > 0
             ? `Đã nạp "${file.name}": ${pptxReport.slides} trang, ${pptxReport.elements} đối tượng. Chưa đọc được: ${pptxReport.skipped.slice(0, 2).join('; ')}`
@@ -842,9 +820,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
         };
         await saveFile(meta, content);
         refreshFilesSoon();
-        activeDocument.current = meta;
-        setActiveMeta(meta);
-        setActiveContent(content);
+        showDocument(meta, content);
         ui.toast(`Đã nạp hình ảnh "${file.name}"`);
       } else {
         ui.toast('Định dạng tệp không được hỗ trợ', true);
@@ -868,11 +844,11 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
   importFromDesktop.current = handleImportFile;
   const drainDesktopFiles = useRef<() => void>(() => {});
   useEffect(() => {
-    if (!ready || !isDesktop()) return;
+    if (frameId || !ready || !isDesktop()) return;
     let alive = true;
     let unlisten: (() => void) | undefined;
     const queue = createDesktopFileQueue({
-      isEditing: () => Boolean(activeDocument.current) || workspaceLifecycle.isBlocked(),
+      isEditing: () => workspaceLifecycle.isBlocked(),
       drain: async () => {
         const batch = await invoke<DesktopFileBatch>('drain_open_files');
         launchFiles.current.resolve(batch.files.length > 0);
@@ -898,18 +874,17 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
       if (alive) toast('Chưa nhận được yêu cầu mở tệp từ hệ điều hành. Có thể dùng nút Mở tệp từ máy để thử lại.', true);
     });
     return () => { alive = false; queue.stop(); stopLifecycle(); unlisten?.(); drainDesktopFiles.current = () => {}; };
-  }, [ready, storage, toast]);
-  useEffect(() => { if (!activeMeta) drainDesktopFiles.current(); }, [activeMeta]);
+  }, [frameId, ready, storage, toast]);
 
   const startupHandled = useRef(false);
   useEffect(() => {
     const mode = getSettings().startup;
-    if (!ready || startupHandled.current || mode === 'home' || (!files.length && mode === 'lastDocument')) return;
+    if (frameId || !ready || startupHandled.current || mode === 'home' || (!files.length && mode === 'lastDocument')) return;
     startupHandled.current = true;
     try {
       if (sessionStorage.getItem(STARTUP_KEY)) return;
       sessionStorage.setItem(STARTUP_KEY, '1');
-      if (sessionStorage.getItem(openDocumentKey)) return;
+      if (readTabSession(user?.uid).ids.length) return;
     } catch {
       return;
     }
@@ -917,7 +892,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
       ? Promise.race([launchFiles.current.promise, new Promise<boolean>((resolve) => setTimeout(() => resolve(false), LAUNCH_FILE_WAIT_MS))])
       : Promise.resolve(false);
     void launchWait.then((hadLaunchFile) => {
-      if (hadLaunchFile || activeDocument.current) return;
+      if (hadLaunchFile || readTabSession(user?.uid).ids.length) return;
       if (mode === 'newDoc') { void handleCreateDoc(); return; }
       const last = files.filter((file) => !file.deletedAt).sort((a, b) => b.openedAt - a.openedAt)[0];
       if (!last) return;
@@ -940,15 +915,17 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
         const id = `${meta.kind}-${crypto.randomUUID()}`;
         const versions = (await storage.listVersions(meta.id)).map((version) => ({ ...version, fileId: id }));
         await target.replaceFile({ ...meta, id }, content, versions);
-        sessionStorage.setItem(`minh-office-open:${account.uid}`, id);
-        window.dispatchEvent(new CustomEvent('office-open-saved', { detail: { uid: account.uid, id } }));
+        addToTabSession(account.uid, id);
+        const shell = frameId ? window.parent : window;
+        shell.dispatchEvent(new (shell as Window & typeof globalThis).CustomEvent('office-open-saved', { detail: { uid: account.uid, id } }));
       } else {
         await target.saveFile(meta, content);
       }
       if (currentStorage.current === storage && activeDocument.current?.id === meta.id) {
         setActiveMeta(meta);
         setActiveContent(content);
-        setFiles(await target.listFiles());
+        host?.updateMeta(meta);
+        if (!frameId) setFiles(await target.listFiles());
       }
       return true;
     } catch {
@@ -969,9 +946,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
     if (newName && newName !== file.name) {
       await updateMeta(file.id, { name: newName, updatedAt: Date.now() });
       await refreshFiles();
-      if (activeMeta?.id === file.id) {
-        setActiveMeta((prev) => (prev ? { ...prev, name: newName } : null));
-      }
+      tabs?.rename(file.id, newName);
       ui.toast('Đã đổi tên tệp');
     }
   };
@@ -1008,6 +983,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
 
   // Move to trash
   const handleTrash = async (file: FileMeta) => {
+    if (tabs?.isOpen(file.id) && !(await tabs.close(file.id))) return;
     await updateMeta(file.id, { deletedAt: Date.now() });
     await refreshFiles();
     ui.toast('Đã chuyển tệp vào thùng rác');
@@ -1028,6 +1004,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
       true
     );
     if (!ok) return;
+    if (tabs?.isOpen(file.id) && !(await tabs.close(file.id))) return;
     await removeFile(file.id);
     await refreshFiles();
     ui.toast('Đã xoá tệp vĩnh viễn');
@@ -1066,7 +1043,7 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
 
   registerBackupActions({ exportBackup: () => void handleExportBackup(), importBackup: (file) => void handleImportBackup(file) });
 
-  // Render active editor or Home
+  if (frameId && (!activeMeta || !activeContent)) return <EditorLoading />;
   if (activeMeta && activeContent && activeEditorKind && !editors[activeEditorKind]) return <EditorLoading kind={activeEditorKind} />;
   const { doc: DocEditor, sheet: SheetEditor, slide: SlideEditor, image: ImageEditor, pdf: PdfEditor } = editors;
 
@@ -1168,14 +1145,23 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
   );
 }
 
+const frameId = tabFrameId();
+
 function Workspace({ userId, onEditing, editing }: { userId: string | null; onEditing: (editing: boolean) => void; editing: boolean }) {
   const workspace = useMemo(() => userId ? accountWorkspace(userId) : createDraftWorkspaceStorage(), [userId]);
   useEffect(() => syncedWorkspace(workspace)?.start(), [workspace]);
   return (
     <WorkspaceContext value={workspace}>
       <UiProvider>
-        <DesktopCloseGuard />
-        <div className={`workspace-frame ${editing ? 'is-editing' : ''}`}><div className="workspace-content"><MainApp onEditing={onEditing} /></div><WorkspaceStatus /><SettingsHost /></div>
+        {frameId ? (
+          <div className={`workspace-frame ${editing ? 'is-editing' : ''}`}><div className="workspace-content"><MainApp onEditing={onEditing} frameId={frameId} /></div><WorkspaceStatus /><SettingsHost /></div>
+        ) : (
+          <>
+            <DesktopCloseGuard />
+            <DocumentTabs onEditing={onEditing}><MainApp onEditing={onEditing} frameId={null} /></DocumentTabs>
+            <SettingsHost />
+          </>
+        )}
       </UiProvider>
     </WorkspaceContext>
   );
@@ -1184,5 +1170,5 @@ function Workspace({ userId, onEditing, editing }: { userId: string | null; onEd
 export default function App() {
   const [editing, setEditing] = useState(false);
   if (isDesktopSignInRequest()) return <DesktopSignIn />;
-  return <><Authentication>{(user, session) => <Workspace key={`${session}:${user?.uid ?? 'guest'}`} userId={user?.uid ?? null} onEditing={setEditing} editing={editing} />}</Authentication><DesktopUpdater editing={editing} /></>;
+  return <><Authentication>{(user, session) => <Workspace key={`${session}:${user?.uid ?? 'guest'}`} userId={user?.uid ?? null} onEditing={setEditing} editing={editing} />}</Authentication>{!frameId && <DesktopUpdater editing={editing} />}</>;
 }

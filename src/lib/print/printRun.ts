@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { isDesktop } from '../desktop';
+import { tabHost } from '../documentTabs';
 
 export const PRINT_ROOT_ID = 'minh-print-root';
 export const PRINTING_CLASS = 'minh-printing';
@@ -65,6 +66,8 @@ export function canPrintDirect(platform: PrintPlatform = printPlatform()) {
 }
 
 export async function openSystemPrint(request: NativePrintRequest): Promise<PrintResult> {
+  const host = isDesktop() ? tabHost() : null;
+  if (host) return host.print(request, window);
   const platform = printPlatform();
   const target = request.target ?? { kind: 'system' };
   if (target.kind !== 'system' && canPrintDirect(platform)) {

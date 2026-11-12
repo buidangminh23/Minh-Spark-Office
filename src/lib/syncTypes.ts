@@ -28,4 +28,5 @@ export type SyncedWorkspace = WorkspaceStorage & {
   getStatus(): SyncStatus;
   syncNow(): Promise<void>;
   setActiveFile(id: string | null): void;
+  setOpenFiles(ids: readonly string[]): void;
 };

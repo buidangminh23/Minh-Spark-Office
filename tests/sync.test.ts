@@ -448,3 +448,45 @@ test('signed-in snapshot writes its content and version through the durable sync
   assert.deepEqual(outbox.pending['signed-snapshot'].record.content, content('latest'));
   assert.equal(outbox.pending['signed-snapshot'].record.versions[0].id, saved.version.id);
 });
+
+test('a file open in another document tab keeps its local copy until that tab closes', async () => {
+  const remote = new FakeRemote();
+  const otherDevice = client(remote).workspace;
+  const device = client(remote);
+  const homeTab = device.workspace;
+  const editorTab = device.reopen();
+  await otherDevice.saveFile(meta('tabbed'), content('original'));
+  await otherDevice.syncNow(); await homeTab.syncNow();
+  editorTab.setActiveFile('tabbed');
+  homeTab.setOpenFiles(['tabbed']);
+  await otherDevice.saveFile(meta('tabbed'), content('remote edit'));
+  await otherDevice.syncNow(); await homeTab.syncNow();
+  assert.deepEqual(await homeTab.loadContent('tabbed'), content('original'));
+  await editorTab.saveFile(meta('tabbed'), content('tab edit'));
+  await homeTab.syncNow();
+  assert.deepEqual(remote.records.get('tabbed')?.content, content('remote edit'));
+  editorTab.setActiveFile(null);
+  homeTab.setOpenFiles([]);
+  await homeTab.syncNow();
+  const copy = (await homeTab.listFiles()).find((file) => file.id !== 'tabbed')!;
+  assert.deepEqual(await homeTab.loadContent(copy.id), content('tab edit'));
+  assert.deepEqual(await homeTab.loadContent('tabbed'), content('remote edit'));
+});
+
+test('an unrelated file is still adopted while other files are held by tabs', async () => {
+  const remote = new FakeRemote();
+  const otherDevice = client(remote).workspace;
+  const homeTab = client(remote).workspace;
+  await otherDevice.saveFile(meta('held'), content('held original'));
+  await otherDevice.saveFile(meta('free'), content('free original'));
+  await otherDevice.syncNow(); await homeTab.syncNow();
+  homeTab.setOpenFiles(['held']);
+  await otherDevice.saveFile(meta('held'), content('held remote'));
+  await otherDevice.saveFile(meta('free'), content('free remote'));
+  await otherDevice.syncNow(); await homeTab.syncNow();
+  assert.deepEqual(await homeTab.loadContent('held'), content('held original'));
+  assert.deepEqual(await homeTab.loadContent('free'), content('free remote'));
+  homeTab.setOpenFiles([]);
+  await homeTab.syncNow();
+  assert.deepEqual(await homeTab.loadContent('held'), content('held remote'));
+});

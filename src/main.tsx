@@ -1,3 +1,4 @@
+import './lib/tabFrameBootstrap'
 import { lazy, StrictMode, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
@@ -8,6 +9,7 @@ import { reloadOnceForStaleChunk } from './lib/staleChunk'
 import { startInterfaceLanguage } from './lib/i18n/language'
 import { startChromeSettings } from './lib/appChrome'
 import { getSettings } from './lib/appSettings'
+import { tabFrameId } from './lib/documentTabs'
 
 window.addEventListener('vite:preloadError', (event) => {
   if (reloadOnceForStaleChunk()) event.preventDefault()
@@ -16,7 +18,7 @@ window.addEventListener('vite:preloadError', (event) => {
 const MirrorWindow = lazy(() => import('./editors/doc/ui/MirrorWindow'))
 const mirrorChannel = new URLSearchParams(window.location.search).get('mirror')
 startChromeSettings()
-if (!mirrorChannel && getSettings().usageStats) countThisDeviceOnce()
+if (!mirrorChannel && !tabFrameId() && getSettings().usageStats) countThisDeviceOnce()
 
 const renderApp = () =>
   createRoot(document.getElementById('root')!).render(

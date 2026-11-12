@@ -1,0 +1,187 @@
+.workspace-frame.has-doc-tabs {
+  --doc-tabs-height: 40px;
+}
+
+.doc-tabs {
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: var(--doc-tabs-height);
+  padding: 0 8px;
+  background: #e9edf4;
+  border-bottom: 1px solid var(--line-strong);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.doc-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.doc-tab {
+  position: relative;
+  flex: 0 1 220px;
+  min-width: 120px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 4px 0 12px;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  color: var(--ink-secondary);
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.doc-tab:hover {
+  background: #f4f6fa;
+}
+
+.doc-tab[data-active='true'] {
+  background: var(--paper);
+  border-color: var(--line-strong);
+  color: var(--ink);
+  margin-bottom: -1px;
+  height: 33px;
+}
+
+.doc-tab-home {
+  flex: none;
+  min-width: 0;
+  padding-right: 12px;
+}
+
+.doc-tab-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.doc-tab-main img {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+
+.doc-tab-main svg {
+  flex: none;
+}
+
+.doc-tab-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doc-tab[data-active='true'] .doc-tab-name {
+  font-weight: 600;
+}
+
+.doc-tab-close,
+.doc-tab-new {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.doc-tab-close:hover,
+.doc-tab-new:hover {
+  background: #dfe5ee;
+  color: var(--ink);
+}
+
+.doc-tab-new {
+  align-self: center;
+  margin-left: 4px;
+}
+
+.doc-tab-main:focus-visible,
+.doc-tab-close:focus-visible,
+.doc-tab-new:focus-visible {
+  outline: 2px solid var(--doc);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.doc-stage {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.doc-stage > .workspace-content[data-hidden='true'] {
+  visibility: hidden;
+}
+
+.doc-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--paper);
+}
+
+.doc-frame[data-active='false'] {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.has-doc-tabs .ws-sidebar,
+.has-doc-tabs .app-shell > .sidebar {
+  top: var(--doc-tabs-height);
+}
+
+@media (max-width: 768px) {
+  .doc-tab {
+    flex-basis: 160px;
+    min-width: 96px;
+  }
+
+  .doc-tab-home .doc-tab-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+}
+
+@media print {
+  .doc-tabs {
+    display: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .doc-tab {
+    transition: none;
+  }
+}

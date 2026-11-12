@@ -59,6 +59,8 @@ export function createSyncedWorkspace(userId: string, local: WorkspaceStorage, r
   let activeGeneration: number | null | undefined;
   const ownGenerations = new Set<number>();
   const deferred = new Set<string>();
+  const heldElsewhere = new Set<string>();
+  const holds = (id: string) => id === activeId || heldElsewhere.has(id);
   const emit = () => { for (const listener of listeners) listener(); };
   const setStatus = (state: SyncStatus['state'], pending = status.pending, message?: string) => {
     status = { state, pending, message };
@@ -180,14 +182,14 @@ export function createSyncedWorkspace(userId: string, local: WorkspaceStorage, r
     for (const manifest of manifests) {
       const needsRead = await mutate(async (state) => state.bases[manifest.id] !== manifest.revision);
       if (!needsRead) continue;
-      if (activeId === manifest.id) { deferred.add(manifest.id); continue; }
+      if (holds(manifest.id)) { deferred.add(manifest.id); continue; }
       let record: RemoteRecord | null;
       try { record = await remote.read(manifest.id); }
       catch (error) { failedIds.add(manifest.id); lastError = error; continue; }
       if (token !== epoch) return;
       if (!record) continue;
       await mutate(async (state) => {
-        if (activeId === record.id) { deferred.add(record.id); return; }
+        if (holds(record.id)) { deferred.add(record.id); return; }
         if (state.pending[record.id]) await resolveConflict(state, record.id, record);
         else {
           state.bases[record.id] = record.revision;
@@ -207,7 +209,7 @@ export function createSyncedWorkspace(userId: string, local: WorkspaceStorage, r
       for (const [id, entry] of Object.entries(pending)) {
         if (token !== epoch) return;
         if (failedIds.has(id)) continue;
-        if (id === activeId && deferred.has(id)) continue;
+        if (holds(id) && deferred.has(id)) continue;
         const base = entry.baseRevision !== undefined ? entry.baseRevision : await mutate(async (state) => state.bases[id] ?? null);
         try {
           const revision = await remote.write(entry.record, base);
@@ -224,7 +226,7 @@ export function createSyncedWorkspace(userId: string, local: WorkspaceStorage, r
         } catch (error) {
           if (token !== epoch) return;
           if (!(error instanceof RemoteConflictError)) { failedIds.add(id); lastError = error; continue; }
-          if (id === activeId) { deferred.add(id); continue; }
+          if (holds(id)) { deferred.add(id); continue; }
           await mutate((state) => resolveConflict(state, id, error.current));
         }
       }
@@ -372,7 +374,15 @@ export function createSyncedWorkspace(userId: string, local: WorkspaceStorage, r
         activeGeneration = state.pending[id]?.generation ?? null;
         if (activeGeneration !== null) ownGenerations.add(activeGeneration);
       }).catch(fail);
-      for (const fileId of deferred) if (fileId !== id) deferred.delete(fileId);
+      for (const fileId of deferred) if (!holds(fileId)) deferred.delete(fileId);
+      schedule(0);
+    },
+    setOpenFiles(ids) {
+      const next = new Set(ids);
+      if (next.size === heldElsewhere.size && [...next].every((id) => heldElsewhere.has(id))) return;
+      heldElsewhere.clear();
+      for (const id of next) heldElsewhere.add(id);
+      for (const fileId of deferred) if (!holds(fileId)) deferred.delete(fileId);
       schedule(0);
     },
   };

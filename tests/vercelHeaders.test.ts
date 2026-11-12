@@ -64,7 +64,7 @@ test('no policy allows wildcard, scheme-wide or inline script sources', () => {
       }
     }
     assert.deepEqual(policy['object-src'], ["'none'"]);
-    assert.deepEqual(policy['frame-ancestors'], ["'none'"]);
+    assert.deepEqual(policy['frame-ancestors'], [path === '/' ? "'self'" : "'none'"], `${path} frame-ancestors`);
     assert.deepEqual(policy['base-uri'], ["'self'"]);
   }
 });
@@ -117,4 +117,13 @@ test('hashed bundles are immutable while the entry document and update manifest 
   assert.deepEqual(headersFor('/assets/index-D9WgCTSU.js', 'Cache-Control'), ['public, max-age=31536000, immutable']);
   for (const path of ['/', '/index.html', '/updates/latest.json']) assert.deepEqual(headersFor(path, 'Cache-Control'), ['no-cache'], path);
   assert.deepEqual(headersFor('/downloads/SHA256SUMS.txt', 'Cache-Control'), []);
+});
+
+test('only the app itself may frame the app, so document tabs load while other sites stay blocked', () => {
+  for (const path of ['/', '/index.html']) {
+    assert.deepEqual(policyFor(path)['frame-ancestors'], ["'self'"], path);
+    assert.deepEqual(headersFor(path, 'X-Frame-Options'), ['SAMEORIGIN'], path);
+  }
+  for (const page of STATIC_PAGES) assert.deepEqual(policyFor(page.replace(/^public/, ''))['frame-ancestors'], ["'none'"], page);
+  assert.ok(policyFor('/')['frame-src'].includes("'self'"), 'tabs load same-origin frames');
 });
