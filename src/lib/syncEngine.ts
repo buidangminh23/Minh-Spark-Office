@@ -1,18 +1,115 @@
-import { createStore, get, set } from 'idb-keyval';
+import { createStore, delMany, get, getMany, keys, set, setMany } from 'idb-keyval';
 import { parseWorkspaceBackup, type FileVersion, type WorkspaceStorage } from './storage';
-import { RemoteConflictError, type RemoteRecord, type RemoteWorkspace, type SyncState, type SyncStateStore, type SyncStatus, type SyncedWorkspace } from './syncTypes';
+import { RemoteConflictError, type PendingRecord, type RemoteRecord, type RemoteWorkspace, type SyncState, type SyncStateStore, type SyncStatus, type SyncedWorkspace } from './syncTypes';
 
 type UploadMark = { generation: number; revision: string };
 type EngineState = SyncState & { uploads?: Record<string, UploadMark> };
 const emptyState = (): SyncState => ({ bases: {}, pending: {}, generation: 0 });
 const queues = new Map<string, Promise<unknown>>();
 
+type StoredPending = Omit<PendingRecord, 'record'> & { record?: RemoteRecord; recordKey?: string };
+type StoredState = Omit<SyncState, 'pending' | 'incoming'> & {
+  pending: Record<string, StoredPending>;
+  incoming?: Record<string, RemoteRecord | string>;
+  records?: string[];
+};
+
+const STATE_KEY = 'state';
+const RECORD_PREFIX = 'record:';
+const recordKeys = new WeakMap<RemoteRecord, string>();
+const keyFor = (record: RemoteRecord) => {
+  let key = recordKeys.get(record);
+  if (!key) {
+    key = `${RECORD_PREFIX}${record.id}:${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
+    recordKeys.set(record, key);
+  }
+  return key;
+};
+
 export function createSyncStateStore(userId: string): SyncStateStore {
   if (!userId) throw new Error('Account sync requires a user ID.');
   const store = createStore(`minh-office-sync:${userId}`, 'outbox');
+  const cache = new Map<string, RemoteRecord>();
+  let swept = false;
+  const resolve = async (keys: string[]) => {
+    const missing = [...new Set(keys)].filter((key) => !cache.has(key));
+    if (!missing.length) return;
+    const loaded = await getMany<RemoteRecord | undefined>(missing, store);
+    missing.forEach((key, index) => {
+      const record = loaded[index];
+      if (!record) return;
+      recordKeys.set(record, key);
+      cache.set(key, record);
+    });
+  };
+  const cleanup = async (stale: string[], live: Set<string>) => {
+    try {
+      if (stale.length) await delMany(stale, store);
+      if (swept) return;
+      const orphans = (await keys(store)).filter((key): key is string => typeof key === 'string' && key.startsWith(RECORD_PREFIX) && !live.has(key));
+      if (orphans.length) await delMany(orphans, store);
+      swept = true;
+    } catch (error) {
+      console.warn('sync: unused outbox entries could not be removed yet', error);
+    }
+  };
   return {
-    read: async () => (await get<SyncState>('state', store)) ?? emptyState(),
-    write: (state) => set('state', structuredClone(state), store),
+    async read() {
+      const stored = await get<StoredState>(STATE_KEY, store);
+      if (!stored) return emptyState();
+      await resolve([
+        ...Object.values(stored.pending).flatMap((entry) => (!entry.record && entry.recordKey ? [entry.recordKey] : [])),
+        ...Object.values(stored.incoming ?? {}).filter((entry): entry is string => typeof entry === 'string'),
+      ]);
+      const { records: referenced, incoming: storedIncoming, ...rest } = stored;
+      const pending: Record<string, PendingRecord> = {};
+      for (const [id, { recordKey, record, ...entry }] of Object.entries(stored.pending)) {
+        const found = record ?? (recordKey ? cache.get(recordKey) : undefined);
+        if (found) pending[id] = { ...entry, record: found };
+        else console.warn(`sync: the queued change for ${id} is missing from the outbox and was skipped`);
+      }
+      const state: SyncState = { ...rest, pending };
+      if (storedIncoming) {
+        state.incoming = {};
+        for (const [id, entry] of Object.entries(storedIncoming)) {
+          const found = typeof entry === 'string' ? cache.get(entry) : entry;
+          if (found) state.incoming[id] = found;
+        }
+      }
+      if (referenced) {
+        const live = new Set(referenced);
+        for (const key of cache.keys()) if (!live.has(key)) cache.delete(key);
+      }
+      return state;
+    },
+    async write(state) {
+      const records = new Map<string, RemoteRecord>();
+      const pending: Record<string, StoredPending> = {};
+      for (const [id, { record, ...entry }] of Object.entries(state.pending)) {
+        const key = keyFor(record);
+        records.set(key, record);
+        pending[id] = { ...entry, recordKey: key };
+      }
+      const { incoming, ...rest } = state;
+      const stored: StoredState = { ...rest, pending };
+      if (incoming) {
+        stored.incoming = {};
+        for (const [id, record] of Object.entries(incoming)) {
+          const key = keyFor(record);
+          records.set(key, record);
+          stored.incoming[id] = key;
+        }
+      }
+      stored.records = [...records.keys()];
+      const previous = (await get<StoredState>(STATE_KEY, store))?.records ?? [];
+      const known = new Set(previous);
+      const fresh = [...records].filter(([key]) => !known.has(key));
+      if (fresh.length) await setMany(fresh.map(([key, record]) => [key, structuredClone(record)]), store);
+      await set(STATE_KEY, stored, store);
+      cache.clear();
+      for (const [key, record] of records) cache.set(key, record);
+      await cleanup(previous.filter((key) => !records.has(key)), new Set(records.keys()));
+    },
   };
 }
 
@@ -204,7 +301,7 @@ export function createSyncedWorkspace(userId: string, local: WorkspaceStorage, r
       });
     }
     for (let batch = 0; batch < 5; batch++) {
-      const pending = await mutate(async (state) => structuredClone(state.pending));
+      const pending = await mutate(async (state) => Object.fromEntries(Object.entries(state.pending).map(([id, entry]) => [id, { ...entry }])));
       if (!Object.keys(pending).length) break;
       for (const [id, entry] of Object.entries(pending)) {
         if (token !== epoch) return;

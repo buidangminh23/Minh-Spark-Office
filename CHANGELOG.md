@@ -8,6 +8,10 @@
 - Defer cloud updates for every file open in any tab, so a change from another device creates a conflict copy instead of overwriting an open document.
 - Print from a document tab in the desktop app through the main window, so every page prints.
 - Allow the app to frame itself (same origin only); other sites stay blocked.
+- Keep open tabs when the desktop app restarts or updates, instead of reopening only the last document.
+- Load a restored tab only when it is first opened, so startup no longer boots every document at once.
+- Hide the Home sidebar scrollbar while a document tab is shown; on macOS it was drawn over the document.
+- Store each queued cloud change in its own outbox entry, so a large pending upload (such as a big PDF) no longer slows every save and makes new tabs load for a long time.
 
 ## 0.2.40
 

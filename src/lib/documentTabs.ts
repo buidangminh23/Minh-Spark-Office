@@ -150,7 +150,17 @@ export function parseTabSession(raw: string | null, legacy: string | null = null
   return session;
 }
 
-export function readTabSession(uid: string | null | undefined, storage: Pick<Storage, 'getItem'> = sessionStorage): TabSession {
+const NO_STORAGE: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> = { getItem: () => null, setItem: () => undefined, removeItem: () => undefined };
+
+export function tabSessionStorage(win: Window = window): Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> {
+  try {
+    return '__TAURI_INTERNALS__' in win ? win.localStorage : win.sessionStorage;
+  } catch {
+    return NO_STORAGE;
+  }
+}
+
+export function readTabSession(uid: string | null | undefined, storage: Pick<Storage, 'getItem'> = tabSessionStorage()): TabSession {
   try {
     return parseTabSession(storage.getItem(tabSessionKey(uid)), storage.getItem(legacyOpenKey(uid)));
   } catch {
@@ -158,7 +168,7 @@ export function readTabSession(uid: string | null | undefined, storage: Pick<Sto
   }
 }
 
-export function writeTabSession(uid: string | null | undefined, session: TabSession, storage: Pick<Storage, 'setItem' | 'removeItem'> = sessionStorage) {
+export function writeTabSession(uid: string | null | undefined, session: TabSession, storage: Pick<Storage, 'setItem' | 'removeItem'> = tabSessionStorage()) {
   try {
     storage.setItem(tabSessionKey(uid), JSON.stringify(session));
     storage.removeItem(legacyOpenKey(uid));
@@ -167,7 +177,7 @@ export function writeTabSession(uid: string | null | undefined, session: TabSess
   }
 }
 
-export function addToTabSession(uid: string | null | undefined, id: string, storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> = sessionStorage) {
+export function addToTabSession(uid: string | null | undefined, id: string, storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> = tabSessionStorage()) {
   const session = readTabSession(uid, storage);
   if (!session.ids.includes(id)) session.ids.push(id);
   session.active = id;

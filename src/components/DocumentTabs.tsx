@@ -8,6 +8,7 @@ import { syncedWorkspace } from '../lib/workspaces';
 import { suiteLogos } from '../lib/suiteBranding';
 import { useDocumentCloser } from '../lib/documentCloser';
 import { printFrameDocument } from '../lib/print/tabPrint';
+import { getSettings } from '../lib/appSettings';
 import {
   cycleTarget,
   gotoTarget,
@@ -55,6 +56,18 @@ function setFavicon(href: string) {
   if (favicon) favicon.href = href;
 }
 
+const LAUNCH_RESTORED_KEY = 'minh-office-tabs-launch-restored';
+
+function startOnHome() {
+  try {
+    if (sessionStorage.getItem(LAUNCH_RESTORED_KEY)) return false;
+    sessionStorage.setItem(LAUNCH_RESTORED_KEY, '1');
+  } catch {
+    return false;
+  }
+  return getSettings().startup === 'home';
+}
+
 function useTabState(uid: string | null, ready: boolean) {
   const storage = useWorkspace();
   const [state, setState] = useState<TabState>({ tabs: [], active: null });
@@ -67,7 +80,7 @@ function useTabState(uid: string | null, ready: boolean) {
       if (!alive) return;
       const live = new Map(files.filter((file) => !file.deletedAt).map((file) => [file.id, file]));
       const tabs = session.ids.flatMap((id) => { const meta = live.get(id); return meta ? [tabFromMeta(meta)] : []; });
-      const active = session.active && live.has(session.active) ? session.active : null;
+      const active = session.active && live.has(session.active) && !startOnHome() ? session.active : null;
       setState((current) => ({ tabs: tabs.reduce(withTab, current.tabs), active: current.active ?? active }));
     }).catch(() => undefined).finally(() => { if (alive) setRestored(true); });
     return () => { alive = false; };
@@ -142,13 +155,18 @@ export function DocumentTabs({ onEditing, children }: { onEditing: (editing: boo
   const closed = useRef<string[]>([]);
   const latest = useRef(state);
   latest.current = state;
+  const [loaded, setLoaded] = useState<ReadonlySet<string>>(() => new Set());
+  if (state.active && !loaded.has(state.active)) setLoaded(new Set(loaded).add(state.active));
   const homeVisible = state.active === null;
-  const ids = useMemo(() => state.tabs.map((tab) => tab.id), [state.tabs]);
+  const ids = useMemo(() => state.tabs.flatMap((tab) => (loaded.has(tab.id) ? [tab.id] : [])), [state.tabs, loaded]);
+  const loadedIds = useRef(ids);
+  loadedIds.current = ids;
 
   const drop = (id: string) => {
     handoffs.current.delete(id);
     apis.current.delete(id);
     listeners.current.delete(id);
+    setLoaded((current) => { if (!current.has(id)) return current; const next = new Set(current); next.delete(id); return next; });
     setState((current) => withoutTab(current.tabs, id, current.active));
   };
   const open = (meta: FileMeta, content?: FileContent) => {
@@ -211,7 +229,7 @@ export function DocumentTabs({ onEditing, children }: { onEditing: (editing: boo
       updateMeta(meta) {
         setState((current) => (current.tabs.some((tab) => tab.id === meta.id) ? { ...current, tabs: withTab(current.tabs, tabFromMeta(meta)) } : current));
       },
-      openIds: () => latest.current.tabs.map((tab) => tab.id),
+      openIds: () => loadedIds.current,
       subscribe(id, listener) {
         listeners.current.set(id, listener);
         return () => { if (listeners.current.get(id) === listener) listeners.current.delete(id); };
@@ -279,7 +297,7 @@ export function DocumentTabs({ onEditing, children }: { onEditing: (editing: boo
         {state.tabs.length > 0 && <TabStrip state={state} onSelect={select} onClose={(id) => void close(id)} />}
         <div className="doc-stage">
           <div className="workspace-content" data-hidden={!homeVisible} inert={!homeVisible}>{children}</div>
-          {state.tabs.map((tab) => (
+          {state.tabs.filter((tab) => loaded.has(tab.id)).map((tab) => (
             <iframe
               key={tab.id}
               ref={(frame) => { if (frame) frames.current.set(tab.id, frame); else frames.current.delete(tab.id); }}

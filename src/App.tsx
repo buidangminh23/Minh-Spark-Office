@@ -879,12 +879,13 @@ function MainApp({ onEditing, frameId }: { onEditing: (editing: boolean) => void
   const startupHandled = useRef(false);
   useEffect(() => {
     const mode = getSettings().startup;
+    const hasRestoredTab = () => readTabSession(user?.uid).ids.some((id) => files.some((file) => file.id === id && !file.deletedAt));
     if (frameId || !ready || startupHandled.current || mode === 'home' || (!files.length && mode === 'lastDocument')) return;
     startupHandled.current = true;
     try {
       if (sessionStorage.getItem(STARTUP_KEY)) return;
       sessionStorage.setItem(STARTUP_KEY, '1');
-      if (readTabSession(user?.uid).ids.length) return;
+      if (mode === 'lastDocument' && hasRestoredTab()) return;
     } catch {
       return;
     }
@@ -892,7 +893,7 @@ function MainApp({ onEditing, frameId }: { onEditing: (editing: boolean) => void
       ? Promise.race([launchFiles.current.promise, new Promise<boolean>((resolve) => setTimeout(() => resolve(false), LAUNCH_FILE_WAIT_MS))])
       : Promise.resolve(false);
     void launchWait.then((hadLaunchFile) => {
-      if (hadLaunchFile || readTabSession(user?.uid).ids.length) return;
+      if (hadLaunchFile || (mode === 'lastDocument' && hasRestoredTab())) return;
       if (mode === 'newDoc') { void handleCreateDoc(); return; }
       const last = files.filter((file) => !file.deletedAt).sort((a, b) => b.openedAt - a.openedAt)[0];
       if (!last) return;

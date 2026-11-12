@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cycleTarget, gotoTarget, parseTabSession, tabShortcut, withoutTab, withTab, type DocumentTab } from '../src/lib/documentTabs.ts';
+import { cycleTarget, gotoTarget, parseTabSession, tabSessionStorage, tabShortcut, withoutTab, withTab, type DocumentTab } from '../src/lib/documentTabs.ts';
 
 const WEB = { mac: false, desktop: false };
 const MAC_WEB = { mac: true, desktop: false };
@@ -90,4 +90,15 @@ test('a saved tab session survives damage and adopts the old single-document key
   assert.deepEqual(parseTabSession('{broken', 'legacy'), { ids: ['legacy'], active: 'legacy' });
   assert.deepEqual(parseTabSession(null, 'legacy'), { ids: ['legacy'], active: 'legacy' });
   assert.deepEqual(parseTabSession(JSON.stringify({ ids: ['a'], active: 'a' }), 'legacy'), { ids: ['a', 'legacy'], active: 'a' });
+});
+
+test('desktop keeps open tabs across app restarts while the web keeps them per window', () => {
+  const local = { getItem: () => 'local', setItem: () => undefined, removeItem: () => undefined };
+  const session = { getItem: () => 'session', setItem: () => undefined, removeItem: () => undefined };
+  const desktop = { __TAURI_INTERNALS__: {}, localStorage: local, sessionStorage: session } as unknown as Window;
+  const web = { localStorage: local, sessionStorage: session } as unknown as Window;
+  assert.equal(tabSessionStorage(desktop), local);
+  assert.equal(tabSessionStorage(web), session);
+  const blocked = Object.defineProperty({}, 'sessionStorage', { get() { throw new Error('denied'); } }) as Window;
+  assert.equal(tabSessionStorage(blocked).getItem('x'), null);
 });
