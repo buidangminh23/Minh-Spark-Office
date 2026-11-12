@@ -2,8 +2,12 @@ import { useSyncExternalStore } from 'react';
 import { SHEET_DEFAULTS } from './settings/sheetDefaults';
 import { SLIDE_DEFAULTS } from './settings/slideDefaults';
 
-export type ThemeMode = 'light' | 'dark' | 'system';
-export type AccentId = 'blue' | 'violet' | 'pink' | 'red' | 'orange' | 'green' | 'teal';
+export type OfficeThemeId =
+  | 'o16-colorful' | 'o16-white' | 'o16-darkgray' | 'o16-black'
+  | 'o13-white' | 'o13-lightgray' | 'o13-darkgray'
+  | 'o10-blue' | 'o10-silver' | 'o10-black'
+  | 'o07-blue' | 'o07-silver' | 'o07-black';
+export type ThemeMode = 'light' | 'dark' | 'system' | 'custom' | OfficeThemeId;
 export type Density = 'comfortable' | 'normal' | 'compact';
 export type TooltipMode = 'full' | 'short' | 'none';
 export type StartupMode = 'home' | 'lastDocument' | 'newDoc';
@@ -17,7 +21,10 @@ export type QatPosition = 'above' | 'below';
 
 export const DEFAULT_SETTINGS = {
   theme: 'light' as ThemeMode,
-  accent: 'blue' as AccentId,
+  customHue: 215,
+  customSat: 62,
+  customLight: 42,
+  customTint: 8,
   density: 'normal' as Density,
   miniToolbar: true,
   collapseRibbon: false,

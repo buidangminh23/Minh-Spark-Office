@@ -1,5 +1,5 @@
 import { getSettings, subscribeSettings, type AppSettings } from './appSettings';
-import { ACCENTS } from './appSettingsMeta';
+import { chromeFamily, chromeStyleSheet, customColorOf, hslString, themeVars } from './chromeThemes';
 
 const TITLE_ATTR = 'title';
 const ORIGINAL_ATTR = 'data-title-original';
@@ -9,8 +9,38 @@ const DESCRIPTION = /\s*[—–:]\s.+$/;
 
 const systemDark = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches;
 
-export function resolvedTheme(settings: AppSettings) {
-  return settings.theme === 'system' ? (systemDark() ? 'dark' : 'light') : settings.theme;
+export function resolvedTheme(settings: AppSettings): 'light' | 'dark' {
+  if (settings.theme === 'system') return systemDark() ? 'dark' : 'light';
+  return settings.theme === 'dark' ? 'dark' : 'light';
+}
+
+const CHROME_STYLE_ID = 'office-chrome-vars';
+const DEFAULT_ACCENT = '#2563eb';
+
+function applyOfficeChrome(html: HTMLElement, settings: AppSettings) {
+  const vars = themeVars(settings.theme, settings);
+  let style = document.getElementById(CHROME_STYLE_ID);
+  if (!vars) {
+    delete html.dataset.office;
+    delete html.dataset.officeFamily;
+    style?.remove();
+    return;
+  }
+  html.dataset.office = settings.theme;
+  html.dataset.officeFamily = chromeFamily(settings.theme);
+  if (!style) {
+    style = document.createElement('style');
+    style.id = CHROME_STYLE_ID;
+    document.head.appendChild(style);
+  }
+  const css = chromeStyleSheet(vars);
+  if (style.textContent !== css) style.textContent = css;
+}
+
+function accentColor(settings: AppSettings) {
+  if (settings.theme !== 'custom') return DEFAULT_ACCENT;
+  const color = customColorOf(settings);
+  return hslString(color.hue, color.sat, color.light);
 }
 
 export function tooltipFor(original: string, settings: Pick<AppSettings, 'tooltips' | 'tooltipShortcuts'>) {
@@ -73,13 +103,14 @@ function syncTooltips(settings: AppSettings) {
 export function applyChromeSettings(settings = getSettings()) {
   const html = document.documentElement;
   const theme = resolvedTheme(settings);
-  const accent = ACCENTS[settings.accent] ?? ACCENTS.blue;
+  const accent = accentColor(settings);
   html.dataset.theme = theme;
   html.dataset.density = settings.density;
   html.style.colorScheme = theme;
-  html.style.setProperty('--app-accent', accent.base);
-  html.style.setProperty('--app-accent-hover', accent.hover);
-  html.style.setProperty('--app-accent-soft', theme === 'dark' ? accent.darkSoft : accent.soft);
+  html.style.setProperty('--app-accent', accent);
+  html.style.setProperty('--app-accent-hover', `color-mix(in srgb, ${accent} 84%, black)`);
+  html.style.setProperty('--app-accent-soft', `color-mix(in srgb, ${accent} ${theme === 'dark' ? 24 : 10}%, ${theme === 'dark' ? '#161c28' : 'white'})`);
+  applyOfficeChrome(html, settings);
   html.toggleAttribute('data-reduce-motion', settings.reduceMotion);
   html.toggleAttribute('data-underline-links', settings.underlineLinks);
   html.toggleAttribute('data-strong-focus', settings.strongFocus);

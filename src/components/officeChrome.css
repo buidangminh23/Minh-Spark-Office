@@ -1,0 +1,210 @@
+.doc-editor { --oc-app: #2b579a; }
+.sheet-editor { --oc-app: #217346; }
+.pdf-editor { --oc-app: #c4314b; }
+.ppt-editor { --oc-app: #b7472a; }
+
+:root[data-office='custom'] :is(.editor-shell, .ppt-editor) {
+  --doc: var(--oc-app);
+  --sheet: var(--oc-app);
+  --ppt-accent: var(--oc-app);
+  --ppt-accent-hover: color-mix(in srgb, var(--oc-app) 85%, white);
+  --ppt-accent-active: color-mix(in srgb, var(--oc-app) 82%, black);
+  --ppt-accent-light: color-mix(in srgb, var(--oc-app) 12%, white);
+}
+
+:root[data-office][data-office-family] :is(.editor-top, .ppt-titlebar) {
+  background: var(--oc-title-bg);
+  color: var(--oc-title-fg);
+  border-bottom-color: var(--oc-title-border);
+}
+
+:root[data-office][data-office-family] :is(.editor-top, .ppt-titlebar) :is(.editor-title-input, .ppt-file-name-input, .icon-btn, .ppt-back-btn, .ppt-save-badge) {
+  color: inherit;
+  background: transparent;
+}
+
+:root[data-office][data-office-family] :is(.editor-title-input, .ppt-file-name-input):focus {
+  background: var(--oc-ctl-bg);
+  border-color: var(--oc-ctl-border);
+}
+
+:root[data-office][data-office-family] :is(.editor-top, .ppt-titlebar) :is(.icon-btn, .ppt-back-btn):hover {
+  background: var(--oc-tab-hover-bg);
+  color: inherit;
+}
+
+:root[data-office][data-office-family] .editor-top :is(.btn, .command-search, .save-pill) {
+  background: var(--oc-ctl-bg);
+  color: var(--oc-ctl-fg);
+  border-color: var(--oc-ctl-border);
+}
+
+:root[data-office][data-office-family] .editor-top :is(.btn, .command-search):hover {
+  background: var(--oc-ctl-hover);
+}
+
+:root[data-office][data-office-family] .editor-top :is(.btn-doc, .btn-sheet, .btn-primary),
+:root[data-office][data-office-family] .ppt-present-top-btn {
+  background: var(--oc-primary-bg);
+  color: var(--oc-primary-fg);
+  border-color: transparent;
+}
+
+:root[data-office][data-office-family] .ribbon {
+  background: var(--oc-ribbon-bg);
+  border-bottom: 1px solid var(--oc-ribbon-border);
+}
+
+:root[data-office][data-office-family] :is(.ribbon-tabs-bar, .ppt-ribbon-tabs) {
+  background: var(--oc-tabs-bg);
+  border-bottom: 0;
+  box-shadow: inset 0 -1px 0 var(--oc-tabs-border);
+}
+
+:root[data-office][data-office-family] :is(.ribbon-tab, .ppt-ribbon-tab) {
+  color: var(--oc-tab-fg);
+  border-bottom-color: transparent;
+  border-radius: var(--oc-tab-radius);
+}
+
+:root[data-office][data-office-family] :is(.ribbon-tab, .ppt-ribbon-tab):hover {
+  background: var(--oc-tab-hover-bg);
+  color: var(--oc-tab-hover-fg);
+}
+
+:root[data-office][data-office-family] :is(.ribbon-tab.active, .ppt-ribbon-tab.is-active),
+:root[data-office][data-office-family] :is(.ribbon-tab.active, .ppt-ribbon-tab.is-active):hover {
+  background: var(--oc-tab-active-bg);
+  color: var(--oc-tab-active-fg);
+  border-bottom-color: transparent;
+  box-shadow: inset 1px 0 0 var(--oc-tab-active-border), inset -1px 0 0 var(--oc-tab-active-border), inset 0 1px 0 var(--oc-tab-active-border);
+}
+
+:root[data-office][data-office-family] .ppt-ribbon-tab.is-active::after {
+  display: none;
+}
+
+:root[data-office][data-office-family] :is(.ribbon-tab.file-tab, .ribbon-tab.oc-file-tab, .ppt-file-tab-btn),
+:root[data-office][data-office-family] :is(.ribbon-tab.file-tab, .ribbon-tab.oc-file-tab, .ppt-file-tab-btn):hover {
+  background: var(--oc-file-bg);
+  color: var(--oc-file-fg);
+  border-radius: var(--oc-file-radius);
+  box-shadow: none;
+}
+
+:root[data-office][data-office-family] :is(.ribbon-tab.file-tab, .ribbon-tab.oc-file-tab, .ppt-file-tab-btn):hover {
+  filter: brightness(1.1);
+}
+
+:root[data-office][data-office-family] :is(.ribbon-body, .ppt-ribbon-body) {
+  background: var(--oc-ribbon-bg);
+  color: var(--oc-ribbon-fg);
+  border-bottom-color: var(--oc-ribbon-border);
+}
+
+:root[data-office][data-office-family] :is(.ribbon-section, .ppt-ribbon-group) {
+  border-right-color: var(--oc-group-sep);
+}
+
+:root[data-office][data-office-family] :is(.ribbon-group-label, .ppt-group-footer) {
+  color: var(--oc-group-label);
+}
+
+:root[data-office][data-office-family] :is(.ribbon-btn-large, .ribbon-btn-small, .ribbon-btn-compact, .ppt-tool-btn, .ppt-tool-btn-large) {
+  color: var(--oc-ribbon-fg);
+  border-radius: var(--oc-button-radius);
+}
+
+:root[data-office][data-office-family] :is(.ribbon-btn-large, .ribbon-btn-small, .ribbon-btn-compact, .ppt-tool-btn, .ppt-tool-btn-large):hover:not(:disabled) {
+  background: var(--oc-hover-bg);
+  border-color: var(--oc-hover-border);
+  color: var(--oc-hover-fg);
+}
+
+:root[data-office][data-office-family] :is(.ribbon-btn-large.active, .ribbon-btn-small.active, .ribbon-btn-compact.active, .ppt-tool-btn.is-active, .ppt-tool-btn-large.is-active),
+:root[data-office][data-office-family] :is(.ribbon-btn-large.active, .ribbon-btn-small.active, .ribbon-btn-compact.active, .ppt-tool-btn.is-active, .ppt-tool-btn-large.is-active):hover:not(:disabled) {
+  background: var(--oc-pressed-bg);
+  border-color: var(--oc-pressed-border);
+  color: var(--oc-pressed-fg);
+}
+
+:root[data-office][data-office-family] :is(.ribbon-select, .combo, .ribbon-pill-btn) {
+  background: var(--oc-input-bg);
+  color: var(--oc-input-fg);
+  border-color: var(--oc-input-border);
+}
+
+:root[data-office][data-office-family] .ribbon-share-btn {
+  background: var(--oc-primary-bg);
+  color: var(--oc-primary-fg);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+:root[data-office][data-office-family] :is(.ribbon-body, .ppt-ribbon-body) :is(.ribbon-menu, [role='menu'], [role='dialog'], [role='listbox']) {
+  color: #1e2430;
+}
+
+:root[data-office][data-office-family] :is(.editor-status, .sheet-status-bar, .ppt-statusbar) {
+  background: var(--oc-status-bg);
+  color: var(--oc-status-fg);
+  border-top-color: var(--oc-status-border);
+}
+
+:root[data-office][data-office-family] :is(.editor-status, .sheet-status-bar, .ppt-statusbar) :is(span, button, label, strong, small, div) {
+  color: inherit;
+}
+
+:root[data-office][data-office-family] :is(.doc-workspace, .doc-canvas, .ppt-canvas-container, .pdf-workspace, .pdf-canvas) {
+  background: var(--oc-canvas-bg);
+}
+
+:root[data-office][data-office-family] .ppt-editor {
+  --ppt-stage-bg: var(--oc-canvas-bg);
+}
+
+:root[data-office-family='2013'] :is(.ribbon-tab, .ppt-ribbon-tab, .ppt-file-tab-btn) {
+  text-transform: uppercase;
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+}
+
+:root[data-office-family='2007'] :is(.ribbon-section, .ppt-ribbon-group),
+:root[data-office-family='2007'] .ribbon.sheet .ribbon-section {
+  margin: 2px;
+  border: 1px solid var(--oc-group-sep);
+  border-radius: 3px;
+  background: var(--oc-group-bg);
+  padding-bottom: 0;
+}
+
+:root[data-office-family='2007'] .ribbon-section:last-child {
+  border-right: 1px solid var(--oc-group-sep);
+}
+
+:root[data-office-family='2007'] .ribbon-group-label {
+  margin: 2px -7px 0 -6px;
+  padding: 1px 0 2px;
+  border-radius: 0 0 2px 2px;
+  background: var(--oc-group-label-bg);
+}
+
+:root[data-office-family='2007'] .ribbon.sheet .ribbon-group-label {
+  margin: 2px -6px 0;
+}
+
+:root[data-office-family='2007'] .ppt-group-footer {
+  align-self: stretch;
+  margin: 2px -8px 0;
+  padding: 1px 0 2px;
+  border-radius: 0 0 2px 2px;
+  background: var(--oc-group-label-bg);
+}
+
+:root[data-office-family='2007'] :is(.ribbon-tab.file-tab, .ribbon-tab.oc-file-tab, .ppt-file-tab-btn) {
+  align-self: center;
+  height: 26px;
+  margin-right: 6px;
+  padding: 0 16px;
+  font-weight: 600;
+}

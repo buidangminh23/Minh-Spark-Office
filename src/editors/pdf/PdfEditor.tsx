@@ -590,7 +590,7 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
   }, [openPrint]);
 
   return (
-    <div className="editor-shell">
+    <div className="editor-shell pdf-editor">
       {printOpen && pdfState.status === 'ready' && (
         <PdfPrintDialog doc={pdfState.doc} sizes={pdfState.sizes} rotation={rotation} title={title.replace(/\.pdf$/i, '')} currentPage={currentPage} onClose={() => setPrintOpen(false)} />
       )}
@@ -664,7 +664,7 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
         {/* Top Tabs */}
         <div className="ribbon-tabs-bar">
           <div className="ribbon-tabs-list">
-            <button className={`ribbon-tab ${activeTab === 'file' ? 'active' : ''}`} onClick={() => setActiveTab('file')}>
+            <button className={`ribbon-tab oc-file-tab ${activeTab === 'file' ? 'active' : ''}`} onClick={() => setActiveTab('file')}>
               File
             </button>
             <button className={`ribbon-tab ${activeTab === 'home' ? 'active' : ''}`} onClick={() => setActiveTab('home')}>

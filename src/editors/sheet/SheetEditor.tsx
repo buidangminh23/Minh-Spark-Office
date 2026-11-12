@@ -5372,7 +5372,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
   excelStateRef.current = parity.excel;
 
   return (
-    <div className="editor-shell">
+    <div className="editor-shell sheet-editor">
       <input ref={imageInputRef} type="file" accept="image/*" hidden onChange={handleUploadImageFile} />
       <input
         ref={importSheetInputRef}
@@ -5481,7 +5481,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
               {ribbonTabs.map(([tabId, label]) => (
                 <button
                   key={tabId}
-                  className={`ribbon-tab ${activeTab === tabId ? 'active' : ''}`}
+                  className={`ribbon-tab ${tabId === 'file' ? 'oc-file-tab ' : ''}${activeTab === tabId ? 'active' : ''}`}
                   onClick={() => {
                     setPopover(null);
                     setActiveTab(tabId);

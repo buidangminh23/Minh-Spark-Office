@@ -6,9 +6,10 @@ import type { SettingCategory, SettingOption } from './types';
 import { SHEET_CATEGORIES } from './sheetCatalog';
 import { SLIDE_CATEGORIES } from './slideCatalog';
 import {
-  AboutPanel, AccentPicker, AccountPanel, AddinsPanel, AppsPicker, AutoCorrectList, BackupPanel, DefaultAppsPanel,
-  DocTabsPicker, FontPicker, HelpPanel, LanguagePanel, QatEditor, ResetPanel, ThemePicker, UpdatePanel,
+  AboutPanel, AccountPanel, AddinsPanel, AppsPicker, AutoCorrectList, BackupPanel, DefaultAppsPanel,
+  DocTabsPicker, FontPicker, HelpPanel, LanguagePanel, QatEditor, ResetPanel, UpdatePanel,
 } from './panels';
+import { ThemePicker } from './AppearancePicker';
 
 const ICON = 22;
 
@@ -23,11 +24,10 @@ const BASE_CATEGORIES: SettingCategory[] = [
       {
         id: 'appearance',
         title: 'Giao diện',
-        description: 'Chủ đề màu, màu nhấn và mật độ hiển thị.',
+        description: 'Kiểu giao diện, màu riêng và mật độ hiển thị.',
         icon: <Monitor size={ICON} />,
         options: [
-          { kind: 'custom', id: 'theme', label: 'Chủ đề', keywords: 'sáng tối hệ thống dark light', render: () => <ThemePicker /> },
-          { kind: 'custom', id: 'accent', label: 'Màu nhấn', keywords: 'màu', render: () => <AccentPicker /> },
+          { kind: 'custom', id: 'theme', label: 'Kiểu giao diện', keywords: 'chủ đề sáng tối hệ thống dark light office 2007 2010 2013 2016 2019 màu nhấn màu riêng bánh xe màu theme', render: () => <ThemePicker /> },
           { kind: 'segmented', key: 'density', label: 'Mật độ giao diện', options: [['comfortable', 'Thoải mái'], ['normal', 'Bình thường'], ['compact', 'Gọn']] },
         ],
       },

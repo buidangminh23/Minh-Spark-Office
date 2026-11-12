@@ -15,9 +15,9 @@ import { FONT_CATALOG } from '../../editors/doc/fonts';
 import { AUTOCORRECT_KEY, loadAutoCorrect, type AutoCorrectEntry } from '../../editors/doc/extView';
 import {
   resetSettings, setSettings, useSettings,
-  type AccentId, type AppSettings, type DocTab, type HomeApp, type ThemeMode,
+  type AppSettings, type DocTab, type HomeApp,
 } from '../../lib/appSettings';
-import { ACCENTS, QAT_LABELS } from '../../lib/appSettingsMeta';
+import { QAT_LABELS } from '../../lib/appSettingsMeta';
 import { Check, Select, Toggle } from './controls';
 import { AUTO_UPDATE_KEY, HELP_URL, SettingsActionsContext, UPDATE_EVENTS } from './settingsShared';
 import { updateNeedsAttention, updaterLabel, useUpdaterStatus } from '../../lib/updaterStatus';
@@ -38,48 +38,6 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
     <div className="st-row">
       <span className="st-row-text"><span className="st-row-label">{label}</span>{hint && <span className="st-row-hint">{hint}</span>}</span>
       <span className="st-row-control">{children}</span>
-    </div>
-  );
-}
-
-const THEMES: Array<[ThemeMode, string]> = [['light', 'Sáng'], ['dark', 'Tối'], ['system', 'Theo hệ thống']];
-
-export function ThemePicker() {
-  const { theme } = useSettings();
-  return (
-    <div className="st-themes" role="radiogroup" aria-label="Chủ đề">
-      {THEMES.map(([id, label]) => (
-        <button key={id} type="button" role="radio" aria-checked={theme === id} className={`st-theme${theme === id ? ' is-active' : ''}`} onClick={() => setSettings({ theme: id })}>
-          <span className={`st-theme-preview st-theme-${id}`} aria-hidden="true">
-            <i className="st-tp-side" /><i className="st-tp-bar" /><i className="st-tp-card" />
-            {theme === id && <span className="st-theme-tick"><CheckIcon size={12} strokeWidth={3} /></span>}
-          </span>
-          <span className="st-theme-label">{label}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-export function AccentPicker() {
-  const { accent } = useSettings();
-  return (
-    <div className="st-swatches" role="radiogroup" aria-label="Màu nhấn">
-      {(Object.keys(ACCENTS) as AccentId[]).map((id) => (
-        <button
-          key={id}
-          type="button"
-          role="radio"
-          aria-checked={accent === id}
-          aria-label={ACCENTS[id].label}
-          title={ACCENTS[id].label}
-          className={`st-swatch${accent === id ? ' is-active' : ''}`}
-          style={{ background: ACCENTS[id].base }}
-          onClick={() => setSettings({ accent: id })}
-        >
-          {accent === id && <CheckIcon size={14} strokeWidth={3} />}
-        </button>
-      ))}
     </div>
   );
 }
