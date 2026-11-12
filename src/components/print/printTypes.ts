@@ -25,7 +25,11 @@ export type PrintSource = {
   guideMargins?: Margins;
   currentItem?: number;
   loading?: boolean;
+  bands?: PrintBands;
 };
+
+export type PrintBandText = { left: string; center: string; right: string };
+export type PrintBands = { header?: PrintBandText; footer?: PrintBandText; sheet: string; file: string };
 
 export type PrintSettings = {
   paper: PaperKey;

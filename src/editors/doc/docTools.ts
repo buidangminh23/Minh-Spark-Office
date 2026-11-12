@@ -95,6 +95,29 @@ export function proofread(doc: PMNode): ProofIssue[] {
   return issues.sort((a, b) => a.from - b.from);
 }
 
+export type TextProofIssue = { start: number; length: number; text: string; message: string; suggestion: string | null; kind: ProofIssue['kind'] };
+
+export function proofreadText(source: string): TextProofIssue[] {
+  const issues: TextProofIssue[] = [];
+  const add = (start: number, length: number, message: string, suggestion: string | null, kind: ProofIssue['kind']) =>
+    issues.push({ start, length, text: source.slice(start, start + length), message, suggestion, kind });
+  const lower = source.toLowerCase();
+  for (const [wrong, right] of Object.entries(COMMON_MISSPELLINGS)) {
+    const re = new RegExp(`(?<![\\p{L}])${wrong}(?![\\p{L}])`, 'gu');
+    for (const match of lower.matchAll(re)) {
+      const start = match.index ?? 0;
+      const original = source.slice(start, start + wrong.length);
+      const suggestion = original[0] === original[0].toUpperCase() ? right[0].toUpperCase() + right.slice(1) : right;
+      add(start, wrong.length, `Có thể sai chính tả: nên dùng “${right}”`, suggestion, 'spelling');
+    }
+  }
+  for (const rule of RULES) {
+    if (rule.message === 'Đầu câu nên viết hoa') continue;
+    for (const match of source.matchAll(rule.pattern)) add(match.index ?? 0, match[0].length, rule.message, rule.fix(match), rule.kind);
+  }
+  return issues.sort((a, b) => a.start - b.start);
+}
+
 export function textStats(text: string) {
   const words = text.trim() ? text.trim().split(/\s+/).length : 0;
   const sentences = text.split(/[.!?…]+\s/).filter((s) => s.trim()).length || (words ? 1 : 0);

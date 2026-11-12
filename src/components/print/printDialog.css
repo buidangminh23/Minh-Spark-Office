@@ -260,6 +260,9 @@
 .mp-band { position: absolute; display: flex; align-items: center; justify-content: space-between; gap: 4mm; font: 8pt 'Segoe UI', Arial, sans-serif; color: #64748b; pointer-events: none; }
 .mp-band-bottom { justify-content: center; }
 .mp-band span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mp-band-custom, .mp-band-custom.mp-band-bottom { display: grid; grid-template-columns: 1fr 1fr 1fr; color: #1e293b; }
+.mp-band-custom span:nth-child(2) { text-align: center; }
+.mp-band-custom span:nth-child(3) { text-align: right; }
 .mp-slide { position: relative; }
 .mp-slide .ppt-slide-canvas { box-shadow: none !important; border-radius: 0; transform: none !important; }
 .mp-notes-page { box-sizing: border-box; display: flex; flex-direction: column; gap: 32px; background: #fff; font-family: 'Segoe UI', Arial, sans-serif; color: #0f172a; }

@@ -192,7 +192,6 @@ import {
   ShieldCheck,
   Check,
   Send,
-  PieChart,
   TrendingUp,
   Calculator,
   CopyCheck,
@@ -211,13 +210,11 @@ import {
   Lock,
   Unlock,
   Play,
-  RefreshCw,
   ZoomIn,
   ZoomOut,
   Upload,
   CheckSquare,
   ListFilter,
-  AlertTriangle,
   RotateCw,
   Snowflake,
   FileJson,
@@ -390,6 +387,7 @@ import {
   type SubtotalFn,
 } from './sheetPro';
 import { useDocumentCloser } from '../../lib/documentCloser';
+import { useSheetParity } from './useSheetParity';
 import {
   VietQrModal,
   DataCleaningModal,
@@ -741,6 +739,8 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
   const importSheetInputRef = useRef<HTMLInputElement | null>(null);
   const univerRef = useRef<ReturnType<typeof createUniver>['univer'] | null>(null);
   const univerAPIRef = useRef<ReturnType<typeof createUniver>['univerAPI'] | null>(null);
+  const [univerEpoch, setUniverEpoch] = useState(0);
+  const excelStateRef = useRef(content.excel);
   const workbookSubsRef = useRef<Array<{ dispose: () => void }>>([]);
   const editSnapshotRef = useRef<EditSnapshot | null>(null);
   const editRawRef = useRef<string | null>(null);
@@ -1211,6 +1211,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
         outlines,
         macros,
         vba: vbaProject ?? undefined,
+        excel: excelStateRef.current,
       }, explicit);
       if (saved) {
         if (changeRevision.current === savedRevision) setSavedStatus('saved');
@@ -1460,6 +1461,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
       instanceToDispose = univer;
       univerRef.current = univer;
       univerAPIRef.current = univerAPI;
+      setUniverEpoch((value) => value + 1);
       const parsedWb = JSON.parse(JSON.stringify(content.workbook)) as WorkbookData;
       const clonedWb = isFreshBlankWorkbook(meta, parsedWb) ? withSheetCount(parsedWb, startup.sheetNewSheetCount) : parsedWb;
       const addedDefaultSheets = clonedWb !== parsedWb;
@@ -3446,7 +3448,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
   const handleCleanWorkbook = async () => {
     const ctx = getEditableContext();
     if (!ctx || !doctorData) throw new Error('Không có sổ tính để dọn');
-    const draft: SheetContent = { kind: 'sheet', workbook: captureHydratedWorkbook(), comments, printSettings, outlines, macros, vba: vbaProject ?? undefined };
+    const draft: SheetContent = { kind: 'sheet', workbook: captureHydratedWorkbook(), comments, printSettings, outlines, macros, vba: vbaProject ?? undefined, excel: excelStateRef.current };
     try {
       const saved = await sourceStorage.saveVersion(meta.id, draft, 'Trước khi tối ưu');
       setVersions((prev) => [saved, ...prev]);
@@ -5112,7 +5114,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
   };
 
   const handleCreateSnapshot = async (label: string) => {
-    const draft: SheetContent = { kind: 'sheet', workbook: captureHydratedWorkbook(), comments, printSettings, outlines, macros, vba: vbaProject ?? undefined };
+    const draft: SheetContent = { kind: 'sheet', workbook: captureHydratedWorkbook(), comments, printSettings, outlines, macros, vba: vbaProject ?? undefined, excel: excelStateRef.current };
     const currentMeta = { ...meta, name: title.trim() || meta.name, updatedAt: Date.now() };
     try {
       if (!user) await sourceStorage.saveFile(currentMeta, draft);
@@ -5303,6 +5305,53 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
     history: () => void handleOpenHistory(),
   };
   const qatActive = { filter: hasFilter, freeze: isFrozen, formatPainter: painterArmed };
+
+  const beginFormula = (text: string, mode: 'replace' | 'append') => {
+    const context = getEditableContext();
+    if (!context) return;
+    const current = pendingFormulaEdit.current?.text ?? formulaBarText;
+    const next = mode === 'append' && current.startsWith('=') ? `${current}${text}` : mode === 'append' ? `=${text}` : text;
+    pendingFormulaEdit.current = { text: next, context };
+    setFormulaBarText(next);
+    if (!showFormulaBar) setSettings({ sheetShowFormulaBar: true });
+    window.setTimeout(() => {
+      const input = containerRef.current?.closest('.editor-shell')?.querySelector<HTMLInputElement>('.sheet-fx-input');
+      if (!input) return;
+      input.focus();
+      input.setSelectionRange(next.length, next.length);
+    }, 30);
+  };
+
+  const parity = useSheetParity({
+    initialExcel: content.excel,
+    univerAPIRef,
+    apiReady: univerEpoch,
+    getActiveContext,
+    getEditableContext,
+    activeRangeA1,
+    activeCellA1,
+    activeSheetId,
+    printSettings,
+    updatePrintSettings,
+    markDirty: () => setSavedStatus('saving'),
+    syncUi: syncUiFromSelection,
+    embedImage: embedBase64ImageAtSelection,
+    readRangeValues: readRangeValuesByA1,
+    getSmartRange: getSmartDataRangeA1,
+    writeGridToNewSheet: (baseName, grid) => writeGridToNewSheet(baseName, grid, [0]),
+    beginFormula,
+    setZoom: handleSetZoom,
+    clearAuditArrows: () => {
+      setAuditTrace(null);
+      ui.toast('Đã xoá mũi tên vết công thức');
+    },
+    comments,
+    openComments: () => setShowComments(true),
+    openSignature: () => setModal('signature'),
+    toast: ui.toast,
+    ask: (title, fields, message) => ui.ask({ title, message, fields }),
+  });
+  excelStateRef.current = parity.excel;
 
   return (
     <div className="editor-shell">
@@ -5945,20 +5994,10 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                   <div className="ribbon-group-label">Minh hoạ</div>
                 </div>
 
+                {parity.chartSection}
+
                 <div className="ribbon-section">
                   <div className="ribbon-controls">
-                    <button className="ribbon-btn-large" onClick={() => setModal('chart')}>
-                      <BarChart3 size={20} color="#107c41" />
-                      <span>Biểu đồ Cột</span>
-                    </button>
-                    <button className="ribbon-btn-large" onClick={() => setModal('chart')}>
-                      <TrendingUp size={20} color="#2563eb" />
-                      <span>Đường xu hướng</span>
-                    </button>
-                    <button className="ribbon-btn-large" onClick={() => setModal('chart')}>
-                      <PieChart size={20} color="#d97706" />
-                      <span>Cơ cấu Tròn</span>
-                    </button>
                     <button
                       className="ribbon-btn-large"
                       onClick={() => {
@@ -5985,7 +6024,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                       <span>Thanh DataBar</span>
                     </button>
                   </div>
-                  <div className="ribbon-group-label">Biểu đồ trực quan</div>
+                  <div className="ribbon-group-label">Thanh dữ liệu</div>
                 </div>
 
                 <div className="ribbon-section">
@@ -6009,11 +6048,13 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                   </div>
                   <div className="ribbon-group-label">Tương tác & Liên kết</div>
                 </div>
+                {parity.insertSections}
               </>
             )}
 
             {activeTab === 'draw' && (
               <>
+                {parity.drawSections}
 
                 <div className="ribbon-section">
                   <div className="ribbon-controls">
@@ -6033,7 +6074,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                       <span>Tẩy nền tô</span>
                     </button>
                   </div>
-                  <div className="ribbon-group-label">Tô sáng số liệu nhanh</div>
+                  <div className="ribbon-group-label">Tô sáng ô</div>
                 </div>
               </>
             )}
@@ -6115,6 +6156,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                   </div>
                   <div className="ribbon-group-label">Hiển thị Sheet</div>
                 </div>
+                {parity.pageLayoutSections}
               </>
             )}
 
@@ -6131,8 +6173,9 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                       <span style={{ fontSize: 18, fontWeight: 800, color: '#107c41', lineHeight: 1 }}>∑</span>
                       <span>AutoSum ▾</span>
                     </button>
+                    {parity.formulaLibrary}
                   </div>
-                  <div className="ribbon-group-label">Hàm & Kế toán</div>
+                  <div className="ribbon-group-label">Thư viện hàm</div>
                 </div>
 
                 <div className="ribbon-section">
@@ -6147,6 +6190,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                       <Bookmark size={20} color="#2563eb" />
                       <span>Tên vùng ({definedNames.length})</span>
                     </button>
+                    {parity.formulaNames}
                   </div>
                   <div className="ribbon-group-label">Định danh</div>
                 </div>
@@ -6177,23 +6221,11 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                       <Tv size={20} color="#0f766e" />
                       <span>Giám sát ô ({watchList.length})</span>
                     </button>
-                    <button className="ribbon-btn-large" onClick={() => setModal('aiAudit')}>
-                      <AlertTriangle size={20} color="#dc2626" />
-                      <span>Kiểm lỗi #</span>
-                    </button>
-                    <button
-                      className="ribbon-btn-large"
-                      onClick={() => {
-                        syncUiFromSelection();
-                        ui.toast('Đã đồng bộ & tính toán lại toàn bộ công thức trên Sheet');
-                      }}
-                    >
-                      <RefreshCw size={20} color="#475569" />
-                      <span>Tính lại</span>
-                    </button>
+                    {parity.formulaAudit}
                   </div>
                   <div className="ribbon-group-label">Kiểm toán công thức</div>
                 </div>
+                {parity.calculationSection}
               </>
             )}
 
@@ -6336,6 +6368,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                     Dàn ý (Outline) · {activeOutline.rows.length} nhóm hàng, {activeOutline.cols.length} nhóm cột
                   </div>
                 </div>
+                {parity.dataSections}
               </>
             )}
 
@@ -6343,9 +6376,10 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
               <>
                 <div className="ribbon-section">
                   <div className="ribbon-controls">
-                    <button className="ribbon-btn-large" onClick={() => setModal('aiAudit')}>
+                    {parity.reviewProofing}
+                    <button className="ribbon-btn-large" onClick={() => setModal('aiAudit')} title="Minh AI soát lỗi logic và số liệu bất thường trong trang tính">
                       <FileCheck size={20} color="#107c41" />
-                      <span>Soát lỗi Sheet</span>
+                      <span>Soát lỗi bằng AI</span>
                     </button>
                     <button className="ribbon-btn-large" onClick={() => setModal('aiAnalysis')}>
                       <BarChart3 size={20} color="#2563eb" />
@@ -6386,6 +6420,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                   </div>
                   <div className="ribbon-group-label">Bảo vệ dữ liệu</div>
                 </div>
+                {parity.reviewSections}
               </>
             )}
 
@@ -6474,6 +6509,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                   </div>
                   <div className="ribbon-group-label">Thu phóng</div>
                 </div>
+                {parity.viewSections}
               </>
             )}
 
@@ -6530,6 +6566,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                   </div>
                   <div className="ribbon-group-label">Macro & nút bấm</div>
                 </div>
+                {parity.automateSections}
               </>
             )}
 {activeTab === 'help' && (
@@ -7115,6 +7152,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
           ref={containerRef}
           className={`sheet-container ${!showFormulaBar ? 'sheet-hide-formula-bar' : ''}`}
         />
+        {parity.overlay}
 
         <AddinPanel host={addinHost} />
 
@@ -7487,6 +7525,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
           </div>
 
           <div className="sheet-status-right">
+            {parity.statusBadge}
             {selStats.count > 0 && (
               <>
                 <span className="sheet-stat-pill">Đếm: <strong>{selStats.count}</strong></span>
@@ -7973,6 +8012,8 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
           onClose={() => setModal(null)}
         />
       )}
+
+      {parity.nodes}
 
       {modal === 'slicer' && proTable && (
         <TableSlicerModal
