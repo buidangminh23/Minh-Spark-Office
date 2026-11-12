@@ -54,6 +54,8 @@ export type SheetShortcutAction =
   | 'traceDependents'
   | 'createTable'
   | 'redo'
+  | 'groupSelection'
+  | 'ungroupSelection'
   | 'zoomIn'
   | 'zoomOut';
 
@@ -133,6 +135,8 @@ const BINDINGS: Record<string, SheetShortcutAction> = {
   'C:KeyT': 'createTable',
   'C:KeyL': 'createTable',
   'CS:KeyZ': 'redo',
+  'AS:ArrowRight': 'groupSelection',
+  'AS:ArrowLeft': 'ungroupSelection',
   'CA:Equal': 'zoomIn',
   'CA:Minus': 'zoomOut',
 };
@@ -221,6 +225,7 @@ export const SHEET_SHORTCUT_HELP: Array<[keys: string, description: string]> = [
   ['Ctrl + Shift + = / Ctrl + -', 'Chèn / Xoá ô, hàng hoặc cột đang chọn'],
   ['Ctrl + 9 / Ctrl + Shift + 9', 'Ẩn hàng / Hiện lại hàng'],
   ['Ctrl + 0 / Ctrl + Shift + 0', 'Ẩn cột / Hiện lại cột'],
+  ['Alt + Shift + → / Alt + Shift + ←', 'Nhóm / Bỏ nhóm hàng hoặc cột đang chọn (Group / Ungroup)'],
   ['Ctrl + D / Ctrl + R', 'Điền xuống dưới / Điền sang phải'],
   ['Ctrl + E', 'Flash Fill: tự điền theo mẫu'],
   ["Ctrl + ' / Ctrl + Shift + '", 'Chép công thức / Chép giá trị của ô phía trên'],

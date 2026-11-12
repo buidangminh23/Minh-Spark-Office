@@ -128,3 +128,10 @@ test('two pages per sheet turn the paper landscape and fit both pages', async ()
   assert.equal(out[0].slots.length, 2);
   assert.ok(out[0].slots[1].box.x > out[0].slots[0].box.x + out[0].slots[0].box.w);
 });
+
+test('sliceOffsets starts a new page at every forced break', () => {
+  assert.deepEqual(sliceOffsets(300, 100, [40, 80, 130, 170, 210, 260], [130]), [0, 80, 130, 210]);
+  assert.deepEqual(sliceOffsets(90, 100, [30, 60], [30]), [0, 30]);
+  assert.deepEqual(sliceOffsets(250, 100, [], [240, 0, 250]), [0, 100, 200, 240]);
+  assert.deepEqual(sliceOffsets(250, 100, [], []), [0, 100, 200]);
+});

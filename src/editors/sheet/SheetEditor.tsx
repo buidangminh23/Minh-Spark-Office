@@ -52,6 +52,25 @@ import {
   structureScope,
   type SheetShortcutAction,
 } from './sheetShortcuts';
+import {
+  EMPTY_OUTLINE,
+  MAX_OUTLINE_LEVEL,
+  addGroup,
+  collapseToLevel,
+  describeGroup,
+  innermostGroup,
+  levelAt,
+  maxLevel,
+  removeGroup,
+  setCollapsed,
+  shiftBreaks,
+  shiftGroups,
+  toggleBreak,
+  visibilityChanges,
+  type OutlineAxis,
+  type OutlineGroup,
+  type SheetOutline,
+} from './sheetOutline';
 import { BACKSPACE_CLEAR_PRIORITY, selectionCoversMultipleCells } from './backspaceClear';
 import UniverPresetSheetsCoreViVN from '@univerjs/preset-sheets-core/locales/vi-VN';
 import { UniverSheetsConditionalFormattingPreset, CFValueType } from '@univerjs/preset-sheets-conditional-formatting';
@@ -174,6 +193,11 @@ import {
   SquarePen,
   QrCode,
   Database,
+  Group,
+  Ungroup,
+  FoldVertical,
+  UnfoldVertical,
+  SeparatorHorizontal,
 } from 'lucide-react';
 
 import {
@@ -645,6 +669,10 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
   const [activeCellA1, setActiveCellA1] = useState('A1');
   const [activeRangeA1, setActiveRangeA1] = useState('A1');
   const [nameBoxText, setNameBoxText] = useState('A1');
+  const [outlines, setOutlines] = useState<Record<string, SheetOutline>>(() => content.outlines ?? {});
+  const [activeSheetId, setActiveSheetId] = useState('');
+  const activeOutline = outlines[activeSheetId] ?? EMPTY_OUTLINE;
+  const activePageBreakCount = printSettings.pageBreaks?.[activeSheetId]?.length ?? 0;
   const [formulaBarText, setFormulaBarText] = useState('');
   const formulaBarFocusedRef = useRef(false);
   const [selectedFont, setSelectedFont] = useState(DEFAULT_CELL_FONT_FAMILY);
@@ -847,6 +875,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
       const cellA1 = formatA1Cell(rawRange.startRow, rawRange.startColumn);
       const fullA1 = formatA1Range(rawRange.startRow, rawRange.startColumn, rawRange.endRow, rawRange.endColumn);
       setActiveSheetName(fWorksheet.getSheetName());
+      setActiveSheetId(fWorksheet.getSheetId());
       setActiveCellA1(cellA1);
       setActiveRangeA1(fullA1);
       setNameBoxText(fullA1);
@@ -1006,6 +1035,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
         workbook: snapshot,
         comments,
         printSettings,
+        outlines,
       }, explicit);
       if (saved) {
         if (changeRevision.current === savedRevision) setSavedStatus('saved');
@@ -1017,7 +1047,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
       ui.toast('Chưa lưu được bản nháp. Vui lòng giữ trang này mở và thử lại.', true);
       return false;
     }
-  }, [setSavedStatus, captureHydratedWorkbook, meta, title, onSave, comments, printSettings, ui]);
+  }, [setSavedStatus, captureHydratedWorkbook, meta, title, onSave, comments, printSettings, outlines, ui]);
 
   const handleSaveNow = useCallback(() => void persistWorkbook(true), [persistWorkbook]);
 
@@ -1964,6 +1994,14 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
     const r = fRange.getRange();
     const rowSpan = r.endRow - r.startRow + 1;
     const colSpan = r.endColumn - r.startColumn + 1;
+
+    const sheetId = fWorksheet.getSheetId();
+    if (action === 'insertRowAbove') shiftSheetStructure(sheetId, 'rows', r.startRow, 1);
+    else if (action === 'insertRowBelow') shiftSheetStructure(sheetId, 'rows', r.endRow + 1, 1);
+    else if (action === 'deleteRows') shiftSheetStructure(sheetId, 'rows', r.startRow, -rowSpan);
+    else if (action === 'insertColLeft') shiftSheetStructure(sheetId, 'cols', r.startColumn, 1);
+    else if (action === 'insertColRight') shiftSheetStructure(sheetId, 'cols', r.endColumn + 1, 1);
+    else if (action === 'deleteCols') shiftSheetStructure(sheetId, 'cols', r.startColumn, -colSpan);
 
     if (action === 'insertRowAbove') fWorksheet.insertRowBefore(r.startRow);
     else if (action === 'insertRowBelow') fWorksheet.insertRowAfter(r.endRow);
@@ -3149,7 +3187,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
   const handleCleanWorkbook = async () => {
     const ctx = getEditableContext();
     if (!ctx || !doctorData) throw new Error('Không có sổ tính để dọn');
-    const draft: SheetContent = { kind: 'sheet', workbook: captureHydratedWorkbook(), comments, printSettings };
+    const draft: SheetContent = { kind: 'sheet', workbook: captureHydratedWorkbook(), comments, printSettings, outlines };
     try {
       const saved = await sourceStorage.saveVersion(meta.id, draft, 'Trước khi tối ưu');
       setVersions((prev) => [saved, ...prev]);
@@ -3537,6 +3575,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
       signedBy: settingsToUse.signedBy,
       signedRole: settingsToUse.signedRole,
       signedAt: settingsToUse.signedAt,
+      pageBreakRows: settingsToUse.pageBreaks?.[sh.id],
       standalone: true,
     });
     downloadBlob(new Blob([fullHtml], { type: 'text/html;charset=utf-8' }), `${stripSpreadsheetExt(title)}-${sh.name}.html`);
@@ -3851,6 +3890,149 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
     ui,
   ]);
 
+  const applyOutline = (sheet: NonNullable<ReturnType<typeof getActiveContext>>['fWorksheet'], axis: OutlineAxis, nextGroups: OutlineGroup[]) => {
+    const sheetId = sheet.getSheetId();
+    const current = outlines[sheetId] ?? EMPTY_OUTLINE;
+    const changes = visibilityChanges(current[axis], nextGroups);
+    for (const run of changes.show) {
+      if (axis === 'rows') sheet.showRows(run.start, run.count);
+      else sheet.showColumns(run.start, run.count);
+    }
+    for (const run of changes.hide) {
+      if (axis === 'rows') sheet.hideRows(run.start, run.count);
+      else sheet.hideColumns(run.start, run.count);
+    }
+    setOutlines((previous) => ({ ...previous, [sheetId]: { ...(previous[sheetId] ?? EMPTY_OUTLINE), [axis]: nextGroups } }));
+    setSavedStatus('saving');
+  };
+
+  const handleOutline = (action: 'group' | 'ungroup' | 'collapse' | 'expand' | 'clear') => {
+    setPopover(null);
+    const ctx = getEditableContext();
+    if (!ctx) return;
+    const { fWorksheet, fRange } = ctx;
+    const box = fRange.getRange();
+    const scope = structureScope(box, fWorksheet.getMaxRows(), fWorksheet.getMaxColumns());
+    const axis: OutlineAxis = scope === 'columns' ? 'cols' : 'rows';
+    const start = axis === 'rows' ? box.startRow : box.startColumn;
+    const end = axis === 'rows' ? box.endRow : box.endColumn;
+    const outline = outlines[fWorksheet.getSheetId()] ?? EMPTY_OUTLINE;
+    const groups = outline[axis];
+    const target = innermostGroup(groups, start, end);
+
+    if (action === 'clear') {
+      if (!outline.rows.length && !outline.cols.length) {
+        ui.toast('Trang tính này chưa có nhóm nào', true);
+        return;
+      }
+      applyOutline(fWorksheet, 'rows', []);
+      applyOutline(fWorksheet, 'cols', []);
+      ui.toast('Đã xoá toàn bộ nhóm (Clear Outline) của trang tính');
+      return;
+    }
+    if (action === 'group') {
+      const next = addGroup(groups, start, end);
+      if (!next) {
+        ui.toast(`Không nhóm được: vùng này đã là một nhóm, cắt ngang nhóm khác hoặc vượt quá ${MAX_OUTLINE_LEVEL} mức`, true);
+        return;
+      }
+      applyOutline(fWorksheet, axis, next);
+      ui.toast(`Đã nhóm ${describeGroup(axis, { start, end, collapsed: false })} (mức ${levelAt(next, start)})`);
+      return;
+    }
+    if (action === 'expand') {
+      const nearby = groups.filter((group) => group.collapsed && group.start - 1 <= end && group.end + 1 >= start);
+      if (!nearby.length) {
+        ui.toast('Không có nhóm nào đang thu gọn tại vùng chọn (hãy chọn ô ngay cạnh nhóm đã thu gọn)', true);
+        return;
+      }
+      const outermost = nearby.reduce((best, group) => (group.end - group.start > best.end - best.start ? group : best));
+      applyOutline(fWorksheet, axis, setCollapsed(groups, outermost, false));
+      ui.toast(`Đã mở rộng nhóm ${describeGroup(axis, outermost)}`);
+      return;
+    }
+    if (!target) {
+      ui.toast('Vùng đang chọn không nằm trong nhóm nào', true);
+      return;
+    }
+    if (action === 'ungroup') {
+      applyOutline(fWorksheet, axis, removeGroup(groups, start, end) ?? groups);
+      ui.toast(`Đã bỏ nhóm ${describeGroup(axis, target)}`);
+      return;
+    }
+    applyOutline(fWorksheet, axis, setCollapsed(groups, target, true));
+    ui.toast(`Đã thu gọn nhóm ${describeGroup(axis, target)}`);
+  };
+
+  const handleOutlineLevel = (level: number) => {
+    setPopover(null);
+    const ctx = getEditableContext();
+    if (!ctx) return;
+    const sheetId = ctx.fWorksheet.getSheetId();
+    const outline = outlines[sheetId] ?? EMPTY_OUTLINE;
+    if (!outline.rows.length && !outline.cols.length) {
+      ui.toast('Trang tính này chưa có nhóm nào', true);
+      return;
+    }
+    const nextRows = collapseToLevel(outline.rows, level);
+    const nextCols = collapseToLevel(outline.cols, level);
+    for (const [axis, before, after] of [['rows', outline.rows, nextRows], ['cols', outline.cols, nextCols]] as const) {
+      const changes = visibilityChanges(before, after);
+      for (const run of changes.show) {
+        if (axis === 'rows') ctx.fWorksheet.showRows(run.start, run.count);
+        else ctx.fWorksheet.showColumns(run.start, run.count);
+      }
+      for (const run of changes.hide) {
+        if (axis === 'rows') ctx.fWorksheet.hideRows(run.start, run.count);
+        else ctx.fWorksheet.hideColumns(run.start, run.count);
+      }
+    }
+    setOutlines((previous) => ({ ...previous, [sheetId]: { rows: nextRows, cols: nextCols } }));
+    setSavedStatus('saving');
+    const deepest = Math.max(maxLevel(outline.rows), maxLevel(outline.cols));
+    ui.toast(level > deepest ? 'Đã mở rộng toàn bộ nhóm' : `Đang hiện tới mức ${level} của dàn ý`);
+  };
+
+  const handlePageBreak = (action: 'toggle' | 'clear') => {
+    const ctx = getActiveContext();
+    if (!ctx) return;
+    const sheetId = ctx.fWorksheet.getSheetId();
+    const current = printSettings.pageBreaks?.[sheetId] ?? [];
+    if (action === 'clear') {
+      if (!current.length) {
+        ui.toast('Trang tính này chưa có ngắt trang thủ công', true);
+        return;
+      }
+      setPrintSettings((previous) => ({ ...previous, pageBreaks: { ...previous.pageBreaks, [sheetId]: [] } }));
+      setSavedStatus('saving');
+      ui.toast(`Đã xoá ${current.length} ngắt trang thủ công của trang tính`);
+      return;
+    }
+    const row = ctx.fRange.getRange().startRow;
+    if (row === 0) {
+      ui.toast('Hãy chọn một ô từ hàng 2 trở xuống: ngắt trang được đặt phía trên hàng đang chọn', true);
+      return;
+    }
+    const next = toggleBreak(current, row);
+    setPrintSettings((previous) => ({ ...previous, pageBreaks: { ...previous.pageBreaks, [sheetId]: next } }));
+    setSavedStatus('saving');
+    ui.toast(next.length > current.length ? `Đã chèn ngắt trang phía trên hàng ${row + 1} (xem ở In / Xem trước)` : `Đã bỏ ngắt trang phía trên hàng ${row + 1}`);
+  };
+
+  const shiftSheetStructure = (sheetId: string, axis: OutlineAxis, at: number, delta: number) => {
+    setOutlines((previous) => {
+      const outline = previous[sheetId];
+      if (!outline || !outline[axis].length) return previous;
+      return { ...previous, [sheetId]: { ...outline, [axis]: shiftGroups(outline[axis], at, delta) } };
+    });
+    if (axis !== 'rows') return;
+    setPrintSettings((previous) => {
+      const breaks = previous.pageBreaks?.[sheetId];
+      if (!breaks?.length) return previous;
+      return { ...previous, pageBreaks: { ...previous.pageBreaks, [sheetId]: shiftBreaks(breaks, at, delta) } };
+    });
+  };
+
   const shortcutRunnerRef = useRef<(action: SheetShortcutAction) => void>(() => undefined);
   shortcutRunnerRef.current = (action) => {
     const ctx = getActiveContext();
@@ -4044,6 +4226,12 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
       case 'redo':
         edit(() => void fWorkbook.redo());
         break;
+      case 'groupSelection':
+        handleOutline('group');
+        break;
+      case 'ungroupSelection':
+        handleOutline('ungroup');
+        break;
       case 'zoomIn':
         handleSetZoom(zoomPct + ZOOM_STEP_PCT);
         break;
@@ -4222,7 +4410,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
   };
 
   const handleCreateSnapshot = async (label: string) => {
-    const draft: SheetContent = { kind: 'sheet', workbook: captureHydratedWorkbook(), comments, printSettings };
+    const draft: SheetContent = { kind: 'sheet', workbook: captureHydratedWorkbook(), comments, printSettings, outlines };
     const currentMeta = { ...meta, name: title.trim() || meta.name, updatedAt: Date.now() };
     try {
       if (!user) await sourceStorage.saveFile(currentMeta, draft);
@@ -4246,6 +4434,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
     recalculateAndBindWorkbook(ctx.api);
     if (cont.comments) setComments(cont.comments);
     if (cont.printSettings) setPrintSettings(cont.printSettings);
+    setOutlines(cont.outlines ?? {});
     setModal(null);
     setSavedStatus('saving');
     setTimeout(() => syncUiFromSelection(), 90);
@@ -5173,6 +5362,14 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                       <X size={20} color="#dc2626" />
                       <span>Xoá vùng in</span>
                     </button>
+                    <button className="ribbon-btn-large" onClick={() => handlePageBreak('toggle')} title="Chèn hoặc bỏ ngắt trang thủ công phía trên hàng đang chọn">
+                      <SeparatorHorizontal size={20} color="#7c3aed" />
+                      <span>Ngắt trang ({activePageBreakCount})</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => handlePageBreak('clear')} title="Xoá mọi ngắt trang thủ công của trang tính">
+                      <Eraser size={20} color="#dc2626" />
+                      <span>Xoá ngắt trang</span>
+                    </button>
                   </div>
                   <div className="ribbon-group-label">Khổ giấy & Vùng in</div>
                 </div>
@@ -5374,6 +5571,42 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                     </button>
                   </div>
                   <div className="ribbon-group-label">Phân tích dữ liệu</div>
+                </div>
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={() => handleOutline('group')} title="Nhóm các hàng đang chọn (chọn cả cột để nhóm cột) — Alt + Shift + →">
+                      <Group size={20} color="#107c41" />
+                      <span>Nhóm</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => handleOutline('ungroup')} title="Bỏ nhóm trong cùng chứa vùng đang chọn — Alt + Shift + ←">
+                      <Ungroup size={20} color="#475569" />
+                      <span>Bỏ nhóm</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => handleOutline('collapse')} title="Thu gọn (ẩn) nhóm chứa ô đang chọn">
+                      <FoldVertical size={20} color="#0284c7" />
+                      <span>Thu gọn</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => handleOutline('expand')} title="Mở rộng (hiện lại) nhóm chứa ô đang chọn">
+                      <UnfoldVertical size={20} color="#0284c7" />
+                      <span>Mở rộng</span>
+                    </button>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, auto)', gap: 2, alignContent: 'center' }}>
+                      {[1, 2, 3, 4].map((level) => (
+                        <button key={level} className="ribbon-btn-small" onClick={() => handleOutlineLevel(level)} title={`Chỉ hiện tới mức ${level} của dàn ý`}>
+                          {level}
+                        </button>
+                      ))}
+                      <button className="ribbon-btn-small" style={{ gridColumn: 'span 2' }} onClick={() => handleOutlineLevel(MAX_OUTLINE_LEVEL + 1)} title="Mở rộng toàn bộ nhóm">
+                        Hiện hết
+                      </button>
+                      <button className="ribbon-btn-small" style={{ gridColumn: 'span 2' }} onClick={() => handleOutline('clear')} title="Xoá toàn bộ nhóm của trang tính (Clear Outline)">
+                        Xoá nhóm
+                      </button>
+                    </div>
+                  </div>
+                  <div className="ribbon-group-label">
+                    Dàn ý (Outline) · {activeOutline.rows.length} nhóm hàng, {activeOutline.cols.length} nhóm cột
+                  </div>
                 </div>
               </>
             )}

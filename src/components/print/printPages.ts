@@ -92,7 +92,7 @@ function flowSheets(source: PrintSource, settings: PrintSettings): SheetPlan {
     layout.notes.forEach((n) => notes.add(n));
     const sliceMm = source.flowsVertically ? layout.printable.h : layout.placement.h;
     const slicePx = sliceMm / layout.scale / MM_PER_PX;
-    const offsets = source.flowsVertically ? flowOffsets(item.size.h, slicePx, item.breaks, item.repeatPx ?? 0) : [0];
+    const offsets = source.flowsVertically ? flowOffsets(item.size.h, slicePx, item.breaks, item.repeatPx ?? 0, item.forcedBreaks) : [0];
     offsets.forEach((offset, part) => {
       const next = offsets[part + 1] ?? item.size.h;
       const heightPx = next - offset + (part > 0 ? item.repeatPx ?? 0 : 0);
@@ -110,11 +110,11 @@ function flowSheets(source: PrintSource, settings: PrintSettings): SheetPlan {
   return { sheets, notes: [...notes], layout: firstLayout };
 }
 
-function flowOffsets(total: number, slicePx: number, breaks: number[] | undefined, repeatPx: number): number[] {
-  if (repeatPx <= 0 || repeatPx >= slicePx * 0.6) return sliceOffsets(total, slicePx, breaks);
-  const first = sliceOffsets(total, slicePx, breaks).slice(0, 2);
+function flowOffsets(total: number, slicePx: number, breaks: number[] | undefined, repeatPx: number, forced: number[] = []): number[] {
+  if (repeatPx <= 0 || repeatPx >= slicePx * 0.6) return sliceOffsets(total, slicePx, breaks, forced);
+  const first = sliceOffsets(total, slicePx, breaks, forced).slice(0, 2);
   if (first.length < 2) return first;
-  const rest = sliceOffsets(total - first[1], slicePx - repeatPx, breaks?.map((b) => b - first[1]));
+  const rest = sliceOffsets(total - first[1], slicePx - repeatPx, breaks?.map((b) => b - first[1]), forced.map((b) => b - first[1]));
   return [0, ...rest.map((o) => o + first[1])];
 }
 

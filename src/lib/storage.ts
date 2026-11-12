@@ -118,6 +118,7 @@ export type DocContent = {
   page: PageSettings;
   comments?: CommentItem[];
 };
+export type SheetOutlineGroup = { start: number; end: number; collapsed: boolean };
 export type SheetPrintSettings = {
   orientation: 'portrait' | 'landscape';
   paperSize: 'A4' | 'A3' | 'Letter';
@@ -125,6 +126,7 @@ export type SheetPrintSettings = {
   fitToPage: boolean;
   showGridlines: boolean;
   printArea?: string;
+  pageBreaks?: Record<string, number[]>;
   signedBy?: string;
   signedRole?: string;
   signedAt?: number;
@@ -135,6 +137,7 @@ export type SheetContent = {
   workbook: WorkbookData;
   comments?: CommentItem[];
   printSettings?: SheetPrintSettings;
+  outlines?: Record<string, { rows: SheetOutlineGroup[]; cols: SheetOutlineGroup[] }>;
 };
 export type PdfContent = {
   kind: 'pdf';

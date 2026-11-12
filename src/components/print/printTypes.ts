@@ -10,6 +10,7 @@ export type PrintItem = {
   key: string;
   size: Size;
   breaks?: number[];
+  forcedBreaks?: number[];
   repeatPx?: number;
   render: (slice: PrintSlice) => ReactNode;
 };

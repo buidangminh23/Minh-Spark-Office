@@ -335,6 +335,7 @@ export type StyledHtmlOptions = {
   signedRole?: string;
   signedAt?: number;
   standalone?: boolean;
+  pageBreakRows?: number[];
 };
 
 const escapeHtmlText = (text: string) =>
@@ -382,7 +383,10 @@ export function exportSheetToStyledHtml(workbook: WorkbookData, sheet: SheetData
   }
 
   const rowsHtml: string[] = [];
+  const pageBreakRows = new Set(options.pageBreakRows ?? []);
+  let pendingPageBreak = false;
   for (let r = startRow; r <= endRow; r++) {
+    if (pageBreakRows.has(r)) pendingPageBreak = true;
     if (sheet.rowData?.[r]?.hd) continue;
     const h = finiteNumber(sheet.rowData?.[r]?.h ?? sheet.defaultRowHeight, 26);
     const cellsHtml: string[] = [];
@@ -432,7 +436,11 @@ export function exportSheetToStyledHtml(workbook: WorkbookData, sheet: SheetData
       const text = escape(formatCellDisplay(workbook, cell));
       cellsHtml.push(`<td ${attrs.join(' ')}>${text || '&nbsp;'}</td>`);
     }
-    rowsHtml.push(`<tr style="height:${Math.max(22, h)}px">${cellsHtml.join('')}</tr>`);
+    const startsPage = pendingPageBreak && rowsHtml.length > 0;
+    pendingPageBreak = false;
+    const breakStyle = startsPage && options.standalone !== false ? ';break-before:page' : '';
+    const breakAttr = startsPage ? ' data-page-break="1"' : '';
+    rowsHtml.push(`<tr${breakAttr} style="height:${Math.max(22, h)}px${breakStyle}">${cellsHtml.join('')}</tr>`);
   }
 
   const stampHtml = options.signedBy

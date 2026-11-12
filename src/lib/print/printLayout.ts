@@ -235,15 +235,23 @@ export function computePageLayout(req: LayoutRequest): PageLayout {
   return { ...pick, notes: [`Tự chọn khổ ${pick.orientation === 'landscape' ? 'ngang' : 'dọc'}`, ...pick.notes] };
 }
 
-export function sliceOffsets(totalHeight: number, sliceHeight: number, breaks: number[] = []): number[] {
+export function sliceOffsets(totalHeight: number, sliceHeight: number, breaks: number[] = [], forced: number[] = []): number[] {
   if (!(totalHeight > 0) || !(sliceHeight > 0)) return [0];
   const sorted = [...new Set(breaks.filter((b) => b > 0 && b < totalHeight))].sort((a, b) => a - b);
+  const hard = [...new Set(forced.filter((b) => b > 0.5 && b < totalHeight - 0.5))].sort((a, b) => a - b);
+  const nextHard = (from: number) => hard.find((b) => b > from + 0.5);
   const starts = [0];
   let start = 0;
   let guard = 0;
-  while (start + sliceHeight < totalHeight - 0.5 && guard < 2000) {
+  while ((start + sliceHeight < totalHeight - 0.5 || nextHard(start) !== undefined) && guard < 2000) {
     guard += 1;
     const limit = start + sliceHeight;
+    const hardCut = nextHard(start);
+    if (hardCut !== undefined && hardCut <= limit) {
+      start = hardCut;
+      starts.push(start);
+      continue;
+    }
     let cut = limit;
     for (const b of sorted) {
       if (b <= start + sliceHeight * 0.25) continue;

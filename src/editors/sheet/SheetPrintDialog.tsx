@@ -18,6 +18,7 @@ type MeasuredSheet = {
   tops: number[];
   bottoms: number[];
   stamp: string;
+  forced: number[];
   width: number;
   height: number;
 };
@@ -47,7 +48,8 @@ function measureSheet(key: string, html: string): MeasuredSheet {
     const rowEls = Array.from(host.querySelectorAll('tbody > tr'));
     const tops = rowEls.map((row) => row.getBoundingClientRect().top - origin);
     const bottoms = rowEls.map((row) => row.getBoundingClientRect().bottom - origin);
-    return { key, ...parts, tops, bottoms, width: Math.ceil(host.scrollWidth), height: Math.ceil(host.scrollHeight) };
+    const forced = rowEls.flatMap((row, index) => (row.hasAttribute('data-page-break') ? [tops[index]] : []));
+    return { key, ...parts, tops, bottoms, forced, width: Math.ceil(host.scrollWidth), height: Math.ceil(host.scrollHeight) };
   } finally {
     host.remove();
   }
@@ -78,6 +80,7 @@ function toItem(sheet: MeasuredSheet, repeatRows: number): PrintItem {
     key: sheet.key,
     size: { w: sheet.width, h: sheet.height },
     breaks: sheet.bottoms,
+    forcedBreaks: sheet.forced,
     repeatPx: repeatHeight(sheet, repeatRows),
     slicesSelf: true,
     render: (slice) => <div className="mp-sheet-html" style={{ width: sheet.width }} dangerouslySetInnerHTML={{ __html: sliceHtml(sheet, slice, repeatRows) }} />,
@@ -124,6 +127,7 @@ export function SheetPrintDialog({ workbook, activeSheetId, title, activeRangeA1
               showGridlines: gridlines,
               printArea: scope === 'active' ? printArea : '',
               fitToPage: false,
+              pageBreakRows: settings.pageBreaks?.[sheet.id],
               signedBy: settings.signedBy,
               signedRole: settings.signedRole,
               signedAt: settings.signedAt,
@@ -134,7 +138,7 @@ export function SheetPrintDialog({ workbook, activeSheetId, title, activeRangeA1
       setMeasured(result);
     }, 30);
     return () => window.clearTimeout(timer);
-  }, [sheetIds, workbook, title, gridlines, printArea, scope, settings.signedBy, settings.signedRole, settings.signedAt]);
+  }, [sheetIds, workbook, title, gridlines, printArea, scope, settings.signedBy, settings.signedRole, settings.signedAt, settings.pageBreaks]);
 
   const source: PrintSource = useMemo(
     () => ({
