@@ -341,6 +341,20 @@ export type StyledHtmlOptions = {
   signedAt?: number;
   standalone?: boolean;
   pageBreakRows?: number[];
+  showHeadings?: boolean;
+};
+
+const HEADING_CELL_CSS = 'padding:2px 6px;background:#f1f5f9;color:#475569;font:600 9pt Arial,sans-serif;text-align:center;border:1px solid #cbd5e1';
+
+const columnLetters = (index: number) => {
+  let n = index + 1;
+  let out = '';
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    out = String.fromCharCode(65 + rem) + out;
+    n = Math.floor((n - 1) / 26);
+  }
+  return out;
 };
 
 const escapeHtmlText = (text: string) =>
@@ -381,6 +395,7 @@ export function exportSheetToStyledHtml(workbook: WorkbookData, sheet: SheetData
   }
 
   const colGroup: string[] = [];
+  if (options.showHeadings) colGroup.push('<col style="width:40px" />');
   for (let c = startCol; c <= endCol; c++) {
     if (sheet.columnData?.[c]?.hd) continue;
     const w = finiteNumber(sheet.columnData?.[c]?.w ?? sheet.defaultColumnWidth, 100);
@@ -388,13 +403,18 @@ export function exportSheetToStyledHtml(workbook: WorkbookData, sheet: SheetData
   }
 
   const rowsHtml: string[] = [];
+  if (options.showHeadings) {
+    const letters: string[] = [`<td style="${HEADING_CELL_CSS}"></td>`];
+    for (let c = startCol; c <= endCol; c++) if (!sheet.columnData?.[c]?.hd) letters.push(`<td style="${HEADING_CELL_CSS}">${columnLetters(c)}</td>`);
+    rowsHtml.push(`<tr style="height:20px">${letters.join('')}</tr>`);
+  }
   const pageBreakRows = new Set(options.pageBreakRows ?? []);
   let pendingPageBreak = false;
   for (let r = startRow; r <= endRow; r++) {
     if (pageBreakRows.has(r)) pendingPageBreak = true;
     if (sheet.rowData?.[r]?.hd) continue;
     const h = finiteNumber(sheet.rowData?.[r]?.h ?? sheet.defaultRowHeight, 26);
-    const cellsHtml: string[] = [];
+    const cellsHtml: string[] = options.showHeadings ? [`<td style="${HEADING_CELL_CSS}">${r + 1}</td>`] : [];
     for (let c = startCol; c <= endCol; c++) {
       if (sheet.columnData?.[c]?.hd) continue;
       const key = `${r}:${c}`;
@@ -441,7 +461,7 @@ export function exportSheetToStyledHtml(workbook: WorkbookData, sheet: SheetData
       const text = escape(formatCellDisplay(workbook, cell));
       cellsHtml.push(`<td ${attrs.join(' ')}>${text || '&nbsp;'}</td>`);
     }
-    const startsPage = pendingPageBreak && rowsHtml.length > 0;
+    const startsPage = pendingPageBreak && rowsHtml.length > (options.showHeadings ? 1 : 0);
     pendingPageBreak = false;
     const breakStyle = startsPage && options.standalone !== false ? ';break-before:page' : '';
     const breakAttr = startsPage ? ' data-page-break="1"' : '';
