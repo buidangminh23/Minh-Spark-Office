@@ -7,6 +7,18 @@ const HOST_KEY = '__minhOfficeTabs';
 export type DocumentTab = { id: string; kind: FileKind; name: string };
 export type TabHandoff = { meta: FileMeta; content: FileContent };
 export type TabSession = { ids: string[]; active: string | null };
+export type TabCycleStep = 1 | -1;
+export type TabCommand =
+  | { type: 'cycle'; step: TabCycleStep }
+  | { type: 'goto'; index: number | 'last' }
+  | { type: 'close' }
+  | { type: 'reopen' }
+  | { type: 'home' };
+export type ShortcutPlatform = { mac: boolean; desktop: boolean };
+type ShortcutKey = Pick<KeyboardEvent, 'key' | 'code' | 'ctrlKey' | 'altKey' | 'metaKey' | 'shiftKey'>;
+
+const DIGIT_CODE = /^Digit([1-9])$/;
+const LAST_TAB_DIGIT = 9;
 
 export type TabFrameApi = {
   save(): Promise<boolean>;
@@ -18,6 +30,7 @@ export type TabHost = {
   attach(id: string, api: TabFrameApi): () => void;
   open(meta: FileMeta, content: FileContent): void;
   showHome(): void;
+  command(command: TabCommand): boolean;
   fail(id: string, message: string): void;
   updateMeta(meta: FileMeta): void;
   openIds(): string[];
@@ -37,6 +50,73 @@ export function tabHost(win: Window = window): TabHost | null {
   } catch {
     return null;
   }
+}
+
+function ownTabHost(win: Window): TabHost | null {
+  return ((win as unknown as Record<string, unknown>)[HOST_KEY] as TabHost | undefined) ?? null;
+}
+
+export function shortcutPlatform(win: Window = window): ShortcutPlatform {
+  const nav = win.navigator;
+  const mac = /Mac|iPhone|iPad/i.test(nav.platform || nav.userAgent);
+  return { mac, desktop: '__TAURI_INTERNALS__' in win };
+}
+
+export const tabModifierLabel = (platform: ShortcutPlatform) => (platform.mac ? 'Ctrl' : 'Alt');
+
+function tabModifierOnly(event: ShortcutKey, mac: boolean, shift: boolean) {
+  if (event.metaKey || event.shiftKey !== shift) return false;
+  return mac ? event.ctrlKey && !event.altKey : event.altKey && !event.ctrlKey;
+}
+
+function desktopCtrlCommand(event: ShortcutKey): TabCommand | null {
+  if (!event.ctrlKey || event.altKey || event.metaKey) return null;
+  if (event.key === 'Tab') return { type: 'cycle', step: event.shiftKey ? -1 : 1 };
+  if (event.code === 'KeyW' && !event.shiftKey) return { type: 'close' };
+  return null;
+}
+
+export function tabShortcut(event: ShortcutKey, platform: ShortcutPlatform): TabCommand | null {
+  if (event.ctrlKey && !event.altKey && !event.metaKey && event.key === 'Tab') return { type: 'cycle', step: event.shiftKey ? -1 : 1 };
+  if (platform.desktop) {
+    const command = desktopCtrlCommand(event);
+    if (command) return command;
+  }
+  if (tabModifierOnly(event, platform.mac, true)) return event.code === 'KeyT' ? { type: 'reopen' } : null;
+  if (!tabModifierOnly(event, platform.mac, false)) return null;
+  if (event.code === 'BracketRight') return { type: 'cycle', step: 1 };
+  if (event.code === 'BracketLeft') return { type: 'cycle', step: -1 };
+  if (event.code === 'KeyW') return { type: 'close' };
+  if (event.code === 'KeyT') return { type: 'home' };
+  const digit = DIGIT_CODE.exec(event.code);
+  if (!digit) return null;
+  const position = Number(digit[1]);
+  return { type: 'goto', index: position === LAST_TAB_DIGIT ? 'last' : position - 1 };
+}
+
+export function cycleTarget(tabIds: readonly string[], active: string | null, step: TabCycleStep): string | null {
+  const order: (string | null)[] = [null, ...tabIds];
+  const index = Math.max(0, order.indexOf(active));
+  return order[(index + step + order.length) % order.length] ?? null;
+}
+
+export function gotoTarget(tabIds: readonly string[], index: number | 'last'): string | null | undefined {
+  const order: (string | null)[] = [null, ...tabIds];
+  return index === 'last' ? order[order.length - 1] : index < order.length ? order[index] : undefined;
+}
+
+export function installTabShortcuts(win: Window = window): () => void {
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (event.defaultPrevented || event.isComposing) return;
+    const command = tabShortcut(event, shortcutPlatform(win));
+    if (!command) return;
+    const host = win.parent === win ? ownTabHost(win) : tabHost(win);
+    if (!host?.command(command)) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  };
+  win.addEventListener('keydown', onKeyDown, true);
+  return () => win.removeEventListener('keydown', onKeyDown, true);
 }
 
 export function installTabHost(host: TabHost, win: Window = window): () => void {

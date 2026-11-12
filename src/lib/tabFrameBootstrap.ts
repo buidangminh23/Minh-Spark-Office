@@ -1,3 +1,5 @@
+import { installTabShortcuts } from './documentTabs';
+
 const SHARED_GLOBALS = ['__TAURI_INTERNALS__', '__TAURI_EVENT_PLUGIN_INTERNALS__', '__TAURI_OS_PLUGIN_INTERNALS__', '__TAURI__'] as const;
 
 export function shareParentDesktopBridge(frame: Window = window) {
@@ -15,3 +17,4 @@ export function shareParentDesktopBridge(frame: Window = window) {
 }
 
 shareParentDesktopBridge();
+installTabShortcuts();

@@ -9,7 +9,11 @@ import { suiteLogos } from '../lib/suiteBranding';
 import { useDocumentCloser } from '../lib/documentCloser';
 import { printFrameDocument } from '../lib/print/tabPrint';
 import {
+  cycleTarget,
+  gotoTarget,
   installTabHost,
+  shortcutPlatform,
+  tabModifierLabel,
   readTabSession,
   tabFrameUrl,
   tabFromMeta,
@@ -19,6 +23,7 @@ import {
   type DocumentTab,
   type TabFrameApi,
   type TabHandoff,
+  type TabCommand,
   type TabHost,
 } from '../lib/documentTabs';
 import './documentTabs.css';
@@ -35,6 +40,9 @@ type TabState = { tabs: DocumentTab[]; active: string | null };
 
 const HOME_ICON = '/logo-icon.png';
 const SAVE_FAILED = 'Chưa lưu được tài liệu nên tab vẫn mở. Hãy thử lưu lại rồi đóng tab.';
+const REOPEN_FAILED = 'Tài liệu vừa đóng không còn, có thể đã bị xoá hoặc chuyển vào thùng rác.';
+const CLOSED_HISTORY = 20;
+const NUMBERED_TABS = 8;
 
 const TabsContext = createContext<TabsApi | null>(null);
 
@@ -72,6 +80,10 @@ function useTabState(uid: string | null, ready: boolean) {
 
 function TabStrip({ state, onSelect, onClose }: { state: TabState; onSelect: (id: string | null) => void; onClose: (id: string) => void }) {
   const strip = useRef<HTMLDivElement>(null);
+  const platform = useMemo(() => shortcutPlatform(), []);
+  const mod = tabModifierLabel(platform);
+  const closeKeys = platform.desktop ? `Ctrl+W hoặc ${mod}+W` : `${mod}+W`;
+  const keyshortcuts = `${platform.mac ? 'Control' : 'Alt'}+BracketRight ${platform.mac ? 'Control' : 'Alt'}+BracketLeft Control+Tab Control+Shift+Tab`;
   useLayoutEffect(() => {
     strip.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }, [state.active]);
@@ -84,33 +96,33 @@ function TabStrip({ state, onSelect, onClose }: { state: TabState; onSelect: (id
     tabs[(index + (event.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length]?.focus();
   };
   return (
-    <div className="doc-tabs" role="tablist" aria-label="Tài liệu đang mở" ref={strip} onKeyDown={moveFocus}>
+    <div className="doc-tabs" role="tablist" aria-label="Tài liệu đang mở" aria-keyshortcuts={keyshortcuts} ref={strip} onKeyDown={moveFocus}>
       <div className="doc-tab doc-tab-home" data-active={state.active === null}>
-        <button type="button" role="tab" className="doc-tab-main" aria-selected={state.active === null} onClick={() => onSelect(null)} title="Trang chủ">
+        <button type="button" role="tab" className="doc-tab-main" aria-selected={state.active === null} onClick={() => onSelect(null)} title={`Trang chủ (${mod}+1). Chuyển tab: ${mod}+] / ${mod}+[`}>
           <House size={16} aria-hidden="true" />
           <span className="doc-tab-name">Trang chủ</span>
         </button>
       </div>
-      {state.tabs.map((tab) => (
+      {state.tabs.map((tab, index) => (
         <div key={tab.id} className="doc-tab" data-active={state.active === tab.id}>
           <button
             type="button"
             role="tab"
             className="doc-tab-main"
             aria-selected={state.active === tab.id}
-            title={tab.name}
+            title={index + 1 < NUMBERED_TABS ? `${tab.name} (${mod}+${index + 2})` : tab.name}
             onClick={() => onSelect(tab.id)}
             onAuxClick={(event) => { if (event.button === 1) { event.preventDefault(); onClose(tab.id); } }}
           >
             <img src={suiteLogos[tab.kind]} alt="" width="16" height="16" />
             <span className="doc-tab-name">{tab.name}</span>
           </button>
-          <button type="button" className="doc-tab-close" aria-label={`Đóng ${tab.name}`} title="Đóng tab" onClick={() => onClose(tab.id)}>
+          <button type="button" className="doc-tab-close" aria-label={`Đóng ${tab.name}`} title={`Đóng tab (${closeKeys})`} onClick={() => onClose(tab.id)}>
             <X size={14} aria-hidden="true" />
           </button>
         </div>
       ))}
-      <button type="button" className="doc-tab-new" aria-label="Mở hoặc tạo tài liệu khác" title="Mở hoặc tạo tài liệu khác" onClick={() => onSelect(null)}>
+      <button type="button" className="doc-tab-new" aria-label="Mở hoặc tạo tài liệu khác" title={`Mở hoặc tạo tài liệu khác (${mod}+T). Mở lại tab vừa đóng: ${mod}+Shift+T`} onClick={() => onSelect(null)}>
         <Plus size={16} aria-hidden="true" />
       </button>
     </div>
@@ -127,6 +139,7 @@ export function DocumentTabs({ onEditing, children }: { onEditing: (editing: boo
   const apis = useRef(new Map<string, TabFrameApi>());
   const frames = useRef(new Map<string, HTMLIFrameElement>());
   const listeners = useRef(new Map<string, (ids: string[]) => void>());
+  const closed = useRef<string[]>([]);
   const latest = useRef(state);
   latest.current = state;
   const homeVisible = state.active === null;
@@ -146,6 +159,32 @@ export function DocumentTabs({ onEditing, children }: { onEditing: (editing: boo
     const api = apis.current.get(id);
     if (api && !(await api.save().catch(() => false))) { toast(SAVE_FAILED, true); return false; }
     drop(id);
+    closed.current = [...closed.current.filter((item) => item !== id), id].slice(-CLOSED_HISTORY);
+    return true;
+  };
+  const reopen = () => {
+    const isOpen = (id: string) => latest.current.tabs.some((tab) => tab.id === id);
+    closed.current = closed.current.filter((id) => !isOpen(id));
+    const id = closed.current.pop();
+    if (!id) return false;
+    void storage.listFiles().then((files) => {
+      const meta = files.find((file) => file.id === id && !file.deletedAt);
+      if (meta) open(meta);
+      else toast(REOPEN_FAILED, true);
+    });
+    return true;
+  };
+  const runCommand = (command: TabCommand) => {
+    const { tabs, active } = latest.current;
+    const ids = tabs.map((tab) => tab.id);
+    if (command.type === 'reopen') return reopen();
+    if (!tabs.length) return false;
+    if (command.type === 'cycle') { select(cycleTarget(ids, active, command.step)); return true; }
+    if (command.type === 'home') { select(null); return true; }
+    if (command.type === 'close') { if (active) void close(active); return active !== null; }
+    const target = gotoTarget(ids, command.index);
+    if (target === undefined) return false;
+    select(target);
     return true;
   };
   const rename = (id: string, name: string) => {
@@ -154,8 +193,8 @@ export function DocumentTabs({ onEditing, children }: { onEditing: (editing: boo
   };
   const select = (id: string | null) => setState((current) => ({ ...current, active: id }));
 
-  const actions = useRef({ open, close, drop, select, toast });
-  actions.current = { open, close, drop, select, toast };
+  const actions = useRef({ open, close, drop, select, toast, runCommand });
+  actions.current = { open, close, drop, select, toast, runCommand };
 
   useEffect(() => {
     const host: TabHost = {
@@ -167,6 +206,7 @@ export function DocumentTabs({ onEditing, children }: { onEditing: (editing: boo
       },
       open: (meta, content) => actions.current.open(meta, content),
       showHome: () => actions.current.select(null),
+      command: (command) => actions.current.runCommand(command),
       fail(id, message) { actions.current.toast(message, true); actions.current.drop(id); },
       updateMeta(meta) {
         setState((current) => (current.tabs.some((tab) => tab.id === meta.id) ? { ...current, tabs: withTab(current.tabs, tabFromMeta(meta)) } : current));
@@ -213,6 +253,7 @@ export function DocumentTabs({ onEditing, children }: { onEditing: (editing: boo
   }, [activeTab]);
   useEffect(() => {
     if (state.active) frames.current.get(state.active)?.contentWindow?.focus();
+    else if (document.activeElement === document.body || document.activeElement instanceof HTMLIFrameElement) document.querySelector<HTMLButtonElement>('.doc-tab-home .doc-tab-main')?.focus();
   }, [state.active]);
 
   useDocumentCloser(async (closeAll) => {

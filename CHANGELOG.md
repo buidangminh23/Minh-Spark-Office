@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Open any number of documents at once in tabs above the workspace (Word, Excel, PowerPoint, PDF and images together). Each tab keeps its own editor alive, so switching is instant and undo history, selection and scroll position survive.
+- Switch tabs from the keyboard on the web and in the desktop app (Alt on Windows/Linux, Control on macOS): Alt+] / Alt+[ next and previous tab, Alt+1 Home, Alt+2-8 that tab, Alt+9 the last tab, Alt+W close, Alt+Shift+T reopen the last closed tab, Alt+T back to Home to open or create a file. Ctrl+Tab / Ctrl+Shift+Tab and Ctrl+W also work in the desktop app, where no browser claims them. Tab tooltips show each shortcut.
 - Restore open tabs after reloading; closing a tab saves it first and keeps it open if saving fails.
 - Defer cloud updates for every file open in any tab, so a change from another device creates a conflict copy instead of overwriting an open document.
 - Print from a document tab in the desktop app through the main window, so every page prints.
