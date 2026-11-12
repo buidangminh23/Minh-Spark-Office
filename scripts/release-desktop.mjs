@@ -27,6 +27,9 @@ const KEY_LINK = join(LOCAL_APP_DATA, 'MinhSparkOffice', 'signing');
 const KEY_SOURCE = process.env.MINHSPARK_UPDATER_KEY_DIR
   || join(LOCAL_APP_DATA, 'Packages', 'OpenAI.Codex_2p2nqsd0c76g0', 'LocalCache', 'Local', 'MinhSparkOffice', 'signing');
 const WINDOWS_TAR = join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe');
+const OPENSSH_DIR = join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'OpenSSH');
+const SSH = process.platform === 'win32' ? join(OPENSSH_DIR, 'ssh.exe') : 'ssh';
+const SCP = process.platform === 'win32' ? join(OPENSSH_DIR, 'scp.exe') : 'scp';
 const SSH_OPTIONS = ['-n', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=4'];
 const STEPS = ['bump', 'windows', 'mac', 'package', 'commit', 'deploy', 'verify', 'push'];
 const LIVE_RETRIES = 6;
@@ -119,7 +122,7 @@ function sshCapture(remoteCommand, { timeout }) {
   const out = openSync(outPath, 'w');
   const err = openSync(errPath, 'w');
   try {
-    const result = spawnSync('ssh', [...SSH_OPTIONS, MAC_HOST, remoteCommand], { stdio: ['ignore', out, err], windowsHide: true, timeout });
+    const result = spawnSync(SSH, [...SSH_OPTIONS, MAC_HOST, remoteCommand], { stdio: ['ignore', out, err], windowsHide: true, timeout });
     if (result.error?.code === 'ETIMEDOUT') throw new Error(`ssh ${MAC_HOST} timed out after ${timeout / 1000}s`);
     if (result.status !== 0) throw new Error(`ssh ${MAC_HOST} failed: ${readFileSync(errPath, 'utf8').trim()}`);
     return readFileSync(outPath, 'utf8').trim();
@@ -193,7 +196,7 @@ function buildMac(version) {
   const bundle = join(work, bundleName);
   run('git', ['archive', '--format=tar', '-o', bundle, 'HEAD', 'src-tauri', 'scripts', 'package.json', 'package-lock.json']);
   run(WINDOWS_TAR, ['-rf', bundle, 'dist']);
-  run('scp', ['-q', bundleName, `${MAC_HOST}:${MAC_BUILD_DIR}/${bundleName}`], { cwd: work });
+  run(SCP, ['-q', bundleName, `${MAC_HOST}:${MAC_BUILD_DIR}/${bundleName}`], { cwd: work });
   const script = [
     'set -euo pipefail',
     `cd "$HOME/${MAC_BUILD_DIR}"`,
@@ -203,10 +206,10 @@ function buildMac(version) {
     `if ! PATH=/usr/bin:$PATH bash scripts/build-macos.sh > build-${version}.log 2>&1; then tail -40 build-${version}.log; exit 1; fi`,
     `tail -3 build-${version}.log`,
   ].join('\n');
-  run('ssh', [...SSH_OPTIONS, MAC_HOST, remoteBash(script)]);
+  run(SSH, [...SSH_OPTIONS, MAC_HOST, remoteBash(script)]);
   mkdirSync(join(root, 'release'), { recursive: true });
   const remote = `${MAC_HOST}:${MAC_BUILD_DIR}/release`;
-  run('scp', ['-q', `${remote}/MinhSparkOffice-${version}-macos-arm64.dmg`, `${remote}/MinhSparkOffice-${version}-macos-arm64.app.tar.gz`, `${remote}/SHA256SUMS-macos.txt`, '.'], { cwd: join(root, 'release') });
+  run(SCP, ['-q', `${remote}/MinhSparkOffice-${version}-macos-arm64.dmg`, `${remote}/MinhSparkOffice-${version}-macos-arm64.app.tar.gz`, `${remote}/SHA256SUMS-macos.txt`, '.'], { cwd: join(root, 'release') });
   for (const { hash, file } of parseChecksums(readFileSync(join(root, 'release/SHA256SUMS-macos.txt'), 'utf8'))) {
     if (sha256(readFileSync(join(root, 'release', file))) !== hash) throw new Error(`${file} changed in transfer`);
   }
