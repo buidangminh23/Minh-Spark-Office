@@ -1,5 +1,6 @@
 import {
   ArrayValueObject,
+  AsyncObject,
   BaseFunction,
   BooleanValueObject,
   ErrorType,
@@ -9,6 +10,8 @@ import {
   StringValueObject,
   functionDate,
   functionMath,
+  functionText,
+  type BaseAstNode,
   type BaseReferenceObject,
   type BaseValueObject,
   type IFunctionInfo,
@@ -25,6 +28,7 @@ import {
   type EtsOptions,
   type EtsResult,
 } from './forecastEts';
+import { WEBSERVICE_MAX_RESPONSE_LENGTH, isPivotAggregator, isWebServiceUrl, pivotBy, type PivotCell } from './pivotBy';
 
 type Variant = BaseValueObject | BaseReferenceObject | undefined | null;
 type FunctionCtor = new (name: IFunctionNames) => BaseFunction;
@@ -504,8 +508,144 @@ class Trimrange extends BaseFunction {
   }
 }
 
+const DollarCtor = findFunction(functionText, 'DOLLAR');
+
+const trimTrailingSpace = (value: BaseValueObject) =>
+  value.isString() ? StringValueObject.create(String(value.getValue()).trimEnd()) : value;
+
+class Dollar extends DollarCtor {
+  calculate(...variants: BaseValueObject[]) {
+    const result = super.calculate(...variants) as BaseValueObject;
+    if (result.isArray()) return (result as ArrayValueObject).mapValue((cell) => trimTrailingSpace(cell as BaseValueObject));
+    return trimTrailingSpace(result);
+  }
+}
+
+function primitiveOf(cell: BaseValueObject | null | undefined): PivotCell {
+  if (cell == null || cell.isNull()) return null;
+  const value = cell.getValue();
+  if (typeof value === 'number' || typeof value === 'string' || typeof value === 'boolean') return value;
+  return String(value);
+}
+
+function matrixOf(variant: Variant): PivotCell[][] | ErrorValueObject {
+  const value = toValue(variant);
+  if (value == null) return errorOf(ErrorType.VALUE);
+  if (value.isError()) return value as ErrorValueObject;
+  if (!value.isArray()) return [[primitiveOf(value)]];
+  const array = value as ArrayValueObject;
+  const rows: PivotCell[][] = [];
+  for (let row = 0; row < array.getRowCount(); row++) {
+    const line: PivotCell[] = [];
+    for (let column = 0; column < array.getColumnCount(); column++) line.push(primitiveOf(array.get(row, column) ?? null));
+    rows.push(line);
+  }
+  return rows;
+}
+
+function valueObjectOf(cell: PivotCell): BaseValueObject {
+  if (typeof cell === 'number') return NumberValueObject.create(cell);
+  if (typeof cell === 'boolean') return BooleanValueObject.create(cell);
+  return StringValueObject.create(cell ?? '');
+}
+
+const EXCEL_NAME_PREFIX = /^(_XLFN\.|_XLWS\.|_XLETA\.)+/;
+const HEADERS_PRESENT = [1, 3];
+const HEADERS_SHOWN = [2, 3];
+
+class Pivotby extends BaseFunction {
+  minParams = 4;
+  maxParams = 11;
+  needsReferenceObject = true;
+  needsAstChildren = true;
+
+  calculateAst(children: BaseAstNode[], getVariant: (node: BaseAstNode) => Variant) {
+    if (children.length < this.minParams || children.length > this.maxParams) return errorOf(ErrorType.NA);
+    const aggregator = children[3].getToken().toUpperCase().replace(EXCEL_NAME_PREFIX, '');
+    if (!isPivotAggregator(aggregator)) return errorOf(ErrorType.VALUE);
+    const variantAt = (index: number) => (index < children.length ? getVariant(children[index]) : undefined);
+    const rowFields = matrixOf(variantAt(0));
+    const colFields = matrixOf(variantAt(1));
+    const values = matrixOf(variantAt(2));
+    for (const item of [rowFields, colFields, values]) {
+      if (item instanceof ErrorValueObject) return item;
+    }
+    const valueRows = values as PivotCell[][];
+    if (valueRows.some((line) => line.length !== 1)) return errorOf(ErrorType.VALUE);
+    const numbers = [4, 5, 6, 7, 8].map((index) => {
+      const cell = firstCell(variantAt(index));
+      return cell == null || cell.isNull() ? null : scalarNumber(variantAt(index), 0);
+    });
+    for (const item of numbers) {
+      if (item instanceof ErrorValueObject) return item;
+    }
+    const [headers, rowTotal, rowSort, colTotal, colSort] = numbers as Array<number | null>;
+    const filterCells = children.length > 9 ? matrixOf(variantAt(9)) : null;
+    if (filterCells instanceof ErrorValueObject) return filterCells;
+    const result = pivotBy({
+      rowFields: rowFields as PivotCell[][],
+      colFields: colFields as PivotCell[][],
+      values: valueRows.map((line) => line[0]),
+      aggregator,
+      hasHeaders: headers !== null && HEADERS_PRESENT.includes(headers),
+      showHeaders: headers !== null && HEADERS_SHOWN.includes(headers),
+      rowTotal: rowTotal ?? 1,
+      rowSort: rowSort ?? 1,
+      colTotal: colTotal ?? 1,
+      colSort: colSort ?? 1,
+      filter: filterCells ? filterCells.map((line) => line[0]) : null,
+    });
+    if (!result) return errorOf(ErrorType.VALUE);
+    return ArrayValueObject.create({
+      calculateValueList: result.map((line) => line.map(valueObjectOf)),
+      rowCount: result.length,
+      columnCount: result[0].length,
+      unitId: this.unitId ?? '',
+      sheetId: this.subUnitId ?? '',
+      row: this.row,
+      column: this.column,
+    });
+  }
+}
+
+const WEBSERVICE_TIMEOUT_MS = 15000;
+
+async function fetchWebService(url: string): Promise<BaseValueObject> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), WEBSERVICE_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, { signal: controller.signal, credentials: 'omit' });
+    if (!response.ok) return errorOf(ErrorType.VALUE);
+    const text = await response.text();
+    return text.length > WEBSERVICE_MAX_RESPONSE_LENGTH ? errorOf(ErrorType.VALUE) : StringValueObject.create(text);
+  } catch {
+    return errorOf(ErrorType.VALUE);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+class Webservice extends BaseFunction {
+  minParams = 1;
+  maxParams = 1;
+
+  isAsync() {
+    return true;
+  }
+
+  calculate(url: Variant) {
+    const cell = firstCell(url);
+    if (cell == null || cell.isNull()) return errorOf(ErrorType.VALUE);
+    if (cell.isError()) return cell;
+    const address = String(cell.getValue()).trim();
+    if (!isWebServiceUrl(address)) return errorOf(ErrorType.VALUE);
+    return new AsyncObject(fetchWebService(address));
+  }
+}
+
 export const EXTRA_FUNCTIONS: Array<[FunctionCtor, IFunctionNames]> = [
   [Amordegrc, 'AMORDEGRC'],
+  [Dollar, 'DOLLAR'],
   [Euroconvert, 'EUROCONVERT'],
   [ForecastEts, 'FORECAST.ETS'],
   [ForecastEtsConfint, 'FORECAST.ETS.CONFINT'],
@@ -516,7 +656,9 @@ export const EXTRA_FUNCTIONS: Array<[FunctionCtor, IFunctionNames]> = [
   [IsOmitted, 'ISOMITTED'],
   [Jis, 'JIS'],
   [Phonetic, 'PHONETIC'],
+  [Pivotby, 'PIVOTBY'],
   [Trimrange, 'TRIMRANGE'],
+  [Webservice, 'WEBSERVICE'],
 ];
 
 type Param = [name: string, detail: string, example: string, required: boolean];
@@ -553,6 +695,10 @@ export const EXTRA_FUNCTION_DESCRIPTIONS: IFunctionInfo[] = [
     ['kỳ', 'Kỳ cần tính khấu hao.', '1', true],
     ['tỷ_lệ', 'Tỷ lệ khấu hao.', '15%', true],
     ['cơ_sở', '0 hoặc bỏ trống: 360 ngày (NASD); 1: thực tế; 3: 365 ngày; 4: 360 ngày (châu Âu).', '1', false],
+  ]),
+  describe('DOLLAR', FunctionType.Text, 'Đổi một số thành văn bản dạng tiền tệ, làm tròn tới số chữ số thập phân chỉ định.', [
+    ['số', 'Số cần đổi.', '1234.567', true],
+    ['số_thập_phân', 'Số chữ số sau dấu thập phân, mặc định 2.', '2', false],
   ]),
   describe('EUROCONVERT', FunctionType.Financial, 'Đổi một số tiền giữa đồng euro và đồng tiền cũ của các nước khu vực euro theo tỷ giá cố định của EU.', [
     ['số', 'Số tiền cần đổi.', '1.20', true],
@@ -608,9 +754,24 @@ export const EXTRA_FUNCTION_DESCRIPTIONS: IFunctionInfo[] = [
   describe('PHONETIC', FunctionType.Text, 'Lấy chuỗi phiên âm (furigana) của ô; ô không có phiên âm thì trả về nội dung chữ của ô.', [
     ['tham_chiếu', 'Ô hoặc vùng; với vùng, lấy ô góc trên bên trái.', 'A1', true],
   ]),
+  describe('PIVOTBY', FunctionType.Lookup, 'Lập bảng tổng hợp chéo: gom dữ liệu theo trường hàng và trường cột rồi tính SUM, AVERAGE, COUNT, COUNTA, MIN, MAX, MEDIAN hoặc PRODUCT.', [
+    ['trường_hàng', 'Cột (hoặc nhiều cột) dùng để gom nhóm theo hàng.', 'A2:A20', true],
+    ['trường_cột', 'Cột (hoặc nhiều cột) dùng để gom nhóm theo cột.', 'B2:B20', true],
+    ['giá_trị', 'Một cột số liệu cần tổng hợp.', 'C2:C20', true],
+    ['hàm', 'Hàm tổng hợp: SUM, AVERAGE, COUNT, COUNTA, MIN, MAX, MEDIAN, PRODUCT.', 'SUM', true],
+    ['tiêu_đề', '0: không có dòng tiêu đề; 1: có nhưng không hiện; 2: không có; 3: có và hiện.', '0', false],
+    ['tổng_hàng', '0: không có dòng tổng; 1: dòng tổng ở cuối; -1: dòng tổng ở đầu.', '1', false],
+    ['sắp_xếp_hàng', 'Số dương: tăng dần; số âm: giảm dần.', '1', false],
+    ['tổng_cột', '0: không có cột tổng; khác 0: có cột tổng ở cuối.', '1', false],
+    ['sắp_xếp_cột', 'Số dương: tăng dần; số âm: giảm dần.', '1', false],
+    ['bộ_lọc', 'Cột TRUE/FALSE cùng số dòng, chỉ giữ dòng TRUE.', 'D2:D20>0', false],
+  ]),
   describe('TRIMRANGE', FunctionType.Lookup, 'Cắt bỏ các hàng và cột trống ở mép ngoài của vùng, trả về vùng chỉ chứa dữ liệu.', [
     ['vùng', 'Vùng cần cắt.', 'A:C', true],
     ['cắt_hàng', '0 không cắt; 1 cắt hàng trống đầu; 2 cắt hàng trống cuối; 3 hoặc bỏ trống: cắt cả hai.', '3', false],
     ['cắt_cột', '0 không cắt; 1 cắt cột trống đầu; 2 cắt cột trống cuối; 3 hoặc bỏ trống: cắt cả hai.', '3', false],
+  ]),
+  describe('WEBSERVICE', FunctionType.Web, 'Lấy dữ liệu văn bản từ một địa chỉ web (http/https). Máy chủ phải cho phép truy cập chéo (CORS); kết quả dài quá 32.767 ký tự trả về #VALUE!.', [
+    ['url', 'Địa chỉ dịch vụ web, tối đa 2.048 ký tự.', '"https://api.example.com/data"', true],
   ]),
 ];

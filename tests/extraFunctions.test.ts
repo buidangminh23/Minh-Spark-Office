@@ -21,6 +21,7 @@ import { detectSeasonality, normSInv } from '../src/editors/sheet/forecastEts';
 
 const EXPECTED_NAMES = [
   'AMORDEGRC',
+  'DOLLAR',
   'EUROCONVERT',
   'FORECAST.ETS',
   'FORECAST.ETS.CONFINT',
@@ -31,7 +32,9 @@ const EXPECTED_NAMES = [
   'ISOMITTED',
   'JIS',
   'PHONETIC',
+  'PIVOTBY',
   'TRIMRANGE',
+  'WEBSERVICE',
 ];
 
 function fn(name: string): BaseFunction {
@@ -45,7 +48,7 @@ const column = (values: Array<number | null>) => ArrayValueObject.createByArray(
 const valueOf = (result: unknown) => (result as BaseValueObject).getValue();
 const call = (name: string, ...args: unknown[]) => valueOf(fn(name).calculate(...(args as BaseValueObject[])));
 
-test('all twelve missing Excel functions are registered with Vietnamese descriptions', () => {
+test('all added Excel functions are registered with Vietnamese descriptions', () => {
   assert.deepEqual(EXTRA_FUNCTIONS.map(([, name]) => name), EXPECTED_NAMES);
   assert.deepEqual(EXTRA_FUNCTION_DESCRIPTIONS.map((item) => item.functionName), EXPECTED_NAMES);
   for (const item of EXTRA_FUNCTION_DESCRIPTIONS) {
