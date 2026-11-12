@@ -1,5 +1,17 @@
 import type { WorkspaceExitLease } from './workspaceLifecycle';
 
+export const EXIT_SAVE_TIMEOUT_MS = 30_000;
+
+export function withTimeout<T>(work: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(fallback), ms);
+    work.then(
+      (value) => { clearTimeout(timer); resolve(value); },
+      () => { clearTimeout(timer); resolve(fallback); },
+    );
+  });
+}
+
 type CloseOptions = {
   acquire?: () => WorkspaceExitLease | null;
   prepare: () => void;
@@ -7,6 +19,7 @@ type CloseOptions = {
   finish: (requestId: number, saved: boolean) => Promise<void>;
   setBusy: (busy: boolean) => void;
   reportFailure: () => void;
+  saveTimeoutMs?: number;
 };
 
 export function createDesktopCloseHandler(options: CloseOptions) {
@@ -22,7 +35,7 @@ export function createDesktopCloseHandler(options: CloseOptions) {
           options.prepare();
           lease.blockInput();
           options.setBusy(true);
-          saved = await options.save();
+          saved = await withTimeout(options.save(), options.saveTimeoutMs ?? EXIT_SAVE_TIMEOUT_MS, false);
         }
       } catch {
         saved = false;
@@ -49,6 +62,7 @@ export async function installAfterDocumentSave(options: {
   prepare: () => void;
   save: () => Promise<boolean>;
   install: () => Promise<void>;
+  saveTimeoutMs?: number;
 }): Promise<'installing' | 'blocked' | 'save-failed' | 'install-failed'> {
   const lease = options.acquire();
   if (!lease) return 'blocked';
@@ -56,7 +70,7 @@ export async function installAfterDocumentSave(options: {
   try {
     options.prepare();
     lease.blockInput();
-    saved = await options.save();
+    saved = await withTimeout(options.save(), options.saveTimeoutMs ?? EXIT_SAVE_TIMEOUT_MS, false);
   } catch {
     saved = false;
   }

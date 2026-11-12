@@ -5,7 +5,7 @@ import { getVersion } from '@tauri-apps/api/app';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { isDesktop } from '../lib/desktop';
 import { saveActiveDocumentForExit } from '../lib/documentCloser';
-import { installAfterDocumentSave } from '../lib/desktopClose';
+import { installAfterDocumentSave, withTimeout } from '../lib/desktopClose';
 import { acquireWorkspaceExit } from '../lib/workspaceLifecycle';
 import { clearDockProgress, requestDockAttention, showDockProgress } from '../lib/desktopProgress';
 import { UpdateProgressRing, type RingMode } from './UpdateProgressRing';
@@ -22,6 +22,14 @@ const FOCUS_CHECK_MS = 60 * 1000;
 const INSTALL_COUNTDOWN_SECONDS = 10;
 const DOWNLOAD_TIMEOUT_MS = 30 * 60 * 1000;
 const AUTO_RETRY_AFTER_FAILURE_MS = 60 * 60 * 1000;
+const CLOSE_TIMEOUT_MS = 3000;
+const BUSY_WAIT_MS = 25_000;
+const closeQuietly = (target: Update | null | undefined) => (target ? withTimeout(target.close(), CLOSE_TIMEOUT_MS, undefined) : Promise.resolve());
+const waitUntilIdle = async (busy: { current: boolean }) => {
+  const until = Date.now() + BUSY_WAIT_MS;
+  while (busy.current && Date.now() < until) await new Promise((resolve) => setTimeout(resolve, 200));
+  return !busy.current;
+};
 const CheckMark = () => <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" /></svg>;
 
 export function DesktopUpdater({ editing }: { editing: boolean }) {
@@ -71,13 +79,13 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
     if (!silent) setOpen(true);
     try {
       const result = await check({ timeout: 20000 });
-      if (!mounted.current) { await result?.close(); return; }
+      if (!mounted.current) { await closeQuietly(result); return; }
       if (hasDownload && result && result.version === update.current?.version) {
-        await result.close();
+        await closeQuietly(result);
         setPhase('downloaded');
         return;
       }
-      await update.current?.close();
+      await closeQuietly(update.current);
       update.current = result;
       ready.current = false;
       setPhase(result ? 'available' : 'current');
@@ -95,7 +103,7 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
     if (!isDesktop()) return;
     mounted.current = true;
     void getVersion().then(setVersion);
-    return () => { mounted.current = false; if (!busy.current) void update.current?.close(); };
+    return () => { mounted.current = false; if (!busy.current) void closeQuietly(update.current); };
   }, []);
   useEffect(() => {
     if (!open) return;
@@ -121,8 +129,8 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
         await fetchUpdate(update.current);
       } catch (failure) {
         const latest = await check({ timeout: 20000 });
-        if (!latest || latest.version === attempted) { await latest?.close(); throw failure; }
-        await update.current?.close();
+        if (!latest || latest.version === attempted) { await closeQuietly(latest); throw failure; }
+        await closeQuietly(update.current);
         update.current = latest;
         if (mounted.current) setNextVersion(latest.version);
         await fetchUpdate(latest);
@@ -135,27 +143,34 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
         setPhase('available');
         setError('Tải hoặc xác minh chữ ký chưa thành công. App hiện tại vẫn dùng được; hãy thử tải lại.');
       }
-    } finally { busy.current = false; if (!mounted.current) await update.current?.close(); }
+    } finally { busy.current = false; if (!mounted.current) await closeQuietly(update.current); }
   };
   const install = async (run?: number) => {
-    if (!update.current || busy.current) return;
+    if (!update.current) return;
     const automaticRun = run !== undefined;
     const stillWanted = () => !automaticRun || (run === autoRun.current && !editingNow.current);
     autoInFlight.current = automaticRun;
+    setError('');
+    setPhase('checking');
     try {
+      if (!(await waitUntilIdle(busy))) {
+        setPhase(ready.current ? 'downloaded' : 'available');
+        setError('Ứng dụng đang bận kiểm tra cập nhật. Hãy thử lại sau ít giây.');
+        return;
+      }
       await checkUpdate(true);
       if (!stillWanted()) return;
       if (!ready.current) await download();
       if (!ready.current || !update.current || busy.current || !stillWanted()) return;
     } finally { autoInFlight.current = false; }
     busy.current = true; setError('');
+    setPhase('installing');
     const selectedUpdate = update.current;
     const result = await installAfterDocumentSave({
       acquire: acquireWorkspaceExit,
       prepare: () => flushSync(() => { if (document.activeElement instanceof HTMLElement) document.activeElement.blur(); }),
       save: saveActiveDocumentForExit,
       install: async () => {
-        setPhase('installing');
         await selectedUpdate.install({ restartAfterInstall: true });
         if (/Mac/.test(navigator.platform)) await relaunch();
       },

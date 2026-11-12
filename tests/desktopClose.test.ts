@@ -228,6 +228,34 @@ test('update rejects pending operations and releases its lock on save or install
   }
 });
 
+test('a save that never answers releases input instead of freezing the app', async () => {
+  const lifecycle = createWorkspaceLifecycle();
+  let installed = false;
+  const update = await installAfterDocumentSave({
+    acquire: () => acquireWorkspaceExit(lifecycle, null),
+    prepare() {},
+    save: () => new Promise<boolean>(() => undefined),
+    install: async () => { installed = true; },
+    saveTimeoutMs: 20,
+  });
+  assert.equal(update, 'save-failed');
+  assert.equal(installed, false);
+  assert.equal(lifecycle.isBlocked(), false);
+  const failures: number[] = [];
+  const close = createDesktopCloseHandler({
+    acquire: () => acquireWorkspaceExit(lifecycle, null),
+    prepare() {},
+    save: () => new Promise<boolean>(() => undefined),
+    finish: async () => undefined,
+    setBusy() {},
+    reportFailure: () => { failures.push(1); },
+    saveTimeoutMs: 20,
+  });
+  await close(1);
+  assert.equal(failures.length, 1);
+  assert.equal(lifecycle.isBlocked(), false);
+});
+
 test('blur can commit its final input before exit blocks subsequent edits', async () => {
   const lifecycle = createWorkspaceLifecycle();
   const target = new EventTarget();
