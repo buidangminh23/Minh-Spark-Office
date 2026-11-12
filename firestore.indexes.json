@@ -1,1 +1,1 @@
-{"indexes":[],"fieldOverrides":[{"collectionGroup":"files","fieldPath":"*","indexes":[]},{"collectionGroup":"chunks","fieldPath":"*","indexes":[]},{"collectionGroup":"desktopLogins","fieldPath":"expireAt","ttl":true,"indexes":[]}]}
+{"indexes":[],"fieldOverrides":[{"collectionGroup":"files","fieldPath":"*","indexes":[]},{"collectionGroup":"chunks","fieldPath":"*","indexes":[]}]}
