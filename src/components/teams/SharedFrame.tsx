@@ -11,6 +11,9 @@ import { createPeerMesh, type LivePeer, type MeshStatus, type PeerMesh } from '.
 import { createLiveDocument, type LiveDocument, type OpenResult, type SaveState } from '../../lib/live/liveDoc';
 import { parseSharedTabId, pickLeader, rememberSharedMeta, sharedMeta } from '../../lib/live/sharedTabs';
 import { caretColorsByUid, keepCaretColorUnique } from '../../lib/live/caretColors';
+import { readFlat, writeFlat } from '../../lib/live/flatSync';
+import { flattenWorkbook, SHEET_MAP, unflattenWorkbook } from '../../lib/live/sheetSync';
+import { flattenPresentation, SLIDE_MAP, unflattenPresentation } from '../../lib/live/slideSync';
 import { LiveBar } from './LiveBar';
 import { TmButton } from './TeamParts';
 import { useTeamStore } from './useTeams';
@@ -47,8 +50,36 @@ async function openSession(store: TeamStore, teamId: string, itemId: string, onP
   const opened = await live.open();
   live.start();
   mesh.start();
+  if (opened === 'seed' && seedStructured(live, content)) void live.save(true);
   return { store, item, role, content, mesh, live, opened };
 }
+
+function seedStructured(live: LiveDocument, content: FileContent) {
+  if (content.kind === 'sheet') {
+    const { kind: _kind, workbook, ...extras } = content;
+    writeFlat(live.ydoc.getMap(SHEET_MAP), flattenWorkbook(workbook, extras));
+    return true;
+  }
+  if (content.kind === 'slide') {
+    writeFlat(live.ydoc.getMap(SLIDE_MAP), flattenPresentation(content));
+    return true;
+  }
+  return false;
+}
+
+function hasLiveContent(live: LiveDocument, kind: TeamItem['kind']) {
+  if (kind === 'sheet') return live.ydoc.getMap(SHEET_MAP).size > 0;
+  if (kind === 'slide') return live.ydoc.getMap(SLIDE_MAP).size > 0;
+  return live.ydoc.getXmlFragment('default').length > 0 || live.ydoc.getMap('docMeta').size > 0;
+}
+
+function liveContent(session: Session): FileContent {
+  if (session.content.kind === 'sheet') return unflattenWorkbook(readFlat(session.live.ydoc.getMap(SHEET_MAP))) ?? session.content;
+  if (session.content.kind === 'slide') return unflattenPresentation(readFlat(session.live.ydoc.getMap(SLIDE_MAP))) ?? session.content;
+  return session.content;
+}
+
+const EXTENSIONS = /\.(docx|xlsx|xlsm|xls|csv|pptx|ppt)$/i;
 
 function useMeshState(mesh: PeerMesh | null) {
   const [peers, setPeers] = useState<LivePeer[]>([]);
@@ -115,6 +146,7 @@ export function SharedFrame({ frameId, onEditing }: { frameId: string; onEditing
   const meshState = useMeshState(session?.mesh ?? null);
   const saveState = useSaveState(session?.live ?? null);
   const caretColors = useCaretColors(session);
+  const openedContent = useMemo(() => (session && !waiting ? liveContent(session) : null), [session, waiting]);
   const snapshot = useRef<{ meta: FileMeta; content: FileContent } | null>(null);
   const lastFlush = useRef(0);
   const flushing = useRef<Promise<void> | null>(null);
@@ -155,7 +187,7 @@ export function SharedFrame({ frameId, onEditing }: { frameId: string; onEditing
 
   useEffect(() => {
     if (!session || !waiting) return;
-    const check = () => { if (session.live.ydoc.getXmlFragment('default').length > 0 || session.live.ydoc.getMap('docMeta').size > 0) setWaiting(false); };
+    const check = () => { if (hasLiveContent(session.live, session.item.kind)) setWaiting(false); };
     session.live.ydoc.on('update', check);
     const timer = setTimeout(() => setWaiting(false), 20_000);
     check();
@@ -182,7 +214,7 @@ export function SharedFrame({ frameId, onEditing }: { frameId: string; onEditing
       try {
         const latest = await session.store.getItem(session.item.teamId, session.item.id);
         if (!latest) return;
-        const name = current.meta.name.replace(/\.docx$/i, '').trim() || latest.name;
+        const name = current.meta.name.replace(EXTENSIONS, '').trim() || latest.name;
         await session.store.replaceItemContent(latest, current.content, { name });
         lastFlush.current = Date.now();
         if (snapshot.current === current) snapshot.current = null;
@@ -241,6 +273,17 @@ export function SharedFrame({ frameId, onEditing }: { frameId: string; onEditing
         }}
       />
     );
+  }
+  const liveUser = { uid: session.store.user.uid, name: session.store.user.name, color: colorForUid(session.store.user.uid) };
+  const structured = { ydoc: session.live.ydoc, awareness: session.live.awareness, user: liveUser, readOnly, bar };
+  const current = openedContent ?? session.content;
+  if (current.kind === 'sheet' && loadedEditors.sheet) {
+    const SheetEditor = loadedEditors.sheet;
+    return <SheetEditor meta={meta} content={current} onSave={(next, content) => onSave(next, content)} onRename={() => undefined} onBack={back} live={structured} />;
+  }
+  if (current.kind === 'slide' && loadedEditors.slide) {
+    const SlideEditor = loadedEditors.slide;
+    return <SlideEditor meta={meta} content={current} onSave={(next, content) => onSave(next, content)} onRename={() => undefined} onBack={back} live={structured} />;
   }
   return <SharedMessage icon={<Users size={32} />} title="Chưa hỗ trợ" text="Loại tài liệu này chưa sửa chung được." action={<TmButton onClick={back}>Về trang chủ</TmButton>} />;
 }

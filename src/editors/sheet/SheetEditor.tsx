@@ -400,6 +400,7 @@ import {
 } from './SheetBizModals';
 import { nextFontSize, SHEET_FONT_SIZES } from '../../lib/fontSizeStep';
 import ComboBox from '../../components/ComboBox';
+import { useSheetLive, type SheetLiveBinding } from './useSheetLive';
 
 interface SheetEditorProps {
   meta: FileMeta;
@@ -407,6 +408,7 @@ interface SheetEditorProps {
   onSave: (meta: FileMeta, content: SheetContent, explicit?: boolean) => Promise<boolean>;
   onRename: (name: string) => void;
   onBack: () => void;
+  live?: SheetLiveBinding;
 }
 
 type SheetRibbonTab =
@@ -732,7 +734,7 @@ const PASTE_COMMAND = /^sheet\.command\.[\w-]*paste/;
 const MAX_PASTE_SNAPSHOT_CELLS = 50_000;
 const MAX_VBA_OUTPUT_LINES = 500;
 const CONVERTED_VBA_MODULE = 'MacroGhiLai';
-export default function SheetEditor({ meta, content, onSave, onBack }: SheetEditorProps) {
+export default function SheetEditor({ meta, content, onSave, onBack, live }: SheetEditorProps) {
   const showAddins = useAnyAddinEnabled();
   const ui = useUi();
   const { user, login } = useAccount();
@@ -1522,6 +1524,17 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
       }
     };
   }, []);
+
+  useSheetLive({
+    live,
+    apiRef: univerAPIRef,
+    epoch: univerEpoch,
+    editingRef: isCellEditingRef,
+    onReloaded: (api) => {
+      recalculateAndBindWorkbook(api);
+      setTimeout(() => syncUiFromSelection(), 90);
+    },
+  });
 
   useEffect(() => {
     if (savedStatus !== 'saving') return;
@@ -5396,9 +5409,10 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                 else setTitle(meta.name);
               }}
               onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-              title="Đổi tên bảng tính"
+              readOnly={Boolean(live)}
+              title={live ? title : 'Đổi tên bảng tính'}
             />
-            <button className={`save-pill ${savedStatus}`} onClick={() => void handleOpenHistory()} title="Mở lịch sử phiên bản">
+            {live ? live.bar : <button className={`save-pill ${savedStatus}`} onClick={() => void handleOpenHistory()} title="Mở lịch sử phiên bản">
               {savedStatus === 'saved' ? (
                 <>
                   <CheckCircle2 size={12} />
@@ -5410,7 +5424,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                   <span>{user ? 'Đang lưu…' : 'Đang lưu nháp…'}</span>
                 </>
               )}
-            </button>
+            </button>}
             <SheetQuickAccess placement="above" handlers={qatHandlers} active={qatActive} />
           </div>
 

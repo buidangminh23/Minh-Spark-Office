@@ -21,7 +21,7 @@ export function PublishDialog({ store, teamId, type, files, categories, replacin
 }) {
   const workspace = useWorkspace();
   const candidates = useMemo(() => files
-    .filter((file) => !file.deletedAt && (type === 'document' ? file.kind === 'doc' : (TEAM_ITEM_KINDS as string[]).includes(file.kind)) && (!replacing || file.kind === replacing.kind))
+    .filter((file) => !file.deletedAt && (TEAM_ITEM_KINDS as string[]).includes(file.kind) && (!replacing || file.kind === replacing.kind))
     .sort((a, b) => b.updatedAt - a.updatedAt), [files, replacing]);
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<FileMeta | null>(null);
@@ -63,7 +63,7 @@ export function PublishDialog({ store, teamId, type, files, categories, replacin
     <TmModal
       wide
       title={replacing ? `Cập nhật nội dung ${noun}` : type === 'template' ? 'Đăng mẫu lên nhóm' : 'Thêm tài liệu chung'}
-      subtitle={replacing ? 'Chọn tài liệu trong kho của bạn để thay nội dung hiện tại.' : type === 'template' ? 'Chọn một tài liệu trong kho của bạn. Thành viên dùng mẫu sẽ nhận một bản sao riêng.' : 'Chọn một văn bản Minh Docs để cả nhóm cùng mở và chỉnh sửa. Bảng tính và bài thuyết trình sẽ sửa chung được trong bản sau.'}
+      subtitle={replacing ? 'Chọn tài liệu trong kho của bạn để thay nội dung hiện tại.' : type === 'template' ? 'Chọn một tài liệu trong kho của bạn. Thành viên dùng mẫu sẽ nhận một bản sao riêng.' : 'Chọn văn bản, bảng tính hoặc bài thuyết trình để cả nhóm cùng mở và chỉnh sửa trực tiếp.'}
       onClose={() => { if (!busy) onClose(); }}
       footer={(
         <>
@@ -86,7 +86,7 @@ export function PublishDialog({ store, teamId, type, files, categories, replacin
                 <SuiteLogo kind={file.kind} size={28} />
                 <span><strong>{file.name}</strong><small>Sửa {relativeTime(file.updatedAt)}</small></span>
               </button>
-            )) : <p className="tm-muted">{candidates.length ? 'Không có tài liệu khớp.' : type === 'document' ? 'Kho của bạn chưa có văn bản Minh Docs nào.' : 'Kho của bạn chưa có văn bản, bảng tính hay bài thuyết trình nào.'}</p>}
+            )) : <p className="tm-muted">{candidates.length ? 'Không có tài liệu khớp.' : 'Kho của bạn chưa có văn bản, bảng tính hay bài thuyết trình nào.'}</p>}
           </div>
         </div>
         <div className="tm-publish-form">

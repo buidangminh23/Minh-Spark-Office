@@ -56,7 +56,10 @@ interface SlideCanvasProps {
   };
   slideIndex?: number;
   presenting?: boolean;
+  remotePeers?: RemoteSlidePeer[];
 }
+
+export type RemoteSlidePeer = { key: string; name: string; color: string; ids: string[] };
 
 export function SlideCanvas({
   slide,
@@ -91,6 +94,7 @@ export function SlideCanvas({
   slideMaster,
   slideIndex = 0,
   presenting = false,
+  remotePeers = [],
 }: SlideCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
@@ -819,6 +823,17 @@ export function SlideCanvas({
           </div>
         );
       })}
+
+      {remotePeers.flatMap((peer) => slide.elements.filter((el) => !el.hidden && peer.ids.includes(el.id)).map((el, index) => (
+        <div
+          key={`${peer.key}:${el.id}`}
+          className="ppt-remote-selection"
+          style={{ left: `${el.x}%`, top: `${el.y}%`, width: `${el.width}%`, height: `${el.height}%`, transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined, ['--peer' as string]: peer.color }}
+          aria-hidden="true"
+        >
+          {index === 0 && <span className="ppt-remote-name">{peer.name}</span>}
+        </div>
+      )))}
 
       {isMultiSelection && !readOnly && (() => {
         const frame = boundsOf(slide.elements.filter((item) => selectedIds.includes(item.id)));

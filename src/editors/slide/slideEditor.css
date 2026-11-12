@@ -3754,3 +3754,38 @@
   border: none;
   border-top: 1px solid #E2E8F0;
 }
+
+.ppt-thumb-index {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  width: 18px;
+  row-gap: 4px;
+}
+
+.ppt-thumb-peer {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px #FFFFFF;
+}
+
+.ppt-remote-selection {
+  position: absolute;
+  border: 2px solid var(--peer);
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 870;
+}
+
+.ppt-remote-name {
+  position: absolute;
+  left: -2px;
+  bottom: 100%;
+  margin-bottom: 2px;
+  padding: 1px 6px;
+  border-radius: 4px 4px 4px 0;
+  background: var(--peer);
+  color: #FFFFFF;
+  font: 600 11px/16px var(--font-ui, system-ui, sans-serif);
+  white-space: nowrap;
+}

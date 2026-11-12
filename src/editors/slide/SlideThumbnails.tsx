@@ -17,6 +17,7 @@ interface SlideThumbnailsProps {
   onDuplicateSlide: (index: number) => void;
   onDeleteSlide: (index: number) => void;
   onMoveSlide: (fromIndex: number, toIndex: number) => void;
+  peerMarks?: Record<string, Array<{ key: string; name: string; color: string }>>;
 }
 
 const LAYOUT_OPTIONS: Array<{ layout: SlideLayout; label: string; desc: string }> = [
@@ -39,6 +40,7 @@ export function SlideThumbnails({
   onDuplicateSlide,
   onDeleteSlide,
   onMoveSlide,
+  peerMarks = {},
 }: SlideThumbnailsProps) {
   const [layoutMenuOpen, setLayoutMenuOpen] = useState(false);
 
@@ -118,6 +120,9 @@ export function SlideThumbnails({
               <div className="ppt-thumb-index" style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
                 {slide.hidden && <span title="Trang chiếu này bị ẩn khi trình chiếu" style={{ display: 'inline-flex' }}><EyeOff size={12} color="#DC2626" /></span>}
                 <span style={{ textDecoration: slide.hidden ? 'line-through' : 'none', color: slide.hidden ? '#94A3B8' : undefined }}>{idx + 1}</span>
+                {(peerMarks[slide.id] ?? []).map((peer) => (
+                  <span key={peer.key} className="ppt-thumb-peer" style={{ background: peer.color }} title={`${peer.name} đang ở trang này`} aria-label={`${peer.name} đang ở trang này`} />
+                ))}
               </div>
 
               <div className="ppt-thumb-card" style={{ background: slide.background.value || '#FFFFFF', opacity: slide.hidden ? 0.6 : 1 }}>

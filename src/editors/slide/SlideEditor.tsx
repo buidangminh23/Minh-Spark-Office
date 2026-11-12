@@ -11,6 +11,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import type { FileMeta, SlideContent } from '../../lib/storage';
+import { useSlideLive, type SlideLiveBinding } from './useSlideLive';
 import type {
   PresentationData,
   SlideData,
@@ -99,6 +100,7 @@ interface SlideEditorProps {
   onSave: (meta: FileMeta, content: SlideContent, explicit?: boolean) => Promise<boolean>;
   onRename: (name: string) => void;
   onBack: () => void;
+  live?: SlideLiveBinding;
 }
 
 const AUTOSAVE_DEBOUNCE_MS = 1000;
@@ -121,6 +123,7 @@ export default function SlideEditor({
   onSave,
   onRename,
   onBack,
+  live,
 }: SlideEditorProps) {
   const ui = useUi();
   const [presentation, setPresentation] = useState<PresentationData>(content.presentation);
@@ -225,6 +228,17 @@ export default function SlideEditor({
   const currentSlide = presentation.slides[activeSlideIndex] || presentation.slides[0];
   const selectedElement = currentSlide?.elements.find((el) => el.id === selectedElementId) || null;
   const selectedElements = currentSlide?.elements.filter((el) => selectedIds.includes(el.id)) ?? [];
+  const activeSlideIdRef = useRef(currentSlide?.id ?? '');
+  activeSlideIdRef.current = currentSlide?.id ?? '';
+  const applyRemotePresentation = useCallback((next: PresentationData) => {
+    setPresentation(next);
+    setUndoStack([]);
+    setRedoStack([]);
+    const index = next.slides.findIndex((slide) => slide.id === activeSlideIdRef.current);
+    setActiveSlideIndex((current) => (index >= 0 ? index : Math.min(current, next.slides.length - 1)));
+  }, []);
+  const livePresence = useSlideLive(live, presentation, content.comments, applyRemotePresentation, { slideId: currentSlide?.id ?? '', ids: selectedIds });
+  const liveReadOnly = Boolean(live?.readOnly);
 
   // Auto-switch contextual tab when element is selected
   const selectedElementType = selectedElement?.type;
@@ -1553,9 +1567,10 @@ export default function SlideEditor({
               className="ppt-file-name-input"
               value={meta.name}
               onChange={(e) => onRename(e.target.value)}
-              title="Nhấp để đổi tên tệp"
+              readOnly={Boolean(live)}
+              title={live ? meta.name : 'Nhấp để đổi tên tệp'}
             />
-            <span className="ppt-save-badge">
+            {live ? live.bar : <span className="ppt-save-badge">
               {saveStatus === 'saved' ? (
                 <>
                   <CheckCircle2 size={14} color="#10B981" /> Đã lưu
@@ -1567,7 +1582,7 @@ export default function SlideEditor({
               ) : (
                 'Chưa lưu'
               )}
-            </span>
+            </span>}
           </div>
         </div>
 
@@ -1724,6 +1739,7 @@ export default function SlideEditor({
           onDuplicateSlide={handleDuplicateSlide}
           onDeleteSlide={handleDeleteSlide}
           onMoveSlide={handleMoveSlide}
+          peerMarks={livePresence.marks}
         />
         )}
 
@@ -1754,6 +1770,8 @@ export default function SlideEditor({
                     slide={currentSlide}
                     aspectRatio={presentation.aspectRatio}
                     zoom={zoom}
+                    remotePeers={livePresence.onSlide}
+                    readOnly={liveReadOnly}
                     selectedElementId={selectedElementId}
                     selectedElementIds={selectedIds}
                     slideMaster={currentMaster}
