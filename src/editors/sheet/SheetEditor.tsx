@@ -5,6 +5,7 @@ import { useAccount } from '../../components/Authentication';
 import { useWorkspace } from '../../lib/storage';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AddinPanel, AddinRibbonButtons, useAnyAddinEnabled } from '../../addins/AddinPane';
+import { TipsPanel, TipsRibbonButton } from '../../components/tips/TipsPane';
 import { FeatureMenu, type FeatureItem } from '../../components/FeatureMenu';
 import { sheetHost } from '../../addins/hosts';
 import { currentAuthorName } from '../../lib/currentAuthor';
@@ -5935,6 +5936,13 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
 
                 <div className="ribbon-section">
                   <div className="ribbon-controls">
+                    <TipsRibbonButton className="ribbon-btn-large" />
+                  </div>
+                  <div className="ribbon-group-label">Mẹo</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
                     <button className="ribbon-btn-large" onClick={() => setModal('aiAnalysis')}>
                       <Bot size={20} color="#7c3aed" />
                       <span>Minh AI</span>
@@ -7170,6 +7178,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
         {parity.overlay}
 
         <AddinPanel host={addinHost} />
+        <TipsPanel app="sheet" />
 
         {showComments && (
           <aside className="doc-comments">

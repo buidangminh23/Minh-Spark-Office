@@ -141,7 +141,7 @@ import { nextFontSize } from '../../lib/fontSizeStep';
 import ComboBox from '../../components/ComboBox';
 import { GroupFooter, RibbonGroup } from './ribbonParts';
 import { useSlideExtras } from './slideExtrasContext';
-import { ClipboardGroup, EditingExtras, FontExtrasRow, HomeToolsGroup, ParagraphExtrasRow, SlideGroupExtras, VoiceGroup } from './ribbonHome';
+import { ClipboardGroup, EditingExtras, FontExtrasRow, HomeToolsGroup, ParagraphExtrasRow, SlideGroupExtras, TipsGroup, VoiceGroup } from './ribbonHome';
 import { CameoButton, CommentButton, IconsButton, LinkButtons, MediaButtons, PictureSourceButtons, SymbolButton, TableGridButton, TextInsertButtons } from './ribbonInsert';
 import { PictureFormatExtras, ShapeFormatExtras, SlideSizeMenu, ThemeCustomizeGroups } from './ribbonDesign';
 import { RecordTab, ReviewExtras, SlideShowExtras, ViewExtras } from './ribbonShow';
@@ -1029,6 +1029,7 @@ export function SlideRibbon(props: SlideRibbonProps) {
             </div>
 
             <VoiceGroup />
+            <TipsGroup />
             <HomeToolsGroup onOpenAi={onOpenAiModal} onExportPdf={onOpenExportModal} onAddSlide={onAddSlide} />
 
             {/* Delete button */}

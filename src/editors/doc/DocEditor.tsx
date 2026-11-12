@@ -59,6 +59,7 @@ import MailingsTab from './ui/tabs/MailingsTab';
 
 import HomeTab from './ui/tabs/HomeTab';
 import { AddinPanel } from '../../addins/AddinPane';
+import { TipsPanel } from '../../components/tips/TipsPane';
 import { docHost } from '../../addins/hosts';
 import InsertTab from './ui/tabs/InsertTab';
 import { DesignTab, LayoutTab } from './ui/tabs/LayoutTabs';
@@ -687,6 +688,7 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
           {!reading && <ReviewPanels />}
           <ViewPanels />
           {!reading && <AddinPanel host={addinHost} />}
+          {!reading && <TipsPanel app="doc" />}
         </div>
 
         {!reading && <StatusBar page={pages.current} pages={pages.count} />}

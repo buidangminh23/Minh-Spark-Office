@@ -50,6 +50,7 @@ import { SlideFindReplaceModal } from './SlideFindReplaceModal';
 import { SlideExportModal } from './SlideExportModal';
 import { SlideAiModal } from './SlideAiModal';
 import { SlideDesignerPane } from './SlideDesignerPane';
+import { TipsPanel } from '../../components/tips/TipsPane';
 import { SlideMailMergeModal } from './SlideMailMergeModal';
 import { SlideBrandPaletteModal } from './SlideBrandPaletteModal';
 import { SlideDiffModal } from './SlideDiffModal';
@@ -1906,6 +1907,8 @@ export default function SlideEditor({
             onClose={() => setIsDesignerOpen(false)}
           />
         )}
+
+        <TipsPanel app="slide" />
       </div>
 
       {/* 4. Office Status Bar */}

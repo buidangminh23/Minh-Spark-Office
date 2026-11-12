@@ -7,6 +7,7 @@ import { BUILTIN_STYLE_ORDER, activeStyleId, applyDocStyle, resolveStyles, style
 import FontPicker from '../FontPicker';
 import ComboBox from '../../../../components/ComboBox';
 import { AddinRibbonButtons, useAnyAddinEnabled } from '../../../../addins/AddinPane';
+import { TipsRibbonButton } from '../../../../components/tips/TipsPane';
 import { DocFeatureMenu } from './DocFeatures';
 import { MULTILEVEL_LISTS, PARAGRAPH_BORDERS, TEXT_EFFECTS, UNDERLINE_STYLES, changeListLevel, selectNextObject, selectionPane, setMultilevel, setParagraphBorder, setTextEffect, setUnderline } from '../../homeExtras';
 import { Big, ColorPicker, Dropdown, Group, MenuItem, MenuSeparator, Row, Rows, Small } from '../RibbonParts';
@@ -201,6 +202,10 @@ export default function HomeTab({ fmt }: { fmt: FormatState }) {
 
       <Group label="Tính năng">
         <DocFeatureMenu />
+      </Group>
+
+      <Group label="Mẹo">
+        <TipsRibbonButton className="ribbon-btn-large" />
       </Group>
 
       <Group label="Minh AI">

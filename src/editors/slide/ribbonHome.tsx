@@ -14,6 +14,7 @@ import { createSlideFromLayout } from '../../lib/slideTemplates';
 import { remapSlideTheme, baseTheme } from '../../lib/slideThemeOps';
 import { DropButton, MenuItem, MenuSeparator, MenuTitle, SwatchGrid } from './ribbonParts';
 import { newElementId, useSlideExtras } from './slideExtrasContext';
+import { TipsRibbonButton } from '../../components/tips/TipsPane';
 
 const SIGNATURE_LINE = `______________________________
 Người ký: `;
@@ -310,6 +311,17 @@ export function VoiceGroup() {
         </button>
       </div>
       <div className="ppt-group-footer">Giọng nói</div>
+    </div>
+  );
+}
+
+export function TipsGroup() {
+  return (
+    <div className="ppt-ribbon-group ppx-group">
+      <div className="ppt-group-content">
+        <TipsRibbonButton className="ppt-tool-btn-large" activeClass="is-active" />
+      </div>
+      <div className="ppt-group-footer">Mẹo</div>
     </div>
   );
 }

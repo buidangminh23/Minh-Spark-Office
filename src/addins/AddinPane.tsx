@@ -5,6 +5,7 @@ import { useAccount } from '../components/Authentication';
 import { AddinError, getProviderKey, resolveMode, setProviderKey, streamAddin } from './client';
 import { renderMarkdown } from './markdown';
 import { ADDIN_INFO, closeAddin, toggleAddin, useOpenAddin } from './store';
+import { closeTips } from '../components/tips/tipsStore';
 import './addins.css';
 import { useSettings, type AppSettings } from '../lib/appSettings';
 
@@ -306,7 +307,7 @@ export function AddinRibbonButtons({ className, labelClass }: { className: strin
           title={`Mở add-in ${ADDIN_INFO[provider].name}`}
           aria-pressed={open === provider}
           onMouseDown={(event) => event.preventDefault()}
-          onClick={() => toggleAddin(provider)}
+          onClick={() => { closeTips(); toggleAddin(provider); }}
         >
           <img src={ADDIN_INFO[provider].logo} alt="" width={22} height={22} />
           <span className={labelClass}>{ADDIN_INFO[provider].name}</span>
