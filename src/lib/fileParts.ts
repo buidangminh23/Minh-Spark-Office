@@ -1,4 +1,5 @@
 import { conversionBaseName } from './conversionTypes';
+import type { WordPhysicalPages } from './wordPageMap';
 
 const mimeTypes = {
   pdf: 'application/pdf',
@@ -57,7 +58,13 @@ async function partsEngine(format: PartsFormat) {
   }
 }
 
-export async function partLabels(file: File) {
+export type WordSplitUnit = 'blocks' | 'pages';
+
+export async function partLabels(file: File, unit: WordSplitUnit = 'blocks', layout?: WordPhysicalPages) {
+  if (partsFormat(file) === 'docx' && unit === 'pages') {
+    const { wordPageLabels } = await import('./wordFileParts');
+    return wordPageLabels(file, layout);
+  }
   return (await partsEngine(partsFormat(file))).labels(file);
 }
 
@@ -74,12 +81,21 @@ export async function mergeFiles(files: File[]) {
   return { blob: resultBlob(bytes, format), name: `${conversionBaseName(files[0].name)} - merged.${format}` };
 }
 
-export async function splitFile(file: File, groups: number[][]) {
+export async function splitFile(file: File, groups: number[][], unit: WordSplitUnit = 'blocks', layout?: WordPhysicalPages) {
   const format = partsFormat(file);
   const base = conversionBaseName(file.name);
-  const engine = await partsEngine(format);
-  const results = await engine.split(file, groups);
-  const name = (index: number) => `${base} - ${String(index + 1).padStart(String(results.length).length, '0')}.${format}`;
+  const byWordPage = format === 'docx' && unit === 'pages';
+  const results = byWordPage
+    ? await (await import('./wordFileParts')).splitWordPages(file, groups, layout)
+    : await (await partsEngine(format)).split(file, groups);
+  const name = (index: number) => {
+    const sequence = String(index + 1).padStart(String(results.length).length, '0');
+    if (!byWordPage) return `${base} - ${sequence}.${format}`;
+    const pages = groups[index];
+    const range = pages.length === 1 ? String(pages[0] + 1) : `${pages[0] + 1}-${pages[pages.length - 1] + 1}`;
+    const prefix = results.length === 1 ? base : `${base} - ${sequence}`;
+    return `${prefix} - p${range}.docx`;
+  };
   if (results.length === 1) return { blob: resultBlob(results[0], format), name: name(0) };
   const { default: JSZip } = await import('jszip');
   const zip = new JSZip();

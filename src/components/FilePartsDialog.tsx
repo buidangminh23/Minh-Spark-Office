@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, FilePlus2, Files, Trash2, X } from 'lucide-react';
 import { downloadBlob, formatBytes } from '../lib/download';
-import { mergeFiles, partLabels, partRanges, partsAccept, partsFormat, splitFile, type PartsFormat } from '../lib/fileParts';
+import { mergeFiles, partLabels, partRanges, partsAccept, partsFormat, splitFile, type PartsFormat, type WordSplitUnit } from '../lib/fileParts';
+import type { WordPhysicalPages } from '../lib/wordPageMap';
+import { canMeasureWordPages, measureWordPages } from '../lib/desktopWordPages';
 import './conversion.css';
 
 const unitLabels: Record<PartsFormat, string> = {
@@ -17,34 +19,44 @@ export function FilePartsDialog({ onClose }: { onClose: () => void }) {
   const [mode, setMode] = useState<'merge' | 'split'>('merge');
   const [queue, setQueue] = useState<SelectedFile[]>([]);
   const [source, setSource] = useState<SelectedFile>();
-  const [labels, setLabels] = useState<string[]>([]);
-  const [reading, setReading] = useState(false);
+  const [wordUnit, setWordUnit] = useState<WordSplitUnit>('pages');
+  const [measureAttempt, setMeasureAttempt] = useState(0);
+  const [inspection, setInspection] = useState<{
+    source: SelectedFile; unit: WordSplitUnit; attempt: number; labels: string[]; error?: string; layout?: WordPhysicalPages; canMeasure?: boolean;
+  }>();
   const [each, setEach] = useState(false);
   const [ranges, setRanges] = useState('');
   const [error, setError] = useState('');
-  const [readError, setReadError] = useState('');
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<{ blob: Blob; name: string }>();
   const merging = mode === 'merge';
   const selected = merging ? queue : source ? [source] : [];
   const selectedFormat = selected.length ? partsFormat(selected[0].file) : undefined;
+  const wordPages = !merging && selectedFormat === 'docx' && wordUnit === 'pages';
+  const current = inspection && inspection.source === source && inspection.unit === wordUnit && inspection.attempt === measureAttempt ? inspection : undefined;
+  const labels = current?.labels ?? [];
+  const reading = Boolean(source && !current);
 
   useEffect(() => { dialog.current?.showModal(); }, []);
   useEffect(() => {
-    if (!source) return;
+    if (merging || !source) return;
     let active = true;
-    setReading(true);
-    setReadError('');
-    setLabels([]);
-    void partLabels(source.file).then((items) => {
-      if (!active) return;
-      setLabels(items);
-      if (!items.length) setReadError('Tệp chưa có nội dung để tách.');
-    }).catch((reason) => {
-      if (active) setReadError(reason instanceof Error ? reason.message : 'Không đọc được tệp.');
-    }).finally(() => { if (active) setReading(false); });
+    const key = { source, unit: wordUnit, attempt: measureAttempt };
+    async function inspect() {
+      try {
+        const layout = wordPages && measureAttempt > 0 ? await measureWordPages(key.source.file) : undefined;
+        const items = await partLabels(key.source.file, wordUnit, layout);
+        if (active) setInspection({ ...key, labels: items, layout, error: items.length ? undefined : 'Tệp chưa có nội dung để tách.' });
+      } catch (reason) {
+        if (active) setInspection({
+          ...key, labels: [], error: reason instanceof Error ? reason.message : 'Không đọc được tệp.',
+          canMeasure: wordPages && (measureAttempt > 0 || (reason instanceof Error && reason.name === 'WordPaginationError')),
+        });
+      }
+    }
+    void inspect();
     return () => { active = false; };
-  }, [source]);
+  }, [source, merging, wordPages, wordUnit, measureAttempt]);
 
   function clearResult() {
     setResult(undefined);
@@ -64,7 +76,7 @@ export function FilePartsDialog({ onClose }: { onClose: () => void }) {
       clearResult();
       if (merging) setQueue([...queue, ...additions]);
       else {
-        setLabels([]);
+        setMeasureAttempt(0);
         setRanges('');
         setSource(additions[0]);
       }
@@ -84,7 +96,7 @@ export function FilePartsDialog({ onClose }: { onClose: () => void }) {
     clearResult();
     try {
       if (merging) setResult(await mergeFiles(queue.map((item) => item.file)));
-      else if (source) setResult(await splitFile(source.file, each ? labels.map((_, index) => [index]) : partRanges(ranges, labels.length)));
+      else if (source && current) setResult(await splitFile(source.file, each ? labels.map((_, index) => [index]) : partRanges(ranges, labels.length), wordUnit, current.layout));
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Không xử lý được tệp.'); }
     finally { setRunning(false); }
   }
@@ -116,14 +128,24 @@ export function FilePartsDialog({ onClose }: { onClose: () => void }) {
         </li>)}
       </ol>
       {!merging && source && selectedFormat && <>
-        {reading && <p role="status">Đang đọc nội dung tệp…</p>}
-        {readError && <p role="alert" className="conversion-error">{readError}</p>}
+        {selectedFormat === 'docx' && <div className="parts-split"><label className="field"><span className="field-label">Tách tài liệu Word theo</span>
+          <select className="text-field" value={wordUnit} disabled={running} onChange={(event) => {
+            setWordUnit(event.target.value as WordSplitUnit); setMeasureAttempt(0); setRanges(''); clearResult();
+          }}>
+            <option value="pages">Số trang</option><option value="blocks">Đoạn văn và bảng</option>
+          </select>
+        </label></div>}
+        {reading && <p role="status">{wordPages && measureAttempt ? 'Microsoft Word đang phân trang…' : 'Đang đọc nội dung tệp…'}</p>}
+        {current?.error && <p role="alert" className="conversion-error">{current.error}</p>}
+        {wordPages && canMeasureWordPages() && current && !current.layout && (current.canMeasure || labels.length > 0) &&
+          <button type="button" className="btn" disabled={running} onClick={() => { clearResult(); setMeasureAttempt(n => n + 1); }}>Đọc lại số trang bằng Microsoft Word</button>}
         {labels.length > 0 && <div className="parts-split">
-          <details><summary>{unitLabels[selectedFormat]} ({labels.length})</summary>
-            <ol>{labels.map((label, index) => <li key={index} data-no-translate={selectedFormat === 'docx' || selectedFormat === 'xlsx' ? true : undefined}>{label}</li>)}</ol>
+          {wordPages && <p className="conversion-help">{current?.layout ? 'Dùng thứ tự trang in do Microsoft Word vừa xác định.' : 'Dùng thứ tự trang in đã lưu trong tệp Word.'}</p>}
+          <details><summary>{wordPages ? 'Trang Word' : unitLabels[selectedFormat]} ({labels.length})</summary>
+            <ol>{labels.map((label, index) => <li key={index} data-no-translate={(selectedFormat === 'docx' && !wordPages) || selectedFormat === 'xlsx' ? true : undefined}>{label}</li>)}</ol>
           </details>
-          <label className="conversion-check"><input type="checkbox" checked={each} disabled={running} onChange={(event) => { setEach(event.target.checked); clearResult(); }} />Tách mỗi mục thành một tệp riêng</label>
-          {!each && <label className="field"><span className="field-label">Khoảng cần tách</span>
+          <label className="conversion-check"><input type="checkbox" checked={each} disabled={running} onChange={(event) => { setEach(event.target.checked); clearResult(); }} />{wordPages ? 'Tách mỗi trang thành một tệp Word riêng' : 'Tách mỗi mục thành một tệp riêng'}</label>
+          {!each && <label className="field"><span className="field-label">{wordPages ? 'Khoảng trang cần tách' : 'Khoảng cần tách'}</span>
             <input className="text-field" placeholder="1-3, 4, 5-7" value={ranges} disabled={running} onChange={(event) => { setRanges(event.target.value); clearResult(); }} />
             <span className="conversion-help">Mỗi khoảng tạo một tệp. Nhiều tệp sẽ được tải cùng trong một tệp ZIP.</span>
           </label>}

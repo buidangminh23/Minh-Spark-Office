@@ -9,6 +9,7 @@ mod native_print;
 mod native_quit;
 mod open_files;
 mod printers;
+mod word_pages;
 
 #[tauri::command]
 fn open_web_app() -> Result<(), String> {
@@ -33,6 +34,7 @@ fn main() {
         .manage(close_guard::CloseGuard::default())
         .invoke_handler(tauri::generate_handler![
             open_web_app,
+            word_pages::word_physical_pages,
             native_print::print_window,
             native_print::default_printer,
             native_print::list_printers,

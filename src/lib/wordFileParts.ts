@@ -1,5 +1,6 @@
 import JSZip from 'jszip';
 import { openOfficeZip } from './openOfficeZip';
+import { buildWordPageMap } from './wordPageMap';
 
 const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 const R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
@@ -15,7 +16,7 @@ const wAttr = (el: Element, name: string) => el.getAttributeNS(W, name) || '';
 const setW = (el: Element, name: string, value: string) => el.setAttributeNS(W, 'w:' + name, value);
 const word = (el: Element, name: string) => el.namespaceURI === W && el.localName === name;
 const isRelAttr = (attr: Attr) => attr.namespaceURI === R || (attr.namespaceURI === 'urn:schemas-microsoft-com:office:office' && attr.localName === 'relid');
-const relPath = (path: string) => path.replace(/([^/]+)$/, '_rels/$1.rels');
+const relPath = (path: string) => path ? path.replace(/([^/]+)$/, '_rels/$1.rels') : '_rels/.rels';
 const pack = (zip: JSZip) => zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
 
 function parse(xml: string) {
@@ -142,7 +143,39 @@ const NOTE_PARTS: Record<string, [string, string]> = {
   comments: ['comment', 'commentReference'],
 };
 
-async function writeSelection(original: JSZip, document: Document) {
+type PageFieldContext = { total: number; count: number; sections: Map<string, Set<number>> };
+
+function preservePageTotals(doc: Document, pageFields: PageFieldContext, sections: Set<number> | undefined, headerOrFooter = false) {
+  const rewrite = (instruction: string) => {
+    if (headerOrFooter && /^\s*(?:STYLEREF|REF|PAGEREF|NOTEREF|SEQ|FILENAME|SECTION|NUMWORDS|NUMCHARS)\b/i.test(instruction)) {
+      throw new Error('Đầu trang hoặc chân trang chứa trường Word phụ thuộc vào nội dung ngoài khoảng trang.');
+    }
+    return instruction.replace(/^(\s*)(NUMPAGES|SECTIONPAGES)\b/i, (_, pad: string, field: string) => {
+      if (field.toUpperCase() === 'NUMPAGES') return pad + '= ' + pageFields.total;
+      if (sections?.size !== 1) throw new Error('Trường SECTIONPAGES dùng chung cho nhiều section có số trang khác nhau.');
+      return pad + '= ' + [...sections][0];
+    });
+  };
+  for (const el of elements(doc, W, 'fldSimple')) setW(el, 'instr', rewrite(wAttr(el, 'instr')));
+  const fields: Element[][] = [];
+  for (const el of elements(doc, W, '*')) {
+    if (word(el, 'fldChar') && wAttr(el, 'fldCharType') === 'begin') fields.push([]);
+    if (word(el, 'instrText')) fields.at(-1)?.push(el);
+    if (word(el, 'fldChar') && ['separate', 'end'].includes(wAttr(el, 'fldCharType')) && fields.length) {
+      const runs = fields.at(-1)!;
+      const before = runs.map(run => run.textContent ?? '').join('');
+      const after = rewrite(before);
+      if (after !== before) {
+        runs[0].textContent = after;
+        for (const continuation of runs.slice(1)) continuation.textContent = '';
+      }
+      runs.length = 0;
+      if (wAttr(el, 'fldCharType') === 'end') fields.pop();
+    }
+  }
+}
+
+async function writeSelection(original: JSZip, document: Document, pageFields?: PageFieldContext) {
   const zip = new JSZip();
   Object.assign(zip.files, original.files);
   zip.file(MAIN, serialize(document));
@@ -170,6 +203,21 @@ async function writeSelection(original: JSZip, document: Document) {
       const target = targetPath(owner, rel.getAttribute('Target')!);
       let child: Document | undefined;
       if (target === MAIN) child = document;
+      else if (pageFields && owner === MAIN && (kind === 'header' || kind === 'footer')) {
+        child = await readXml(zip, target);
+        preservePageTotals(child, pageFields, pageFields.sections.get(rel.getAttribute('Id')!), true);
+        zip.file(target, serialize(child));
+      }
+      else if (pageFields && kind === 'extended-properties') {
+        child = await readXml(zip, target);
+        let pages = elements(child, '*', 'Pages')[0];
+        if (!pages) {
+          pages = child.createElementNS(child.documentElement.namespaceURI, 'Pages');
+          child.documentElement.appendChild(pages);
+        }
+        pages.textContent = String(pageFields.count);
+        zip.file(target, serialize(child));
+      }
       else if (owner === MAIN && NOTE_PARTS[kind]) {
         const [tag, ref] = NOTE_PARTS[kind];
         const referenced = new Set(elements(document, W, ref).map(el => wAttr(el, 'id')));
@@ -193,7 +241,7 @@ async function writeSelection(original: JSZip, document: Document) {
   return pack(zip);
 }
 
-async function validateSelections(pkg: WordPackage, groups: number[][]) {
+async function selectionValidator(pkg: WordPackage) {
   const styles = await definitions(pkg, await readRelationships(pkg.zip, MAIN), 'styles');
   const styleList = styles ? elements(styles.doc, W, 'style') : [];
   const styleIds = new Map(styleList.map(style => [wAttr(style, 'styleId'), style]));
@@ -248,43 +296,46 @@ async function validateSelections(pkg: WordPackage, groups: number[][]) {
       else if (starts.has(key)) ranges.push([starts.get(key)!, i]);
     }
   }
-  for (const group of groups) {
-    if (!group.length || group.some(i => !Number.isInteger(i) || i < 0 || i >= pkg.parts.length)) throw new Error('Phạm vi tách Word không hợp lệ.');
-    const positions = new Map(group.map((i, j) => [i, j]));
-    for (const marks of comments.values()) {
-      if (marks.some(i => positions.has(i)) && marks.some(i => !positions.has(i))) {
-        throw new Error('Dải chọn cắt ngang dấu trang, bình luận hoặc trường Word. Hãy chọn trọn phần liên quan.');
+  return (groups: number[][]) => {
+    for (const group of groups) {
+      if (!group.length || group.some(i => !Number.isInteger(i) || i < 0 || i >= pkg.parts.length)) throw new Error('Phạm vi tách Word không hợp lệ.');
+      const positions = new Map(group.map((i, j) => [i, j]));
+      for (const marks of comments.values()) {
+        if (marks.some(i => positions.has(i)) && marks.some(i => !positions.has(i))) {
+          throw new Error('Dải chọn cắt ngang dấu trang, bình luận hoặc trường Word. Hãy chọn trọn phần liên quan.');
+        }
+      }
+      for (const [start, end] of ranges) {
+        if (!group.some(i => i >= start && i <= end)) continue;
+        const first = positions.get(start);
+        if (first === undefined || group.slice(first, first + end - start + 1).length !== end - start + 1 ||
+            group.slice(first, first + end - start + 1).some((i, offset) => i !== start + offset)) {
+          throw new Error('Dải chọn cắt ngang dấu trang, bình luận hoặc trường Word. Hãy chọn trọn phần liên quan.');
+        }
+      }
+      const seen = new Set<number>();
+      for (const i of group) {
+        if (required[i].some(prior => !seen.has(prior))) throw new Error('Dải chọn làm thay đổi số thứ tự danh sách Word. Hãy chọn từ đầu danh sách.');
+        seen.add(i);
+        for (const link of elements(pkg.parts[i], W, 'hyperlink')) {
+          const target = bookmarks.get(wAttr(link, 'anchor'));
+          if (target !== undefined && !positions.has(target)) throw new Error('Dải chọn bỏ mất dấu trang đích của liên kết Word.');
+        }
+        const codes = elements(pkg.parts[i], W, 'instrText').map(el => el.textContent || '').join(' ') + ' ' +
+          elements(pkg.parts[i], W, 'fldSimple').map(el => wAttr(el, 'instr')).join(' ');
+        for (const match of codes.matchAll(/\b(?:REF|PAGEREF|NOTEREF)\s+"?([\w.-]+)/gi)) {
+          const target = bookmarks.get(match[1]);
+          if (target !== undefined && !positions.has(target)) throw new Error('Dải chọn bỏ mất dấu trang đích của liên kết Word.');
+        }
       }
     }
-    for (const [start, end] of ranges) {
-      if (!group.some(i => i >= start && i <= end)) continue;
-      const first = positions.get(start);
-      if (first === undefined || group.slice(first, first + end - start + 1).length !== end - start + 1 ||
-          group.slice(first, first + end - start + 1).some((i, offset) => i !== start + offset)) {
-        throw new Error('Dải chọn cắt ngang dấu trang, bình luận hoặc trường Word. Hãy chọn trọn phần liên quan.');
-      }
-    }
-    const seen = new Set<number>();
-    for (const i of group) {
-      if (required[i].some(prior => !seen.has(prior))) throw new Error('Dải chọn làm thay đổi số thứ tự danh sách Word. Hãy chọn từ đầu danh sách.');
-      seen.add(i);
-      for (const link of elements(pkg.parts[i], W, 'hyperlink')) {
-        const target = bookmarks.get(wAttr(link, 'anchor'));
-        if (target !== undefined && !positions.has(target)) throw new Error('Dải chọn bỏ mất dấu trang đích của liên kết Word.');
-      }
-      const codes = elements(pkg.parts[i], W, 'instrText').map(el => el.textContent || '').join(' ') + ' ' +
-        elements(pkg.parts[i], W, 'fldSimple').map(el => wAttr(el, 'instr')).join(' ');
-      for (const match of codes.matchAll(/\b(?:REF|PAGEREF|NOTEREF)\s+"?([\w.-]+)/gi)) {
-        const target = bookmarks.get(match[1]);
-        if (target !== undefined && !positions.has(target)) throw new Error('Dải chọn bỏ mất dấu trang đích của liên kết Word.');
-      }
-    }
-  }
+  };
 }
 
 export async function splitWordFile(file: File, groups: number[][]): Promise<Uint8Array[]> {
   const pkg = await readWord(file);
-  await validateSelections(pkg, groups);
+  const validate = await selectionValidator(pkg);
+  validate(groups);
   const { zip, doc, body, parts } = pkg;
   const finalSection = children(body).find(el => el.namespaceURI === W && el.localName === 'sectPr');
   let section = finalSection;
@@ -310,6 +361,189 @@ export async function splitWordFile(file: File, groups: number[][]): Promise<Uin
       else if (current !== sections[group[position + 1]]) appendSection(body, current.cloneNode(true) as Element);
     }
     results.push(await writeSelection(zip, doc));
+  }
+  return results;
+}
+
+export type WordPageLayoutInput = Parameters<typeof buildWordPageMap>[3];
+
+async function readPageMap(file: File, layout?: WordPageLayoutInput) {
+  const pkg = await readWord(file);
+  const rels = await readRelationships(pkg.zip, MAIN);
+  const [styles, settings] = await Promise.all([definitions(pkg, rels, 'styles'), definitions(pkg, rels, 'settings')]);
+  const app = relationships(await readRelationships(pkg.zip, '')).find(rel => rel.getAttribute('Type')?.endsWith('/extended-properties'));
+  const appXml = app && await readXml(pkg.zip, targetPath('', app.getAttribute('Target')!));
+  const count = appXml && Number(elements(appXml, '*', 'Pages')[0]?.textContent);
+  const map = buildWordPageMap(pkg.body, styles?.doc, count && count > 0 ? count : undefined, layout, settings?.doc);
+  return { pkg, map, styles: styles?.doc };
+}
+
+export async function wordPageLabels(file: File, layout?: WordPageLayoutInput): Promise<string[]> {
+  const { map } = await readPageMap(file, layout);
+  return Array.from({ length: map.pageCount }, (_, index) => `Trang ${index + 1}`);
+}
+
+function pageNumberStart(section: Element, number: number) {
+  let numbering = children(section).find(el => word(el, 'pgNumType'));
+  if (!numbering) {
+    numbering = section.ownerDocument.createElementNS(W, 'w:pgNumType');
+    const following = new Set(['cols', 'formProt', 'vAlign', 'noEndnote', 'titlePg', 'textDirection', 'bidi', 'rtlGutter', 'docGrid', 'printerSettings', 'sectPrChange']);
+    section.insertBefore(numbering, children(section).find(el => following.has(el.localName)) ?? null);
+  }
+  setW(numbering, 'start', String(number));
+}
+
+function extractSectionLayout(pkg: WordPackage, map: ReturnType<typeof buildWordPageMap>) {
+  const layout: { node: Element; start: number; end: number; startPage: number; display: number; pages: number }[] = [];
+  let start = 0;
+  for (let i = 0; i < pkg.parts.length; i++) {
+    const el = pkg.parts[i];
+    const properties = word(el, 'p') && children(el).find(child => word(child, 'pPr'));
+    const section = properties && children(properties).find(child => word(child, 'sectPr'));
+    if (!section && i < pkg.parts.length - 1) continue;
+    const source = section || children(pkg.body).find(child => word(child, 'sectPr'));
+    const node = source?.cloneNode(true) as Element | undefined ?? pkg.doc.createElementNS(W, 'w:sectPr');
+    const startPage = map.pageOfBlock(start);
+    const previous = layout.at(-1);
+    const num = children(node).find(child => word(child, 'pgNumType'));
+    const display: number = num?.hasAttributeNS(W, 'start') ? Number(wAttr(num, 'start'))
+      : previous ? previous.display + startPage - previous.startPage : 1;
+    layout.push({ node, start, end: i, startPage, display, pages: 0 });
+    start = i + 1;
+  }
+  inheritSectionReferences(layout.map(section => section.node));
+  layout.forEach((section, i) => { section.pages = (layout[i + 1]?.startPage ?? map.pageCount) - section.startPage; });
+  return layout;
+}
+
+function sectionForPageOutput(node: Element, midSection: boolean) {
+  if (!midSection) return;
+  const title = children(node).find(child => word(child, 'titlePg'));
+  if (title) node.removeChild(title);
+  for (const ref of sectionReferences(node)) if (wAttr(ref, 'type') === 'first') node.removeChild(ref);
+  const border = children(node).find(child => word(child, 'pgBorders'));
+  if (border && wAttr(border, 'display') === 'firstPage') node.removeChild(border);
+  else if (border && wAttr(border, 'display') === 'notFirstPage') setW(border, 'display', 'allPages');
+}
+
+const FLOW_DEPENDENT_PARAGRAPH = 'Dải trang cắt ngang đoạn văn có định dạng phụ thuộc vào vị trí dòng. Hãy chọn trọn đoạn văn.';
+
+function preservePartialParagraph(source: Element, block: Element, styles: Document | undefined, cutStart: boolean, cutEnd: boolean) {
+  if (!word(source, 'p')) throw new Error(FLOW_DEPENDENT_PARAGRAPH);
+  const text = (p: Element) => elements(p, W, 't').map(el => el.textContent).join('');
+  const original = text(source);
+  const selected = text(block);
+  const markers = /^(?:fldChar|fldSimple|instrText|hyperlink|bookmarkStart|bookmarkEnd|footnoteReference|endnoteReference|commentReference|commentRangeStart|commentRangeEnd|permStart|permEnd|drawing|pict|object|moveFrom|moveTo|ins|del|sdt)$/;
+  if (elements(source, W, '*').some(el => markers.test(el.localName))) throw new Error(FLOW_DEPENDENT_PARAGRAPH);
+  if (original === selected) return;
+  const props = children(source).find(el => word(el, 'pPr'));
+  const sources: Element[] = props ? [props] : [];
+  const all = styles ? elements(styles, W, 'style') : [];
+  const byId = new Map(all.map(el => [wAttr(el, 'styleId'), el]));
+  const styleId = props && children(props).find(el => word(el, 'pStyle'));
+  let style = styleId ? byId.get(wAttr(styleId, 'val')) : all.find(el => wAttr(el, 'type') === 'paragraph' && ['1', 'true', 'on'].includes(wAttr(el, 'default')));
+  const seen = new Set<Element>();
+  while (style && !seen.has(style)) {
+    seen.add(style);
+    const definition = children(style).find(el => word(el, 'pPr'));
+    if (definition) sources.push(definition);
+    const base = children(style).find(el => word(el, 'basedOn'));
+    style = base ? byId.get(wAttr(base, 'val')) : undefined;
+  }
+  const defaults = styles && elements(styles, W, 'pPrDefault')[0];
+  if (defaults) sources.push(...children(defaults).filter(el => word(el, 'pPr')));
+  const property = (name: string) => sources.map(p => children(p).find(el => word(el, name))).find(el => el !== undefined);
+  const alignment = property('jc');
+  if (property('numPr') || property('framePr') || property('pBdr') || (cutEnd && alignment && !['left', 'right', 'center', 'start', 'end'].includes(wAttr(alignment, 'val')))) {
+    throw new Error(FLOW_DEPENDENT_PARAGRAPH);
+  }
+  const doc = block.ownerDocument;
+  let target = children(block).find(el => word(el, 'pPr'));
+  if (!target) {
+    target = doc.createElementNS(W, 'w:pPr');
+    block.insertBefore(target, block.firstChild);
+  }
+  function setProperty(name: string, following: string[]) {
+    const item = children(target!).find(el => word(el, name));
+    if (item) return item;
+    const result = doc.createElementNS(W, 'w:' + name);
+    target!.insertBefore(result, children(target!).find(el => following.includes(el.localName)) ?? null);
+    return result;
+  }
+  const following = ['contextualSpacing', 'mirrorIndents', 'suppressOverlap', 'jc', 'textDirection', 'textAlignment', 'textboxTightWrap', 'outlineLvl', 'divId', 'cnfStyle', 'rPr', 'sectPr', 'pPrChange'];
+  if (cutStart || cutEnd) {
+    const spacing = setProperty('spacing', ['ind', ...following]);
+    for (const side of [...(cutStart ? ['before'] : []), ...(cutEnd ? ['after'] : [])]) {
+      for (const suffix of ['', 'Lines', 'Autospacing']) setW(spacing, side + suffix, '0');
+    }
+  }
+  if (cutStart) {
+    const indent = setProperty('ind', following);
+    for (const key of ['firstLine', 'firstLineChars', 'hanging', 'hangingChars']) setW(indent, key, '0');
+  }
+}
+
+export async function splitWordPages(file: File, groups: number[][], layout?: WordPageLayoutInput): Promise<Uint8Array[]> {
+  const { pkg, map, styles } = await readPageMap(file, layout);
+  const sections = extractSectionLayout(pkg, map);
+  const validate = await selectionValidator(pkg);
+  const doc = pkg.doc.cloneNode(true) as Document;
+  const body = elements(doc, W, 'body')[0];
+  const results: Uint8Array[] = [];
+  for (const group of groups) {
+    const first = group[0];
+    const last = group.at(-1)!;
+    if (!group.length || group.some((p, i) => !Number.isInteger(p) || p < 0 || p >= map.pageCount || p !== first + i)) {
+      throw new Error('Mỗi tệp Word cần một khoảng trang liên tiếp trong phạm vi tài liệu.');
+    }
+    if (first === 0 && group.length === map.pageCount) {
+      results.push(new Uint8Array(await file.arrayBuffer()));
+      continue;
+    }
+    if (sections.some((section, i) => {
+      const kind = children(section.node).find(el => word(el, 'type'));
+      const numbers = children(section.node).find(el => word(el, 'lnNumType'));
+      return section.pages <= 0 || (i > 0 && kind && wAttr(kind, 'val') !== 'nextPage')
+        || (numbers && wAttr(numbers, 'restart') !== 'newPage');
+    })) throw new Error('Tài liệu có ngắt section hoặc đánh số dòng cần giữ toàn bộ bố cục gốc.');
+    const pieces = map.slice(first, last);
+    if (!pieces.length) throw new Error('Trang Word đã chọn không có nội dung xác định được.');
+    validate([pieces.map(part => part.index)]);
+    while (body.firstChild) body.removeChild(body.firstChild);
+    const fields: PageFieldContext = { total: map.pageCount, count: group.length, sections: new Map() };
+    const lengths = new Set<number>();
+    let sectionIndex = 0;
+    for (const [i, piece] of pieces.entries()) {
+      while (sectionIndex < sections.length && piece.index > sections[sectionIndex].end) sectionIndex++;
+      const section = sections[sectionIndex];
+      if (!section) throw new Error('Không xác định được section của trang Word đã chọn.');
+      const block = doc.importNode(piece.node, true);
+      if (piece.partial) preservePartialParagraph(pkg.parts[piece.index], block, styles, piece.cutStart, piece.cutEnd);
+      const properties = word(block, 'p') && children(block).find(el => word(el, 'pPr'));
+      const end = properties && children(properties).find(el => word(el, 'sectPr'));
+      if (end) properties.removeChild(end);
+      body.appendChild(block);
+      const next = pieces[i + 1];
+      if (next && next.index <= section.end) continue;
+      const output = doc.importNode(section.node, true);
+      const offset = Math.max(0, first - section.startPage);
+      sectionForPageOutput(output, offset > 0);
+      const firstSection = pieces[0].index >= section.start && pieces[0].index <= section.end;
+      if (firstSection) {
+        pageNumberStart(output, layout?.pageNumbers?.[first] ?? section.display + offset);
+      }
+      lengths.add(section.pages);
+      for (const ref of sectionReferences(output)) {
+        const key = ref.getAttributeNS(R, 'id')!;
+        const used = fields.sections.get(key) ?? new Set<number>();
+        used.add(section.pages);
+        fields.sections.set(key, used);
+      }
+      if (next) appendSection(body, output);
+      else body.appendChild(output);
+    }
+    preservePageTotals(doc, fields, lengths);
+    results.push(await writeSelection(pkg.zip, doc, fields));
   }
   return results;
 }

@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
-import { Document, ExternalHyperlink, Footer, Header, HeadingLevel, ImageRun, Packer, Paragraph, Table, TableCell, TableRow, TextRun } from 'docx';
+import { Document, ExternalHyperlink, Footer, Header, HeadingLevel, ImageRun, Packer, Paragraph, SimpleField, Table, TableCell, TableRow, TextRun } from 'docx';
 import JSZip from 'jszip';
-import { mergeWordFiles, splitWordFile, wordPartLabels } from '../src/lib/wordFileParts';
+import { mergeWordFiles, splitWordFile, splitWordPages, wordPageLabels, wordPartLabels } from '../src/lib/wordFileParts';
 
 Object.assign(globalThis, { DOMParser, XMLSerializer });
 
@@ -112,6 +112,94 @@ test('DOCX split uses the correct section and realizes inherited header and foot
     assert.match(await zip.file('word/header1.xml')!.async('string'), /Original header/);
     assert.match(await zip.file('word/footer1.xml')!.async('string'), /Original footer/);
   }
+});
+
+async function pagedFile() {
+  const header = (name: string) => new Header({ children: [new Paragraph(name)] });
+  const footer = (name: string) => new Footer({ children: [new Paragraph({ children: [
+    new TextRun(name), new SimpleField('PAGE'), new TextRun('/'), new SimpleField('NUMPAGES'),
+  ] })] });
+  const paragraphs = Array.from({ length: 4 }, (_, i) => new Paragraph({
+    pageBreakBefore: i > 0, children: [new TextRun({ text: 'Content ' + (i + 1), bold: true, color: 'AACC22' })],
+  }));
+  const source = new Document({ evenAndOddHeaderAndFooters: true, sections: [{
+    properties: { titlePage: true, page: { margin: { left: 1777 }, pageNumbers: { start: 7 } } },
+    headers: { default: header('Odd header'), even: header('Even header'), first: header('First header') },
+    footers: { default: footer('Odd footer'), even: footer('Even footer'), first: footer('First footer') }, children: paragraphs,
+  }] });
+  const zip = await JSZip.loadAsync(await Packer.toBuffer(source));
+  const app = (await zip.file('docProps/app.xml')!.async('string')).replace(/\/>$/, '></Properties>').replace(/<Pages>.*?<\/Pages>/, '').replace('</Properties>', '<Pages>4</Pages></Properties>');
+  zip.file('docProps/app.xml', app);
+  return new File([await zip.generateAsync({ type: 'uint8array' })], 'four-pages.docx');
+}
+
+test('physical Word ranges preserve page numbering, first/even/default stories, formatted text and original page total', async () => {
+  const file = await pagedFile();
+  assert.deepEqual(await wordPageLabels(file), ['Trang 1', 'Trang 2', 'Trang 3', 'Trang 4']);
+  const [front, back, whole] = await splitWordPages(file, [[0, 1, 2], [1, 2], [0, 1, 2, 3]]);
+  assert.deepEqual(whole, new Uint8Array(await file.arrayBuffer()));
+  const xml = async (pkg: JSZip, path: string) => await pkg.file(path)!.async('string');
+  for (const [i, bytes] of [front, back].entries()) {
+    const result = await JSZip.loadAsync(bytes);
+    const main = await xml(result, 'word/document.xml');
+    assert.match(main, /w:left="1777"/);
+    assert.match(main, /AACC22/);
+    assert.match(main, new RegExp('w:start="' + (7 + i) + '"'));
+    assert.equal(main.includes('w:titlePg'), !i);
+    assert.equal(main.includes('Content 1'), !i);
+    assert.ok(main.includes('Content 2') && main.includes('Content 3') && !main.includes('Content 4'));
+    const footerPaths = Object.keys(result.files).filter(k => /^word\/footer\d+\.xml$/.test(k));
+    const footers = (await Promise.all(footerPaths.map(path => xml(result, path)))).join('');
+    assert.ok(footers.includes('Even footer') && footers.includes('Odd footer'));
+    assert.equal(footers.includes('First footer'), !i);
+    assert.match(footers, /w:instr="PAGE"/);
+    assert.match(footers, /w:instr="= 4"/);
+    assert.match(await xml(result, 'docProps/app.xml'), new RegExp('<Pages>' + (3 - i) + '</Pages>'));
+  }
+});
+
+test('page cuts inside a paragraph retain character styles and clear first-line spacing only for its continuation', async () => {
+  const doc = new Document({ sections: [{ children: [new Paragraph({ indent: { firstLine: 555 }, spacing: { before: 240 }, children: [
+    new TextRun({ text: 'ABCDEF', bold: true }),
+  ] })] }] });
+  const file = new File([await Packer.toBuffer(doc)], 'flow.docx');
+  const layout = { pageCount: 2, boundaries: [{ paragraph: 0, offset: 3, text: 'ABCDEF', inTable: false }] };
+  const [first, second] = await splitWordPages(file, [[0], [1]], layout);
+  const paragraphXml = async (data: Uint8Array) => (await JSZip.loadAsync(data)).file('word/document.xml')!.async('string');
+  const start = await paragraphXml(first);
+  const end = await paragraphXml(second);
+  assert.match(start, /w:firstLine="555"/);
+  assert.match(start, />ABC<\/w:t>/);
+  assert.match(end, />DEF<\/w:t>/);
+  assert.match(end, /w:firstLine="0"/);
+  assert.match(end, /w:before="0"/);
+  assert.match(end, /<w:b\b/);
+  const justified = await changePart(file, 'word/document.xml', xml => xml.replace('<w:pPr>', '<w:pPr><w:jc w:val="both"/>'));
+  await assert.rejects(splitWordPages(justified, [[0]], layout), /vị trí dòng/);
+});
+
+test('selected pages across sections realize linked headers, keep original restart and retain margins', async () => {
+  const doc = new Document({ sections: [
+    { properties: { page: { margin: { left: 900 } } }, headers: { default: new Header({ children: [new Paragraph('Linked')] }) },
+      children: [new Paragraph('A'), new Paragraph({ text: 'B', pageBreakBefore: true })] },
+    { properties: { titlePage: true, page: { margin: { left: 1000 }, pageNumbers: { start: 21 } } },
+      footers: { first: new Footer({ children: [new Paragraph('Section cover footer')] }) },
+      children: [new Paragraph('C'), new Paragraph({ text: 'D', pageBreakBefore: true })] },
+  ] });
+  const original = new File([await Packer.toBuffer(doc)], 'sections.docx');
+  const file = await changePart(original, 'docProps/app.xml', xml => xml.replace(/\/>$/, '><Pages>4</Pages></Properties>'));
+  const [inside, across] = await splitWordPages(file, [[3], [1, 2]]);
+  const get = async (bytes: Uint8Array) => (await JSZip.loadAsync(bytes)).file('word/document.xml')!.async('string');
+  assert.match(await get(inside), /w:start="22"/);
+  assert.doesNotMatch(await get(inside), /w:titlePg/);
+  const xml = await get(across);
+  assert.equal((xml.match(/<w:sectPr>/g) ?? []).length, 2);
+  assert.match(xml, /w:start="2"/);
+  assert.match(xml, /w:start="21"/);
+  assert.match(xml, /w:left="900"/);
+  assert.match(xml, /w:left="1000"/);
+  assert.equal((xml.match(/<w:headerReference/g) ?? []).length, 2);
+  assert.match(xml, /w:titlePg/);
 });
 
 test('DOCX merge separates numbering inherited from a shared paragraph style and resets a missing footer', async () => {
