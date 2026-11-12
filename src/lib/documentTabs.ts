@@ -126,6 +126,49 @@ export function installTabHost(host: TabHost, win: Window = window): () => void 
   return () => { if (slot[HOST_KEY] === host) delete slot[HOST_KEY]; };
 }
 
+export type FrameLinkAction = 'stay' | 'external' | 'block';
+
+const EXTERNAL_PROTOCOLS = new Set(['http:', 'https:', 'mailto:', 'tel:']);
+const FRAME_TARGETS = new Set(['', '_self', '_parent', '_top']);
+
+export function frameLinkAction(href: string, current: string): FrameLinkAction {
+  let url: URL;
+  let here: URL;
+  try {
+    url = new URL(href, current);
+    here = new URL(current);
+  } catch {
+    return 'block';
+  }
+  if (url.origin === here.origin && url.pathname === here.pathname && url.search === here.search) return 'stay';
+  if (url.origin === here.origin) return 'block';
+  return EXTERNAL_PROTOCOLS.has(url.protocol) ? 'external' : 'block';
+}
+
+export function installFrameNavigationGuard(openExternal: (href: string) => unknown, win: Window = window): () => void {
+  const onClick = (event: MouseEvent) => {
+    if (event.defaultPrevented || event.button !== 0) return;
+    const anchor = event.composedPath().find((node): node is HTMLAnchorElement => (node as Element).localName === 'a' && typeof (node as HTMLAnchorElement).href === 'string');
+    if (!anchor || anchor.isContentEditable || anchor.hasAttribute('download') || !anchor.getAttribute('href')) return;
+    if (event.ctrlKey || event.metaKey || event.shiftKey || !FRAME_TARGETS.has((anchor.getAttribute('target') ?? '').trim().toLowerCase())) return;
+    const action = frameLinkAction(anchor.href, win.location.href);
+    if (action === 'stay') return;
+    event.preventDefault();
+    if (action === 'external') openExternal(anchor.href);
+  };
+  win.addEventListener('click', onClick);
+  return () => win.removeEventListener('click', onClick);
+}
+
+export function frameShowsTab(frame: Pick<HTMLIFrameElement, 'contentWindow'>, id: string, origin: string = window.location.origin): boolean {
+  try {
+    const location = frame.contentWindow?.location;
+    return !!location && location.origin === origin && new URLSearchParams(location.search).get(TAB_PARAM) === id;
+  } catch {
+    return false;
+  }
+}
+
 export function tabFrameUrl(id: string, location: Pick<Location, 'pathname'> = window.location): string {
   return `${location.pathname}?${TAB_PARAM}=${encodeURIComponent(id)}`;
 }

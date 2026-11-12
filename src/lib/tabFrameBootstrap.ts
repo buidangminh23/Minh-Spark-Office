@@ -1,4 +1,5 @@
-import { installTabShortcuts } from './documentTabs';
+import { installFrameNavigationGuard, installTabShortcuts, tabFrameId } from './documentTabs';
+import { openExternalLink } from './externalLinks';
 
 const SHARED_GLOBALS = ['__TAURI_INTERNALS__', '__TAURI_EVENT_PLUGIN_INTERNALS__', '__TAURI_OS_PLUGIN_INTERNALS__', '__TAURI__'] as const;
 
@@ -18,3 +19,4 @@ export function shareParentDesktopBridge(frame: Window = window) {
 
 shareParentDesktopBridge();
 installTabShortcuts();
+if (tabFrameId()) installFrameNavigationGuard(openExternalLink);

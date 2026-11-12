@@ -102,3 +102,25 @@ test('desktop keeps open tabs across app restarts while the web keeps them per w
   const blocked = Object.defineProperty({}, 'sessionStorage', { get() { throw new Error('denied'); } }) as Window;
   assert.equal(tabSessionStorage(blocked).getItem('x'), null);
 });
+
+test('links inside a tab never replace the editor frame', async () => {
+  const { frameLinkAction } = await import('../src/lib/documentTabs.ts');
+  const here = 'http://tauri.localhost/index.html?officeTab=abc';
+  assert.equal(frameLinkAction('#heading-2', here), 'stay');
+  assert.equal(frameLinkAction('https://example.com/a', here), 'external');
+  assert.equal(frameLinkAction('mailto:a@b.c', here), 'external');
+  assert.equal(frameLinkAction('/tai-ung-dung.html', here), 'block');
+  assert.equal(frameLinkAction('/index.html?officeTab=other', here), 'block');
+  assert.equal(frameLinkAction('javascript:alert(1)', here), 'block');
+  assert.equal(frameLinkAction('file:///C:/x.docx', here), 'block');
+});
+
+test('a frame counts as showing its tab only on its own tab URL', async () => {
+  const { frameShowsTab } = await import('../src/lib/documentTabs.ts');
+  const frame = (href: string | null) => ({ contentWindow: href === null ? { get location(): Location { throw new Error('cross-origin'); } } : { location: new URL(href) } }) as unknown as HTMLIFrameElement;
+  const origin = 'http://tauri.localhost';
+  assert.equal(frameShowsTab(frame('http://tauri.localhost/index.html?officeTab=abc'), 'abc', origin), true);
+  assert.equal(frameShowsTab(frame('http://tauri.localhost/index.html?officeTab=xyz'), 'abc', origin), false);
+  assert.equal(frameShowsTab(frame('https://example.com/?officeTab=abc'), 'abc', origin), false);
+  assert.equal(frameShowsTab(frame(null), 'abc', origin), false);
+});
