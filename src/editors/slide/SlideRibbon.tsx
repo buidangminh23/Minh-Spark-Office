@@ -142,6 +142,7 @@ import { playTransitionSound } from '../../lib/slideAudio';
 import { ANIMATION_DEFS, TRANSITION_DEFS } from '../../lib/slideEffects';
 import { useSetting } from '../../lib/appSettings';
 import { SLIDE_FONT_SIZES, SLIDE_FONTS, visibleRibbonTabs } from '../../lib/settings/slideOptions';
+import { nextFontSize } from '../../lib/fontSizeStep';
 
 export interface TransitionItem {
   type: TransitionType;
@@ -846,14 +847,14 @@ export function SlideRibbon(props: SlideRibbonProps) {
 
                   <button
                     className="ppt-tool-btn"
-                    onClick={() => onUpdateSelectedElement({ fontSize: (selectedElement?.fontSize || 20) + 2 })}
+                    onClick={() => onUpdateSelectedElement({ fontSize: nextFontSize(FONT_SIZES, selectedElement?.fontSize || 20, 1) })}
                     title="Tăng cỡ chữ"
                   >
                     A⁺
                   </button>
                   <button
                     className="ppt-tool-btn"
-                    onClick={() => onUpdateSelectedElement({ fontSize: Math.max(10, (selectedElement?.fontSize || 20) - 2) })}
+                    onClick={() => onUpdateSelectedElement({ fontSize: nextFontSize(FONT_SIZES, selectedElement?.fontSize || 20, -1, 8) })}
                     title="Giảm cỡ chữ"
                   >
                     A⁻

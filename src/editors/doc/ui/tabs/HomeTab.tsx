@@ -1,10 +1,11 @@
-import { ListTree, MousePointer2, PanelsTopLeft, SquareDashed, WandSparkles, AlignCenter, AlignJustify, AlignLeft, AlignRight, Bold, ClipboardPaste, Copy, Eraser, Highlighter, Indent, Italic, List, ListOrdered, ListTodo, Mic, MicOff, Outdent, Paintbrush, Pilcrow, Quote, Replace, Scissors, Search, Sparkles, Strikethrough, Subscript, Superscript, TextSelect, Type, Underline, ArrowDownAZ, Code, Volume2, VolumeX, Baseline, PaintBucket, CaseSensitive, ChevronDown, Pencil, Plus, Redo2, RefreshCw, Undo2 } from 'lucide-react';
+import { ListTree, MousePointer2, PanelsTopLeft, SquareDashed, WandSparkles, AlignCenter, AlignJustify, AlignLeft, AlignRight, Bold, ClipboardPaste, Copy, Eraser, Highlighter, Indent, Italic, List, ListOrdered, ListTodo, Mic, MicOff, Outdent, Paintbrush, Pilcrow, Quote, Replace, Scissors, Search, Sparkles, Strikethrough, Subscript, Superscript, TextSelect, Type, Underline, ArrowDownAZ, Code, Volume2, VolumeX, Baseline, PaintBucket, CaseSensitive, ChevronDown, ChevronUp, Pencil, Plus, Redo2, RefreshCw, Undo2 } from 'lucide-react';
 import { useDoc } from '../../DocContext';
 import type { FormatState } from '../../useFormatState';
 import { FONT_SIZES } from '../../extensions';
 import { changeCase, copySelection, pastePlainText, pasteRich, sortParagraphs } from '../../actions';
 import { BUILTIN_STYLE_ORDER, activeStyleId, applyDocStyle, resolveStyles, styleSample } from '../../docStyles';
 import FontPicker from '../FontPicker';
+import FontSizeBox from '../FontSizeBox';
 import { AddinRibbonButtons, useAnyAddinEnabled } from '../../../../addins/AddinPane';
 import { DocFeatureMenu } from './DocFeatures';
 import { MULTILEVEL_LISTS, PARAGRAPH_BORDERS, TEXT_EFFECTS, UNDERLINE_STYLES, changeListLevel, selectNextObject, selectionPane, setMultilevel, setParagraphBorder, setTextEffect, setUnderline } from '../../homeExtras';
@@ -68,10 +69,9 @@ export default function HomeTab({ fmt }: { fmt: FormatState }) {
         <Rows>
           <Row>
             <FontPicker value={fmt.fontFamily || ctx.page.fontFamily || 'Arial'} onPick={(font) => chain().setFontFamily(font).run()} onError={(message) => ctx.ui.toast(message, true)} />
-            <input className="ribbon-select size-input" list="doc-font-sizes" title="Cỡ chữ" value={fmt.fontSize || String(ctx.page.fontSize ?? 12)} onChange={(e) => { const n = parseFloat(e.target.value); if (n > 0 && n <= 400) chain().setFontSize(`${n}pt`).run(); }} />
-            <datalist id="doc-font-sizes">{FONT_SIZES.map((s) => <option key={s} value={s} />)}</datalist>
-            <Small icon={<span className="grow-icon">A<sup>▲</sup></span>} title="Tăng cỡ chữ (Ctrl+])" onClick={() => editor.chain().focus().stepFontSize(1).run()} />
-            <Small icon={<span className="grow-icon small">A<sub>▼</sub></span>} title="Giảm cỡ chữ (Ctrl+[)" onClick={() => editor.chain().focus().stepFontSize(-1).run()} />
+            <FontSizeBox value={fmt.fontSize || String(ctx.page.fontSize ?? 12)} sizes={FONT_SIZES} onPick={(size) => chain().setFontSize(`${size}pt`).run()} />
+            <Small icon={<span className="grow-icon">A<ChevronUp size={9} strokeWidth={3} /></span>} title="Tăng cỡ chữ (Ctrl+])" onClick={() => editor.chain().focus().stepFontSize(1, ctx.page.fontSize).run()} />
+            <Small icon={<span className="grow-icon small">A<ChevronDown size={9} strokeWidth={3} /></span>} title="Giảm cỡ chữ (Ctrl+[)" onClick={() => editor.chain().focus().stepFontSize(-1, ctx.page.fontSize).run()} />
             <Dropdown title="Đổi kiểu chữ hoa/thường" trigger={<CaseSensitive size={15} />}>
               {(close) => (
                 <>

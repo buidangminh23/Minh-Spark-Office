@@ -396,6 +396,9 @@ import {
   TableSlicerModal,
   slicerKey,
 } from './SheetBizModals';
+import { nextFontSize } from '../../lib/fontSizeStep';
+
+const SHEET_FONT_SIZES = [8, 9, 10, 11, 12, 13, 14, 16, 18, 20, 24, 28, 36, 48, 72];
 
 interface SheetEditorProps {
   meta: FileMeta;
@@ -5632,7 +5635,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                         onChange={(e) => applyFontSize(e.target.value)}
                         title="Cỡ chữ"
                       >
-                        {['8', '9', '10', '11', '12', '13', '14', '16', '18', '20', '24', '28', '36'].map((s) => (
+                        {SHEET_FONT_SIZES.map(String).map((s) => (
                           <option key={s} value={s}>
                             {s}
                           </option>
@@ -5640,14 +5643,14 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                       </select>
                       <button
                         className="ribbon-btn-small"
-                        onClick={() => applyFontSize(String(Number(selectedFontSize) + 1))}
+                        onClick={() => applyFontSize(String(nextFontSize(SHEET_FONT_SIZES, Number(selectedFontSize) || 11, 1)))}
                         title="Tăng cỡ chữ"
                       >
                         <span style={{ fontSize: 12, fontWeight: 700 }}>A+</span>
                       </button>
                       <button
                         className="ribbon-btn-small"
-                        onClick={() => applyFontSize(String(Math.max(8, Number(selectedFontSize) - 1)))}
+                        onClick={() => applyFontSize(String(nextFontSize(SHEET_FONT_SIZES, Number(selectedFontSize) || 11, -1, 6)))}
                         title="Giảm cỡ chữ"
                       >
                         <span style={{ fontSize: 10.5, fontWeight: 700 }}>A-</span>
