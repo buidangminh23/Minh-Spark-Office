@@ -1736,3 +1736,7 @@
 .ppt-ribbon-body .ppx-col.ppx-checks {
   gap: 0 !important;
 }
+
+.ppt-ribbon-body .combo-ppt {
+  height: 24px;
+}
