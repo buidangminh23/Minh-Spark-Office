@@ -5,7 +5,7 @@ import { FONT_SIZES } from '../../extensions';
 import { changeCase, copySelection, pastePlainText, pasteRich, sortParagraphs } from '../../actions';
 import { BUILTIN_STYLE_ORDER, activeStyleId, applyDocStyle, resolveStyles, styleSample } from '../../docStyles';
 import FontPicker from '../FontPicker';
-import { AddinRibbonButtons } from '../../../../addins/AddinPane';
+import { AddinRibbonButtons, useAnyAddinEnabled } from '../../../../addins/AddinPane';
 import { DocFeatureMenu } from './DocFeatures';
 import { Big, ColorPicker, Dropdown, Group, MenuItem, MenuSeparator, Row, Rows, Small } from '../RibbonParts';
 
@@ -15,6 +15,7 @@ const NUMBER_STYLES = [{ value: 'decimal', label: '1. 2. 3.' }, { value: 'decima
 const LINE_SPACINGS = [1, 1.15, 1.5, 2, 2.5, 3];
 
 export default function HomeTab({ fmt }: { fmt: FormatState }) {
+  const showAddins = useAnyAddinEnabled();
   const ctx = useDoc();
   const { editor } = ctx;
   const chain = () => editor.chain().focus();
@@ -182,9 +183,11 @@ export default function HomeTab({ fmt }: { fmt: FormatState }) {
         <Big icon={<Sparkles size={20} color="#7c3aed" />} label="Minh AI" title="Viết lại, tóm tắt, dịch, viết tiếp bằng AI" onClick={() => ctx.openDialog('ai')} />
       </Group>
 
-      <Group label="Add-in">
-        <AddinRibbonButtons className="ribbon-btn-large" />
-      </Group>
+      {showAddins && (
+        <Group label="Add-in">
+          <AddinRibbonButtons className="ribbon-btn-large" />
+        </Group>
+      )}
     </>
   );
 }

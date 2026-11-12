@@ -118,6 +118,8 @@ const buildClone = (layout: PageLayout) => {
   wrapper.innerHTML = `<div class="doc-workspace" style="${block}"><div class="doc-canvas" style="${block}"><div class="paper-zoom" style="${block}"></div></div></div>`;
   const clone = layout.paper.cloneNode(true) as HTMLElement;
   clone.classList.remove('show-grid', 'show-marks', 'inking');
+  clone.querySelectorAll('.fm-break').forEach((node) => node.remove());
+  clone.querySelectorAll('.fm-space, .fm-tab').forEach((node) => node.classList.remove('fm-space', 'fm-tab'));
   clone.style.setProperty('--page-gap', '0px');
   clone.style.margin = '0';
   clone.style.boxShadow = 'none';

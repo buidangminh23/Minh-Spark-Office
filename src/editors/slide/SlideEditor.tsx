@@ -4,9 +4,6 @@ import {
   CheckCircle2,
   Clock,
   Play,
-  Save,
-  Undo2,
-  Redo2,
   Sliders,
   Ruler,
   Grid,
@@ -79,6 +76,11 @@ import {
   elementAnimations,
   getAnimationDef,
 } from '../../lib/slideEffects';
+import { getSettings, setSettings, useSettings } from '../../lib/appSettings';
+import { isRibbonTabVisible, trimHistory, zoomFromSetting } from '../../lib/settings/slideOptions';
+import type { SlideQatCommand, SlideRibbonTabId } from '../../lib/settings/slideDefaults';
+import { openSettings } from '../../components/settings/settingsShared';
+import { SlideQuickAccess, type SlideQatAction } from './SlideQuickAccess';
 import './slideEditor.css';
 
 const aspectRatioValue = (ratio: PresentationData['aspectRatio']) => (ratio === '4:3' ? 4 / 3 : 16 / 9);
@@ -129,12 +131,16 @@ export default function SlideEditor({
   }, []);
   const historyHoldRef = useRef(false);
   const [activeTab, setActiveTab] = useState<RibbonTab>('home');
-  const [zoomSetting, setZoomSetting] = useState<number | null>(null);
+  const settings = useSettings();
+  const [zoomSetting, setZoomSetting] = useState<number | null>(() => zoomFromSetting(getSettings().slideZoom));
+  useEffect(() => {
+    setZoomSetting(zoomFromSetting(settings.slideZoom));
+  }, [settings.slideZoom]);
   const [fitZoom, setFitZoom] = useState(100);
   const zoom = zoomSetting ?? fitZoom;
   const setZoom = setZoomSetting;
   const [canvasContainer, setCanvasContainer] = useState<HTMLDivElement | null>(null);
-  const [viewMode, setViewMode] = useState<'normal' | 'sorter'>('normal');
+  const [viewMode, setViewMode] = useState<'normal' | 'sorter'>(() => (getSettings().slideOpenView === 'sorter' ? 'sorter' : 'normal'));
   const slideBaseWidth = presentation.aspectRatio === '4:3' ? 720 : 960;
 
   useEffect(() => {
@@ -153,12 +159,16 @@ export default function SlideEditor({
     observer.observe(container);
     return () => observer.disconnect();
   }, [canvasContainer, slideBaseWidth]);
-  const [showNotes, setShowNotes] = useState(true);
+  const showNotes = settings.slideNotes;
+  const setShowNotes = (value: boolean) => setSettings({ slideNotes: value });
 
   // Advanced features state
-  const [showRuler, setShowRuler] = useState(true);
-  const [showGridlines, setShowGridlines] = useState(false);
-  const [showGuides, setShowGuides] = useState(false);
+  const showRuler = settings.slideRuler;
+  const setShowRuler = (value: boolean) => setSettings({ slideRuler: value });
+  const showGridlines = settings.slideGridlines;
+  const setShowGridlines = (value: boolean) => setSettings({ slideGridlines: value });
+  const showGuides = settings.slideGuides;
+  const setShowGuides = (value: boolean) => setSettings({ slideGuides: value });
   const [isFormatPaneOpen, setIsFormatPaneOpen] = useState(false);
 
   // Drawing state
@@ -220,9 +230,13 @@ export default function SlideEditor({
     });
   }, [selectedElementId, selectedElementType]);
 
+  useEffect(() => {
+    if (!CONTEXTUAL_TABS.has(activeTab) && !isRibbonTabVisible(settings.slideTabs, activeTab as SlideRibbonTabId)) setActiveTab('home');
+  }, [activeTab, settings.slideTabs]);
+
   // Record history for Undo
   const pushHistory = useCallback((currentPres: PresentationData) => {
-    setUndoStack((prev) => [...prev.slice(-25), currentPres]);
+    setUndoStack((prev) => trimHistory([...prev, currentPres], getSettings().slideMaxUndo));
     setRedoStack([]);
   }, []);
 
@@ -239,7 +253,7 @@ export default function SlideEditor({
     if (redoStack.length === 0) return;
     const next = redoStack[redoStack.length - 1];
     setRedoStack((stack) => stack.slice(0, -1));
-    setUndoStack((stack) => [...stack, presentation]);
+    setUndoStack((stack) => trimHistory([...stack, presentation], getSettings().slideMaxUndo));
     setPresentation(next);
     setSaveStatus('unsaved');
   }, [redoStack, presentation]);
@@ -700,8 +714,8 @@ export default function SlideEditor({
       width: 50,
       height: 20,
       text: 'Nhập nội dung văn bản tại đây',
-      fontSize: 24,
-      fontFamily: theme.bodyFont,
+      fontSize: getSettings().slideTextSize,
+      fontFamily: getSettings().slideTextFont || theme.bodyFont,
       color: theme.textColor,
       textAlign: 'left',
     };
@@ -1455,6 +1469,25 @@ export default function SlideEditor({
     return count;
   };
 
+  const startShow = (fromCurrent: boolean) => {
+    if (!fromCurrent) setActiveSlideIndex(0);
+    setIsSlideShowActive(true);
+  };
+  const qatAbove = settings.slideQatShow && settings.slideQatPosition === 'above' && settings.slideQatCommands.length > 0;
+  const qatActions: Record<SlideQatCommand, SlideQatAction> = {
+    save: { run: () => void handleExplicitSave() },
+    undo: { run: handleUndo, disabled: undoStack.length === 0 },
+    redo: { run: handleRedo, disabled: redoStack.length === 0 },
+    present: { run: () => startShow(false) },
+    presentCurrent: { run: () => startShow(true) },
+    newSlide: { run: () => handleAddSlide('title-content') },
+    textBox: { run: handleAddText },
+    find: { run: () => setIsFindReplaceOpen(true) },
+    print: { run: () => setIsPrintOpen(true) },
+    pptx: { run: () => void exportToPptx(presentation, meta.name) },
+    notes: { run: () => setShowNotes(!showNotes), active: showNotes },
+  };
+
   return (
     <div className="ppt-editor">
       {/* 1. Office Title Bar */}
@@ -1489,31 +1522,8 @@ export default function SlideEditor({
         </div>
 
         <div className="ppt-title-quick">
-          <button
-            className="ppt-quick-btn"
-            onClick={handleExplicitSave}
-            title="Lưu (Ctrl+S)"
-          >
-            <Save size={16} />
-          </button>
-          <button
-            className="ppt-quick-btn"
-            disabled={undoStack.length === 0}
-            onClick={handleUndo}
-            title="Hoàn tác (Ctrl+Z)"
-          >
-            <Undo2 size={16} />
-          </button>
-          <button
-            className="ppt-quick-btn"
-            disabled={redoStack.length === 0}
-            onClick={handleRedo}
-            title="Làm lại (Ctrl+Y)"
-          >
-            <Redo2 size={16} />
-          </button>
-
-          <span style={{ width: '1px', height: '18px', background: '#E2E8F0', margin: '0 6px' }} />
+          <SlideQuickAccess placement="above" actions={qatActions} />
+          {qatAbove && <span style={{ width: '1px', height: '18px', background: '#E2E8F0', margin: '0 6px' }} />}
 
           <button
             className="ppt-present-top-btn"
@@ -1645,6 +1655,7 @@ export default function SlideEditor({
         onCropToShape={handleCropToShape}
         onToggleReflection={handleToggleReflection}
       />
+      <SlideQuickAccess placement="below" actions={qatActions} />
 
       {/* 3. Main Workspace Area */}
       <div className="ppt-workspace">
@@ -1704,6 +1715,9 @@ export default function SlideEditor({
                     onInteractionEnd={endInteraction}
                     showGridlines={showGridlines}
                     showGuides={showGuides}
+                    snapToGrid={settings.slideSnapToGrid}
+                    gridSize={settings.slideGridSize}
+                    smartGuides={settings.slideSmartGuides}
                     drawMode={drawMode}
                     inkColor={inkColor}
                     inkWidth={inkWidth}
@@ -2151,6 +2165,10 @@ export default function SlideEditor({
             void handleBack();
           }}
           onBackToHome={() => void handleBack()}
+          onOpenOptions={() => {
+            setIsBackstageOpen(false);
+            openSettings('slide-view');
+          }}
         />
       )}
     </div>

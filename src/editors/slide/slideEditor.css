@@ -3693,3 +3693,64 @@
   align-items: center;
   justify-content: center;
 }
+
+.ppt-qat-below {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: #FFFFFF;
+  border-bottom: 1px solid #E2E8F0;
+}
+
+.ppt-ss-end-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 1001;
+  display: flex;
+  justify-content: center;
+  padding-top: 24px;
+  background: #000000;
+  color: #FFFFFF;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.ppt-ss-context-menu {
+  position: fixed;
+  z-index: 10010;
+  min-width: 200px;
+  padding: 4px 0;
+  background: #FFFFFF;
+  border: 1px solid #CBD5E1;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.35);
+  cursor: default;
+}
+
+.ppt-ss-context-menu button {
+  display: block;
+  width: 100%;
+  padding: 8px 16px;
+  border: none;
+  background: transparent;
+  color: #0F172A;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ppt-ss-context-menu button:hover:not(:disabled) {
+  background: #F1F5F9;
+}
+
+.ppt-ss-context-menu button:disabled {
+  color: #94A3B8;
+  cursor: default;
+}
+
+.ppt-ss-context-menu hr {
+  margin: 4px 0;
+  border: none;
+  border-top: 1px solid #E2E8F0;
+}

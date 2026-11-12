@@ -1,3 +1,4 @@
+import { getSettings } from '../../../lib/appSettings';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { generateHTML } from '@tiptap/core';
 import { Circle, CirclePlay, Command, Glasses, Pause, Play, Search, Square, Trash2, Wand2, X, ZoomIn, Columns3 } from 'lucide-react';
@@ -86,7 +87,7 @@ function MacrosDialog({ onClose }: { onClose: () => void }) {
       <button className="btn" disabled={!list.length} onClick={() => downloadBlob(new Blob([JSON.stringify(list, null, 2)], { type: 'application/json' }), 'macro-minh-docs.json')}>Xuất tệp</button>
       <span className="spacer" />
       <button className="btn" onClick={() => { onClose(); ctx.setView({ recording: !ctx.view.recording }); }}>{ctx.view.recording ? <><Square size={13} /> Dừng ghi</> : <><Circle size={13} /> Ghi macro mới</>}</button>
-      <button className="btn btn-primary" disabled={!macro} onClick={() => { if (macro) { onClose(); runSteps(ctx.editor, macro.steps); ctx.ui.toast(`Đã chạy “${macro.name}”`); } }}><Play size={13} /> Chạy</button>
+      <button className="btn btn-primary" disabled={!macro} onClick={() => { if (!macro) return; if (getSettings().macroPolicy === 'disable') { ctx.ui.toast('Macro đang bị tắt trong Cài đặt → Bảo mật & Quyền riêng tư.', true); return; } onClose(); runSteps(ctx.editor, macro.steps); ctx.ui.toast(`Đã chạy “${macro.name}”`); }}><Play size={13} /> Chạy</button>
     </>}>
       {!list.length ? <div className="panel-empty">Chưa có macro nào. Bấm Ghi macro mới, thao tác trong tài liệu rồi bấm Dừng ghi ở thanh trạng thái.</div> : (
         <div className="macro-grid">

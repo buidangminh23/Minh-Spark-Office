@@ -10,6 +10,8 @@ import { acquireWorkspaceExit } from '../lib/workspaceLifecycle';
 import { clearDockProgress, requestDockAttention, showDockProgress } from '../lib/desktopProgress';
 import { UpdateProgressRing, type RingMode } from './UpdateProgressRing';
 import './workspaceStatus.css';
+import { UPDATE_EVENTS } from './settings/settingsShared';
+import { publishUpdaterStatus } from '../lib/updaterStatus';
 
 type Phase = 'idle' | 'checking' | 'current' | 'available' | 'downloading' | 'downloaded' | 'installing' | 'error';
 const bytes = (value: number) => `${(value / 1048576).toFixed(1)} MB`;
@@ -43,6 +45,23 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
   const autoRun = useRef(0);
   const autoInFlight = useRef(false);
   const failedDownload = useRef<{ version: string; at: number } | null>(null);
+  const checkFromSettings = useRef<() => void>(() => undefined);
+  useEffect(() => {
+    if (!isDesktop()) return;
+    const onCheck = () => checkFromSettings.current();
+    const onAuto = (event: Event) => {
+      const value = Boolean((event as CustomEvent<boolean>).detail);
+      if (!value) autoRun.current += 1;
+      setAutomatic(value);
+    };
+    window.addEventListener(UPDATE_EVENTS.check, onCheck);
+    window.addEventListener(UPDATE_EVENTS.auto, onAuto);
+    return () => {
+      window.removeEventListener(UPDATE_EVENTS.check, onCheck);
+      window.removeEventListener(UPDATE_EVENTS.auto, onAuto);
+    };
+  }, []);
+  checkFromSettings.current = () => { setOpen(true); if (phase === 'idle' || phase === 'error' || phase === 'current') void checkUpdate(); };
   const checkUpdate = async (silent = false) => {
     if (busy.current) return;
     busy.current = true;
@@ -206,17 +225,12 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
     if (phase === 'downloaded') requestDockAttention();
   }, [phase, percent]);
   useEffect(() => () => clearDockProgress(), []);
+  useEffect(() => { publishUpdaterStatus({ phase, version, nextVersion, percent }); }, [phase, version, nextVersion, percent]);
   if (!isDesktop()) return null;
   const working = ['checking', 'downloading', 'installing'].includes(phase);
   const ringMode: RingMode = phase === 'downloading' && percent === null ? 'spinning' : ringModes[phase];
-  const launcherLabel = phase === 'downloading' ? (percent === null ? 'Đang tải bản mới…' : `Đang tải ${percent}%`) : phase === 'downloaded' ? `Cài bản mới ${nextVersion}` : phase === 'available' ? `Có bản mới ${nextVersion}` : 'Cập nhật ứng dụng';
   const title = ({ idle: 'Cập nhật Minh Spark Office', checking: 'Đang kiểm tra phiên bản', current: 'Đang dùng phiên bản mới nhất', available: `Đã có phiên bản ${nextVersion}`, downloading: 'Đang tải bản cập nhật', downloaded: `Bản ${nextVersion} đã sẵn sàng`, installing: 'Đang cài đặt bản cập nhật', error: 'Chưa kiểm tra được cập nhật' })[phase];
   return <>
-    <button className={`update-launcher update-launcher-${phase}`} onClick={() => { setOpen(true); if (phase === 'idle' || phase === 'error' || phase === 'current') void checkUpdate(); }}>
-      {phase === 'downloading' && <UpdateProgressRing mode={percent === null ? 'spinning' : 'progress'} percent={percent ?? 0} size={16} stroke={2} />}
-      {phase === 'downloaded' && <span className="update-launcher-check"><CheckMark /></span>}
-      <span>{launcherLabel}</span>
-    </button>
     {open && <div className="sync-dialog-backdrop update-dialog-backdrop"><section className="sync-dialog update-dialog" ref={dialog} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="update-title" onKeyDown={(event) => {
       if (event.key === 'Escape') dismiss();
       if (event.key === 'Tab') {

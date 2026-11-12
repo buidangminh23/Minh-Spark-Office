@@ -56,6 +56,8 @@ import { SlideCanvas } from './SlideCanvas';
 import { useUi } from '../../components/ui';
 import { downloadBlob } from '../../lib/download';
 import { isEditableKeyTarget } from './slideKeyTarget';
+import { getSettings, useSettings } from '../../lib/appSettings';
+import { LASER_COLORS, PEN_COLORS, resolveAdvance } from '../../lib/settings/slideOptions';
 import {
   playTransitionSound,
   playPresenterSound,
@@ -112,7 +114,10 @@ export function SlideShow({
 }: SlideShowProps) {
   const ui = useUi();
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
-  const [isPresenterMode, setIsPresenterMode] = useState(defaultPresenter);
+  const [isPresenterMode, setIsPresenterMode] = useState(() => defaultPresenter || getSettings().slidePresenterView);
+  const showSettings = useSettings();
+  const [atEnd, setAtEnd] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
 
   // Presentation Interactive Tools
   const [isLaserActive, setIsLaserActive] = useState(false);
@@ -381,23 +386,26 @@ export function SlideShow({
       setBlankMode('none');
       return;
     }
-    if (animStep < clickCount) {
+    if (!atEnd && animStep < clickCount) {
       fxPlayer.flush();
       setAnimStep((s) => s + 1);
       beginStep(clickSteps[animStep]);
       return;
     }
-    let nextIdx = currentIndex + 1;
-    while (nextIdx < slides.length && slides[nextIdx].hidden) {
-      nextIdx++;
-    }
-    if (nextIdx < slides.length) setCurrentIndex(nextIdx);
-  }, [blankMode, animStep, clickCount, clickSteps, beginStep, fxPlayer, currentIndex, slides]);
+    const step = resolveAdvance({ slides, current: currentIndex, loop: showSettings.slideLoop, endWithBlack: showSettings.slideEndWithBlack, atEnd });
+    if (step.type === 'goto') setCurrentIndex(step.index);
+    else if (step.type === 'end') setAtEnd(true);
+    else if (step.type === 'exit') onClose();
+  }, [blankMode, atEnd, animStep, clickCount, clickSteps, beginStep, fxPlayer, currentIndex, slides, showSettings.slideLoop, showSettings.slideEndWithBlack, onClose]);
 
   // Step back presentation
   const handleStepBack = useCallback(() => {
     if (blankMode !== 'none') {
       setBlankMode('none');
+      return;
+    }
+    if (atEnd) {
+      setAtEnd(false);
       return;
     }
     if (animStep > 0) {
@@ -415,7 +423,7 @@ export function SlideShow({
     enterAtEndRef.current = true;
     setAnimStep(countClickSteps(buildAnimationTimeline(slides[prevIdx].elements)));
     setCurrentIndex(prevIdx);
-  }, [blankMode, animStep, fxPlayer, currentIndex, slides]);
+  }, [blankMode, atEnd, animStep, fxPlayer, currentIndex, slides]);
 
   const handleAdvanceRef = useRef(handleAdvance);
   useLayoutEffect(() => {
@@ -436,6 +444,10 @@ export function SlideShow({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (isEditableKeyTarget(e.target) && e.key !== 'Escape') return;
       e.stopPropagation();
+      if (menuPos) {
+        setMenuPos(null);
+        if (e.key === 'Escape') return;
+      }
       if (e.key.toLowerCase() === 'l') {
         e.preventDefault();
         setIsLaserActive((v) => !v);
@@ -493,7 +505,7 @@ export function SlideShow({
 
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [handleAdvance, handleStepBack, onClose]);
+  }, [handleAdvance, handleStepBack, onClose, menuPos]);
 
   // Web Speech API for Vietnamese Subtitles
   useEffect(() => {
@@ -703,7 +715,7 @@ export function SlideShow({
     ctx.moveTo(e.clientX, e.clientY);
 
     if (drawTool === 'pen') {
-      ctx.strokeStyle = '#EF4444';
+      ctx.strokeStyle = PEN_COLORS[getSettings().slidePenColor] ?? PEN_COLORS.red;
       ctx.lineWidth = 3;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
@@ -757,10 +769,30 @@ export function SlideShow({
     height: `${(SLIDE_BASE_HEIGHT * stageFit.zoom) / 100}px`,
   };
 
+  const canAdvance = animStep < clickCount || resolveAdvance({ slides, current: currentIndex, loop: showSettings.slideLoop, endWithBlack: showSettings.slideEndWithBlack, atEnd }).type !== 'stay';
+  const canStepBack = atEnd || currentIndex !== 0 || animStep !== 0;
+  const laserColor = LASER_COLORS[showSettings.slideLaserColor] ?? LASER_COLORS.red;
+  const endScreen = atEnd ? (
+    <div
+      className="ppt-ss-end-screen"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClose();
+      }}
+    >
+      Kết thúc trình chiếu. Bấm để thoát.
+    </div>
+  ) : null;
+  const runMenu = (action: () => void) => () => {
+    setMenuPos(null);
+    action();
+  };
+
   // Render Presenter View
   if (isPresenterMode) {
     return (
       <div className="ppt-presenter-modal">
+        {endScreen}
         <header className="ppt-presenter-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <span style={{ fontWeight: 'bold', fontSize: '16px', color: '#38BDF8', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -864,7 +896,7 @@ export function SlideShow({
         <div style={{ height: '54px', background: '#111827', borderTop: '1px solid #1F2937', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '20px' }}>
           <button
             onClick={handleStepBack}
-            disabled={currentIndex === 0 && animStep === 0}
+            disabled={!canStepBack}
             className="ppt-ss-btn"
             title="Lùi lại (Mũi tên trái)"
           >
@@ -880,7 +912,7 @@ export function SlideShow({
           </span>
           <button
             onClick={handleAdvance}
-            disabled={currentIndex === slides.length - 1 && animStep === clickCount}
+            disabled={!canAdvance}
             className="ppt-ss-btn"
             title="Tiến tới (Mũi tên phải / Phím cách)"
           >
@@ -899,7 +931,18 @@ export function SlideShow({
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      onClick={drawTool === 'none' ? handleAdvance : undefined}
+      onClick={() => {
+        if (menuPos) {
+          setMenuPos(null);
+          return;
+        }
+        if (drawTool === 'none') handleAdvance();
+      }}
+      onContextMenu={(e) => {
+        if (!showSettings.slideRightClickMenu) return;
+        e.preventDefault();
+        setMenuPos({ x: e.clientX, y: e.clientY });
+      }}
       style={{
         cursor: drawTool !== 'none'
           ? 'crosshair'
@@ -908,6 +951,7 @@ export function SlideShow({
           : 'default',
       }}
     >
+      {endScreen}
       {/* 1. Blank Screen Overlays */}
       {blankMode === 'black' && (
         <div
@@ -1064,6 +1108,8 @@ export function SlideShow({
         <div
           className="ppt-laser-dot"
           style={{
+            background: laserColor,
+            boxShadow: `0 0 15px 6px ${laserColor}CC, 0 0 30px 12px ${laserColor}66`,
             left: `${pointerPos.x}px`,
             top: `${pointerPos.y}px`,
             pointerEvents: 'none',
@@ -1596,10 +1642,11 @@ export function SlideShow({
       )}
 
       {/* 10. Sleek Floating Presenter Dock at Bottom */}
+      {showSettings.slideShowToolbar && (
       <div className="ppt-slideshow-bar" onClick={(e) => e.stopPropagation()}>
         <button
           className="ppt-ss-btn"
-          disabled={currentIndex === 0 && animStep === 0}
+          disabled={!canStepBack}
           onClick={handleStepBack}
           title="Lùi lại (Mũi tên trái)"
         >
@@ -1617,7 +1664,7 @@ export function SlideShow({
 
         <button
           className="ppt-ss-btn"
-          disabled={currentIndex === slides.length - 1 && animStep === clickCount}
+          disabled={!canAdvance}
           onClick={handleAdvance}
           title="Tiến tới (Mũi tên phải / Phím cách)"
         >
@@ -1852,6 +1899,26 @@ export function SlideShow({
           <X size={16} />
         </button>
       </div>
+      )}
+
+      {menuPos && (
+        <div
+          className="ppt-ss-context-menu"
+          role="menu"
+          style={{ left: menuPos.x, top: menuPos.y }}
+          onClick={(e) => e.stopPropagation()}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <button type="button" role="menuitem" disabled={!canAdvance} onClick={runMenu(handleAdvance)}>Tiếp theo</button>
+          <button type="button" role="menuitem" disabled={!canStepBack} onClick={runMenu(handleStepBack)}>Trước đó</button>
+          <hr />
+          <button type="button" role="menuitem" onClick={runMenu(() => setBlankMode('black'))}>Màn hình đen</button>
+          <button type="button" role="menuitem" onClick={runMenu(() => setBlankMode('white'))}>Màn hình trắng</button>
+          <button type="button" role="menuitem" onClick={runMenu(() => setIsPresenterMode(true))}>Chế độ Diễn giả</button>
+          <hr />
+          <button type="button" role="menuitem" onClick={runMenu(onClose)}>Kết thúc trình chiếu</button>
+        </div>
+      )}
     </div>
   );
 }

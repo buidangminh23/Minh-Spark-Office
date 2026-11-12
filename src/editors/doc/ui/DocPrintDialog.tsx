@@ -11,6 +11,10 @@ import type { PrintSource } from '../../../components/print/printTypes';
 import { useDoc } from '../DocContext';
 import { getPagination, pageAtPos, type PaginationResult } from '../pagination';
 import { pageDimensions } from './Paper';
+import type { Editor } from '@tiptap/core';
+import { getSettings, useSettings, type AppSettings } from '../../../lib/appSettings';
+import type { CommentItem, FileMeta } from '../../../lib/storage';
+import { COMMENTS_PER_PAGE, CommentsPage, PropertiesPage } from './PrintInfoPages';
 
 const PX_PER_MM = 3.78;
 const toPx = (mm: number) => Math.round(mm * PX_PER_MM * 10) / 10;
@@ -100,12 +104,41 @@ function pruneFlow(paper: HTMLElement, clone: HTMLElement, pageTop: number, heig
   copies.forEach((node, i) => { if (!keep[i]) node.remove(); });
 }
 
+function applyPrintOptions(clone: HTMLElement, options: Pick<AppSettings, 'printDrawings' | 'printBackground'>) {
+  clone.classList.remove('show-marks', 'show-grid');
+  clone.querySelectorAll('.fm-break').forEach((node) => node.remove());
+  clone.querySelectorAll('.fm-space, .fm-tab').forEach((node) => node.classList.remove('fm-space', 'fm-tab'));
+  if (!options.printDrawings) clone.querySelectorAll('.ink-layer').forEach((node) => node.remove());
+  if (!options.printBackground) {
+    clone.style.background = '#fff';
+    clone.style.setProperty('--sheet-color', '#ffffff');
+    clone.querySelectorAll<HTMLElement>('.page-sheet').forEach((sheet) => { sheet.style.background = '#fff'; });
+  }
+}
+
+type InfoArgs = { box: { width: number; height: number; padding: string }; title: string; meta: FileMeta; editor: Editor; pages: number; comments: CommentItem[]; printProperties: boolean; printComments: boolean };
+
+function infoPages({ box, title, meta, editor, pages, comments, printProperties, printComments }: InfoArgs) {
+  const items = [];
+  const size = { w: box.width, h: box.height };
+  if (printProperties) items.push({ key: 'doc-properties', size, render: () => <PropertiesPage box={box} title={title} meta={meta} editor={editor} pages={pages} /> });
+  if (printComments && comments.length) {
+    for (let start = 0, part = 0; start < comments.length; start += COMMENTS_PER_PAGE, part += 1) {
+      const chunk = comments.slice(start, start + COMMENTS_PER_PAGE);
+      const index = part;
+      items.push({ key: `doc-comments-${part}`, size, render: () => <CommentsPage box={box} comments={chunk} index={index} /> });
+    }
+  }
+  return items;
+}
+
 function pageClone(paper: HTMLElement, index: number, pageTop: number, height: number): HTMLElement {
   const clone = paper.cloneNode(true) as HTMLElement;
   clone.querySelectorAll('[contenteditable]').forEach((node) => node.setAttribute('contenteditable', 'false'));
   clone.querySelectorAll('[data-placeholder]').forEach((node) => { node.removeAttribute('data-placeholder'); node.classList.remove('is-editor-empty', 'is-empty'); });
   clone.querySelectorAll('.doc-ruler-v, .selection-bubble, .doc-object-handle, [data-resize-handle], .column-resize-handle').forEach((node) => node.remove());
   clone.querySelectorAll(':scope > .page-sheet').forEach((sheet, i) => { if (i !== index) sheet.remove(); });
+  applyPrintOptions(clone, getSettings());
   pruneFlow(paper, clone, pageTop, height);
   clone.style.margin = `${-pageTop}px 0 0 0`;
   clone.style.height = `${pageTop + height}px`;
@@ -151,7 +184,8 @@ function presetOf(margins: Margins, mirror: boolean, gutter: number): MarginChoi
 }
 
 export function DocPrintDialog({ onClose }: { onClose: () => void }) {
-  const { editor, page, setPage, view, setView, title, openDialog } = useDoc();
+  const { editor, page, setPage, view, setView, title, openDialog, meta, comments } = useDoc();
+  const printOptions = useSettings();
   const [result, setResult] = useState<PaginationResult>(() => getPagination(editor).result);
   const [version, setVersion] = useState(0);
   const [binding, setBinding] = useState(false);
@@ -196,12 +230,15 @@ export function DocPrintDialog({ onClose }: { onClose: () => void }) {
     guideMargins: { top: pxToMm(page.margins.top), right: pxToMm(page.margins.right), bottom: pxToMm(page.margins.bottom), left: pxToMm(page.margins.left) },
     currentItem: current,
     loading: view.zoom !== 100 || view.viewMode !== 'print',
-    items: Array.from({ length: Math.max(1, result.pages) }, (_, i) => ({
-      key: `doc-${i}`,
-      size: { w: dims.width, h: dims.height },
-      render: () => <DocPageClone index={i} version={version} width={dims.width} height={dims.height} sheet={screenSheet} />,
-    })),
-  }), [title, paperMm, page.orientation, page.margins, current, view.zoom, view.viewMode, result.pages, dims.width, dims.height, version, screenSheet]);
+    items: [
+      ...Array.from({ length: Math.max(1, result.pages) }, (_, i) => ({
+        key: `doc-${i}-${printOptions.printDrawings ? 'd' : ''}${printOptions.printBackground ? 'b' : ''}`,
+        size: { w: dims.width, h: dims.height },
+        render: () => <DocPageClone index={i} version={version} width={dims.width} height={dims.height} sheet={screenSheet} />,
+      })),
+      ...infoPages({ box: { width: dims.width, height: dims.height, padding: `${page.margins.top}px ${page.margins.right}px ${page.margins.bottom}px ${page.margins.left}px` }, title, meta, editor, pages: Math.max(1, result.pages), comments, printProperties: printOptions.printProperties, printComments: printOptions.printComments }),
+    ],
+  }), [title, paperMm, page.orientation, page.margins, current, view.zoom, view.viewMode, result.pages, dims.width, dims.height, version, screenSheet, meta, editor, comments, printOptions.printProperties, printOptions.printComments, printOptions.printDrawings, printOptions.printBackground]);
 
   const gutterMm = toMm(page.gutter ?? 0);
   const mirror = Boolean(page.mirrorMargins);

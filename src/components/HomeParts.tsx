@@ -1,15 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
-import { ChevronDown, Cloud, CloudCheck, CloudOff, Download, Languages, LogOut, RefreshCw, Upload, X } from 'lucide-react';
+import { ChevronDown, Cloud, CloudCheck, CloudOff, LogOut, RefreshCw, Upload } from 'lucide-react';
 import { useAccount } from './Authentication';
-import { DesktopFileSettings } from './DesktopFileSettings';
 import { openDraftImport, useWorkspaceSync } from './WorkspaceStatus';
 import type { SyncStatus } from '../lib/syncTypes';
-import { getLanguage, setLanguage, type AppLanguage } from '../lib/i18n/language';
-
-const LANGUAGE_OPTIONS: Array<[AppLanguage, string]> = [
-  ['vi', 'Tiếng Việt'],
-  ['en', 'English'],
-];
 
 export function useDismiss<T extends HTMLElement>(open: boolean, close: () => void): RefObject<T | null> {
   const ref = useRef<T>(null);
@@ -48,7 +41,7 @@ export function Popover({ open, onClose, trigger, children, align = 'end', class
   );
 }
 
-const SYNC_SHORT: Record<SyncStatus['state'], string> = {
+export const SYNC_SHORT: Record<SyncStatus['state'], string> = {
   connecting: 'Đang kết nối',
   syncing: 'Đang đồng bộ',
   synced: 'Đã đồng bộ',
@@ -56,7 +49,7 @@ const SYNC_SHORT: Record<SyncStatus['state'], string> = {
   error: 'Chưa đồng bộ',
 };
 
-const SYNC_DETAIL: Record<SyncStatus['state'], string> = {
+export const SYNC_DETAIL: Record<SyncStatus['state'], string> = {
   connecting: 'Đang kết nối với kho tài liệu của tài khoản.',
   syncing: 'Đang gửi thay đổi lên tài khoản.',
   synced: 'Mọi thay đổi đã có trên web và ứng dụng máy tính.',
@@ -136,65 +129,6 @@ export function AccountMenu() {
       {error && <p className="ws-popover-error" role="alert">{error}</p>}
       <button role="menuitem" className="ws-menu-item" disabled={pending} onClick={() => { setOpen(false); void logout(); }}><LogOut size={16} aria-hidden="true" />Đăng xuất</button>
     </Popover>
-  );
-}
-
-export function SettingsDialog({ onClose, onExportBackup, onImportBackup }: {
-  onClose: () => void;
-  onExportBackup: () => void;
-  onImportBackup: (file: File) => void;
-}) {
-  const language = getLanguage();
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
-  return (
-    <div className="sync-dialog-backdrop" onPointerDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section className="sync-dialog ws-settings" role="dialog" aria-modal="true" aria-labelledby="ws-settings-title">
-        <div className="ws-settings-head">
-          <h2 id="ws-settings-title">Cài đặt</h2>
-          <button className="icon-btn" onClick={onClose} aria-label="Đóng"><X size={18} /></button>
-        </div>
-        <div className="ws-settings-group">
-          <h3>Ngôn ngữ giao diện</h3>
-          <p>Chọn ngôn ngữ cho toàn bộ ứng dụng. Nội dung tài liệu của sếp giữ nguyên.</p>
-          <div className="ws-settings-actions" data-no-translate>
-            {LANGUAGE_OPTIONS.map(([code, label]) => (
-              <button key={code} className={`btn${language === code ? ' btn-primary' : ''}`} aria-pressed={language === code} onClick={() => language !== code && setLanguage(code)}>
-                <Languages size={16} />{label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="ws-settings-group">
-          <h3>Sao lưu &amp; khôi phục</h3>
-          <p>Tải về một tệp chứa toàn bộ tài liệu, hoặc mở lại từ bản sao lưu đã tải.</p>
-          <div className="ws-settings-actions">
-            <button className="btn" onClick={onExportBackup}><Download size={16} />Sao lưu toàn bộ</button>
-            <label className="btn" style={{ cursor: 'pointer' }}>
-              <Upload size={16} />Khôi phục từ bản sao lưu
-              <input type="file" accept=".json" hidden onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) { onImportBackup(file); onClose(); }
-                event.target.value = '';
-              }} />
-            </label>
-          </div>
-        </div>
-        <div className="ws-settings-group">
-          <h3>Ứng dụng máy tính</h3>
-          <p>Dùng Minh Spark Office trên Windows và macOS, đồng bộ cùng tài khoản với bản web.</p>
-          <div className="ws-settings-actions">
-            <a className="btn" href="https://office.minhspark.com/tai-ung-dung.html" target="_blank" rel="noopener noreferrer"><Download size={16} />Tải ứng dụng</a>
-            <DesktopFileSettings />
-          </div>
-        </div>
-      </section>
-    </div>
   );
 }
 

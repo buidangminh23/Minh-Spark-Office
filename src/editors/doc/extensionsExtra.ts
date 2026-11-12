@@ -829,18 +829,23 @@ const REPLACEMENTS: [RegExp, string][] = [
   [/--$/, '—'], [/\.\.\.$/, '…'], [/\(c\)$/i, '©'], [/\(r\)$/i, '®'], [/\(tm\)$/i, '™'], [/->$/, '→'], [/<-$/, '←'], [/=>$/, '⇒'], [/1\/2$/, '½'], [/1\/4$/, '¼'], [/3\/4$/, '¾'], [/!=$/, '≠'], [/<=$/, '≤'], [/>=$/, '≥'],
 ];
 
-export const AutoCorrect = Extension.create<Record<string, never>, { enabled: boolean }>({
+export type AutoCorrectFlags = { enabled: boolean; capitalize: boolean; symbols: boolean; math: boolean; superscript: boolean; smartQuotes: boolean; customList: boolean };
+
+const OPENING_CONTEXT = /^$|[\s([{“‘—–-]$/u;
+
+export const AutoCorrect = Extension.create<Record<string, never>, AutoCorrectFlags>({
   name: 'autoCorrect',
   addStorage() {
-    return { enabled: true };
+    return { enabled: true, capitalize: true, symbols: true, math: true, superscript: true, smartQuotes: false, customList: true };
   },
   addInputRules() {
     const storage = this.storage;
-    const outsideMath = (state: EditorState, from: number) => !isInsideOpenMath(state.doc.textBetween(state.doc.resolve(from).start(), from, undefined, '\ufffc'));
+    const outsideMath = (state: EditorState, from: number) => !isInsideOpenMath(state.doc.textBetween(state.doc.resolve(from).start(), from, undefined, '￼'));
+    const allowed = (flag: keyof AutoCorrectFlags, state: EditorState, from: number) => storage.enabled && storage[flag] && outsideMath(state, from);
     const rules = REPLACEMENTS.map(([find, text]) => new InputRule({
       find,
       handler: ({ state, range }) => {
-        if (!storage.enabled || !outsideMath(state, range.from)) return null;
+        if (!allowed('symbols', state, range.from)) return null;
         state.tr.insertText(text, range.from, range.to);
         return undefined;
       },
@@ -849,7 +854,7 @@ export const AutoCorrect = Extension.create<Record<string, never>, { enabled: bo
       find: SYMBOL_TRIGGER,
       handler: ({ state, range, match }) => {
         const symbol = symbolForCommand(match[1]);
-        if (!storage.enabled || !symbol || !outsideMath(state, range.from)) return null;
+        if (!symbol || !allowed('math', state, range.from)) return null;
         state.tr.insertText(`${symbol} `, range.from, range.to);
         return undefined;
       },
@@ -858,7 +863,7 @@ export const AutoCorrect = Extension.create<Record<string, never>, { enabled: bo
       find: SUPERSCRIPT_TRIGGER,
       handler: ({ state, range, match }) => {
         const superscript = superscriptFor(match[2]);
-        if (!storage.enabled || !superscript || !outsideMath(state, range.from)) return null;
+        if (!superscript || !allowed('superscript', state, range.from)) return null;
         state.tr.insertText(`${match[1]}${superscript} `, range.from, range.to);
         return undefined;
       },
@@ -866,8 +871,20 @@ export const AutoCorrect = Extension.create<Record<string, never>, { enabled: bo
     rules.push(new InputRule({
       find: /(?:^|[.!?]\s)(\p{Ll})$/u,
       handler: ({ state, range, match }) => {
-        if (!storage.enabled || !outsideMath(state, range.from)) return null;
+        if (!allowed('capitalize', state, range.from)) return null;
         state.tr.insertText(match[0].slice(0, -1) + match[1].toLocaleUpperCase('vi'), range.from, range.to);
+        return undefined;
+      },
+    }));
+    rules.push(new InputRule({
+      find: /["']$/,
+      handler: ({ state, range, match }) => {
+        if (!allowed('smartQuotes', state, range.from)) return null;
+        const $from = state.doc.resolve(range.from);
+        const before = $from.parent.textBetween(0, $from.parentOffset, undefined, '￼');
+        const opening = OPENING_CONTEXT.test(before);
+        const quote = match[0] === '"' ? (opening ? '“' : '”') : (opening ? '‘' : '’');
+        state.tr.insertText(quote, range.from, range.to);
         return undefined;
       },
     }));

@@ -6,6 +6,9 @@ import { AddinError, getProviderKey, resolveMode, setProviderKey, streamAddin } 
 import { renderMarkdown } from './markdown';
 import { ADDIN_INFO, closeAddin, toggleAddin, useOpenAddin } from './store';
 import './addins.css';
+import { useSettings, type AppSettings } from '../lib/appSettings';
+
+const addinEnabled = (provider: AddinProvider, settings: AppSettings) => (provider === 'claude' ? settings.addinClaude : settings.addinChatgpt);
 
 export type AddinAction = {
   id: string;
@@ -37,7 +40,9 @@ function historyFor(messages: Message[]): AddinTurn[] {
 }
 
 export function AddinPanel({ host }: { host: AddinHost }) {
-  const provider = useOpenAddin();
+  const open = useOpenAddin();
+  const settings = useSettings();
+  const provider = open && addinEnabled(open, settings) ? open : null;
   useEffect(() => closeAddin, []);
   if (!provider) return null;
   return <AddinPane key={provider} provider={provider} host={host} />;
@@ -283,11 +288,17 @@ function AddinSettings({ provider, signedIn, onLogin, onSaved, onDone }: { provi
   );
 }
 
+export function useAnyAddinEnabled() {
+  const settings = useSettings();
+  return settings.addinClaude || settings.addinChatgpt;
+}
+
 export function AddinRibbonButtons({ className, labelClass }: { className: string; labelClass?: string }) {
   const open = useOpenAddin();
+  const settings = useSettings();
   return (
     <>
-      {(Object.keys(ADDIN_INFO) as AddinProvider[]).map((provider) => (
+      {(Object.keys(ADDIN_INFO) as AddinProvider[]).filter((provider) => addinEnabled(provider, settings)).map((provider) => (
         <button
           key={provider}
           type="button"

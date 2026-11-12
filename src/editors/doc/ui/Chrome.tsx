@@ -1,5 +1,7 @@
-import { useMemo, useState } from 'react';
-import { Keyboard, Square, Wand2, ArrowLeft, Bookmark, BookText, Clipboard, Copy, Download, FileCode2, FileImage, FileText, FileType2, FolderOpen, History, Info, Mail, MonitorPlay, Package, Printer, Save, Share2, Table2, FilePlus2, X, BookOpen, ScrollText, Columns3, Minus, Plus, PencilLine } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSettings, type DocTab } from '../../../lib/appSettings';
+import { openSettings } from '../../../components/settings/settingsShared';
+import { Settings2, Keyboard, Square, Wand2, ArrowLeft, Bookmark, BookText, Clipboard, Copy, Download, FileCode2, FileImage, FileText, FileType2, FolderOpen, History, Info, Mail, MonitorPlay, Package, Printer, Save, Share2, Table2, FilePlus2, X, BookOpen, ScrollText, Columns3, Minus, Plus, PencilLine } from 'lucide-react';
 import { useEditorState } from '@tiptap/react';
 import { pickFile, formatBytes } from '../../../lib/download';
 import { useAccount } from '../../../components/Authentication';
@@ -63,6 +65,8 @@ export function Backstage({ onClose }: { onClose: () => void }) {
         <button className="backstage-item" onClick={() => act(() => ctx.openDialog('history'))}><History size={16} /> Lịch sử phiên bản</button>
         <button className="backstage-item" onClick={() => void makeCopy(ctx)}><Copy size={16} /> Tạo bản sao</button>
         <button className="backstage-item" onClick={() => act(ctx.print)}><Printer size={16} /> In</button>
+        <div className="backstage-sep" />
+        <button className="backstage-item" onClick={() => act(() => openSettings('display'))}><Settings2 size={16} /> Tuỳ chọn</button>
         <button className="backstage-item" onClick={() => act(() => ctx.openDialog('autocorrect'))}><Wand2 size={16} /> Tuỳ chọn tự sửa</button>
         <button className="backstage-item" onClick={() => act(() => ctx.openDialog('shortcuts'))}><Keyboard size={16} /> Phím tắt</button>
         <div className="backstage-sep" />
@@ -168,6 +172,10 @@ export type TabId = 'file' | 'home' | 'insert' | 'draw' | 'design' | 'layout' | 
 
 export function TabBar({ tab, setTab, contextual }: { tab: TabId; setTab: (t: TabId) => void; contextual: TabId[] }) {
   const ctx = useDoc();
+  const { docTabs } = useSettings();
+  useEffect(() => {
+    if (docTabs[tab as DocTab] === false) setTab('home');
+  }, [docTabs, tab, setTab]);
   const tabs: { id: TabId; label: string }[] = [
     { id: 'home', label: 'Trang chủ' }, { id: 'insert', label: 'Chèn' }, { id: 'draw', label: 'Vẽ' }, { id: 'design', label: 'Thiết kế' }, { id: 'layout', label: 'Bố cục' },
     { id: 'references', label: 'Tham chiếu' }, { id: 'mailings', label: 'Gửi thư' }, { id: 'review', label: 'Xem lại' }, { id: 'view', label: 'Xem' },
@@ -178,7 +186,7 @@ export function TabBar({ tab, setTab, contextual }: { tab: TabId; setTab: (t: Ta
     <div className="ribbon-tabs-bar" role="tablist">
       <div className="ribbon-tabs-list">
         <button role="tab" className="ribbon-tab file-tab" onClick={() => ctx.openDialog('backstage')}>Tệp</button>
-        {tabs.map((t) => <button key={t.id} role="tab" aria-selected={tab === t.id} className={`ribbon-tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>{t.label}</button>)}
+        {tabs.filter((t) => t.id === 'home' || docTabs[t.id as DocTab] !== false).map((t) => <button key={t.id} role="tab" aria-selected={tab === t.id} className={`ribbon-tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>{t.label}</button>)}
         {contextual.map((id) => <button key={id} role="tab" aria-selected={tab === id} className={`ribbon-tab contextual ${tab === id ? 'active' : ''}`} onClick={() => setTab(id)}>{labels[id]}</button>)}
       </div>
       <div className="ribbon-top-actions">

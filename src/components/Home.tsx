@@ -28,7 +28,10 @@ import { ConversionDialog } from './ConversionDialog';
 import { ConversionMenu } from './ConversionPicker';
 import { ConvertLogo } from './ConvertLogo';
 import type { ConversionPreset } from '../lib/conversionPresets';
-import { AccountMenu, Popover, SettingsDialog, SyncButton, TemplateThumb, type ThumbVariant } from './HomeParts';
+import { AccountMenu, Popover, SyncButton, TemplateThumb, type ThumbVariant } from './HomeParts';
+import { SettingsDialog } from './settings/SettingsDialog';
+import { useSettings } from '../lib/appSettings';
+import { updateNeedsAttention, useUpdaterStatus } from '../lib/updaterStatus';
 import './home.css';
 
 import type { FileKind, FileMeta } from '../lib/storage';
@@ -76,7 +79,6 @@ type KindTab = 'all' | FileKind;
 type SortOrder = 'recent' | 'oldest' | 'name';
 
 const FilePartsDialog = lazy(() => import('./FilePartsDialog').then((module) => ({ default: module.FilePartsDialog })));
-const RECENT_LIMIT = 5;
 const FEATURED_TEMPLATES = 4;
 const IMPORT_ACCEPT = '.docx,.txt,.md,.html,.htm,.xlsx,.xlsm,.xls,.csv,.tsv,.pdf,.pptx,.ppt,.png,.jpg,.jpeg,.jfif,.jpe,.webp,.gif,.svg,.svgz,.bmp,.dib,.ico,.avif,.tiff,.tif,.heic,.heif';
 
@@ -136,6 +138,9 @@ function matchesQuery(file: FileMeta, query: string) {
 export default function Home(props: HomeProps) {
   const { files, onCreateDoc, onCreateSheet, onCreatePdf, onImportFile, onExportBackup, onImportBackup } = props;
   const { user } = useAccount();
+  const appSettings = useSettings();
+  const updater = useUpdaterStatus();
+  const RECENT_LIMIT = appSettings.recentCount;
   const [view, setView] = useState<View>('home');
   const [kindTab, setKindTab] = useState<KindTab>('all');
   const [sortOrder, setSortOrder] = useState<SortOrder>('recent');
@@ -313,7 +318,7 @@ export default function Home(props: HomeProps) {
           <button className="ws-nav-item" aria-haspopup="dialog" onClick={() => setFilePartsOpen(true)}><span className="ws-nav-icon" aria-hidden="true"><Files size={22} /></span><span className="ws-nav-label">Gộp và tách tệp</span></button>
           <hr />
           <NavItem active={view === 'trash' && !isSearching} onClick={() => goTo('trash')} icon={<Trash2 size={20} />} badge={trashCount || undefined}>Thùng rác</NavItem>
-          <NavItem active={settingsOpen} onClick={() => setSettingsOpen(true)} icon={<Settings size={20} />}>Cài đặt</NavItem>
+          <NavItem active={settingsOpen} onClick={() => setSettingsOpen(true)} icon={<Settings size={20} />} dot={updateNeedsAttention(updater.phase) ? `Có phiên bản ${updater.nextVersion}` : undefined}>Cài đặt</NavItem>
         </nav>
       </aside>
 
@@ -356,11 +361,11 @@ export default function Home(props: HomeProps) {
               </div>
 
               <div className="ws-apps">
-                <AppCard kind="doc" title="Minh Docs" desc="Soạn thảo văn bản" action="plus" onClick={() => onCreateDoc()} />
-                <AppCard kind="sheet" title="Minh Sheets" desc="Tạo bảng tính" action="plus" onClick={() => onCreateSheet()} />
-                <AppCard kind="slide" title="Minh Slides" desc="Soạn bài thuyết trình" action="plus" onClick={() => props.onCreateSlide()} />
-                <AppCard kind="pdf" title="Minh PDF" desc="Chỉnh sửa & chuyển đổi" action="arrow" onClick={onCreatePdf} />
-                <AppCard kind="image" title="Minh Photos" desc="Xem và sửa ảnh đa định dạng" action="arrow" onClick={() => imageInput.current?.click()} />
+                {appSettings.homeApps.doc && <AppCard kind="doc" title="Minh Docs" desc="Soạn thảo văn bản" action="plus" onClick={() => onCreateDoc()} />}
+                {appSettings.homeApps.sheet && <AppCard kind="sheet" title="Minh Sheets" desc="Tạo bảng tính" action="plus" onClick={() => onCreateSheet()} />}
+                {appSettings.homeApps.slide && <AppCard kind="slide" title="Minh Slides" desc="Soạn bài thuyết trình" action="plus" onClick={() => props.onCreateSlide()} />}
+                {appSettings.homeApps.pdf && <AppCard kind="pdf" title="Minh PDF" desc="Chỉnh sửa & chuyển đổi" action="arrow" onClick={onCreatePdf} />}
+                {appSettings.homeApps.image && <AppCard kind="image" title="Minh Photos" desc="Xem và sửa ảnh đa định dạng" action="arrow" onClick={() => imageInput.current?.click()} />}
                 <input ref={imageInput} type="file" accept={IMAGE_ACCEPT_STRING} hidden onChange={handleImport} data-testid="photos-input" />
               </div>
 
@@ -428,13 +433,14 @@ export default function Home(props: HomeProps) {
   );
 }
 
-function NavItem({ active, onClick, icon, badge, menuOpen, children }: { active: boolean; onClick: (event: MouseEvent<HTMLButtonElement>) => void; icon: ReactNode; badge?: number; menuOpen?: boolean; children: ReactNode }) {
+function NavItem({ active, onClick, icon, badge, dot, menuOpen, children }: { active: boolean; onClick: (event: MouseEvent<HTMLButtonElement>) => void; icon: ReactNode; badge?: number; dot?: string; menuOpen?: boolean; children: ReactNode }) {
   const isMenu = menuOpen !== undefined;
   return (
     <button className={`ws-nav-item ${active ? 'is-active' : ''}`} aria-current={active && !isMenu ? 'page' : undefined} aria-haspopup={isMenu ? 'menu' : undefined} aria-expanded={isMenu ? menuOpen : undefined} onClick={onClick}>
       <span className="ws-nav-icon" aria-hidden="true">{icon}</span>
       <span className="ws-nav-label">{children}</span>
       {badge ? <span className="ws-nav-badge">{badge}</span> : null}
+      {dot ? <span className="ws-nav-dot" role="status" aria-label={dot} title={dot} /> : null}
     </button>
   );
 }

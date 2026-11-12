@@ -4,7 +4,7 @@ import { saveAccountSnapshot } from '../../lib/accountSnapshots';
 import { useAccount } from '../../components/Authentication';
 import { useWorkspace } from '../../lib/storage';
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { AddinPanel, AddinRibbonButtons } from '../../addins/AddinPane';
+import { AddinPanel, AddinRibbonButtons, useAnyAddinEnabled } from '../../addins/AddinPane';
 import { pdfHost } from '../../addins/hosts';
 import { getOpenAddin } from '../../addins/store';
 import {
@@ -104,6 +104,7 @@ const PDF_MIN_FIT_ZOOM = 30;
 const PDF_MIN_REAL_FIT_ZOOM = 5;
 
 export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorProps) {
+  const showAddins = useAnyAddinEnabled();
   const ui = useUi();
   const { user, login } = useAccount();
   const sourceStorage = useWorkspace();
@@ -866,12 +867,14 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
                 <div className="ribbon-group-label">Settings</div>
               </div>
 
-              <div className="ribbon-section">
-                <div className="ribbon-controls">
-                  <AddinRibbonButtons className="ribbon-btn-large" />
+              {showAddins && (
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <AddinRibbonButtons className="ribbon-btn-large" />
+                  </div>
+                  <div className="ribbon-group-label">Add-in</div>
                 </div>
-                <div className="ribbon-group-label">Add-in</div>
-              </div>
+              )}
             </>
           )}
 

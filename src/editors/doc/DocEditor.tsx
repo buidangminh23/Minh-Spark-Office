@@ -13,7 +13,7 @@ import Subscript from '@tiptap/extension-subscript';
 import Superscript from '@tiptap/extension-superscript';
 import Placeholder from '@tiptap/extension-placeholder';
 import CharacterCount from '@tiptap/extension-character-count';
-import { ArrowLeft, BookOpen, CheckCircle2, Clock, History, MessageSquare, Redo2, Save, Search, Share2, Undo2, X } from 'lucide-react';
+import { ArrowLeft, BookOpen, CheckCircle2, Clock, History, MessageSquare, Search, Share2, X } from 'lucide-react';
 
 import { CommentMark, Footnote, FontSizeStep, LayoutImage, MergeField, PageBreak, ParagraphFormat, ShadedTableCell, ShadedTableHeader } from './extensions';
 import { AutoCorrect, Bibliography, Bookmark, Citation, ColumnSection, CrossRef, DocIndex, DocRefs, EndnoteList, Equation, FigureList, IndexEntry, ListStyles, SmartChip, TableExtras, TableOfContents, TextBox, TextStyleExtras, setRefs } from './extensionsExtra';
@@ -75,6 +75,11 @@ import { DocPrintDialog } from './ui/DocPrintDialog';
 import SafeBoundary from './ui/SafeBoundary';
 import { AUTO_TITLE_SCAN_BLOCKS, deriveDocTitle, isDefaultDocName, type TitleBlock } from './autoTitle';
 import { useDocumentCloser } from '../../lib/documentCloser';
+import { getSettings } from '../../lib/appSettings';
+import { FormattingMarks } from './formattingMarks';
+import { QuickAccess } from './ui/QuickAccess';
+import { openExternalLink } from '../../lib/externalLinks';
+import { handleConfiguredPaste, rememberView, shellClasses, useDocEditorSettings, viewFromSettings } from './docSettings';
 
 const AUTO_TITLE_DEBOUNCE_MS = 800;
 
@@ -96,9 +101,9 @@ const loadView = (): ViewState => {
   const base: ViewState = { inkTool: null, inkColor: '#1d4ed8', inkWidth: 3, focusMode: false, dark: false, ribbonCollapsed: false, zoom: 100, viewMode: 'print', editMode: 'editing', showRuler: true, showGrid: false, showMarks: false, showNav: true, spellcheck: true, sidePanel: null, showFind: false, findReplace: false, hideInk: false, inkInput: 'any', inkEraser: 'stroke', inkToShape: false, inkRuler: null, inkReplay: null, penId: null, pageMove: 'vertical', splitView: false, sideBySide: null, syncScroll: true, outlineLevel: 9, markup: 'all', markupComments: true, markupInsDel: true, markupFormatting: true, markupAuthor: null, reviewPane: 'none', commentsMode: 'list', recording: false };
   try {
     const saved = JSON.parse(localStorage.getItem(VIEW_KEY) ?? '{}') as Partial<ViewState>;
-    return { ...base, zoom: saved.zoom ?? base.zoom, viewMode: saved.viewMode === 'read' ? 'print' : saved.viewMode ?? base.viewMode, showRuler: saved.showRuler ?? base.showRuler, showNav: saved.showNav ?? base.showNav, spellcheck: saved.spellcheck ?? base.spellcheck, dark: saved.dark ?? base.dark, ribbonCollapsed: saved.ribbonCollapsed ?? base.ribbonCollapsed };
+    return { ...base, viewMode: saved.viewMode === 'read' ? 'print' : saved.viewMode ?? base.viewMode, ...viewFromSettings({ ribbonCollapsed: saved.ribbonCollapsed ?? base.ribbonCollapsed }) };
   } catch {
-    return base;
+    return { ...base, ...viewFromSettings(base) };
   }
 };
 
@@ -160,6 +165,7 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
     dirtySinceVersion.current = true;
   }, []);
 
+  const editorRef = useRef<Editor | null>(null);
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ link: { openOnClick: false, autolink: true, defaultProtocol: 'https' }, heading: { levels: [1, 2, 3, 4, 5, 6] } }),
@@ -207,6 +213,7 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
       CrossRef,
       IndexEntry,
       AutoCorrect,
+      FormattingMarks,
       SearchAndReplace,
       InsertionMark,
       DeletionMark,
@@ -218,8 +225,14 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
     ],
     content: content.json || { type: 'doc', content: [{ type: 'paragraph' }] },
     editorProps: {
-      attributes: { spellcheck: 'true', lang: 'vi', 'aria-label': 'Nội dung tài liệu' },
-      handleClick: (editorView, pos) => {
+      attributes: { spellcheck: 'true', lang: getSettings().proofLanguage, 'aria-label': 'Nội dung tài liệu' },
+      handlePaste: (_view, event) => (editorRef.current ? handleConfiguredPaste(editorRef.current, event) : false),
+      handleClick: (editorView, pos, event) => {
+        const link = editorView.state.doc.resolve(pos).marks().find((m) => m.type.name === 'link');
+        if (link && (event.ctrlKey || event.metaKey)) {
+          openExternalLink(String(link.attrs.href ?? ''));
+          return true;
+        }
         const mark = editorView.state.doc.resolve(pos).marks().find((m) => m.type.name === 'comment');
         if (mark) {
           setActiveCommentId(String(mark.attrs.commentId));
@@ -259,10 +272,6 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
     return () => dom.removeEventListener(EQUATION_OPEN_DIALOG, openFullEditor);
   }, [editor]);
 
-  useEffect(() => {
-    const storage = editor.storage as unknown as { autoCorrect?: { enabled: boolean } };
-    if (storage.autoCorrect) storage.autoCorrect.enabled = page.autocorrect !== false;
-  }, [editor, page.autocorrect]);
 
   useEffect(() => {
     if (!autoTitleRef.current) return;
@@ -304,6 +313,8 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
   }, [markDirty]);
 
   const setView = useCallback((patch: Partial<ViewState>) => setViewState((v) => ({ ...v, ...patch })), []);
+  editorRef.current = editor;
+  const docSettings = useDocEditorSettings(editor, page.autocorrect, setView);
 
   const setComments = useCallback((updater: (items: CommentItem[]) => CommentItem[]) => setCommentsState(updater), []);
 
@@ -365,6 +376,7 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
     } catch {
       return;
     }
+    rememberView(view);
   }, [view.zoom, view.viewMode, view.showRuler, view.showNav, view.spellcheck, view.dark, view.ribbonCollapsed]);
 
   useEffect(() => {
@@ -529,7 +541,7 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
 
   return (
     <DocContext.Provider value={ctx}>
-      <div className={`editor-shell doc-editor ${reading ? 'reading' : ''} ${view.focusMode ? 'focus-mode' : ''} ${view.dark ? 'doc-dark' : ''}`}>
+      <div className={`editor-shell doc-editor ${reading ? 'reading' : ''} ${view.focusMode ? 'focus-mode' : ''} ${view.dark ? 'doc-dark' : ''} ${shellClasses(docSettings)}`}>
         <PrintStyles />
         {view.focusMode && <button className="btn focus-exit" onClick={() => setView({ focusMode: false })}><X size={14} /> Thoát tập trung (Esc)</button>}
         {reading ? (
@@ -546,11 +558,7 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
                 <button className="icon-btn" onClick={() => { void persist(false).then((saved) => { if (saved) onBack(); }); }} title="Về danh sách tệp" aria-label="Quay lại"><ArrowLeft size={18} /></button>
                 <SuiteLogo kind="doc" size={32} decorative={false} />
                 <input className="editor-title-input" value={title} aria-label="Tên tài liệu" onChange={(e) => { autoTitleRef.current = false; setTitle(e.target.value); markDirty(); }} onBlur={handleTitleBlur} onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()} />
-                <div className="quick-access">
-                  <button className="icon-btn" title="Lưu chính thức (Ctrl+S)" aria-label="Lưu" onClick={saveNow}><Save size={16} /></button>
-                  <button className="icon-btn" title="Hoàn tác (Ctrl+Z)" aria-label="Hoàn tác" disabled={!fmt.canUndo} onClick={() => editor.chain().focus().undo().run()}><Undo2 size={16} /></button>
-                  <button className="icon-btn" title="Làm lại (Ctrl+Y)" aria-label="Làm lại" disabled={!fmt.canRedo} onClick={() => editor.chain().focus().redo().run()}><Redo2 size={16} /></button>
-                </div>
+                <QuickAccess placement="above" />
                 <button className={`save-pill ${savedStatus}`} onClick={() => user ? setDialog('history') : void saveNow()} title={user ? 'Xem lịch sử phiên bản' : 'Đăng nhập để lưu tài liệu'}>
                   {savedStatus === 'saved' ? <><CheckCircle2 size={13} /><span>{user ? 'Đã lưu trên máy' : 'Đã lưu nháp trên máy'}</span></> : <><Clock size={13} /><span>{user ? 'Đang lưu…' : 'Đang lưu nháp…'}</span></>}
                 </button>
@@ -567,6 +575,7 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
               <TabBar tab={tab} setTab={setTab} contextual={contextual} />
               {!view.ribbonCollapsed && <div className="ribbon-body" role="toolbar" aria-label="Thanh công cụ">{renderTab()}</div>}
             </div>
+            <QuickAccess placement="below" />
           </>
         )}
 
@@ -595,7 +604,7 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
 
         {!reading && <StatusBar page={pages.current} pages={pages.count} />}
 
-        {!view.showFind && !dialog && <SafeBoundary name="selection-bubble"><SelectionBubble /></SafeBoundary>}
+        {!view.showFind && !dialog && docSettings.miniToolbar && <SafeBoundary name="selection-bubble"><SelectionBubble /></SafeBoundary>}
         <SafeBoundary name="slash-menu"><SlashMenu /></SafeBoundary>
         <SafeBoundary name="at-menu"><AtMentionMenu /></SafeBoundary>
         {contextMenu && <SafeBoundary name="context-menu"><ContextMenu at={contextMenu} onClose={() => setContextMenu(null)} /></SafeBoundary>}

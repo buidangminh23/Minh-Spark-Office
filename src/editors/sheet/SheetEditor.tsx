@@ -4,7 +4,7 @@ import { saveAccountSnapshot } from '../../lib/accountSnapshots';
 import { useAccount } from '../../components/Authentication';
 import { useWorkspace } from '../../lib/storage';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AddinPanel, AddinRibbonButtons } from '../../addins/AddinPane';
+import { AddinPanel, AddinRibbonButtons, useAnyAddinEnabled } from '../../addins/AddinPane';
 import { FeatureMenu, type FeatureItem } from '../../components/FeatureMenu';
 import { sheetHost } from '../../addins/hosts';
 import { currentAuthorName } from '../../lib/currentAuthor';
@@ -23,6 +23,8 @@ const TAB = '\t';
 const LINE_BREAK = '\n';
 import {
   createUniver,
+  Direction,
+  IConfigService,
   LocaleType,
   UniverInstanceType,
   mergeLocales,
@@ -131,6 +133,13 @@ import UniverPresetSheetsNoteEnUS from '@univerjs/preset-sheets-note/locales/en-
 import { UniverSheetsSortPreset } from '@univerjs/preset-sheets-sort';
 import UniverPresetSheetsSortViVN from '@univerjs/preset-sheets-sort/locales/vi-VN';
 import UniverPresetSheetsSortEnUS from '@univerjs/preset-sheets-sort/locales/en-US';
+import { getSettings, setSettings, useSetting } from '../../lib/appSettings';
+import type { SheetEnterDirection } from '../../lib/settings/sheetDefaults';
+import { openSettings } from '../../components/settings/settingsShared';
+import { SheetQuickAccess, type SheetQatHandlers } from './SheetQuickAccess';
+import { enterMoveDirection, isFreshBlankWorkbook, isSheetTabVisible, withSheetCount } from './sheetSettings';
+
+const MACROS_DISABLED_MESSAGE = 'Macro đang bị tắt trong Cài đặt → Bảo mật & Quyền riêng tư.';
 
 import {
   ArrowLeft,
@@ -593,12 +602,20 @@ const formatHeaderRow = (worksheet: ActiveWorksheet): boolean => {
   return true;
 };
 
+type EditAutomationOptions = { valueAutoComplete: boolean; headerFormat: boolean };
+
+const editAutomationOptions = (): EditAutomationOptions => {
+  const settings = getSettings();
+  return { valueAutoComplete: settings.sheetValueAutoComplete, headerFormat: settings.sheetHeaderAutoFormat };
+};
+
 const applyEditAutomation = (
   worksheet: ActiveWorksheet,
   row: number,
   column: number,
   raw: string | null,
-  snapshot: EditSnapshot | null
+  snapshot: EditSnapshot | null,
+  options: EditAutomationOptions = editAutomationOptions()
 ): AutomationNotice[] => {
   const notices: AutomationNotice[] = [];
   const cell = worksheet.getRange(row, column, 1, 1);
@@ -606,7 +623,7 @@ const applyEditAutomation = (
   if (money !== null) {
     cell.setValue(money);
     cell.setNumberFormat('$#,##0.00');
-  } else if (raw !== null && typeof cell.getValue() === 'string') {
+  } else if (options.valueAutoComplete && raw !== null && typeof cell.getValue() === 'string') {
     const completion = suggestCompletion(worksheet, row, column, raw);
     if (completion) {
       cell.setValue(completion);
@@ -615,7 +632,7 @@ const applyEditAutomation = (
   }
   const pattern = thousandsFormatFor(cell.getValue(), cell.getNumberFormat());
   if (pattern) cell.setNumberFormat(pattern);
-  if (snapshot?.key === editKey(worksheet, row, column) && snapshot.firstDataRowWasEmpty && formatHeaderRow(worksheet)) {
+  if (options.headerFormat && snapshot?.key === editKey(worksheet, row, column) && snapshot.firstDataRowWasEmpty && formatHeaderRow(worksheet)) {
     notices.push('header');
   }
   widenColumnToFitCell(worksheet, row, column);
@@ -626,6 +643,57 @@ const AUTOMATION_NOTICE_TEXT: Record<AutomationNotice, string> = {
   autocomplete: 'Đã tự điền theo giá trị có sẵn trong cột. Bấm Ctrl+Z nếu muốn giữ đúng chữ đã gõ.',
   header: 'Đã in đậm và cố định dòng tiêu đề.',
 };
+
+const MOVE_ENTER_TAB_COMMAND = 'sheet.command.move-selection-enter-tab';
+const FORMULA_UI_CONFIG_KEY = 'sheets-formula-ui.base.config';
+const univerDirection = (direction: SheetEnterDirection): Direction => {
+  switch (direction) {
+    case 'right': return Direction.RIGHT;
+    case 'up': return Direction.UP;
+    case 'left': return Direction.LEFT;
+    default: return Direction.DOWN;
+  }
+};
+const redirectedEnterMoves = new WeakSet<object>();
+
+type CommandEventLike = { id: string; params?: unknown; cancel?: boolean };
+
+const redirectEnterMove = (api: UniverApi, event: CommandEventLike) => {
+  if (event.id !== MOVE_ENTER_TAB_COMMAND) return;
+  const params = event.params as { keycode?: number; direction?: Direction } | undefined;
+  if (!params || params.keycode !== KeyCode.ENTER || redirectedEnterMoves.has(params)) return;
+  const settings = getSettings();
+  const target = enterMoveDirection(settings.sheetEnterMove, settings.sheetEnterDirection, params.direction === Direction.UP);
+  if (target && univerDirection(target) === params.direction) return;
+  event.cancel = true;
+  if (!target) return;
+  const next = { ...params, direction: univerDirection(target) };
+  redirectedEnterMoves.add(next);
+  queueMicrotask(() => {
+    void api.executeCommand(MOVE_ENTER_TAB_COMMAND, next).catch(() => undefined);
+  });
+};
+
+const applyFormulaAutoComplete = (univer: ReturnType<typeof createUniver>['univer'], enabled: boolean) => {
+  const config = univer.__getInjector().get(IConfigService);
+  const current = config.getConfig<Record<string, unknown> | undefined>(FORMULA_UI_CONFIG_KEY) ?? {};
+  if (current.functionScreenTips === enabled) return;
+  config.setConfig(FORMULA_UI_CONFIG_KEY, { ...current, functionScreenTips: enabled });
+};
+
+const SHEET_RIBBON_TABS = [
+  ['file', 'File'],
+  ['home', 'Home'],
+  ['insert', 'Insert'],
+  ['draw', 'Draw'],
+  ['page_layout', 'Page Layout'],
+  ['formulas', 'Formulas'],
+  ['data', 'Data'],
+  ['review', 'Review'],
+  ['view', 'View'],
+  ['automate', 'Automate'],
+  ['help', 'Help'],
+] as const;
 
 const DEFAULT_PRINT_SETTINGS: SheetPrintSettings = {
   orientation: 'landscape',
@@ -663,6 +731,7 @@ const MAX_PASTE_SNAPSHOT_CELLS = 50_000;
 const MAX_VBA_OUTPUT_LINES = 500;
 const CONVERTED_VBA_MODULE = 'MacroGhiLai';
 export default function SheetEditor({ meta, content, onSave, onBack }: SheetEditorProps) {
+  const showAddins = useAnyAddinEnabled();
   const ui = useUi();
   const { user, login } = useAccount();
   const sourceStorage = useWorkspace();
@@ -691,7 +760,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
   announceRef.current = announceAutomation;
   const painterStyleRef = useRef<CellStyle | null>(null);
 
-  const [activeTab, setActiveTab] = useState<SheetRibbonTab>('home');
+  const [chosenTab, setActiveTab] = useState<SheetRibbonTab>('home');
   const [title, setTitle] = useState(meta.name);
   const [savedStatus, updateSavedStatus] = useState<'saved' | 'saving'>('saved');
   const [changeVersion, setChangeVersion] = useState(0);
@@ -740,7 +809,8 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
   designModeRef.current = designMode;
   const vbaSessionRef = useRef<VbaSession | null>(null);
   const [userForms, setUserForms] = useState<UserFormSession | null>(null);
-  const [macrosEnabled, setMacrosEnabled] = useState(() => isVbaTrusted(meta.id));
+  const macroPolicy = useSetting('macroPolicy');
+  const [macrosEnabled, setMacrosEnabled] = useState(() => getSettings().macroPolicy === 'enable' || (getSettings().macroPolicy === 'ask' && isVbaTrusted(meta.id)));
   const macrosEnabledRef = useRef(macrosEnabled);
   macrosEnabledRef.current = macrosEnabled;
   const [macroBarDismissed, setMacroBarDismissed] = useState(false);
@@ -786,8 +856,12 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
   const [hasFilter, setHasFilter] = useState(false);
   const [isFrozen, setIsFrozen] = useState(false);
   const [showGridlines, setShowGridlines] = useState(true);
-  const [showFormulaBar, setShowFormulaBar] = useState(true);
-  const [showStatusBar, setShowStatusBar] = useState(true);
+  const showFormulaBar = useSetting('sheetShowFormulaBar');
+  const showStatusBar = useSetting('sheetShowStatusBar');
+  const sheetTabs = useSetting('sheetTabs');
+  const formulaAutoComplete = useSetting('sheetFormulaAutoComplete');
+  const ribbonTabs = useMemo(() => SHEET_RIBBON_TABS.filter(([tabId]) => isSheetTabVisible(tabId, sheetTabs)), [sheetTabs]);
+  const activeTab: SheetRibbonTab = isSheetTabVisible(chosenTab, sheetTabs) ? chosenTab : 'home';
   const [focusMode, setFocusMode] = useState(false);
   const [zoomPct, setZoomPct] = useState(100);
   const [isProtected, setIsProtected] = useState(false);
@@ -893,8 +967,9 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
   const [liveSnapshotForModal, setLiveSnapshotForModal] = useState<WorkbookData>(() => content.workbook);
   const [liveAnalysisForModal, setLiveAnalysisForModal] = useState(() => analyzeSheetData('Sheet1', [], [], 0, 0));
 
-  const openPopover = (e: React.MouseEvent<HTMLElement>, kind: PopoverKind) => {
-    const rect = e.currentTarget.getBoundingClientRect();
+  const openPopover = (e: React.MouseEvent<HTMLElement>, kind: PopoverKind) => openPopoverAt(e.currentTarget, kind);
+  const openPopoverAt = (anchor: HTMLElement, kind: PopoverKind) => {
+    const rect = anchor.getBoundingClientRect();
     const left = Math.max(8, Math.min(window.innerWidth - 250, rect.left));
     const top = Math.min(window.innerHeight - 120, rect.bottom + 4);
     setPopover((prev) => (prev?.kind === kind ? null : { kind, left, top }));
@@ -1162,6 +1237,16 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
   handleSaveNowRef.current = handleSaveNow;
   useEffect(() => () => vbaSessionRef.current?.dispose(), []);
 
+  useEffect(() => {
+    const univer = univerRef.current;
+    if (!univer) return;
+    try {
+      applyFormulaAutoComplete(univer, formulaAutoComplete);
+    } catch (err) {
+      console.warn('Could not update formula AutoComplete:', err);
+    }
+  }, [formulaAutoComplete]);
+
   const recalculateAndBindWorkbook = useCallback(
     (api: ReturnType<typeof createUniver>['univerAPI']) => {
       workbookSubsRef.current.forEach((sub) => {
@@ -1237,7 +1322,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
         });
         const editChangingSub = api.addEvent(api.Event.SheetEditChanging, ({ worksheet, row, column, value }) => {
           try {
-            setAutoCompleteHint(suggestCompletion(worksheet, row, column, value.toPlainText()));
+            setAutoCompleteHint(getSettings().sheetValueAutoComplete ? suggestCompletion(worksheet, row, column, value.toPlainText()) : null);
           } catch {
             setAutoCompleteHint(null);
           }
@@ -1274,7 +1359,8 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
           setRecordedCount(recorder.count);
         });
         const macroClickSub = api.addEvent(api.Event.CellClicked, ({ row, column }) => cellClickRef.current(row, column));
-        workbookSubsRef.current.push(selectionSub, commandSub, editStartSub, editChangingSub, beforeEditEndSub, editEndSub, macroBeforeSub, macroAfterSub, macroClickSub);
+        const enterMoveSub = api.addEvent(api.Event.BeforeCommandExecute, (event) => redirectEnterMove(api, event));
+        workbookSubsRef.current.push(selectionSub, commandSub, editStartSub, editChangingSub, beforeEditEndSub, editEndSub, macroBeforeSub, macroAfterSub, macroClickSub, enterMoveSub);
       }
 
       try {
@@ -1312,6 +1398,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
     let cancelled = false;
 
     try {
+      const startup = getSettings();
       const { univer, univerAPI } = createUniver({
         locale: getLanguage() === 'en' ? LocaleType.EN_US : LocaleType.VI_VN,
         locales: {
@@ -1347,9 +1434,13 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
             formula: {
               function: EXTRA_FUNCTIONS,
               description: EXTRA_FUNCTION_DESCRIPTIONS,
+              functionScreenTips: startup.sheetFormulaAutoComplete,
+            },
+            sheets: {
+              scrollConfig: { enableHorizontal: startup.sheetShowHScroll, enableVertical: startup.sheetShowVScroll },
             },
             footer: {
-              sheetBar: true,
+              sheetBar: startup.sheetShowSheetTabs,
               statisticBar: false,
               menus: true,
               zoomSlider: false,
@@ -1369,7 +1460,9 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
       instanceToDispose = univer;
       univerRef.current = univer;
       univerAPIRef.current = univerAPI;
-      const clonedWb = JSON.parse(JSON.stringify(content.workbook)) as WorkbookData;
+      const parsedWb = JSON.parse(JSON.stringify(content.workbook)) as WorkbookData;
+      const clonedWb = isFreshBlankWorkbook(meta, parsedWb) ? withSheetCount(parsedWb, startup.sheetNewSheetCount) : parsedWb;
+      const addedDefaultSheets = clonedWb !== parsedWb;
       const truncationNotice = describeImportTruncation(clonedWb.importTruncation);
       delete clonedWb.importTruncation;
       const vbaNotice = clonedWb.vbaError ? `Tệp có mã VBA nhưng Minh Sheets chưa đọc được (${clonedWb.vbaError}). Dữ liệu bảng vẫn mở bình thường.` : '';
@@ -1384,6 +1477,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
         if (cancelled) return;
         syncUiFromSelection();
         syncDefinedNames();
+        if (addedDefaultSheets) setSavedStatus('saving');
         if (truncationNotice) ui.toast(truncationNotice, true);
         if (vbaNotice) ui.toast(vbaNotice, true);
         vbaOpenRef.current();
@@ -4321,7 +4415,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
   };
 
   const runRecordedMacro = async (macro: SheetMacro) => {
-    if (isReplayingRef.current) return;
+    if (isReplayingRef.current || macrosBlocked()) return;
     if (recorderRef.current) {
       ui.toast('Đang ghi macro: hãy Dừng ghi trước khi chạy macro khác', true);
       return;
@@ -4427,7 +4521,14 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
     return session;
   };
 
+  const macrosBlocked = () => {
+    if (getSettings().macroPolicy !== 'disable') return false;
+    ui.toast(MACROS_DISABLED_MESSAGE, true);
+    return true;
+  };
+
   const enableMacros = (runOpen: boolean) => {
+    if (macrosBlocked()) return;
     macrosEnabledRef.current = true;
     setMacrosEnabled(true);
     trustVba(meta.id);
@@ -4460,6 +4561,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
       ui.toast('Bảng tính chưa có mã VBA', true);
       return;
     }
+    if (macrosBlocked()) return;
     if (recorderRef.current) {
       ui.toast('Đang ghi macro: hãy Dừng ghi trước khi chạy macro VBA', true);
       return;
@@ -4799,7 +4901,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
         setPopover({ kind: 'paste', left: Math.max(8, window.innerWidth / 2 - 125), top: 160 });
         break;
       case 'toggleFormulaBar':
-        setShowFormulaBar((visible) => !visible);
+        setSettings({ sheetShowFormulaBar: !getSettings().sheetShowFormulaBar });
         break;
       case 'formatCells':
         openFormatCellsRef.current();
@@ -4995,7 +5097,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
     if (!ok) return;
     const ctx = getActiveContext();
     if (!ctx) return;
-    const blank = emptyWorkbook(stripSpreadsheetExt(title));
+    const blank = withSheetCount(emptyWorkbook(stripSpreadsheetExt(title)), getSettings().sheetNewSheetCount);
     ctx.fWorkbook.dispose();
     ctx.api.createWorkbook(blank as never);
     recalculateAndBindWorkbook(ctx.api);
@@ -5186,6 +5288,22 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
     { id: 'doctor', group: 'Dữ liệu', label: 'Bác sĩ tối ưu', description: 'Dọn ô thừa, giảm dung lượng sổ tính', icon: <Sparkles size={16} color="#059669" />, run: openWorkbookDoctor },
   ];
 
+  const qatHandlers: SheetQatHandlers = {
+    save: () => handleSaveNow(),
+    undo: () => void getActiveContext()?.fWorkbook.undo(),
+    redo: () => void getActiveContext()?.fWorkbook.redo(),
+    print: () => setModal('pageSetup'),
+    find: () => setModal('find'),
+    sortAsc: () => handleSortSheet(true),
+    sortDesc: () => handleSortSheet(false),
+    filter: () => handleToggleFilter(),
+    freeze: (anchor) => openPopoverAt(anchor, 'freezeMenu'),
+    formatPainter: () => handleFormatPainter(),
+    exportXlsx: () => void handleExportXlsx(),
+    history: () => void handleOpenHistory(),
+  };
+  const qatActive = { filter: hasFilter, freeze: isFrozen, formatPainter: painterArmed };
+
   return (
     <div className="editor-shell">
       <input ref={imageInputRef} type="file" accept="image/*" hidden onChange={handleUploadImageFile} />
@@ -5240,6 +5358,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                 </>
               )}
             </button>
+            <SheetQuickAccess placement="above" handlers={qatHandlers} active={qatActive} />
           </div>
 
           <div className="topbar-right">
@@ -5291,21 +5410,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
         <div className="ribbon sheet">
           <div className="ribbon-tabs-bar">
             <div className="ribbon-tabs-list">
-              {(
-                [
-                  ['file', 'File'],
-                  ['home', 'Home'],
-                  ['insert', 'Insert'],
-                  ['draw', 'Draw'],
-                  ['page_layout', 'Page Layout'],
-                  ['formulas', 'Formulas'],
-                  ['data', 'Data'],
-                  ['review', 'Review'],
-                  ['view', 'View'],
-                  ['automate', 'Automate'],
-                  ['help', 'Help'],
-                ] as const
-              ).map(([tabId, label]) => (
+              {ribbonTabs.map(([tabId, label]) => (
                 <button
                   key={tabId}
                   className={`ribbon-tab ${activeTab === tabId ? 'active' : ''}`}
@@ -5405,6 +5510,16 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                     </button>
                   </div>
                   <div className="ribbon-group-label">Kết xuất đa định dạng</div>
+                </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    <button className="ribbon-btn-large" onClick={() => openSettings('sheet-formulas')} title="Mở Tuỳ chọn của Minh Sheets (công thức, soạn thảo, hiển thị, ribbon)">
+                      <SlidersHorizontal size={20} color="#475569" />
+                      <span>Tuỳ chọn</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Tuỳ chọn</div>
                 </div>
               </>
             )}
@@ -5764,12 +5879,14 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                   <div className="ribbon-group-label">Trí tuệ AI</div>
                 </div>
 
-                <div className="ribbon-section">
-                  <div className="ribbon-controls">
-                    <AddinRibbonButtons className="ribbon-btn-large" />
+                {showAddins && (
+                  <div className="ribbon-section">
+                    <div className="ribbon-controls">
+                      <AddinRibbonButtons className="ribbon-btn-large" />
+                    </div>
+                    <div className="ribbon-group-label">Add-in</div>
                   </div>
-                  <div className="ribbon-group-label">Add-in</div>
-                </div>
+                )}
               </>
             )}
 
@@ -6280,11 +6397,11 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                       {showGridlines ? <Eye size={20} color="#107c41" /> : <EyeOff size={20} color="#64748b" />}
                       <span>Đường lưới</span>
                     </button>
-                    <button className={`ribbon-btn-large ${showFormulaBar ? 'active' : ''}`} onClick={() => setShowFormulaBar((v) => !v)}>
+                    <button className={`ribbon-btn-large ${showFormulaBar ? 'active' : ''}`} onClick={() => setSettings({ sheetShowFormulaBar: !showFormulaBar })}>
                       <Code2 size={20} color="#0284c7" />
                       <span>Thanh fx</span>
                     </button>
-                    <button className={`ribbon-btn-large ${showStatusBar ? 'active' : ''}`} onClick={() => setShowStatusBar((v) => !v)}>
+                    <button className={`ribbon-btn-large ${showStatusBar ? 'active' : ''}`} onClick={() => setSettings({ sheetShowStatusBar: !showStatusBar })}>
                       <Table size={20} color="#475569" />
                       <span>Thanh đáy</span>
                     </button>
@@ -6443,6 +6560,8 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
           </div>
         </div>
       )}
+
+      {!focusMode && <SheetQuickAccess placement="below" handlers={qatHandlers} active={qatActive} />}
 
       {focusMode && (
         <div
@@ -7747,10 +7866,12 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
           style={{ position: 'fixed', left: '50%', transform: 'translateX(-50%)', bottom: 54, zIndex: 61, display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px 8px 14px', borderRadius: 10, border: '1px solid #fcd34d', background: '#fffbeb', color: '#78350f', fontSize: 13, boxShadow: '0 6px 18px rgba(15,23,42,.18)', maxWidth: 'calc(100vw - 32px)' }}
         >
           <ShieldAlert size={16} color="#b45309" />
-          <span>Tệp có mã VBA. Macro, sự kiện tự chạy và UserForm đang tắt cho tới khi bạn bật.</span>
-          <button className="btn btn-primary" style={{ padding: '4px 10px' }} onClick={() => enableMacros(true)}>
-            Bật macro
-          </button>
+          <span>{macroPolicy === 'disable' ? `Tệp có mã VBA. ${MACROS_DISABLED_MESSAGE}` : 'Tệp có mã VBA. Macro, sự kiện tự chạy và UserForm đang tắt cho tới khi bạn bật.'}</span>
+          {macroPolicy !== 'disable' && (
+            <button className="btn btn-primary" style={{ padding: '4px 10px' }} onClick={() => enableMacros(true)}>
+              Bật macro
+            </button>
+          )}
           <button aria-label="Ẩn thông báo macro" onClick={() => setMacroBarDismissed(true)} style={{ border: 0, background: 'transparent', cursor: 'pointer', color: '#78350f', display: 'grid', placeItems: 'center' }}>
             <X size={15} />
           </button>

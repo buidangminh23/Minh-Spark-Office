@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   X,
   CheckCircle2,
+  Settings2,
 } from 'lucide-react';
 import type { FileMeta, SlideContent } from '../../lib/storage';
 
@@ -19,6 +20,7 @@ interface SlideBackstageProps {
   onPrint: () => void;
   onNew: () => void;
   onBackToHome: () => void;
+  onOpenOptions: () => void;
 }
 
 export function SlideBackstage({
@@ -30,6 +32,7 @@ export function SlideBackstage({
   onPrint,
   onNew,
   onBackToHome,
+  onOpenOptions,
 }: SlideBackstageProps) {
   const slideCount = content.presentation.slides.length;
 
@@ -107,6 +110,16 @@ export function SlideBackstage({
               <div>
                 <strong style={{ fontSize: '14px', color: '#0F172A' }}>Bài thuyết trình mới</strong>
                 <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#64748B' }}>Tạo bản trình bày trống hoặc từ mẫu</p>
+              </div>
+            </div>
+
+            <div className="ppt-backstage-action-card" onClick={onOpenOptions}>
+              <div style={{ width: '40px', height: '40px', borderRadius: '8px', background: '#EDE9FE', color: '#7C3AED', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Settings2 size={20} />
+              </div>
+              <div>
+                <strong style={{ fontSize: '14px', color: '#0F172A' }}>Tuỳ chọn</strong>
+                <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#64748B' }}>Hiển thị, soạn thảo, trình chiếu và ribbon của Minh Slides</p>
               </div>
             </div>
           </div>

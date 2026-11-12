@@ -1,0 +1,7 @@
+.sheet-qat { display: flex; align-items: center; gap: 2px; padding-inline: 6px; border-inline: 1px solid var(--line); }
+.sheet-qat .icon-btn { width: 28px; height: 28px; }
+.sheet-qat .icon-btn.active { color: #107c41; background: #dcfce7; }
+.sheet-qat-below { justify-content: flex-start; padding: 2px 8px; border-inline: 0; border-bottom: 1px solid var(--line); background: var(--panel, #fff); }
+@media (max-width: 720px) {
+  .sheet-qat-above { display: none; }
+}

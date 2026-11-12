@@ -1,3 +1,4 @@
+import { openExternalLink } from '../../../lib/externalLinks';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Bookmark, BookText, Download, Globe, ListX, RotateCw, Search, Bold, ChevronDown, ChevronUp, ClipboardPaste, Code, Copy, Heading1, Heading2, Heading3, Highlighter, Image as ImageIcon, Italic, Link2, List, ListOrdered, ListTodo, ListTree, MessageSquarePlus, Minus, Quote, Scissors, Sigma, Sparkles, Strikethrough, Table, Type, Underline, X, Calendar, ScissorsLineDashed, BarChart3, Languages, Settings2, Trash2, FileText, Info, AlertTriangle, EyeOff, QrCode, Clock, CheckCircle2, UserCheck, GitBranch, Printer, Presentation } from 'lucide-react';
 import { useEditorState } from '@tiptap/react';
@@ -162,7 +163,7 @@ export function ContextMenu({ at, onClose }: { at: { x: number; y: number }; onC
       'sep' as const,
     ] : []),
     { label: onLink ? 'Sửa liên kết…' : 'Liên kết…', icon: <Link2 size={14} />, hint: 'Ctrl+K', run: () => void editLink(ctx) },
-    ...(onLink ? [{ label: 'Mở liên kết', icon: <Link2 size={14} />, run: () => window.open(editor.getAttributes('link').href, '_blank', 'noopener') }, { label: 'Bỏ liên kết', icon: <X size={14} />, run: () => chain().extendMarkRange('link').unsetLink().run() }] : []),
+    ...(onLink ? [{ label: 'Mở liên kết', icon: <Link2 size={14} />, run: () => { openExternalLink(String(editor.getAttributes('link').href ?? '')); } }, { label: 'Bỏ liên kết', icon: <X size={14} />, run: () => chain().extendMarkRange('link').unsetLink().run() }] : []),
     ...(onLink ? [{ label: 'Sao chép liên kết', icon: <Copy size={14} />, run: () => void navigator.clipboard?.writeText(String(editor.getAttributes('link').href ?? '')) }] : []),
     { label: 'Dấu trang…', icon: <Bookmark size={14} />, run: () => ctx.openDialog('bookmarks') },
     { label: 'Bình luận mới', icon: <MessageSquarePlus size={14} />, hint: 'Ctrl+Alt+M', run: () => void addComment(ctx) },

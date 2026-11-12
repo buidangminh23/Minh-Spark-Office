@@ -95,7 +95,7 @@ export function MacroRecordModal({
   return (
     <ProDialog
       title="Ghi macro (Record Macro)"
-      subtitle="Sau khi bấm Bắt đầu ghi, mọi thao tác trên bảng tính được ghi lại: nhập liệu, dán, định dạng, chèn xoá hàng cột, nhóm hàng cột, ngắt trang và thiết lập in, cho tới khi sếp bấm Dừng ghi."
+      subtitle="Sau khi bấm Bắt đầu ghi, mọi thao tác trên bảng tính được ghi lại: nhập liệu, dán, định dạng, chèn xoá hàng cột, nhóm hàng cột, ngắt trang và thiết lập in, cho tới khi bạn bấm Dừng ghi."
       width={520}
       onClose={onClose}
       actions={

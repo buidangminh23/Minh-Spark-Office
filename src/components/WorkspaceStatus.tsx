@@ -1,5 +1,4 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { CircleHelp } from 'lucide-react';
 import { createDraftWorkspaceStorage, useWorkspace, type FileMeta } from '../lib/storage';
 import { syncedWorkspace } from '../lib/workspaces';
 import { useAccount } from './Authentication';
@@ -24,20 +23,9 @@ export function useWorkspaceSync() {
   return { user, login, status, syncNow: () => void sync?.syncNow() };
 }
 
-function footerLabel(signedIn: boolean, status: SyncStatus) {
-  if (!signedIn) return 'Bản nháp tự lưu trên thiết bị này';
-  return {
-    connecting: 'Đang kết nối kho tài liệu',
-    syncing: `Đang đồng bộ${status.pending ? ` · ${status.pending} tệp` : ''}`,
-    synced: 'Tất cả thay đổi đã được lưu',
-    offline: 'Ngoại tuyến · thay đổi được lưu trên máy, sẽ đồng bộ khi có mạng',
-    error: 'Chưa đồng bộ được',
-  }[status.state];
-}
-
 export function WorkspaceStatus() {
   const storage = useWorkspace();
-  const { user, status } = useWorkspaceSync();
+  const { user } = useWorkspaceSync();
   const ui = useUi();
   const [drafts, setDrafts] = useState<FileMeta[] | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -71,12 +59,6 @@ export function WorkspaceStatus() {
     finally { setBusy(false); }
   };
   return <>
-    <div className="workspace-status" role="status">
-      <span className={`sync-dot sync-${user ? status.state : 'draft'}`} />
-      <span className="workspace-status-label">{footerLabel(Boolean(user), status)}</span>
-      {status.message && user && <span className="sync-message">{status.message}</span>}
-      <a className="workspace-help" href="/gioi-thieu.html" target="_blank" rel="noopener noreferrer"><CircleHelp size={16} aria-hidden="true" />Trợ giúp</a>
-    </div>
     {drafts && <div className="sync-dialog-backdrop"><section className="sync-dialog" role="dialog" aria-modal="true" aria-labelledby="draft-title">
       <img className="sync-brand" src="/logo-icon.png" alt="Minh Spark Office" />
       <h2 id="draft-title">Thêm tài liệu vào tài khoản</h2>

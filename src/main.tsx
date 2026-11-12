@@ -6,6 +6,8 @@ import { DismissDesktopSplash } from './components/DismissDesktopSplash'
 import { countThisDeviceOnce } from './lib/usageStats'
 import { reloadOnceForStaleChunk } from './lib/staleChunk'
 import { startInterfaceLanguage } from './lib/i18n/language'
+import { startChromeSettings } from './lib/appChrome'
+import { getSettings } from './lib/appSettings'
 
 window.addEventListener('vite:preloadError', (event) => {
   if (reloadOnceForStaleChunk()) event.preventDefault()
@@ -13,7 +15,8 @@ window.addEventListener('vite:preloadError', (event) => {
 
 const MirrorWindow = lazy(() => import('./editors/doc/ui/MirrorWindow'))
 const mirrorChannel = new URLSearchParams(window.location.search).get('mirror')
-if (!mirrorChannel) countThisDeviceOnce()
+startChromeSettings()
+if (!mirrorChannel && getSettings().usageStats) countThisDeviceOnce()
 
 const renderApp = () =>
   createRoot(document.getElementById('root')!).render(

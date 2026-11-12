@@ -1,5 +1,7 @@
 import type { PresentationData, SlideData, SlideElement, SlideLayout } from './slideTypes';
 import { SLIDE_THEMES } from './slideThemes';
+import { getSettings } from './appSettings';
+import { resolveThemeId } from './settings/slideOptions';
 
 export function createSlideFromLayout(
   layout: SlideLayout,
@@ -346,11 +348,13 @@ export function createSlideFromLayout(
 }
 
 export function blankPresentation(): PresentationData {
+  const settings = getSettings();
+  const themeId = resolveThemeId(settings.slideNewTheme, SLIDE_THEMES);
   return {
-    aspectRatio: '16:9',
-    themeId: 'office-classic',
+    aspectRatio: settings.slideNewAspect === '4:3' ? '4:3' : '16:9',
+    themeId,
     title: 'Bài thuyết trình mới',
-    slides: [createSlideFromLayout('title', 0, 'office-classic')],
+    slides: [createSlideFromLayout('title', 0, themeId)],
   };
 }
 

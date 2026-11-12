@@ -35,6 +35,13 @@ import { isChunkLoadError, reloadOnceForStaleChunk } from './lib/staleChunk';
 import type { FileKind } from './lib/storage';
 import { loadEditor, loadedEditors, preloadEditor, type EditorKind } from './lib/editorModules';
 import { importTargetOf, isOleContainer } from './lib/importTarget';
+import { getSettings } from './lib/appSettings';
+import { SettingsHost } from './components/settings/SettingsHost';
+import { registerBackupActions } from './components/settings/settingsShared';
+import type { DesktopFileBatch } from './lib/desktopFileQueue';
+
+const STARTUP_KEY = 'office-startup-done';
+const LAUNCH_FILE_WAIT_MS = 4000;
 
 function useLoadedEditors(kind: EditorKind | null, onError: (error: unknown) => void) {
   const [, setLoaded] = useState(0);
@@ -852,6 +859,11 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
     }
   };
 
+  const launchFiles = useRef((() => {
+    let resolve: (hadFiles: boolean) => void = () => undefined;
+    const promise = new Promise<boolean>((done) => { resolve = done; });
+    return { promise, resolve };
+  })());
   const importFromDesktop = useRef(handleImportFile);
   importFromDesktop.current = handleImportFile;
   const drainDesktopFiles = useRef<() => void>(() => {});
@@ -861,7 +873,11 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
     let unlisten: (() => void) | undefined;
     const queue = createDesktopFileQueue({
       isEditing: () => Boolean(activeDocument.current) || workspaceLifecycle.isBlocked(),
-      drain: () => invoke('drain_open_files'),
+      drain: async () => {
+        const batch = await invoke<DesktopFileBatch>('drain_open_files');
+        launchFiles.current.resolve(batch.files.length > 0);
+        return batch;
+      },
       read: (file) => {
         const target = importTargetOf(file.name);
         if (target) preloadEditor(target.editor);
@@ -884,6 +900,34 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
     return () => { alive = false; queue.stop(); stopLifecycle(); unlisten?.(); drainDesktopFiles.current = () => {}; };
   }, [ready, storage, toast]);
   useEffect(() => { if (!activeMeta) drainDesktopFiles.current(); }, [activeMeta]);
+
+  const startupHandled = useRef(false);
+  useEffect(() => {
+    const mode = getSettings().startup;
+    if (!ready || startupHandled.current || mode === 'home' || (!files.length && mode === 'lastDocument')) return;
+    startupHandled.current = true;
+    try {
+      if (sessionStorage.getItem(STARTUP_KEY)) return;
+      sessionStorage.setItem(STARTUP_KEY, '1');
+      if (sessionStorage.getItem(openDocumentKey)) return;
+    } catch {
+      return;
+    }
+    const launchWait = isDesktop()
+      ? Promise.race([launchFiles.current.promise, new Promise<boolean>((resolve) => setTimeout(() => resolve(false), LAUNCH_FILE_WAIT_MS))])
+      : Promise.resolve(false);
+    void launchWait.then((hadLaunchFile) => {
+      if (hadLaunchFile || activeDocument.current) return;
+      if (mode === 'newDoc') { void handleCreateDoc(); return; }
+      const last = files.filter((file) => !file.deletedAt).sort((a, b) => b.openedAt - a.openedAt)[0];
+      if (!last) return;
+      if (last.kind === 'doc') void handleOpenDoc(last);
+      else if (last.kind === 'sheet') void handleOpenSheet(last);
+      else if (last.kind === 'slide') void handleOpenSlide(last);
+      else if (last.kind === 'pdf') void handleOpenPdf(last);
+      else if (last.kind === 'image') void handleOpenImage(last);
+    });
+  }, [ready, files]);
 
   // Save current active document or sheet
   const handleSaveActive = async (meta: FileMeta, content: FileContent, explicit = false) => {
@@ -1020,6 +1064,8 @@ function MainApp({ onEditing }: { onEditing: (editing: boolean) => void }) {
     }
   };
 
+  registerBackupActions({ exportBackup: () => void handleExportBackup(), importBackup: (file) => void handleImportBackup(file) });
+
   // Render active editor or Home
   if (activeMeta && activeContent && activeEditorKind && !editors[activeEditorKind]) return <EditorLoading kind={activeEditorKind} />;
   const { doc: DocEditor, sheet: SheetEditor, slide: SlideEditor, image: ImageEditor, pdf: PdfEditor } = editors;
@@ -1129,7 +1175,7 @@ function Workspace({ userId, onEditing, editing }: { userId: string | null; onEd
     <WorkspaceContext value={workspace}>
       <UiProvider>
         <DesktopCloseGuard />
-        <div className={`workspace-frame ${editing ? 'is-editing' : ''}`}><div className="workspace-content"><MainApp onEditing={onEditing} /></div><WorkspaceStatus /></div>
+        <div className={`workspace-frame ${editing ? 'is-editing' : ''}`}><div className="workspace-content"><MainApp onEditing={onEditing} /></div><WorkspaceStatus /><SettingsHost /></div>
       </UiProvider>
     </WorkspaceContext>
   );

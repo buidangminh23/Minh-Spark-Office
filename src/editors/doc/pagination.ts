@@ -2,8 +2,10 @@ import { Extension, type Editor } from '@tiptap/core';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
+import { getSettings } from '../../lib/appSettings';
 
 export const PAGE_GAP = 24;
+export const pageGap = () => (getSettings().docPageGap ? PAGE_GAP : 0);
 const FOOTNOTE_RULE_HEIGHT = 17;
 const KEEP_NEXT_MIN = 40;
 const MAX_PASSES = 4;
@@ -158,7 +160,7 @@ function computeLayout(view: EditorView, config: PaginationConfig, current: Page
   if (!paper) return EMPTY;
   const paperTop = paper.getBoundingClientRect().top;
   const z = config.zoom || 1;
-  const pageSpan = config.pageHeight + PAGE_GAP;
+  const pageSpan = config.pageHeight + pageGap();
   const contentTop = (page: number) => page * pageSpan + config.marginTop;
   const contentBottom = (page: number) => page * pageSpan + config.pageHeight - config.marginBottom;
   const removedAt = (pos: number) => current.reduce((sum, b) => (b.pos <= pos ? sum + b.height : sum), 0) + currentExtras.reduce((sum, b) => (b.pos <= pos ? sum + b.height : sum), 0);
@@ -266,7 +268,7 @@ const sameBreaks = (a: PageBreakInfo[], b: PageBreakInfo[]) => a.length === b.le
 const sameExtras = (a: PageExtra[], b: PageExtra[]) => a.length === b.length && a.every((item, i) => item.pos === b[i].pos && Math.abs(item.height - b[i].height) < 1);
 
 function spacerNode(info: PageBreakInfo) {
-  const height = `calc(${(info.height - PAGE_GAP).toFixed(2)}px + var(--page-gap))`;
+  const height = `calc(${(info.height - pageGap()).toFixed(2)}px + var(--page-gap))`;
   if (info.kind === 'row') {
     const row = document.createElement('tr');
     row.className = 'page-spacer-row';

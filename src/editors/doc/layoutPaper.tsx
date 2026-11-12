@@ -1,7 +1,7 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import type { PageSettings } from '../../lib/storage';
 import { useDoc } from './DocContext';
-import { getPagination, PAGE_GAP } from './pagination';
+import { getPagination, pageGap } from './pagination';
 import { PAGE_SIZES } from '../../lib/storage';
 
 const SECTION_KINDS = new Set(['next', 'continuous', 'even', 'odd']);
@@ -74,7 +74,7 @@ export function LineNumberGutter() {
       const paper = root.closest('.doc-paper');
       if (!paper) return;
       const origin = paper.getBoundingClientRect().top;
-      const span = paper.classList.contains('paged') ? pageHeight + PAGE_GAP : pageHeight;
+      const span = paper.classList.contains('paged') ? pageHeight + pageGap() : pageHeight;
       const next: { top: number; value: number }[] = [];
       let count = 0;
       let currentPage = 0;

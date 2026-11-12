@@ -7,6 +7,8 @@ import { isLineShape } from '../../lib/slideShapes';
 import { ShapeSvg } from './SlideShapeSvg';
 import { ToneDot } from './slideIcons';
 import { isEditableKeyTarget } from './slideKeyTarget';
+import { getSettings } from '../../lib/appSettings';
+import { gridStepPercent, snapPosition, snapResize } from '../../lib/settings/slideOptions';
 
 interface SlideCanvasProps {
   slide: SlideData;
@@ -25,6 +27,9 @@ interface SlideCanvasProps {
   readOnly?: boolean;
   showGridlines?: boolean;
   showGuides?: boolean;
+  snapToGrid?: boolean;
+  gridSize?: number;
+  smartGuides?: boolean;
   drawMode?: 'select' | 'pen' | 'highlighter' | 'eraser';
   inkColor?: string;
   inkWidth?: number;
@@ -66,6 +71,9 @@ export function SlideCanvas({
   readOnly = false,
   showGridlines = false,
   showGuides = false,
+  snapToGrid = false,
+  gridSize = 20,
+  smartGuides = true,
   drawMode = 'select',
   inkColor = '#000000',
   inkWidth = 3,
@@ -278,12 +286,16 @@ export function SlideCanvas({
 
       const deltaXPct = ((e.clientX - dragStart.x) / rect.width) * 100;
       const deltaYPct = ((e.clientY - dragStart.y) / rect.height) * 100;
+      const gridStep = snapToGrid && !e.altKey ? gridStepPercent(gridSize, aspectRatio) : null;
 
       if (isDragging && Object.keys(dragOrigins).length > 1) {
-        applyPatch(moveBoxes(dragOrigins, deltaXPct, deltaYPct));
+        const anchor = dragOrigins[selectedElement.id];
+        const snapped = gridStep && anchor ? snapPosition(anchor.x + deltaXPct, anchor.y + deltaYPct, anchor, gridStep) : null;
+        applyPatch(moveBoxes(dragOrigins, snapped ? snapped.x - anchor.x : deltaXPct, snapped ? snapped.y - anchor.y : deltaYPct));
       } else if (isDragging) {
         let newX = Math.max(0, Math.min(100 - selectedElement.width, dragStart.elX + deltaXPct));
         let newY = Math.max(0, Math.min(100 - selectedElement.height, dragStart.elY + deltaYPct));
+        if (gridStep) ({ x: newX, y: newY } = snapPosition(newX, newY, selectedElement, gridStep));
 
         // Smart Magnetic Guides & Snapping
         const centerX = newX + selectedElement.width / 2;
@@ -293,12 +305,12 @@ export function SlideCanvas({
         let badge: { x: number; y: number; text: string } | null = null;
 
         // Snap to slide center (50%)
-        if (Math.abs(centerX - 50) < 1.5) {
+        if (smartGuides && Math.abs(centerX - 50) < 1.5) {
           newX = 50 - selectedElement.width / 2;
           snapX = 50;
           badge = { x: 50, y: Math.max(5, newY - 4), text: '⟷ 16px Căn Giữa ⟷' };
         }
-        if (Math.abs(centerY - 50) < 1.5) {
+        if (smartGuides && Math.abs(centerY - 50) < 1.5) {
           newY = 50 - selectedElement.height / 2;
           snapY = 50;
           badge = { x: Math.max(10, newX + selectedElement.width / 2), y: 50, text: '↕ 16px Căn Giữa ↕' };
@@ -334,6 +346,8 @@ export function SlideCanvas({
             newH = possibleH;
           }
         }
+
+        if (gridStep) ({ x: newX, y: newY, width: newW, height: newH } = snapResize({ x: newX, y: newY, width: newW, height: newH }, resizingHandle, gridStep));
 
         onUpdateElement(selectedElement.id, {
           x: Math.round(newX * 10) / 10,
@@ -501,7 +515,7 @@ export function SlideCanvas({
       }}
     >
       {/* Gridlines Overlay */}
-      {showGridlines && <div className="ppt-gridlines-overlay" />}
+      {showGridlines && <div className="ppt-gridlines-overlay" style={{ backgroundSize: `${gridSize}px ${gridSize}px` }} />}
 
       {/* Guides Overlay (Center crosshairs) */}
       {showGuides && (
@@ -878,6 +892,7 @@ function renderElementContent(
         <div
           contentEditable
           suppressContentEditableWarning
+          spellCheck={getSettings().slideSpellcheck}
           className="ppt-text-box is-editing"
           style={textStyle}
           autoFocus

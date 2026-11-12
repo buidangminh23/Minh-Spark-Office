@@ -2,7 +2,7 @@ import type { Editor, JSONContent } from '@tiptap/core';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { NodeSelection } from '@tiptap/pm/state';
 import type { DocCtx } from './DocContext';
-import { PAGE_GAP } from './pagination';
+import { pageGap } from './pagination';
 import { pageDimensions } from './ui/Paper';
 
 export type WrapKind = 'inline' | 'square' | 'tight' | 'through' | 'topBottom' | 'behind' | 'front';
@@ -104,7 +104,7 @@ export function placeImage(ctx: DocCtx, target: { h?: HAlign; v?: VAlign }, posi
     const now = dom ? paperPoint(dom) : null;
     if (!now) return;
     const dims = pageDimensions(page.size, page.orientation);
-    const span = now.paper.classList.contains('paged') ? dims.height + PAGE_GAP : dims.height;
+    const span = now.paper.classList.contains('paged') ? dims.height + pageGap() : dims.height;
     const index = Math.max(0, Math.floor(now.y / span));
     const margins = page.margins;
     const contentWidth = dims.width - margins.left - margins.right;

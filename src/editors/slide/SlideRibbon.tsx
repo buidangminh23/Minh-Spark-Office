@@ -140,6 +140,8 @@ import type {
 import { SLIDE_THEMES } from '../../lib/slideThemes';
 import { playTransitionSound } from '../../lib/slideAudio';
 import { ANIMATION_DEFS, TRANSITION_DEFS } from '../../lib/slideEffects';
+import { useSetting } from '../../lib/appSettings';
+import { SLIDE_FONT_SIZES, SLIDE_FONTS, visibleRibbonTabs } from '../../lib/settings/slideOptions';
 
 export interface TransitionItem {
   type: TransitionType;
@@ -483,18 +485,8 @@ interface SlideRibbonProps {
   onToggleReflection?: () => void;
 }
 
-const FONTS = [
-  'Segoe UI',
-  'Calibri',
-  'Arial',
-  'Roboto',
-  'Be Vietnam Pro',
-  'Montserrat',
-  'Playfair Display',
-  'Times New Roman',
-];
-
-const FONT_SIZES = [12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 56, 64, 72, 80, 96];
+const FONTS = SLIDE_FONTS;
+const FONT_SIZES = SLIDE_FONT_SIZES;
 
 export function SlideRibbon(props: SlideRibbonProps) {
   const {
@@ -633,6 +625,7 @@ export function SlideRibbon(props: SlideRibbonProps) {
     e.target.value = '';
   };
 
+  const ribbonTabs = useSetting('slideTabs');
   const isShapeSelected = selectedElement?.type === 'shape';
   const isImageSelected = selectedElement?.type === 'image';
   const isTableSelected = selectedElement?.type === 'table';
@@ -699,60 +692,15 @@ export function SlideRibbon(props: SlideRibbonProps) {
           <FileText size={16} /> Tệp
         </button>
 
-        <button
-          className={`ppt-ribbon-tab ${activeTab === 'home' ? 'is-active' : ''}`}
-          onClick={() => onTabChange('home')}
-        >
-          Trang đầu
-        </button>
-        <button
-          className={`ppt-ribbon-tab ${activeTab === 'insert' ? 'is-active' : ''}`}
-          onClick={() => onTabChange('insert')}
-        >
-          Chèn
-        </button>
-        <button
-          className={`ppt-ribbon-tab ${activeTab === 'draw' ? 'is-active' : ''}`}
-          onClick={() => onTabChange('draw')}
-        >
-          Vẽ
-        </button>
-        <button
-          className={`ppt-ribbon-tab ${activeTab === 'design' ? 'is-active' : ''}`}
-          onClick={() => onTabChange('design')}
-        >
-          Thiết kế
-        </button>
-        <button
-          className={`ppt-ribbon-tab ${activeTab === 'transitions' ? 'is-active' : ''}`}
-          onClick={() => onTabChange('transitions')}
-        >
-          Chuyển tiếp
-        </button>
-        <button
-          className={`ppt-ribbon-tab ${activeTab === 'animations' ? 'is-active' : ''}`}
-          onClick={() => onTabChange('animations')}
-        >
-          Hoạt hình
-        </button>
-        <button
-          className={`ppt-ribbon-tab ${activeTab === 'slideshow' ? 'is-active' : ''}`}
-          onClick={() => onTabChange('slideshow')}
-        >
-          Trình chiếu
-        </button>
-        <button
-          className={`ppt-ribbon-tab ${activeTab === 'review' ? 'is-active' : ''}`}
-          onClick={() => onTabChange('review')}
-        >
-          Xem lại
-        </button>
-        <button
-          className={`ppt-ribbon-tab ${activeTab === 'view' ? 'is-active' : ''}`}
-          onClick={() => onTabChange('view')}
-        >
-          Xem
-        </button>
+        {visibleRibbonTabs(ribbonTabs).map(([id, label]) => (
+          <button
+            key={id}
+            className={`ppt-ribbon-tab ${activeTab === id ? 'is-active' : ''}`}
+            onClick={() => onTabChange(id)}
+          >
+            {label}
+          </button>
+        ))}
 
         {/* Contextual Tabs when elements selected */}
         {isShapeSelected && (

@@ -125,7 +125,8 @@ export const UserAutoCorrect = Extension.create<Record<string, never>, { entries
       key: new PluginKey('userAutoCorrect'),
       props: {
         handleTextInput(view, from, to, text) {
-          const enabled = (editor.storage as unknown as { autoCorrect?: { enabled: boolean } }).autoCorrect?.enabled !== false;
+          const flags = (editor.storage as unknown as { autoCorrect?: { enabled: boolean; customList?: boolean } }).autoCorrect;
+          const enabled = flags?.enabled !== false && flags?.customList !== false;
           if (!enabled || !storage.entries.length || !/^[\s.,;:!?)]$/.test(text) || from !== to) return false;
           const $from = view.state.doc.resolve(from);
           if (!$from.parent.isTextblock) return false;

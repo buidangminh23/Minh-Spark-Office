@@ -3,7 +3,8 @@ import { EditorContent } from '@tiptap/react';
 import { PAGE_SIZES, type PageSettings } from '../../../lib/storage';
 import { formatNote } from '../extensionsExtra';
 import { useDoc } from '../DocContext';
-import { getPagination, PAGE_GAP, type PaginationResult } from '../pagination';
+import { getPagination, PAGE_GAP, pageGap, type PaginationResult } from '../pagination';
+import { useSetting } from '../../../lib/appSettings';
 import { regionZones } from '../pageFormat';
 import { HorizontalRuler, VerticalRuler } from './Rulers';
 import InkLayer from './InkLayer';
@@ -57,6 +58,7 @@ function Region({ zones, kind, top, bottom, left, right, onEdit }: { zones: [str
 }
 
 export function Paper({ onPages }: { onPages: (count: number, current: number) => void }) {
+  const showPageGap = useSetting('docPageGap');
   const ctx = useDoc();
   const { editor, page, view, title } = ctx;
   const paperRef = useRef<HTMLDivElement | null>(null);
@@ -66,6 +68,7 @@ export function Paper({ onPages }: { onPages: (count: number, current: number) =
   const paged = viewPrint && !side && (page.columns ?? 1) === 1;
   const [sidePages, setSidePages] = useState(1);
   const [layout, setLayout] = useState<PaginationResult>(() => getPagination(editor).result);
+  useEffect(() => { getPagination(editor).refresh?.(); }, [editor, showPageGap]);
   const [flowPages, setFlowPages] = useState(1);
   const [current, setCurrent] = useState(1);
   const zoom = view.zoom / 100;
@@ -113,7 +116,7 @@ export function Paper({ onPages }: { onPages: (count: number, current: number) =
   }, [editor, side, contentWidth, page.margins.left, page.margins.right, zoom]);
 
   const pages = paged ? layout.pages : side ? sidePages : viewPrint ? flowPages : 1;
-  const span = dims.height + PAGE_GAP;
+  const span = dims.height + pageGap();
 
   useEffect(() => {
     const report = () => {
@@ -165,6 +168,7 @@ export function Paper({ onPages }: { onPages: (count: number, current: number) =
     '--side-w': `${contentWidth}px`,
     '--side-h': `${dims.height - page.margins.top - page.margins.bottom}px`,
     '--side-gap': `${page.margins.left + page.margins.right + PAGE_GAP}px`,
+    '--page-gap': `${side || showPageGap ? PAGE_GAP : 0}px`,
     fontFamily: page.fontFamily ? `"${page.fontFamily}", Arial, sans-serif` : undefined,
     fontSize: page.fontSize ? `${page.fontSize}pt` : undefined,
     '--page-height': `${dims.height}px`,
@@ -175,7 +179,7 @@ export function Paper({ onPages }: { onPages: (count: number, current: number) =
     '--doc-columns': page.columns ?? 1,
     '--doc-column-gap': `${page.columnGap ?? 32}px`,
     '--doc-column-rule': page.columnLine === false ? 'none' : '1px solid #e1e5ee',
-  }) as React.CSSProperties, [side, contentWidth, page.margins.bottom, page.margins.left, page.margins.right, viewPrint, paged, dims.height, dims.width, pages, page.pageColor, page.fontFamily, page.fontSize, page.margins.top, page.pageBorderColor, page.pageBorderWidth, page.columns, page.columnGap, page.columnLine]);
+  }) as React.CSSProperties, [side, contentWidth, page.margins.bottom, page.margins.left, page.margins.right, viewPrint, paged, dims.height, dims.width, pages, page.pageColor, page.fontFamily, page.fontSize, page.margins.top, page.pageBorderColor, page.pageBorderWidth, page.columns, page.columnGap, page.columnLine, showPageGap]);
 
   const flowStyle: React.CSSProperties = viewPrint ? { padding: `${page.margins.top}px ${page.margins.right}px ${paged || side ? 0 : page.margins.bottom}px ${page.margins.left}px` } : {};
   const editHeaderFooter = () => ctx.openDialog('headerfooter');

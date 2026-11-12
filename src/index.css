@@ -2637,3 +2637,20 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   flex: none;
   white-space: nowrap;
 }
+
+:root[data-theme='dark'] { --bg: #0f1420; }
+:root[data-theme='dark'] body { background: #0f1420; }
+
+:root[data-reduce-motion] *, :root[data-reduce-motion] *::before, :root[data-reduce-motion] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+:root[data-underline-links] a { text-decoration: underline !important; }
+
+:root[data-strong-focus] :focus-visible {
+  outline: 3px solid var(--app-accent, #2563eb) !important;
+  outline-offset: 3px !important;
+}
