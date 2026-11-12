@@ -1,5 +1,5 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
-import { browserLocalPersistence, getAuth, setPersistence } from 'firebase/auth';
+import { browserLocalPersistence, browserPopupRedirectResolver, getAuth, indexedDBLocalPersistence, initializeAuth, type Auth } from 'firebase/auth';
 
 const config = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -10,13 +10,26 @@ const config = {
 
 export const authConfigured = Object.values(config).every((value) => typeof value === 'string' && value.trim());
 
-export async function initializeAuthentication() {
-  if (!authConfigured) throw new Error('auth/missing-config');
-  const app = getApps().length ? getApp() : initializeApp(config);
-  const auth = getAuth(app);
-  auth.languageCode = 'vi';
-  await setPersistence(auth, browserLocalPersistence);
-  return auth;
+let authentication: Promise<Auth> | null = null;
+
+export function initializeAuthentication(): Promise<Auth> {
+  if (!authConfigured) return Promise.reject(new Error('auth/missing-config'));
+  authentication ??= (async () => {
+    const app = getApps().length ? getApp() : initializeApp(config);
+    let auth: Auth;
+    try {
+      auth = initializeAuth(app, { persistence: [browserLocalPersistence, indexedDBLocalPersistence], popupRedirectResolver: browserPopupRedirectResolver });
+    } catch {
+      auth = getAuth(app);
+    }
+    auth.languageCode = 'vi';
+    await auth.authStateReady();
+    return auth;
+  })().catch((error: unknown) => {
+    authentication = null;
+    throw error;
+  });
+  return authentication;
 }
 
 export function authenticationError(error: unknown): string {

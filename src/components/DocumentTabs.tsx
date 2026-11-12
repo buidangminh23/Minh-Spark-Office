@@ -153,6 +153,8 @@ export function DocumentTabs({ onEditing, children }: { onEditing: (editing: boo
   const frames = useRef(new Map<string, HTMLIFrameElement>());
   const listeners = useRef(new Map<string, (ids: string[]) => void>());
   const closed = useRef<string[]>([]);
+  const latestStorage = useRef(storage);
+  latestStorage.current = storage;
   const latest = useRef(state);
   latest.current = state;
   const [loaded, setLoaded] = useState<ReadonlySet<string>>(() => new Set());
@@ -235,6 +237,7 @@ export function DocumentTabs({ onEditing, children }: { onEditing: (editing: boo
         return () => { if (listeners.current.get(id) === listener) listeners.current.delete(id); };
       },
       print: (request, frame) => printFrameDocument(request, frame),
+      workspace: () => latestStorage.current,
     };
     return installTabHost(host);
   }, [setState]);

@@ -1151,7 +1151,7 @@ const frameId = tabFrameId();
 
 function Workspace({ userId, onEditing, editing }: { userId: string | null; onEditing: (editing: boolean) => void; editing: boolean }) {
   const workspace = useMemo(() => userId ? accountWorkspace(userId) : createDraftWorkspaceStorage(), [userId]);
-  useEffect(() => syncedWorkspace(workspace)?.start(), [workspace]);
+  useEffect(() => (frameId ? undefined : syncedWorkspace(workspace)?.start()), [workspace]);
   return (
     <WorkspaceContext value={workspace}>
       <UiProvider>

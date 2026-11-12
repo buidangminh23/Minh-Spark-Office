@@ -15,7 +15,8 @@ cli_version="$(node -p 'JSON.parse(require("fs").readFileSync("package-lock.json
 npm install --prefix .linux-tools --ignore-scripts --no-audit --no-fund "@tauri-apps/cli@$cli_version"
 export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-4}"
 export CARGO_INCREMENTAL=0 CI=true APPIMAGE_EXTRACT_AND_RUN=1
-.linux-tools/node_modules/.bin/tauri build --config src-tauri/tauri.linux.conf.json --bundles deb,appimage
+cargo clean --manifest-path src-tauri/Cargo.toml --release --package minh-spark-office
+.linux-tools/node_modules/.bin/tauri build --config src-tauri/tauri.linux.conf.json --bundles deb,appimage -- --locked
 mkdir -p release
 deb="src-tauri/target/release/bundle/deb/Minh Spark Office_${version}_amd64.deb"
 appimage="src-tauri/target/release/bundle/appimage/Minh Spark Office_${version}_amd64.AppImage"
