@@ -252,6 +252,8 @@ import {
   MousePointerClick,
   ListVideo,
   PencilRuler,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react';
 
 import {
@@ -396,9 +398,8 @@ import {
   TableSlicerModal,
   slicerKey,
 } from './SheetBizModals';
-import { nextFontSize } from '../../lib/fontSizeStep';
-
-const SHEET_FONT_SIZES = [8, 9, 10, 11, 12, 13, 14, 16, 18, 20, 24, 28, 36, 48, 72];
+import { nextFontSize, SHEET_FONT_SIZES } from '../../lib/fontSizeStep';
+import ComboBox from '../../components/ComboBox';
 
 interface SheetEditorProps {
   meta: FileMeta;
@@ -1885,7 +1886,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
   };
 
   const applyFontSize = (sizeStr: string) => {
-    const num = Math.max(6, Math.min(72, Number(sizeStr) || 11));
+    const num = Math.max(1, Math.min(409, Number(sizeStr) || 11));
     setSelectedFontSize(String(num));
     const ctx = getEditableContext();
     if (!ctx) return;
@@ -5628,32 +5629,28 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                           </option>
                         ))}
                       </select>
-                      <select
-                        className="ribbon-select"
-                        style={{ width: 46 }}
+                      <ComboBox
+                        variant="ribbon"
+                        width={52}
+                        label="Cỡ chữ"
                         value={selectedFontSize}
-                        onChange={(e) => applyFontSize(e.target.value)}
-                        title="Cỡ chữ"
-                      >
-                        {SHEET_FONT_SIZES.map(String).map((s) => (
-                          <option key={s} value={s}>
-                            {s}
-                          </option>
-                        ))}
-                      </select>
+                        options={SHEET_FONT_SIZES}
+                        numeric={{ min: 1, max: 409 }}
+                        onCommit={applyFontSize}
+                      />
                       <button
                         className="ribbon-btn-small"
                         onClick={() => applyFontSize(String(nextFontSize(SHEET_FONT_SIZES, Number(selectedFontSize) || 11, 1)))}
                         title="Tăng cỡ chữ"
                       >
-                        <span style={{ fontSize: 12, fontWeight: 700 }}>A+</span>
+                        <span className="grow-icon">A<ChevronUp size={9} strokeWidth={3} /></span>
                       </button>
                       <button
                         className="ribbon-btn-small"
                         onClick={() => applyFontSize(String(nextFontSize(SHEET_FONT_SIZES, Number(selectedFontSize) || 11, -1, 6)))}
                         title="Giảm cỡ chữ"
                       >
-                        <span style={{ fontSize: 10.5, fontWeight: 700 }}>A-</span>
+                        <span className="grow-icon small">A<ChevronDown size={9} strokeWidth={3} /></span>
                       </button>
                     </div>
 

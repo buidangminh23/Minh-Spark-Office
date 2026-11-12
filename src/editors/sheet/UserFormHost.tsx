@@ -1,6 +1,7 @@
 import { useEffect, useRef, useSyncExternalStore, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 import { oleColorToCss } from '../../lib/vbaForms';
+import ComboBox from '../../components/ComboBox';
 import { ReturnBoolean, type FormControl, type UserFormInstance, type UserFormSession } from './vba/vbaUserForm';
 
 const PX_PER_POINT = 4 / 3;
@@ -89,25 +90,19 @@ function ControlView({ control }: { control: FormControl }): ReactNode {
       return <input {...common} type={control.passwordChar ? 'password' : 'text'} maxLength={control.maxLength || undefined} />;
     }
     case 'combobox': {
-      const listId = `uf-${form.name}-${control.name}`;
       return (
-        <>
-          <input
-            list={listId}
-            value={control.displayText()}
-            disabled={disabled}
-            readOnly={control.locked}
-            title={control.tip || undefined}
-            style={{ ...base, border: '1px solid #7a7a7a', padding: '1px 3px', background: oleColorToCss(control.backColor, '#ffffff') }}
-            onChange={(event) => guard(() => control.setValue(event.target.value, true))}
-            {...focusHandlers}
-          />
-          <datalist id={listId}>
-            {control.rows.map((row, index) => (
-              <option key={index} value={row[0] ?? ''} />
-            ))}
-          </datalist>
-        </>
+        <ComboBox
+          variant="plain"
+          label={control.tip || control.name}
+          value={control.displayText()}
+          options={control.rows.map((row) => row[0] ?? '')}
+          disabled={disabled}
+          readOnly={control.locked}
+          style={{ ...base, border: '1px solid #7a7a7a', background: oleColorToCss(control.backColor, '#ffffff') }}
+          onInput={(value) => guard(() => control.setValue(value, true))}
+          onCommit={(value) => guard(() => control.setValue(value, true))}
+          {...focusHandlers}
+        />
       );
     }
     case 'listbox':

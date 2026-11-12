@@ -5,7 +5,7 @@ import { FONT_SIZES } from '../../extensions';
 import { changeCase, copySelection, pastePlainText, pasteRich, sortParagraphs } from '../../actions';
 import { BUILTIN_STYLE_ORDER, activeStyleId, applyDocStyle, resolveStyles, styleSample } from '../../docStyles';
 import FontPicker from '../FontPicker';
-import FontSizeBox from '../FontSizeBox';
+import ComboBox from '../../../../components/ComboBox';
 import { AddinRibbonButtons, useAnyAddinEnabled } from '../../../../addins/AddinPane';
 import { DocFeatureMenu } from './DocFeatures';
 import { MULTILEVEL_LISTS, PARAGRAPH_BORDERS, TEXT_EFFECTS, UNDERLINE_STYLES, changeListLevel, selectNextObject, selectionPane, setMultilevel, setParagraphBorder, setTextEffect, setUnderline } from '../../homeExtras';
@@ -69,7 +69,7 @@ export default function HomeTab({ fmt }: { fmt: FormatState }) {
         <Rows>
           <Row>
             <FontPicker value={fmt.fontFamily || ctx.page.fontFamily || 'Arial'} onPick={(font) => chain().setFontFamily(font).run()} onError={(message) => ctx.ui.toast(message, true)} />
-            <FontSizeBox value={fmt.fontSize || String(ctx.page.fontSize ?? 12)} sizes={FONT_SIZES} onPick={(size) => chain().setFontSize(`${size}pt`).run()} />
+            <ComboBox variant="ribbon" width={54} label="Cỡ chữ" value={fmt.fontSize || String(ctx.page.fontSize ?? 12)} options={FONT_SIZES} numeric={{ min: 1, max: 1638 }} onCommit={(size) => chain().setFontSize(`${size}pt`).run()} />
             <Small icon={<span className="grow-icon">A<ChevronUp size={9} strokeWidth={3} /></span>} title="Tăng cỡ chữ (Ctrl+])" onClick={() => editor.chain().focus().stepFontSize(1, ctx.page.fontSize).run()} />
             <Small icon={<span className="grow-icon small">A<ChevronDown size={9} strokeWidth={3} /></span>} title="Giảm cỡ chữ (Ctrl+[)" onClick={() => editor.chain().focus().stepFontSize(-1, ctx.page.fontSize).run()} />
             <Dropdown title="Đổi kiểu chữ hoa/thường" trigger={<CaseSensitive size={15} />}>

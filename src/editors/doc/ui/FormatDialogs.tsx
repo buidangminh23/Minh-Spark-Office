@@ -6,6 +6,9 @@ import { FONT_SIZES } from '../extensions';
 import { resolveStyles } from '../docStyles';
 import { pageNumberText } from '../pageFormat';
 import Modal from './Modal';
+import ComboBox from '../../../components/ComboBox';
+
+const LINE_HEIGHTS = ['1', '1.15', '1.3', '1.5', '2', '2.5', '3'];
 
 const UNDERLINES = [{ value: '', label: 'Không' }, { value: 'solid', label: 'Đơn' }, { value: 'double', label: 'Đôi' }, { value: 'dotted', label: 'Chấm' }, { value: 'dashed', label: 'Gạch' }, { value: 'wavy', label: 'Lượn sóng' }];
 const CM = 37.8;
@@ -57,7 +60,7 @@ export function FontDialog({ onClose }: { onClose: () => void }) {
     <Modal title="Phông chữ" icon={<Baseline size={20} />} onClose={onClose} width={560} actions={<><button className="btn" onClick={onClose}>Huỷ</button><button className="btn btn-primary" onClick={apply}>Áp dụng</button></>}>
       <div className="form-grid">
         <label className="field"><span className="field-label">Phông</span><input className="text-field" value={font} onChange={(e) => setFont(e.target.value)} /></label>
-        <label className="field"><span className="field-label">Cỡ (pt)</span><input className="text-field" list="font-dialog-sizes" value={size} onChange={(e) => setSize(e.target.value)} /><datalist id="font-dialog-sizes">{FONT_SIZES.map((s) => <option key={s} value={s} />)}</datalist></label>
+        <div className="field"><span className="field-label">Cỡ (pt)</span><ComboBox label="Cỡ chữ (pt)" value={size} options={FONT_SIZES} numeric={{ min: 1, max: 1638 }} onCommit={setSize} /></div>
         <label className="field"><span className="field-label">Màu chữ</span><input className="text-field color-field" type="color" value={color} onChange={(e) => setColor(e.target.value)} /></label>
         <label className="field"><span className="field-label">Gạch chân</span><select className="text-field" value={underline} onChange={(e) => setUnderline(e.target.value)}>{UNDERLINES.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}</select></label>
         <label className="field"><span className="field-label">Màu gạch chân</span><input className="text-field color-field" type="color" value={underlineColor} disabled={!underline || underline === 'solid'} onChange={(e) => setUnderlineColor(e.target.value)} /></label>
@@ -120,7 +123,7 @@ export function ParagraphDialog({ onClose }: { onClose: () => void }) {
       <div className="form-grid">
         <label className="field"><span className="field-label">Trước đoạn (pt)</span><input className="text-field" type="number" min={0} max={96} value={before} onChange={(e) => setBefore(Number(e.target.value))} /></label>
         <label className="field"><span className="field-label">Sau đoạn (pt)</span><input className="text-field" type="number" min={0} max={96} value={after} onChange={(e) => setAfter(Number(e.target.value))} /></label>
-        <label className="field"><span className="field-label">Giãn dòng (bội số)</span><input className="text-field" list="line-heights" value={line} onChange={(e) => setLine(e.target.value)} /><datalist id="line-heights">{['1', '1.15', '1.3', '1.5', '2', '2.5', '3'].map((v) => <option key={v} value={v} />)}</datalist></label>
+        <div className="field"><span className="field-label">Giãn dòng (bội số)</span><ComboBox label="Giãn dòng" value={line} options={LINE_HEIGHTS} numeric={{ min: 0.5, max: 10, step: 0.01 }} onCommit={setLine} /></div>
       </div>
       <div className="form-section-title">Viền và tô nền</div>
       <div className="form-grid">
@@ -238,7 +241,7 @@ export function StyleDialog({ onClose }: { onClose: () => void }) {
       <div className="form-grid">
         <label className="field"><span className="field-label">Tên kiểu</span><input className="text-field" value={def.name} disabled={!def.custom} onChange={(e) => put({ name: e.target.value })} /></label>
         <label className="field"><span className="field-label">Phông</span><input className="text-field" placeholder="Theo tài liệu" value={def.font ?? ''} onChange={(e) => put({ font: e.target.value || undefined })} /></label>
-        <label className="field"><span className="field-label">Cỡ (pt)</span><input className="text-field" type="number" min={6} max={96} value={def.size ?? ''} onChange={(e) => put({ size: number(e.target.value) })} /></label>
+        <div className="field"><span className="field-label">Cỡ (pt)</span><ComboBox label="Cỡ chữ của kiểu (pt)" value={def.size ?? ''} options={FONT_SIZES} numeric={{ min: 6, max: 96 }} onCommit={(value) => put({ size: number(value) })} /></div>
         <label className="field"><span className="field-label">Màu</span><input className="text-field color-field" type="color" value={def.color ?? '#1f2430'} onChange={(e) => put({ color: e.target.value })} /></label>
         <label className="field"><span className="field-label">Căn lề</span><select className="text-field" value={def.align ?? ''} onChange={(e) => put({ align: e.target.value || undefined })}><option value="">Theo đoạn</option><option value="left">Trái</option><option value="center">Giữa</option><option value="right">Phải</option><option value="justify">Đều</option></select></label>
         <label className="field"><span className="field-label">Giãn dòng</span><input className="text-field" type="number" step={0.05} min={1} max={3} value={def.line ?? ''} onChange={(e) => put({ line: number(e.target.value) })} /></label>

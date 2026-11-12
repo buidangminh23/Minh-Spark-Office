@@ -143,6 +143,7 @@ import { ANIMATION_DEFS, TRANSITION_DEFS } from '../../lib/slideEffects';
 import { useSetting } from '../../lib/appSettings';
 import { SLIDE_FONT_SIZES, SLIDE_FONTS, visibleRibbonTabs } from '../../lib/settings/slideOptions';
 import { nextFontSize } from '../../lib/fontSizeStep';
+import ComboBox from '../../components/ComboBox';
 
 export interface TransitionItem {
   type: TransitionType;
@@ -832,32 +833,29 @@ export function SlideRibbon(props: SlideRibbonProps) {
                     ))}
                   </select>
 
-                  <select
-                    className="ppt-select"
-                    style={{ width: '60px' }}
+                  <ComboBox
+                    variant="ppt"
+                    width={60}
+                    label="Cỡ chữ"
                     value={selectedElement?.fontSize || 20}
-                    onChange={(e) => onUpdateSelectedElement({ fontSize: Number(e.target.value) })}
-                  >
-                    {FONT_SIZES.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
+                    options={FONT_SIZES}
+                    numeric={{ min: 1, max: 400 }}
+                    onCommit={(value) => onUpdateSelectedElement({ fontSize: Number(value) })}
+                  />
 
                   <button
                     className="ppt-tool-btn"
                     onClick={() => onUpdateSelectedElement({ fontSize: nextFontSize(FONT_SIZES, selectedElement?.fontSize || 20, 1) })}
                     title="Tăng cỡ chữ"
                   >
-                    A⁺
+                    <span className="grow-icon">A<ChevronUp size={9} strokeWidth={3} /></span>
                   </button>
                   <button
                     className="ppt-tool-btn"
                     onClick={() => onUpdateSelectedElement({ fontSize: nextFontSize(FONT_SIZES, selectedElement?.fontSize || 20, -1, 8) })}
                     title="Giảm cỡ chữ"
                   >
-                    A⁻
+                    <span className="grow-icon small">A<ChevronDown size={9} strokeWidth={3} /></span>
                   </button>
                 </div>
 

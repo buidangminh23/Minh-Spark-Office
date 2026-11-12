@@ -8508,5 +8508,9 @@
  "Bước 1": "Step 1",
  "Bước 2": "Step 2",
  "Bước 3": "Step 3",
- "Chọn cỡ chữ": "Choose font size"
+ "Chọn cỡ chữ": "Choose font size",
+ "Mở danh sách {0}": "Open {0} list",
+ "Cỡ chữ (pt)": "Font size (pt)",
+ "Cỡ chữ của kiểu (pt)": "Style font size (pt)",
+ "Cỡ chữ hình mờ (px)": "Watermark font size (px)"
 }
