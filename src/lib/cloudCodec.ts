@@ -139,19 +139,15 @@ async function transform(input: Uint8Array, decompress: boolean, maximum: number
   const reader = stream.getReader();
   const parts: Uint8Array[] = [];
   let length = 0;
-  try {
-    for (;;) {
-      const item = await reader.read();
-      if (item.done) break;
-      length += item.value.byteLength;
-      if (length > maximum) {
-        await reader.cancel();
-        throw new Error('cloud/payload-too-large');
-      }
-      parts.push(item.value);
+  for (;;) {
+    const item = await reader.read();
+    if (item.done) break;
+    length += item.value.byteLength;
+    if (length > maximum) {
+      await reader.cancel();
+      throw new Error('cloud/payload-too-large');
     }
-  } finally {
-    reader.releaseLock();
+    parts.push(item.value);
   }
   const output = new Uint8Array(length);
   let offset = 0;
