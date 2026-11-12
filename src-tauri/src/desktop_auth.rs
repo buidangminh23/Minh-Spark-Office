@@ -112,12 +112,21 @@ fn parse_callback(body: &[u8], state: &str) -> Result<String, StatusCode> {
 }
 
 fn response(status: StatusCode, success: bool) -> Response<Full<Bytes>> {
-    let message = if success {
-        "Đã chuyển thông tin đăng nhập về ứng dụng. Hãy quay lại Minh Spark Office để tiếp tục. Có thể đóng tab này."
+    let (mark, title, message) = if success {
+        (
+            "<svg width=\"28\" height=\"28\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#15803d\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M20 6 9 17l-5-5\"/></svg>",
+            "Đăng nhập thành công",
+            "Minh Spark Office đã nhận tài khoản và được mở lên phía trước. Có thể đóng tab này.",
+        )
     } else {
-        "Không nhận được yêu cầu đăng nhập hợp lệ. Hãy quay lại Minh Spark Office và thử lại."
+        (
+            "<svg width=\"28\" height=\"28\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#b42318\" stroke-width=\"2.5\" stroke-linecap=\"round\" aria-hidden=\"true\"><path d=\"M12 7v6M12 17h.01\"/></svg>",
+            "Chưa đăng nhập được",
+            "Không nhận được yêu cầu đăng nhập hợp lệ. Hãy quay lại Minh Spark Office và bấm đăng nhập lại.",
+        )
     };
-    let body = format!("<!doctype html><html lang=\"vi\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>Minh Spark Office</title><body><h1>Minh Spark Office</h1><p>{message}</p></body></html>");
+    let tint = if success { "#e9f7ee" } else { "#fdeceb" };
+    let body = format!("<!doctype html><html lang=\"vi\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>Minh Spark Office</title><style>*{{box-sizing:border-box}}body{{margin:0;min-height:100vh;display:grid;place-items:center;padding:32px 16px;background:radial-gradient(ellipse at top left,#e6edff,transparent 60%),#f6f7fb;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;color:#182033}}main{{width:min(100%,420px);display:flex;flex-direction:column;align-items:center;gap:16px;padding:40px 32px;background:#fff;border:1px solid #e3e7ee;border-radius:20px;box-shadow:0 24px 64px #14243b1f;text-align:center}}.mark{{display:grid;place-items:center;width:56px;height:56px;border-radius:50%;background:{tint}}}h1{{margin:0;font-size:22px;line-height:1.3}}p{{margin:0;color:#4a5568;font-size:14px;line-height:1.6}}</style><main><div class=\"mark\">{mark}</div><h1>{title}</h1><p>{message}</p></main></html>");
     Response::builder()
         .status(status)
         .header(CONTENT_TYPE, "text/html; charset=utf-8")
@@ -126,7 +135,7 @@ fn response(status: StatusCode, success: bool) -> Response<Full<Bytes>> {
         .header("Referrer-Policy", "no-referrer")
         .header(
             "Content-Security-Policy",
-            "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+            "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
         )
         .header("X-Content-Type-Options", "nosniff")
         .header("Connection", "close")
@@ -229,8 +238,20 @@ async fn listen_for_token(
     }
 }
 
+fn bring_to_front(window: &tauri::WebviewWindow) {
+    let _ = window.show();
+    let _ = window.unminimize();
+    let _ = window.set_always_on_top(true);
+    let _ = window.set_focus();
+    let _ = window.set_always_on_top(false);
+    if !window.is_focused().unwrap_or(false) {
+        let _ = window.request_user_attention(Some(tauri::UserAttentionType::Informational));
+    }
+}
+
 #[tauri::command]
 pub async fn desktop_google_sign_in(
+    window: tauri::WebviewWindow,
     login: tauri::State<'_, DesktopLogin>,
 ) -> Result<String, String> {
     let cancel = {
@@ -246,10 +267,14 @@ pub async fn desktop_google_sign_in(
         cancel
     };
     let _guard = LoginGuard(&login);
-    tokio::select! {
+    let result = tokio::select! {
         result = timeout(LOGIN_TIMEOUT, receive_token()) => result.unwrap_or_else(|_| Err("auth/desktop-timeout".to_string())),
         _ = cancel.notified() => Err("auth/desktop-cancelled".to_string()),
+    };
+    if result.is_ok() {
+        bring_to_front(&window);
     }
+    result
 }
 
 #[tauri::command]
