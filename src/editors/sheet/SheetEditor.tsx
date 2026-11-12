@@ -71,6 +71,26 @@ import {
   type OutlineGroup,
   type SheetOutline,
 } from './sheetOutline';
+import {
+  MACRO_CELL_KEY,
+  MacroRecorder,
+  decodeTarget,
+  encodeTarget,
+  isReplayable,
+  macroForShortcut,
+  nextMacroName,
+  remapParams,
+  sanitizeMacros,
+  shiftBox,
+  shiftParams,
+  shortcutProblem,
+  targetLabel,
+  uniqueMacroName,
+  type BuiltinMacroId,
+  type MacroTarget,
+  type SheetMacro,
+} from './sheetMacros';
+import { MacroButtonModal, MacroManagerModal, MacroRecordModal, type MacroButtonColor, type MacroRecordOptions } from './SheetMacroModals';
 import { BACKSPACE_CLEAR_PRIORITY, selectionCoversMultipleCells } from './backspaceClear';
 import UniverPresetSheetsCoreViVN from '@univerjs/preset-sheets-core/locales/vi-VN';
 import { UniverSheetsConditionalFormattingPreset, CFValueType } from '@univerjs/preset-sheets-conditional-formatting';
@@ -198,6 +218,10 @@ import {
   FoldVertical,
   UnfoldVertical,
   SeparatorHorizontal,
+  Circle,
+  Square,
+  MousePointerClick,
+  ListVideo,
 } from 'lucide-react';
 
 import {
@@ -670,6 +694,15 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
   const [activeRangeA1, setActiveRangeA1] = useState('A1');
   const [nameBoxText, setNameBoxText] = useState('A1');
   const [outlines, setOutlines] = useState<Record<string, SheetOutline>>(() => content.outlines ?? {});
+  const [macros, setMacros] = useState<SheetMacro[]>(() => sanitizeMacros(content.macros));
+  const macrosRef = useRef(macros);
+  macrosRef.current = macros;
+  const [recordedCount, setRecordedCount] = useState<number | null>(null);
+  const recorderRef = useRef<MacroRecorder | null>(null);
+  const recordMetaRef = useRef<(MacroRecordOptions & { origin: { row: number; column: number } }) | null>(null);
+  const isReplayingRef = useRef(false);
+  const runMacroRef = useRef<(macro: SheetMacro) => void>(() => undefined);
+  const cellClickRef = useRef<(row: number, column: number) => void>(() => undefined);
   const [activeSheetId, setActiveSheetId] = useState('');
   const activeOutline = outlines[activeSheetId] ?? EMPTY_OUTLINE;
   const activePageBreakCount = printSettings.pageBreaks?.[activeSheetId]?.length ?? 0;
@@ -729,6 +762,9 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
 
   type SheetModalKind =
     | null
+    | 'macroRecord'
+    | 'macros'
+    | 'macroButton'
     | 'formulas'
     | 'chart'
     | 'pivot'
@@ -1036,6 +1072,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
         comments,
         printSettings,
         outlines,
+        macros,
       }, explicit);
       if (saved) {
         if (changeRevision.current === savedRevision) setSavedStatus('saved');
@@ -1047,7 +1084,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
       ui.toast('Chưa lưu được bản nháp. Vui lòng giữ trang này mở và thử lại.', true);
       return false;
     }
-  }, [setSavedStatus, captureHydratedWorkbook, meta, title, onSave, comments, printSettings, outlines, ui]);
+  }, [setSavedStatus, captureHydratedWorkbook, meta, title, onSave, comments, printSettings, outlines, macros, ui]);
 
   const handleSaveNow = useCallback(() => void persistWorkbook(true), [persistWorkbook]);
 
@@ -1126,7 +1163,17 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
             }
           }, 0);
         });
-        workbookSubsRef.current.push(selectionSub, commandSub, editStartSub, editChangingSub, beforeEditEndSub, editEndSub);
+        const macroBeforeSub = api.addEvent(api.Event.BeforeCommandExecute, (event) => {
+          if (!isReplayingRef.current) recorderRef.current?.before(event);
+        });
+        const macroAfterSub = api.addEvent(api.Event.CommandExecuted, (event) => {
+          const recorder = recorderRef.current;
+          if (!recorder || isReplayingRef.current) return;
+          recorder.executed(event, api.getActiveWorkbook()?.getActiveSheet()?.getSheetId() ?? '');
+          setRecordedCount(recorder.count);
+        });
+        const macroClickSub = api.addEvent(api.Event.CellClicked, ({ row, column }) => cellClickRef.current(row, column));
+        workbookSubsRef.current.push(selectionSub, commandSub, editStartSub, editChangingSub, beforeEditEndSub, editEndSub, macroBeforeSub, macroAfterSub, macroClickSub);
       }
 
       try {
@@ -3187,7 +3234,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
   const handleCleanWorkbook = async () => {
     const ctx = getEditableContext();
     if (!ctx || !doctorData) throw new Error('Không có sổ tính để dọn');
-    const draft: SheetContent = { kind: 'sheet', workbook: captureHydratedWorkbook(), comments, printSettings, outlines };
+    const draft: SheetContent = { kind: 'sheet', workbook: captureHydratedWorkbook(), comments, printSettings, outlines, macros };
     try {
       const saved = await sourceStorage.saveVersion(meta.id, draft, 'Trước khi tối ưu');
       setVersions((prev) => [saved, ...prev]);
@@ -4034,6 +4081,178 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
   };
 
   const shortcutRunnerRef = useRef<(action: SheetShortcutAction) => void>(() => undefined);
+  const runBuiltinMacro = (id: BuiltinMacroId) => {
+    switch (id) {
+      case 'normalizeTable':
+      case 'autoNumberStt':
+      case 'moneyWordsCol':
+      case 'highlightVariance':
+      case 'cleanBlankRows':
+      case 'wrapIfError':
+        handleRunMacro(id);
+        break;
+      case 'recalculate':
+        shortcutRunnerRef.current('recalculate');
+        break;
+      case 'save':
+        handleSaveNow();
+        break;
+      case 'print':
+        setModal('pageSetup');
+        break;
+      case 'exportXlsx':
+        void handleExportXlsx();
+        break;
+      case 'toggleFilter':
+        handleToggleFilter();
+        break;
+      case 'nextSheet':
+      case 'prevSheet':
+      case 'gotoStart':
+        shortcutRunnerRef.current(id);
+        break;
+    }
+  };
+
+  const runRecordedMacro = async (macro: SheetMacro) => {
+    if (isReplayingRef.current) return;
+    if (recorderRef.current) {
+      ui.toast('Đang ghi macro: hãy Dừng ghi trước khi chạy macro khác', true);
+      return;
+    }
+    const ctx = getEditableContext();
+    if (!ctx) return;
+    const { api, fWorkbook, fWorksheet, fRange } = ctx;
+    const active = fRange.getRange();
+    const rowDelta = macro.relative ? active.startRow - macro.origin.row : 0;
+    const columnDelta = macro.relative ? active.startColumn - macro.origin.column : 0;
+    const unitId = fWorkbook.getId();
+    const homeSheetId = macro.steps[0]?.sheetId ?? '';
+    const sheetFor = (sheetId: string) =>
+      sheetId === homeSheetId ? fWorksheet : (fWorkbook.getSheets().find((sheet) => sheet.getSheetId() === sheetId) ?? fWorksheet);
+    let done = 0;
+    isReplayingRef.current = true;
+    try {
+      for (const step of macro.steps) {
+        if (!isReplayable(step)) continue;
+        const sheet = sheetFor(step.sheetId);
+        if (step.kind === 'select') {
+          const box = shiftBox(step.box, rowDelta, columnDelta);
+          sheet.getRange(box.startRow, box.startColumn, box.endRow - box.startRow + 1, box.endColumn - box.startColumn + 1).activate();
+          continue;
+        }
+        const params = remapParams(shiftParams(step.params, rowDelta, columnDelta), unitId, sheet.getSheetId());
+        await api.executeCommand(step.id, (params ?? undefined) as object | undefined);
+        done += 1;
+      }
+      ui.toast(`Đã chạy macro "${macro.name}" (${done} thao tác)`);
+    } catch (err) {
+      console.error('Macro replay failed:', err);
+      ui.toast(`Macro "${macro.name}" dừng ở thao tác thứ ${done + 1}: ${err instanceof Error ? err.message : 'lỗi không xác định'}`, true);
+    } finally {
+      isReplayingRef.current = false;
+      setSavedStatus('saving');
+    }
+  };
+  runMacroRef.current = (macro) => void runRecordedMacro(macro);
+
+  const runMacroTarget = (target: MacroTarget) => {
+    if (target.kind === 'builtin') {
+      runBuiltinMacro(target.id);
+      return;
+    }
+    const macro = macros.find((item) => item.id === target.id);
+    if (!macro) {
+      ui.toast('Macro gắn với nút này đã bị xoá. Chọn ô bằng phím mũi tên rồi vào Automate → Chèn nút để gán lại.', true);
+      return;
+    }
+    void runRecordedMacro(macro);
+  };
+
+  cellClickRef.current = (row, column) => {
+    const ctx = getActiveContext();
+    if (!ctx || recorderRef.current || isReplayingRef.current) return;
+    const custom = ctx.fWorksheet.getRange(row, column, 1, 1).getCustomMetaData();
+    const target = decodeTarget(custom?.[MACRO_CELL_KEY]);
+    if (target) runMacroTarget(target);
+  };
+
+  const handleStartRecording = (options: MacroRecordOptions) => {
+    const ctx = getEditableContext();
+    if (!ctx) return;
+    const box = ctx.fRange.getRange();
+    recordMetaRef.current = { ...options, origin: { row: box.startRow, column: box.startColumn } };
+    recorderRef.current = new MacroRecorder();
+    setRecordedCount(0);
+    setModal(null);
+    ui.toast(`Đang ghi macro "${options.name}". Thao tác trên bảng tính rồi bấm Dừng ghi.`);
+  };
+
+  const handleStopRecording = () => {
+    const recorder = recorderRef.current;
+    const meta = recordMetaRef.current;
+    recorderRef.current = null;
+    recordMetaRef.current = null;
+    setRecordedCount(null);
+    if (!recorder || !meta) return;
+    const steps = recorder.finish();
+    if (!steps.some((step) => step.kind === 'command')) {
+      ui.toast('Chưa ghi được thao tác nào nên không lưu macro', true);
+      return;
+    }
+    const macro: SheetMacro = {
+      id: `m${Date.now().toString(36)}`,
+      name: uniqueMacroName(meta.name, macros),
+      description: meta.description,
+      shortcut: shortcutProblem(meta.shortcut, macros, '') ? '' : meta.shortcut,
+      relative: meta.relative,
+      origin: meta.origin,
+      steps,
+      createdAt: Date.now(),
+    };
+    setMacros((previous) => [...previous, macro]);
+    setSavedStatus('saving');
+    ui.toast(`Đã lưu macro "${macro.name}" (${recorder.count} thao tác)${macro.shortcut ? `, phím tắt Ctrl + Shift + ${macro.shortcut}` : ''}`);
+  };
+
+  const macroButtonTarget = (): MacroTarget | null => {
+    const ctx = getActiveContext();
+    if (!ctx) return null;
+    const box = ctx.fRange.getRange();
+    return decodeTarget(ctx.fWorksheet.getRange(box.startRow, box.startColumn, 1, 1).getCustomMetaData()?.[MACRO_CELL_KEY]);
+  };
+
+  const handleApplyMacroButton = (label: string, target: MacroTarget, color: MacroButtonColor) => {
+    const ctx = getEditableContext();
+    if (!ctx) return;
+    const { fWorksheet, fRange } = ctx;
+    const box = fRange.getRange();
+    const isSingleCell = box.startRow === box.endRow && box.startColumn === box.endColumn;
+    if (!isSingleCell && !fRange.isMerged()) fRange.merge();
+    fWorksheet.getRange(box.startRow, box.startColumn, 1, 1).setValue(label);
+    fRange
+      .setBackgroundColor(color.background)
+      .setFontColor(color.text)
+      .setFontWeight('bold')
+      .setHorizontalAlignment('center')
+      .setVerticalAlignment('middle')
+      .setBorder(BorderType.OUTSIDE, BorderStyleTypes.THIN)
+      .setCustomMetaData({ [MACRO_CELL_KEY]: encodeTarget(target) });
+    setModal(null);
+    setSavedStatus('saving');
+    ui.toast(`Đã chèn nút "${label}" chạy ${targetLabel(target, macros)}. Bấm chuột vào nút để chạy.`);
+  };
+
+  const handleRemoveMacroButton = () => {
+    const ctx = getEditableContext();
+    if (!ctx) return;
+    ctx.fRange.setCustomMetaData({ [MACRO_CELL_KEY]: '' });
+    ctx.fRange.clearFormat();
+    setModal(null);
+    setSavedStatus('saving');
+    ui.toast('Đã gỡ nút khỏi vùng đang chọn (chữ trong ô được giữ lại)');
+  };
+
   shortcutRunnerRef.current = (action) => {
     const ctx = getActiveContext();
     if (!ctx) return;
@@ -4226,6 +4445,9 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
       case 'redo':
         edit(() => void fWorkbook.redo());
         break;
+      case 'macroManager':
+        setModal('macros');
+        break;
       case 'groupSelection':
         handleOutline('group');
         break;
@@ -4243,15 +4465,17 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
 
   useEffect(() => {
     const onShortcutKeyDown = (event: KeyboardEvent) => {
-      const action = resolveSheetShortcut(event);
-      if (!action) return;
+      const macro = macroForShortcut(event, macrosRef.current);
+      const action = macro ? null : resolveSheetShortcut(event);
+      if (!macro && !action) return;
       const target = event.target;
       const isTypingInField =
         target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement;
       if (isTypingInField || isCellEditingRef.current || document.querySelector('.dialog-backdrop')) return;
       event.preventDefault();
       event.stopPropagation();
-      shortcutRunnerRef.current(action);
+      if (macro) runMacroRef.current(macro);
+      else if (action) shortcutRunnerRef.current(action);
     };
     window.addEventListener('keydown', onShortcutKeyDown, true);
     return () => window.removeEventListener('keydown', onShortcutKeyDown, true);
@@ -4410,7 +4634,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
   };
 
   const handleCreateSnapshot = async (label: string) => {
-    const draft: SheetContent = { kind: 'sheet', workbook: captureHydratedWorkbook(), comments, printSettings, outlines };
+    const draft: SheetContent = { kind: 'sheet', workbook: captureHydratedWorkbook(), comments, printSettings, outlines, macros };
     const currentMeta = { ...meta, name: title.trim() || meta.name, updatedAt: Date.now() };
     try {
       if (!user) await sourceStorage.saveFile(currentMeta, draft);
@@ -4435,6 +4659,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
     if (cont.comments) setComments(cont.comments);
     if (cont.printSettings) setPrintSettings(cont.printSettings);
     setOutlines(cont.outlines ?? {});
+    setMacros(sanitizeMacros(cont.macros));
     setModal(null);
     setSavedStatus('saving');
     setTimeout(() => syncUiFromSelection(), 90);
@@ -5761,6 +5986,31 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
                   </div>
                   <div className="ribbon-group-label">Tự động hoá AI</div>
                 </div>
+
+                <div className="ribbon-section">
+                  <div className="ribbon-controls">
+                    {recordedCount === null ? (
+                      <button className="ribbon-btn-large" onClick={() => setModal('macroRecord')} title="Ghi lại thao tác trên bảng tính thành macro để chạy lại">
+                        <Circle size={20} color="#dc2626" fill="#dc2626" />
+                        <span>Ghi macro</span>
+                      </button>
+                    ) : (
+                      <button className="ribbon-btn-large active" onClick={handleStopRecording} title="Dừng ghi và lưu macro">
+                        <Square size={20} color="#dc2626" fill="#dc2626" />
+                        <span>Dừng ghi ({recordedCount})</span>
+                      </button>
+                    )}
+                    <button className="ribbon-btn-large" onClick={() => setModal('macros')} title="Xem, chạy, đổi tên, gán phím tắt, xoá macro — Alt + F8">
+                      <ListVideo size={20} color="#107c41" />
+                      <span>Macro ({macros.length})</span>
+                    </button>
+                    <button className="ribbon-btn-large" onClick={() => setModal('macroButton')} title="Biến ô hoặc vùng đang chọn thành nút bấm chạy macro">
+                      <MousePointerClick size={20} color="#2563eb" />
+                      <span>Chèn nút</span>
+                    </button>
+                  </div>
+                  <div className="ribbon-group-label">Macro & nút bấm</div>
+                </div>
               </>
             )}
 {activeTab === 'help' && (
@@ -7029,6 +7279,55 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
       )}
 
       {modal === 'help' && <HelpShortcutsModal onClose={() => setModal(null)} />}
+      {modal === 'macroRecord' && (
+        <MacroRecordModal suggestedName={nextMacroName(macros)} macros={macros} startCellA1={activeCellA1} onStart={handleStartRecording} onClose={() => setModal(null)} />
+      )}
+      {modal === 'macros' && (
+        <MacroManagerModal
+          macros={macros}
+          onRun={(id) => {
+            const macro = macros.find((item) => item.id === id);
+            setModal(null);
+            if (macro) void runRecordedMacro(macro);
+          }}
+          onRunBuiltin={(id) => {
+            setModal(null);
+            runBuiltinMacro(id);
+          }}
+          onUpdate={(next) => {
+            setMacros((previous) => previous.map((item) => (item.id === next.id ? { ...next, name: uniqueMacroName(next.name, previous.filter((other) => other.id !== next.id)) } : item)));
+            setSavedStatus('saving');
+            ui.toast(`Đã lưu thay đổi của macro "${next.name}"`);
+          }}
+          onDelete={(id) => {
+            setMacros((previous) => previous.filter((item) => item.id !== id));
+            setSavedStatus('saving');
+            ui.toast('Đã xoá macro');
+          }}
+          onClose={() => setModal(null)}
+        />
+      )}
+      {modal === 'macroButton' && (
+        <MacroButtonModal
+          macros={macros}
+          rangeA1={activeRangeA1}
+          initialLabel={String(getActiveContext()?.fRange.getValue() ?? '') || 'Chạy macro'}
+          initialTarget={macroButtonTarget()}
+          onInsert={handleApplyMacroButton}
+          onRemove={macroButtonTarget() ? handleRemoveMacroButton : null}
+          onClose={() => setModal(null)}
+        />
+      )}
+      {recordedCount !== null && (
+        <button
+          onClick={handleStopRecording}
+          style={{ position: 'fixed', right: 18, bottom: 54, zIndex: 60, display: 'flex', alignItems: 'center', gap: 8, padding: '9px 14px', borderRadius: 999, border: '1px solid #fecaca', background: '#fff1f2', color: '#b91c1c', fontWeight: 700, fontSize: 13, cursor: 'pointer', boxShadow: '0 6px 18px rgba(15,23,42,.18)' }}
+          title="Dừng ghi và lưu macro"
+        >
+          <Square size={14} fill="#dc2626" color="#dc2626" />
+          <span>Đang ghi macro · {recordedCount} thao tác · Dừng</span>
+        </button>
+      )}
 
       {modal === 'vietqr' && (
         <VietQrModal

@@ -138,6 +138,7 @@ export type SheetContent = {
   comments?: CommentItem[];
   printSettings?: SheetPrintSettings;
   outlines?: Record<string, { rows: SheetOutlineGroup[]; cols: SheetOutlineGroup[] }>;
+  macros?: unknown[];
 };
 export type PdfContent = {
   kind: 'pdf';

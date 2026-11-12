@@ -54,6 +54,7 @@ export type SheetShortcutAction =
   | 'traceDependents'
   | 'createTable'
   | 'redo'
+  | 'macroManager'
   | 'groupSelection'
   | 'ungroupSelection'
   | 'zoomIn'
@@ -135,6 +136,7 @@ const BINDINGS: Record<string, SheetShortcutAction> = {
   'C:KeyT': 'createTable',
   'C:KeyL': 'createTable',
   'CS:KeyZ': 'redo',
+  'A:F8': 'macroManager',
   'AS:ArrowRight': 'groupSelection',
   'AS:ArrowLeft': 'ungroupSelection',
   'CA:Equal': 'zoomIn',
@@ -244,6 +246,8 @@ export const SHEET_SHORTCUT_HELP: Array<[keys: string, description: string]> = [
   ['Shift + F2', 'Thêm hoặc sửa ghi chú của ô'],
   ['F11 / Alt + F1', 'Chèn biểu đồ'],
   ['Shift + F11 / Alt + Shift + F1', 'Thêm trang tính mới'],
+  ['Alt + F8', 'Mở danh sách Macro (chạy, sửa, gán phím tắt)'],
+  ['Ctrl + Shift + chữ cái', 'Chạy macro đã gán phím tắt'],
   ['Ctrl + P / Ctrl + F2', 'In / Xem trước trang in'],
   ['Ctrl + Shift + U', 'Ẩn/hiện thanh công thức'],
   ['Ctrl + Shift + W', 'Bật/tắt Watch Window'],
