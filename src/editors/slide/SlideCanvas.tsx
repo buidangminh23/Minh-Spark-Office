@@ -1,3 +1,4 @@
+import type { SlideAspect } from '../../lib/slideTypes';
 import { useRef, useState, useEffect, type ReactNode } from 'react';
 import { Lock, Sheet, Copy, ZoomIn, Cuboid, Clapperboard, Pause, Play, RotateCcw, ChartNoAxesColumn } from 'lucide-react';
 import type { SlideData, SlideElement } from '../../lib/slideTypes';
@@ -8,11 +9,12 @@ import { ShapeSvg } from './SlideShapeSvg';
 import { ToneDot } from './slideIcons';
 import { isEditableKeyTarget } from './slideKeyTarget';
 import { getSettings } from '../../lib/appSettings';
-import { gridStepPercent, snapPosition, snapResize } from '../../lib/settings/slideOptions';
+import { gridStepPercent, slideBaseWidth, snapPosition, snapResize } from '../../lib/settings/slideOptions';
+import { AudioElementView, CameoElementView, IconElementView, LinkBadge, ObjectElementView, RichTextLines, imageEffectStyle, textDecorationOf, textEffectStyle } from './SlideElementExtras';
 
 interface SlideCanvasProps {
   slide: SlideData;
-  aspectRatio: '16:9' | '4:3';
+  aspectRatio: SlideAspect;
   zoom: number;
   selectedElementId: string | null;
   onSelectElement: (id: string | null) => void;
@@ -50,8 +52,10 @@ interface SlideCanvasProps {
     footerText?: string;
     logoUrl?: string;
     showSlideNumber?: boolean;
+    dateText?: string;
   };
   slideIndex?: number;
+  presenting?: boolean;
 }
 
 export function SlideCanvas({
@@ -86,6 +90,7 @@ export function SlideCanvas({
   watermark,
   slideMaster,
   slideIndex = 0,
+  presenting = false,
 }: SlideCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
@@ -497,7 +502,7 @@ export function SlideCanvas({
     <div
       ref={containerRef}
       className={`ppt-slide-canvas ${aspectRatio === '4:3' ? 'ratio-4-3' : ''}`}
-      style={{ ...backgroundStyle, cursor: canvasCursor }}
+      style={{ ...backgroundStyle, width: slideBaseWidth(aspectRatio), cursor: canvasCursor }}
       onPointerDown={handleCanvasPointerDown}
       onClick={() => {
         if (suppressClickRef.current) {
@@ -563,8 +568,9 @@ export function SlideCanvas({
               style={{
                 position: 'absolute',
                 bottom: '12px',
-                left: '24px',
-                right: '70px',
+                left: slideMaster.dateText ? '35%' : '24px',
+                right: slideMaster.dateText ? '35%' : '70px',
+                textAlign: slideMaster.dateText ? 'center' : undefined,
                 fontSize: '10px',
                 color: '#94A3B8',
                 pointerEvents: 'none',
@@ -573,6 +579,9 @@ export function SlideCanvas({
             >
               {slideMaster.footerText}
             </div>
+          )}
+          {slideMaster.dateText && (
+            <div className="ppt-master-date">{slideMaster.dateText}</div>
           )}
           {slideMaster.showSlideNumber && (
             <div
@@ -648,7 +657,7 @@ export function SlideCanvas({
       )}
 
       {/* Slide Elements */}
-      {slide.elements.map((el) => {
+      {slide.elements.filter((el) => !el.hidden).map((el) => {
         const isSelected = !readOnly && selectedIds.includes(el.id);
         const showHandles = isSelected && !isMultiSelection;
         const isHidden = hiddenElementIds.includes(el.id);
@@ -783,7 +792,8 @@ export function SlideCanvas({
                 <Sheet size={10} /> Minh Sheets: {el.sheetLink.range}
               </div>
             )}
-            {renderElementContent(el, isEditing, (newText) => onUpdateElement(el.id, { text: newText }), (updates) => onUpdateElement(el.id, updates))}
+            {!readOnly && <LinkBadge el={el} />}
+            {renderElementContent(el, isEditing, (newText) => onUpdateElement(el.id, { text: newText, field: undefined }), (updates) => onUpdateElement(el.id, updates), { slideIndex, presenting, readOnly })}
 
             {showHandles && drawMode === 'select' && !el.locked && (
               <>
@@ -865,15 +875,20 @@ function renderElementContent(
   el: SlideElement,
   isEditing: boolean,
   onTextChange: (val: string) => void,
-  onUpdateElementProps?: (updates: Partial<SlideElement>) => void
+  onUpdateElementProps?: (updates: Partial<SlideElement>) => void,
+  ctx: { slideIndex: number; presenting: boolean; readOnly: boolean } = { slideIndex: 0, presenting: false, readOnly: false }
 ): ReactNode {
+  if (el.type === 'icon') return <IconElementView el={el} />;
+  if (el.type === 'audio') return <AudioElementView el={el} presenting={ctx.presenting} />;
+  if (el.type === 'cameo') return <CameoElementView el={el} live={ctx.presenting || !ctx.readOnly} />;
+  if (el.type === 'object') return <ObjectElementView el={el} />;
   if (el.type === 'text') {
     const textStyle: React.CSSProperties = {
       fontFamily: el.fontFamily || 'Segoe UI, sans-serif',
       fontSize: `${el.fontSize || 18}px`,
       fontWeight: el.fontWeight || 'normal',
       fontStyle: el.fontStyle || 'normal',
-      textDecoration: el.textDecoration || 'none',
+      textDecoration: textDecorationOf(el),
       color: el.color || '#1E293B',
       textAlign: el.textAlign || 'left',
       justifyContent:
@@ -885,6 +900,7 @@ function renderElementContent(
       lineHeight: el.lineHeight || 1.4,
       padding: `${el.padding ?? 8}px`,
       textShadow: el.textShadow ? '0 2px 4px rgba(0,0,0,0.3)' : 'none',
+      ...textEffectStyle(el),
     };
 
     if (isEditing) {
@@ -905,10 +921,8 @@ function renderElementContent(
 
     return (
       <div className="ppt-text-box" style={textStyle}>
-        {el.text ? (
-          el.text.split('\n').map((line, idx) => (
-            <div key={idx}>{line || '\u00A0'}</div>
-          ))
+        {el.text || el.field ? (
+          <RichTextLines el={el} slideIndex={ctx.slideIndex} />
         ) : (
           <span style={{ color: '#94A3B8', fontStyle: 'italic' }}>
             {el.placeholder || 'Bấm đúp để nhập văn bản'}
@@ -932,9 +946,10 @@ function renderElementContent(
               fontFamily: el.fontFamily || 'Segoe UI, sans-serif',
               fontWeight: el.fontWeight,
               fontStyle: el.fontStyle,
-              textDecoration: el.textDecoration,
+              textDecoration: textDecorationOf(el),
               lineHeight: el.lineHeight,
               whiteSpace: 'pre-wrap',
+              ...textEffectStyle(el),
               textAlign: el.textAlign,
               justifyContent:
                 el.textAlign === 'left' ? 'flex-start' : el.textAlign === 'right' ? 'flex-end' : undefined,
@@ -942,7 +957,7 @@ function renderElementContent(
                 el.verticalAlign === 'top' ? 'flex-start' : el.verticalAlign === 'bottom' ? 'flex-end' : undefined,
             }}
           >
-            {el.text}
+            {el.highlight || el.textGradient || el.isBullet ? <RichTextLines el={el} slideIndex={ctx.slideIndex} /> : el.text}
           </div>
         )}
       </div>
@@ -950,6 +965,7 @@ function renderElementContent(
   }
 
   if (el.type === 'image' && el.src) {
+    const effect = imageEffectStyle(el);
     let clipPath: string | undefined = undefined;
     if (el.imageMask === 'circle') clipPath = 'circle(50% at 50% 50%)';
     else if (el.imageMask === 'hexagon') clipPath = 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)';
@@ -963,6 +979,7 @@ function renderElementContent(
           width: '100%',
           height: '100%',
           WebkitBoxReflect: el.reflection ? 'below 2px linear-gradient(transparent, transparent 65%, rgba(255,255,255,0.4))' : undefined,
+          clipPath: effect.crop,
         }}
       >
         <img
@@ -976,6 +993,7 @@ function renderElementContent(
             clipPath,
             pointerEvents: 'none',
             transform: el.flipH || el.flipV ? `scale(${el.flipH ? -1 : 1}, ${el.flipV ? -1 : 1})` : undefined,
+            filter: effect.filter,
             boxShadow: el.reflection || el.shapeShadow === false ? 'none' : '0 4px 12px rgba(0,0,0,0.1)',
           }}
         />

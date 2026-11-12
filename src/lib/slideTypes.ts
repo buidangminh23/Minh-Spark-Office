@@ -149,7 +149,59 @@ export type ElementType =
   | '3d'
   | 'video'
   | 'countdown'
-  | 'poll';
+  | 'poll'
+  | 'icon'
+  | 'audio'
+  | 'cameo'
+  | 'object';
+
+export type SlideLinkKind = 'url' | 'slide' | 'next' | 'prev' | 'first' | 'last' | 'end' | 'email';
+
+export interface SlideLink {
+  kind: SlideLinkKind;
+  url?: string;
+  slideId?: string;
+  tooltip?: string;
+  trigger?: 'click' | 'hover';
+  sound?: TransitionSound;
+}
+
+export type TextDirection = 'horizontal' | 'rotate-90' | 'rotate-270' | 'stacked';
+
+export type TextFieldType = 'date' | 'slide-number';
+
+export interface ImageAdjustments {
+  brightness?: number;
+  contrast?: number;
+  saturation?: number;
+  temperature?: number;
+  sharpness?: number;
+  grayscale?: number;
+  sepia?: number;
+  invert?: number;
+  blur?: number;
+  hue?: number;
+  artistic?: string;
+  recolor?: string;
+}
+
+export interface ImageCrop {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
+export interface SlideComment {
+  id: string;
+  author: string;
+  text: string;
+  createdAt: number;
+  elementId?: string;
+  resolved?: boolean;
+  replies?: { id: string; author: string; text: string; createdAt: number }[];
+  read?: boolean;
+}
 
 export interface ChartSeries {
   name: string;
@@ -177,6 +229,11 @@ export interface SlideElement {
   groupId?: string;
   flipH?: boolean;
   flipV?: boolean;
+  name?: string;
+  hidden?: boolean;
+  link?: SlideLink;
+  altText?: string;
+  decorative?: boolean;
 
   // Text properties
   text?: string;
@@ -194,6 +251,17 @@ export interface SlideElement {
   bulletStyle?: 'disc' | 'circle' | 'square' | 'check' | 'arrow' | 'number';
   isTitle?: boolean;
   placeholder?: string;
+  strikethrough?: boolean;
+  highlight?: string;
+  indentLevel?: number;
+  textDirection?: TextDirection;
+  textColumns?: number;
+  field?: TextFieldType;
+  fieldFormat?: string;
+  wordArt?: string;
+  textOutline?: string;
+  textGradient?: string;
+  textGlow?: string;
 
   // Shape properties
   shapeType?: ShapeType;
@@ -219,6 +287,9 @@ export interface SlideElement {
   src?: string;
   alt?: string;
   objectFit?: 'contain' | 'cover' | 'fill';
+  imageAdjust?: ImageAdjustments;
+  crop?: ImageCrop;
+  originalSrc?: string;
 
   // Table properties
   tableRows?: number;
@@ -314,6 +385,36 @@ export interface SlideElement {
     autoUpdate?: boolean;
   };
 
+  // Icon properties
+  iconName?: string;
+
+  // Audio properties
+  audioData?: {
+    url: string;
+    name?: string;
+    autoplay?: boolean;
+    loop?: boolean;
+    hideDuringShow?: boolean;
+    playAcrossSlides?: boolean;
+    volume?: number;
+  };
+
+  // Embedded object properties
+  objectData?: {
+    name: string;
+    mime: string;
+    url: string;
+    size: number;
+    displayAsIcon?: boolean;
+  };
+
+  // Cameo (live camera) properties
+  cameoData?: {
+    shape?: 'circle' | 'rounded' | 'rect';
+    mirror?: boolean;
+    deviceId?: string;
+  };
+
   // Animation properties
   animation?: {
     type: AnimationType;
@@ -356,6 +457,9 @@ export interface SlideData {
   transition: SlideTransition;
   hidden?: boolean;
   sectionId?: string;
+  comments?: SlideComment[];
+  rehearsedSeconds?: number;
+  hideBackgroundGraphics?: boolean;
 }
 
 export interface SlideTheme {
@@ -374,8 +478,15 @@ export interface SlideTheme {
 
 export interface PresentationData {
   slides: SlideData[];
-  aspectRatio: '16:9' | '4:3';
+  aspectRatio: SlideAspect;
   themeId: string;
+  themeOverrides?: ThemeOverrides;
+  showSettings?: ShowSettings;
+  language?: string;
+  headerFooter?: HeaderFooterSettings;
+  handoutMaster?: HandoutMasterSettings;
+  notesMaster?: NotesMasterSettings;
+  macros?: SlideMacro[];
   title?: string;
   author?: string;
   sections?: SlideSection[];
@@ -397,3 +508,85 @@ export interface PresentationData {
     showSlideNumber?: boolean;
   };
 }
+
+export type SlideAspect = '16:9' | '4:3' | '16:10' | 'A4' | '1:1';
+
+export interface ThemeOverrides {
+  variant?: number;
+  colors?: Partial<Pick<SlideTheme, 'primaryColor' | 'secondaryColor' | 'accentColor' | 'backgroundColor' | 'cardBackground' | 'titleColor' | 'textColor'>>;
+  colorSchemeId?: string;
+  fonts?: { titleFont: string; bodyFont: string; id?: string };
+  effects?: 'none' | 'subtle' | 'moderate' | 'intense';
+}
+
+export interface ShowSettings {
+  showType?: 'speaker' | 'window' | 'kiosk';
+  loop?: boolean;
+  withoutNarration?: boolean;
+  withoutAnimation?: boolean;
+  disableHardwareAcceleration?: boolean;
+  penColor?: string;
+  laserColor?: string;
+  rangeFrom?: number;
+  rangeTo?: number;
+  customShowId?: string;
+  advance?: 'manual' | 'timings';
+  useTimings?: boolean;
+  playNarrations?: boolean;
+  showMediaControls?: boolean;
+  usePresenterView?: boolean;
+  monitor?: string;
+  alwaysSubtitles?: boolean;
+  subtitleLanguage?: string;
+  subtitlePosition?: 'bottom' | 'top' | 'overlay-bottom' | 'overlay-top';
+  keepSlidesUpdated?: boolean;
+}
+
+export interface HeaderFooterSettings {
+  showDate?: boolean;
+  dateMode?: 'auto' | 'fixed';
+  dateFormat?: string;
+  fixedDate?: string;
+  showSlideNumber?: boolean;
+  showFooter?: boolean;
+  footerText?: string;
+  hideOnTitle?: boolean;
+  notesHeader?: string;
+  notesFooter?: string;
+}
+
+export interface HandoutMasterSettings {
+  slidesPerPage?: 1 | 2 | 3 | 4 | 6 | 9;
+  orientation?: 'portrait' | 'landscape';
+  header?: string;
+  footer?: string;
+  showDate?: boolean;
+  showPageNumber?: boolean;
+}
+
+export interface NotesMasterSettings {
+  orientation?: 'portrait' | 'landscape';
+  header?: string;
+  footer?: string;
+  showSlideImage?: boolean;
+  showPageNumber?: boolean;
+  bodyFontSize?: number;
+}
+
+export interface SlideMacro {
+  id: string;
+  name: string;
+  description?: string;
+  steps: MacroStep[];
+}
+
+export type MacroStep =
+  | { op: 'theme'; themeId: string }
+  | { op: 'font'; fontFamily: string }
+  | { op: 'font-size'; delta: number }
+  | { op: 'color'; color: string }
+  | { op: 'replace'; find: string; replace: string }
+  | { op: 'transition'; transition: TransitionType }
+  | { op: 'background'; value: string }
+  | { op: 'slide-numbers'; enabled: boolean }
+  | { op: 'align'; textAlign: 'left' | 'center' | 'right' | 'justify' };

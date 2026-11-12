@@ -135,7 +135,7 @@ export const SLIDE_CATEGORIES: SettingCategory[] = [
         title: 'Các tab chính',
         description: 'Bỏ chọn để ẩn tab khỏi ribbon. Tab Tệp và tab ngữ cảnh luôn hiện.',
         icon: <PanelTop size={ICON} />,
-        options: [{ kind: 'custom', id: 'slide-tabs', label: 'Tab trên ribbon', keywords: 'trang đầu chèn vẽ thiết kế chuyển tiếp hoạt hình trình chiếu xem lại xem', render: () => <TabsPicker settingKey="slideTabs" tabs={SLIDE_RIBBON_TABS} locked="home" /> }],
+        options: [{ kind: 'custom', id: 'slide-tabs', label: 'Tab trên ribbon', keywords: 'trang đầu chèn vẽ thiết kế chuyển tiếp hoạt hình trình chiếu ghi quay xem lại xem', render: () => <TabsPicker settingKey="slideTabs" tabs={SLIDE_RIBBON_TABS} locked="home" /> }],
       },
     ],
   },

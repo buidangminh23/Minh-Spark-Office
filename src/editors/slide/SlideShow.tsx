@@ -1,4 +1,5 @@
-import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
+import type { SlideAspect } from '../../lib/slideTypes';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, type ReactNode } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
@@ -57,7 +58,7 @@ import { useUi } from '../../components/ui';
 import { downloadBlob } from '../../lib/download';
 import { isEditableKeyTarget } from './slideKeyTarget';
 import { getSettings, useSettings } from '../../lib/appSettings';
-import { LASER_COLORS, PEN_COLORS, resolveAdvance } from '../../lib/settings/slideOptions';
+import { LASER_COLORS, PEN_COLORS, resolveAdvance, slideBaseWidth } from '../../lib/settings/slideOptions';
 import {
   playTransitionSound,
   playPresenterSound,
@@ -75,9 +76,16 @@ const countFillers = (text: string) => text.match(FILLER_PATTERN)?.length ?? 0;
 interface SlideShowProps {
   slides: SlideData[];
   initialIndex?: number;
-  aspectRatio: '16:9' | '4:3';
+  aspectRatio: SlideAspect;
   isPresenterMode?: boolean;
   onClose: () => void;
+  overlay?: ReactNode;
+  onIndexChange?: (index: number) => void;
+  autoAdvanceSeconds?: number;
+  useTimings?: boolean;
+  onFinished?: () => void;
+  initialCoach?: boolean;
+  windowed?: boolean;
 }
 
 const SLIDE_BASE_HEIGHT = 540;
@@ -111,10 +119,17 @@ export function SlideShow({
   aspectRatio,
   isPresenterMode: defaultPresenter = false,
   onClose,
+  overlay,
+  onIndexChange,
+  autoAdvanceSeconds,
+  useTimings,
+  onFinished,
+  initialCoach = false,
+  windowed = false,
 }: SlideShowProps) {
   const ui = useUi();
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
-  const [isPresenterMode, setIsPresenterMode] = useState(() => defaultPresenter || getSettings().slidePresenterView);
+  const [isPresenterMode, setIsPresenterMode] = useState(() => !windowed && !autoAdvanceSeconds && (defaultPresenter || getSettings().slidePresenterView));
   const showSettings = useSettings();
   const [atEnd, setAtEnd] = useState(false);
   const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
@@ -131,7 +146,7 @@ export function SlideShow({
   const drawCanvasRef = useRef<HTMLCanvasElement>(null);
   const isDrawingRef = useRef(false);
 
-  const slideBaseW = aspectRatio === '4:3' ? 720 : 960;
+  const slideBaseW = slideBaseWidth(aspectRatio);
   const stageFit = useFitZoom(slideBaseW, 540);
   const presenterMainFit = useFitZoom(slideBaseW, 540);
   const presenterNextFit = useFitZoom(slideBaseW, 540);
@@ -186,7 +201,7 @@ export function SlideShow({
   const recordedChunksRef = useRef<Blob[]>([]);
 
   // AI Speaker Coach (Pace & Filler word analyzer)
-  const [isCoachActive, setIsCoachActive] = useState(false);
+  const [isCoachActive, setIsCoachActive] = useState(initialCoach);
   const [coachWpm, setCoachWpm] = useState(135);
   const [fillerCount, setFillerCount] = useState(0);
 
@@ -430,14 +445,25 @@ export function SlideShow({
     handleAdvanceRef.current = handleAdvance;
   });
 
-  const advanceAfterSeconds = currentSlide.transition?.advanceAfterSeconds;
+  const slideSeconds = currentSlide.transition?.advanceAfterSeconds;
+  const advanceAfterSeconds = autoAdvanceSeconds ? (useTimings && slideSeconds ? slideSeconds : autoAdvanceSeconds) : slideSeconds;
+  const isLastSlide = currentIndex >= slides.length - 1;
+  const onFinishedRef = useRef(onFinished);
+  onFinishedRef.current = onFinished;
   useEffect(() => {
-    if (!advanceAfterSeconds || advanceAfterSeconds <= 0 || animStep < clickCount) return;
+    if (!advanceAfterSeconds || advanceAfterSeconds <= 0 || (!autoAdvanceSeconds && animStep < clickCount)) return;
     const timer = setTimeout(() => {
-      handleAdvanceRef.current();
+      if (autoAdvanceSeconds && isLastSlide && animStep >= clickCount) onFinishedRef.current?.();
+      else handleAdvanceRef.current();
     }, advanceAfterSeconds * 1000);
     return () => clearTimeout(timer);
-  }, [currentIndex, advanceAfterSeconds, animStep, clickCount]);
+  }, [currentIndex, advanceAfterSeconds, animStep, clickCount, autoAdvanceSeconds, isLastSlide]);
+
+  const onIndexChangeRef = useRef(onIndexChange);
+  onIndexChangeRef.current = onIndexChange;
+  useEffect(() => {
+    onIndexChangeRef.current?.(currentIndex);
+  }, [currentIndex]);
 
   // Key navigation & hotkeys
   useEffect(() => {
@@ -919,6 +945,7 @@ export function SlideShow({
             <ChevronRight size={24} />
           </button>
         </div>
+        {overlay}
       </div>
     );
   }
@@ -927,7 +954,7 @@ export function SlideShow({
   return (
     <div
       ref={containerRef}
-      className="ppt-slideshow-overlay"
+      className={`ppt-slideshow-overlay ${windowed ? 'is-windowed' : ''}`}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -1919,6 +1946,7 @@ export function SlideShow({
           <button type="button" role="menuitem" onClick={runMenu(onClose)}>Kết thúc trình chiếu</button>
         </div>
       )}
+      {overlay}
     </div>
   );
 }

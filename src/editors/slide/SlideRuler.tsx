@@ -1,5 +1,6 @@
+import type { SlideAspect } from '../../lib/slideTypes';
 interface SlideRulerProps {
-  aspectRatio: '16:9' | '4:3';
+  aspectRatio: SlideAspect;
   zoom: number;
 }
 

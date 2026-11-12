@@ -77,13 +77,18 @@ import {
   getAnimationDef,
 } from '../../lib/slideEffects';
 import { getSettings, setSettings, useSettings } from '../../lib/appSettings';
-import { isRibbonTabVisible, trimHistory, zoomFromSetting } from '../../lib/settings/slideOptions';
+import { isRibbonTabVisible, slideBaseWidth as slideBaseWidthFor, trimHistory, zoomFromSetting } from '../../lib/settings/slideOptions';
 import type { SlideQatCommand, SlideRibbonTabId } from '../../lib/settings/slideDefaults';
 import { openSettings } from '../../components/settings/settingsShared';
 import { SlideQuickAccess, type SlideQatAction } from './SlideQuickAccess';
 import './slideEditor.css';
+import './slideExtras.css';
+import { SlideExtrasContext } from './slideExtrasContext';
+import { useSlideExtrasController } from './useSlideExtrasController';
+import { SlideDialogHost, useShowSession } from './SlideExtrasHost';
+import { AccessibilityPane, CommentsPane, NotesPageView, OutlinePanel, SelectionPane } from './SlideExtraPanes';
+import { masterForSlide } from '../../lib/slideHeaderFooter';
 
-const aspectRatioValue = (ratio: PresentationData['aspectRatio']) => (ratio === '4:3' ? 4 / 3 : 16 / 9);
 
 const exportToPptx = async (...args: Parameters<typeof import('../../lib/pptxExport').exportToPptx>) =>
   (await import('../../lib/pptxExport')).exportToPptx(...args);
@@ -141,7 +146,7 @@ export default function SlideEditor({
   const setZoom = setZoomSetting;
   const [canvasContainer, setCanvasContainer] = useState<HTMLDivElement | null>(null);
   const [viewMode, setViewMode] = useState<'normal' | 'sorter'>(() => (getSettings().slideOpenView === 'sorter' ? 'sorter' : 'normal'));
-  const slideBaseWidth = presentation.aspectRatio === '4:3' ? 720 : 960;
+  const slideBaseWidth = slideBaseWidthFor(presentation.aspectRatio);
 
   useEffect(() => {
     const container = canvasContainer;
@@ -197,6 +202,7 @@ export default function SlideEditor({
   const [isSlideMasterOpen, setIsSlideMasterOpen] = useState(false);
   const [isSheetsLinkOpen, setIsSheetsLinkOpen] = useState(false);
   const [isCustomShowsOpen, setIsCustomShowsOpen] = useState(false);
+  const [customShowSlideIds, setCustomShowSlideIds] = useState<string[] | null>(null);
   const [watermarkText, setWatermarkText] = useState(presentation.watermark?.text || 'BẢN QUYỀN - MINH SPARK');
   const [watermarkEnabled, setWatermarkEnabled] = useState(presentation.watermark?.enabled ?? false);
   const [watermarkOpacity, setWatermarkOpacity] = useState(presentation.watermark?.opacity ?? 0.15);
@@ -869,7 +875,7 @@ export default function SlideEditor({
       x: 40,
       y: 32,
       width: 20,
-      height: aspectRatioValue(presentation.aspectRatio) * 20,
+      height: (slideBaseWidthFor(presentation.aspectRatio) / SLIDE_BASE_HEIGHT) * 20,
       borderRadius: 8,
     };
 
@@ -1104,7 +1110,9 @@ export default function SlideEditor({
     }));
   };
 
-  const handleStartCustomShow = (_slideIds: string[]) => {
+  const handleStartCustomShow = (slideIds: string[]) => {
+    setCustomShowSlideIds(slideIds.length > 0 ? slideIds : null);
+    setActiveSlideIndex(0);
     setIsSlideShowActive(true);
   };
 
@@ -1410,6 +1418,7 @@ export default function SlideEditor({
   };
 
   const handleSelectElementWithPainter = (elId: string | null) => {
+    if (extrasCtl.interceptSelect(elId)) return;
     if (animationPainterActive && copiedAnimation && elId && elId !== selectedElementId) {
       updateSlideElement(elId, {
         animations: [{ ...copiedAnimation, id: `anim-${Date.now()}` }],
@@ -1469,10 +1478,50 @@ export default function SlideEditor({
     return count;
   };
 
+  const showSession = useShowSession({
+    fileName: meta.name,
+    getPresentation: () => presentationRef.current,
+    commit: (updater) => {
+      pushHistory(presentationRef.current);
+      setPresentation(updater);
+    },
+    setActiveSlideIndex,
+    activeSlideIndex,
+    toast: (text, error) => ui.toast(text, error),
+    confirm: (title, message) => ui.confirm(title, message),
+  });
+  const extrasCtl = useSlideExtrasController({
+    presentation,
+    getPresentation: () => presentationRef.current,
+    setPresentation: (updater) => setPresentation(updater),
+    pushHistory,
+    activeSlideIndex,
+    setActiveSlideIndex: (index) => {
+      setActiveSlideIndex(Math.max(0, Math.min(presentation.slides.length - 1, index)));
+      setSelectedElementId(null);
+    },
+    selectedIds,
+    primaryId: selectedElementId,
+    selectElements,
+    toast: (text, error) => ui.toast(text, error),
+    cut: handleCut,
+    copy: handleCopy,
+    pasteInternal: handlePaste,
+    hasInternalClipboard: clipboardElements.length > 0,
+    setEditorViewMode: setViewMode,
+    startShow: (launch) => {
+      if (launch.presenter) setIsPresenterMode(true);
+      showSession.launch(launch);
+    },
+  });
   const startShow = (fromCurrent: boolean) => {
     if (!fromCurrent) setActiveSlideIndex(0);
+    setCustomShowSlideIds(null);
     setIsSlideShowActive(true);
   };
+  const extrasViewMode = extrasCtl.api.viewMode;
+  const currentMaster = currentSlide ? masterForSlide(presentation, currentSlide) : undefined;
+  const editorClass = `ppt-editor ${extrasCtl.api.colorView === 'grayscale' ? 'is-grayscale' : extrasCtl.api.colorView === 'black-white' ? 'is-black-white' : ''} ${extrasCtl.api.hideInk ? 'is-ink-hidden' : ''}`;
   const qatAbove = settings.slideQatShow && settings.slideQatPosition === 'above' && settings.slideQatCommands.length > 0;
   const qatActions: Record<SlideQatCommand, SlideQatAction> = {
     save: { run: () => void handleExplicitSave() },
@@ -1489,7 +1538,8 @@ export default function SlideEditor({
   };
 
   return (
-    <div className="ppt-editor">
+    <SlideExtrasContext.Provider value={extrasCtl.api}>
+    <div className={editorClass} lang={presentation.language || 'vi-VN'}>
       {/* 1. Office Title Bar */}
       <header className="ppt-titlebar">
         <div className="ppt-title-left">
@@ -1560,10 +1610,8 @@ export default function SlideEditor({
         currentThemeId={presentation.themeId}
         onApplyTheme={handleApplyTheme}
         aspectRatio={presentation.aspectRatio}
-        onChangeAspectRatio={(ratio) => {
-          const newPres = { ...presentation, aspectRatio: ratio };
-          setPresentation(newPres);
-        }}
+        onChangeAspectRatio={extrasCtl.changeAspect}
+        fileName={meta.name}
         currentTransition={currentSlide?.transition.type || 'none'}
         onChangeTransition={handleChangeTransition}
         transitionDuration={currentSlide?.transition.duration ?? 0.5}
@@ -1660,6 +1708,11 @@ export default function SlideEditor({
       {/* 3. Main Workspace Area */}
       <div className="ppt-workspace">
         {/* Left Thumbnails list */}
+        {extrasViewMode === 'outline' ? (
+          <div className="ppt-thumbnails ppx-outline-host" tabIndex={-1}>
+            <OutlinePanel />
+          </div>
+        ) : (
         <SlideThumbnails
           slides={presentation.slides}
           activeSlideIndex={activeSlideIndex}
@@ -1672,10 +1725,13 @@ export default function SlideEditor({
           onDeleteSlide={handleDeleteSlide}
           onMoveSlide={handleMoveSlide}
         />
+        )}
 
         {/* Central Stage: Normal vs Slide Sorter */}
         <div className="ppt-stage">
-          {viewMode === 'normal' ? (
+          {viewMode === 'normal' && extrasViewMode === 'notes' ? (
+            <NotesPageView onNotesChange={handleNotesChange} />
+          ) : viewMode === 'normal' ? (
             <>
               {/* Optional Horizontal Ruler */}
               {showRuler && (
@@ -1700,7 +1756,7 @@ export default function SlideEditor({
                     zoom={zoom}
                     selectedElementId={selectedElementId}
                     selectedElementIds={selectedIds}
-                    slideMaster={presentation.slideMaster}
+                    slideMaster={currentMaster}
                     slideIndex={activeSlideIndex}
                     onSelectElement={handleSelectElementWithPainter}
                     onSelectElements={(ids, primary) => {
@@ -1818,6 +1874,10 @@ export default function SlideEditor({
             isPlayingPreview={isPreviewPlaying}
           />
         )}
+
+        {extrasCtl.pane === 'selection' && <SelectionPane onClose={extrasCtl.closePane} />}
+        {extrasCtl.pane === 'comments' && <CommentsPane onClose={extrasCtl.closePane} />}
+        {extrasCtl.pane === 'accessibility' && <AccessibilityPane onClose={extrasCtl.closePane} />}
 
         {/* Right-Hand AI Designer Pane */}
         {isDesignerOpen && (
@@ -2138,18 +2198,39 @@ export default function SlideEditor({
       />
 
       {/* Fullscreen Slide Show Mode */}
-      {isSlideShowActive && (
+      {(isSlideShowActive || showSession.show) && (
         <SlideShow
-          slides={presentation.slides}
-          initialIndex={activeSlideIndex}
+          slides={customShowSlideIds && !showSession.show ? presentation.slides.filter((sl) => customShowSlideIds.includes(sl.id)) : presentation.slides}
+          initialIndex={customShowSlideIds && !showSession.show ? 0 : activeSlideIndex}
           aspectRatio={presentation.aspectRatio}
           isPresenterMode={isPresenterMode}
+          overlay={showSession.overlay}
+          onIndexChange={showSession.onIndexChange}
+          autoAdvanceSeconds={showSession.show?.autoAdvanceSeconds}
+          useTimings={showSession.show?.useTimings}
+          onFinished={() => void showSession.stopRecording()}
+          initialCoach={Boolean(showSession.show?.launch.coach)}
+          windowed={Boolean(showSession.show?.launch.windowed)}
           onClose={() => {
             setIsSlideShowActive(false);
             setIsPresenterMode(false);
+            setCustomShowSlideIds(null);
+            void showSession.closeShow();
           }}
         />
       )}
+
+      <SlideDialogHost
+        dialog={extrasCtl.dialog}
+        onClose={extrasCtl.closeDialog}
+        onInsertTable={handleAddTable}
+        onChangeAspect={extrasCtl.changeAspect}
+        onExportVideo={(seconds, useTimings) => {
+          extrasCtl.closeDialog();
+          showSession.exportVideo(seconds, useTimings);
+        }}
+      />
+      {showSession.setupDialog}
 
       {/* Backstage File Modal */}
       {isBackstageOpen && (
@@ -2172,5 +2253,6 @@ export default function SlideEditor({
         />
       )}
     </div>
+    </SlideExtrasContext.Provider>
   );
 }

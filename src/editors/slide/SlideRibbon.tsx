@@ -8,8 +8,6 @@ import {
   Plus,
   Play,
   Presentation,
-  Undo2,
-  Redo2,
   Bold,
   Italic,
   Underline,
@@ -24,8 +22,6 @@ import {
   Triangle,
   ArrowRight,
   Star,
-  Table as TableIcon,
-  Image as ImageIcon,
   BarChart3,
   PieChart,
   LineChart,
@@ -55,7 +51,6 @@ import {
   Lock,
   ShieldCheck,
   Box,
-  Video,
   Vote,
   ZoomIn,
   Users,
@@ -144,6 +139,12 @@ import { useSetting } from '../../lib/appSettings';
 import { SLIDE_FONT_SIZES, SLIDE_FONTS, visibleRibbonTabs } from '../../lib/settings/slideOptions';
 import { nextFontSize } from '../../lib/fontSizeStep';
 import ComboBox from '../../components/ComboBox';
+import { GroupFooter, RibbonGroup } from './ribbonParts';
+import { useSlideExtras } from './slideExtrasContext';
+import { ClipboardGroup, EditingExtras, FontExtrasRow, HomeToolsGroup, ParagraphExtrasRow, SlideGroupExtras, VoiceGroup } from './ribbonHome';
+import { CameoButton, CommentButton, IconsButton, LinkButtons, MediaButtons, PictureSourceButtons, SymbolButton, TableGridButton, TextInsertButtons } from './ribbonInsert';
+import { PictureFormatExtras, ShapeFormatExtras, SlideSizeMenu, ThemeCustomizeGroups } from './ribbonDesign';
+import { RecordTab, ReviewExtras, SlideShowExtras, ViewExtras } from './ribbonShow';
 
 export interface TransitionItem {
   type: TransitionType;
@@ -364,6 +365,7 @@ export type RibbonTab =
   | 'transitions'
   | 'animations'
   | 'slideshow'
+  | 'record'
   | 'review'
   | 'view'
   | 'shape-format'
@@ -372,6 +374,7 @@ export type RibbonTab =
   | 'chart-design';
 
 interface SlideRibbonProps {
+  fileName?: string;
   activeTab: RibbonTab;
   onTabChange: (tab: RibbonTab) => void;
   onOpenFileMenu: () => void;
@@ -394,7 +397,7 @@ interface SlideRibbonProps {
   onAddQrCode: (url: string) => void;
   currentThemeId: string;
   onApplyTheme: (themeId: string) => void;
-  aspectRatio: '16:9' | '4:3';
+  aspectRatio: import('../../lib/slideTypes').SlideAspect;
   slideElements?: SlideElement[];
   morphMode?: 'objects' | 'words' | 'characters';
   onChangeMorphMode?: (mode: 'objects' | 'words' | 'characters') => void;
@@ -403,7 +406,7 @@ interface SlideRibbonProps {
   onSetTriggerElementId?: (id: string) => void;
   isSlideHidden?: boolean;
   onToggleHideSlide?: () => void;
-  onChangeAspectRatio: (ratio: '16:9' | '4:3') => void;
+  onChangeAspectRatio: (ratio: import('../../lib/slideTypes').SlideAspect) => void;
   currentTransition: TransitionType;
   onChangeTransition: (trans: TransitionType) => void;
   transitionDuration?: number;
@@ -492,6 +495,7 @@ const FONT_SIZES = SLIDE_FONT_SIZES;
 
 export function SlideRibbon(props: SlideRibbonProps) {
   const {
+    fileName,
     activeTab,
     onTabChange,
     onOpenFileMenu,
@@ -628,6 +632,7 @@ export function SlideRibbon(props: SlideRibbonProps) {
   };
 
   const ribbonTabs = useSetting('slideTabs');
+  const extras = useSlideExtras();
   const isShapeSelected = selectedElement?.type === 'shape';
   const isImageSelected = selectedElement?.type === 'image';
   const isTableSelected = selectedElement?.type === 'table';
@@ -753,28 +758,7 @@ export function SlideRibbon(props: SlideRibbonProps) {
         {/* TAB: HOME */}
         {activeTab === 'home' && (
           <>
-            {/* Clipboard group */}
-            <div className="ppt-ribbon-group">
-              <div className="ppt-group-content">
-                <button
-                  className="ppt-tool-btn"
-                  disabled={!canUndo}
-                  onClick={onUndo}
-                  title="Hoàn tác (Ctrl+Z)"
-                >
-                  <Undo2 size={16} />
-                </button>
-                <button
-                  className="ppt-tool-btn"
-                  disabled={!canRedo}
-                  onClick={onRedo}
-                  title="Làm lại (Ctrl+Y)"
-                >
-                  <Redo2 size={16} />
-                </button>
-              </div>
-              <div className="ppt-group-footer">Hoàn tác</div>
-            </div>
+            <ClipboardGroup canUndo={canUndo} canRedo={canRedo} onUndo={onUndo} onRedo={onRedo} />
 
             {/* Slides group */}
             <div className="ppt-ribbon-group" style={{ position: 'relative' }}>
@@ -794,6 +778,7 @@ export function SlideRibbon(props: SlideRibbonProps) {
                 >
                   <ChevronDown size={14} />
                 </button>
+                <SlideGroupExtras />
               </div>
               <div className="ppt-group-footer">Trang chiếu</div>
 
@@ -912,13 +897,15 @@ export function SlideRibbon(props: SlideRibbonProps) {
                     />
                   </label>
                 </div>
+                <FontExtrasRow />
               </div>
-              <div className="ppt-group-footer">Phông chữ</div>
+              <GroupFooter label="Phông chữ" onLauncher={() => extras.openDialog('font')} launcherTitle="Hộp thoại Phông chữ (Ctrl+Shift+F)" />
             </div>
 
             {/* Paragraph group */}
             <div className="ppt-ribbon-group">
-              <div className="ppt-group-content">
+              <div className="ppt-group-content ppx-col">
+                <div className="ppx-row">
                 <button
                   className={`ppt-tool-btn ${selectedElement?.textAlign === 'left' ? 'is-active' : ''}`}
                   onClick={() => onUpdateSelectedElement({ textAlign: 'left' })}
@@ -954,8 +941,10 @@ export function SlideRibbon(props: SlideRibbonProps) {
                 >
                   <List size={16} />
                 </button>
+                </div>
+                <ParagraphExtrasRow />
               </div>
-              <div className="ppt-group-footer">Đoạn văn</div>
+              <GroupFooter label="Đoạn văn" onLauncher={() => extras.openDialog('paragraph')} launcherTitle="Hộp thoại Đoạn văn" />
             </div>
 
             {/* Quick Drawing group */}
@@ -1002,8 +991,10 @@ export function SlideRibbon(props: SlideRibbonProps) {
                   <span>Định dạng</span>
                 </button>
               </div>
-              <div className="ppt-group-footer">Chỉnh sửa</div>
+              <div className="ppt-group-footer">Tìm & Định dạng</div>
             </div>
+
+            <EditingExtras onOpenFind={onOpenFindReplace} />
 
             {/* Designer / AI Suggestions Group */}
             <div className="ppt-ribbon-group">
@@ -1036,6 +1027,9 @@ export function SlideRibbon(props: SlideRibbonProps) {
               </div>
               <div className="ppt-group-footer">Tính năng</div>
             </div>
+
+            <VoiceGroup />
+            <HomeToolsGroup onOpenAi={onOpenAiModal} onExportPdf={onOpenExportModal} onAddSlide={onAddSlide} />
 
             {/* Delete button */}
             {selectedElement && (
@@ -1071,27 +1065,17 @@ export function SlideRibbon(props: SlideRibbonProps) {
 
             <div className="ppt-ribbon-group">
               <div className="ppt-group-content">
-                <button className="ppt-tool-btn-large" onClick={() => onAddTable(4, 4)} title="Chèn bảng 4x4">
-                  <TableIcon size={20} color="#0078D4" />
-                  <span>Bảng</span>
-                </button>
+                <TableGridButton onInsert={onAddTable} onOpenSheets={onOpenLiveSheetsLink} />
               </div>
               <div className="ppt-group-footer">Bảng biểu</div>
             </div>
 
             <div className="ppt-ribbon-group">
               <div className="ppt-group-content">
-                <label className="ppt-tool-btn-large" style={{ cursor: 'pointer' }} title="Tải ảnh từ máy tính">
-                  <ImageIcon size={20} color="#107C41" />
-                  <span>Hình ảnh</span>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    hidden
-                    onChange={handleImageUpload}
-                  />
-                </label>
+                <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={handleImageUpload} />
+                <PictureSourceButtons onUploadPicture={() => fileInputRef.current?.click()} />
+                <IconsButton />
+                <CameoButton />
               </div>
               <div className="ppt-group-footer">Hình ảnh</div>
             </div>
@@ -1135,6 +1119,7 @@ export function SlideRibbon(props: SlideRibbonProps) {
                   <Type size={20} color="#0F172A" />
                   <span>Hộp chữ</span>
                 </button>
+                <TextInsertButtons />
               </div>
               <div className="ppt-group-footer">Văn bản</div>
             </div>
@@ -1149,6 +1134,7 @@ export function SlideRibbon(props: SlideRibbonProps) {
                   <Sigma size={20} color="#D97706" />
                   <span>Công thức</span>
                 </button>
+                <SymbolButton />
               </div>
               <div className="ppt-group-footer">Ký hiệu</div>
             </div>
@@ -1164,14 +1150,7 @@ export function SlideRibbon(props: SlideRibbonProps) {
                   <Box size={20} color="#0284C7" />
                   <span>Mô hình 3D</span>
                 </button>
-                <button
-                  className="ppt-tool-btn-large"
-                  onClick={onAddVideo}
-                  title="Chèn Video MP4 kèm công cụ cắt ghép thời lượng"
-                >
-                  <Video size={20} color="#DC2626" />
-                  <span>Video Studio</span>
-                </button>
+                <MediaButtons onAddSampleVideo={() => onAddVideo?.()} />
               </div>
               <div className="ppt-group-footer">Đồ họa & Video</div>
             </div>
@@ -1187,9 +1166,14 @@ export function SlideRibbon(props: SlideRibbonProps) {
                   <ZoomIn size={20} color="#8B5CF6" />
                   <span>Thu phóng</span>
                 </button>
+                <LinkButtons />
               </div>
               <div className="ppt-group-footer">Liên kết</div>
             </div>
+
+            <RibbonGroup label="Nhận xét">
+              <CommentButton />
+            </RibbonGroup>
           </>
         )}
 
@@ -1305,22 +1289,11 @@ export function SlideRibbon(props: SlideRibbonProps) {
               <div className="ppt-group-footer">Bộ chủ đề (Themes)</div>
             </div>
 
+            <ThemeCustomizeGroups />
+
             <div className="ppt-ribbon-group">
               <div className="ppt-group-content">
-                <button
-                  className={`ppt-tool-btn ${aspectRatio === '16:9' ? 'is-active' : ''}`}
-                  onClick={() => onChangeAspectRatio('16:9')}
-                  title="Tỉ lệ 16:9 màn hình rộng"
-                >
-                  16:9 (Rộng)
-                </button>
-                <button
-                  className={`ppt-tool-btn ${aspectRatio === '4:3' ? 'is-active' : ''}`}
-                  onClick={() => onChangeAspectRatio('4:3')}
-                  title="Tỉ lệ 4:3 truyền thống"
-                >
-                  4:3 (Chuẩn)
-                </button>
+                <SlideSizeMenu onChange={onChangeAspectRatio} />
               </div>
               <div className="ppt-group-footer">Kích cỡ trang chiếu</div>
             </div>
@@ -1375,7 +1348,7 @@ export function SlideRibbon(props: SlideRibbonProps) {
 
             {/* 2. Transition Gallery & Effect Options */}
             <div className="ppt-ribbon-group" style={{ position: 'relative' }}>
-              <div className="ppt-group-content" style={{ alignItems: 'center' }}>
+              <div className="ppt-group-content">
                 {/* Office Ribbon Gallery Container with Navigation Strip */}
                 <div className="ppt-ribbon-gallery-shell">
                   <div className="ppt-ribbon-gallery-cards">
@@ -1701,7 +1674,7 @@ export function SlideRibbon(props: SlideRibbonProps) {
 
             {/* 2. Animation Gallery with Up/Down/More & Effect Options */}
             <div className="ppt-ribbon-group" style={{ position: 'relative' }}>
-              <div className="ppt-group-content" style={{ alignItems: 'center' }}>
+              <div className="ppt-group-content">
                 {/* Ribbon Gallery Container */}
                 <div className="ppt-ribbon-gallery-shell">
                   <div className="ppt-ribbon-gallery-cards">
@@ -2289,8 +2262,12 @@ export function SlideRibbon(props: SlideRibbonProps) {
               </div>
               <div className="ppt-group-footer">Màn hình & Thời gian</div>
             </div>
+
+            <SlideShowExtras />
           </>
         )}
+
+        {activeTab === 'record' && <RecordTab fileName={fileName ?? 'Bài thuyết trình'} />}
 
         {/* TAB: REVIEW */}
         {activeTab === 'review' && (
@@ -2362,6 +2339,8 @@ export function SlideRibbon(props: SlideRibbonProps) {
               </div>
               <div className="ppt-group-footer">Kiểm soát phiên bản</div>
             </div>
+
+            <ReviewExtras onOpenDiff={() => onOpenSlideDiff?.()} />
           </>
         )}
 
@@ -2479,6 +2458,8 @@ export function SlideRibbon(props: SlideRibbonProps) {
               </div>
               <div className="ppt-group-footer">Cửa sổ</div>
             </div>
+
+            <ViewExtras />
           </>
         )}
 
@@ -2748,6 +2729,7 @@ export function SlideRibbon(props: SlideRibbonProps) {
               </div>
               <div className="ppt-group-footer">Kích thước</div>
             </div>
+            <ShapeFormatExtras />
           </>
         )}
 
@@ -2894,6 +2876,7 @@ export function SlideRibbon(props: SlideRibbonProps) {
               </div>
               <div className="ppt-group-footer">Sắp xếp</div>
             </div>
+            <PictureFormatExtras />
           </>
         )}
 
