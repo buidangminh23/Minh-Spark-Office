@@ -1,6 +1,10 @@
 import { SuiteLogo } from '../../components/SuiteLogo';
 import { useAccount } from '../../components/Authentication';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import Collaboration from '@tiptap/extension-collaboration';
+import CollaborationCaret from '@tiptap/extension-collaboration-caret';
+import type * as Y from 'yjs';
+import type { Awareness } from 'y-protocols/awareness';
 import { useEditor, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Table, TableRow } from '@tiptap/extension-table';
@@ -91,7 +95,21 @@ interface DocEditorProps {
   onBack: () => void;
   onNewDocument?: (html?: string) => void;
   onOpenFile?: (file: File) => void;
+  live?: DocLiveBinding;
 }
+
+export type DocLiveBinding = {
+  ydoc: Y.Doc;
+  awareness: Awareness;
+  user: { name: string; color: string };
+  seed: boolean;
+  readOnly: boolean;
+  bar: ReactNode;
+  onSeeded: () => void;
+};
+
+const LIVE_META = 'docMeta';
+const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 const AUTOSAVE_MS = 800;
 const AUTO_VERSION_MS = 10 * 60 * 1000;
@@ -127,7 +145,7 @@ const applyFormat = (editor: Editor, format: CopiedFormat) => {
 
 const MIN_AUTO_ZOOM = 25;
 
-export default function DocEditor({ meta, content, onSave, onBack, onNewDocument, onOpenFile }: DocEditorProps) {
+export default function DocEditor({ meta, content, onSave, onBack, onNewDocument, onOpenFile, live }: DocEditorProps) {
   const ui = useUi();
   const { user } = useAccount();
   const storage = useWorkspace();
@@ -168,7 +186,7 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
   const editorRef = useRef<Editor | null>(null);
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ link: { openOnClick: false, autolink: true, defaultProtocol: 'https' }, heading: { levels: [1, 2, 3, 4, 5, 6] } }),
+      StarterKit.configure({ link: { openOnClick: false, autolink: true, defaultProtocol: 'https' }, heading: { levels: [1, 2, 3, 4, 5, 6] }, ...(live ? { undoRedo: false as const } : {}) }),
       Table.configure({ resizable: true }),
       TableRow,
       ShadedTableHeader,
@@ -222,8 +240,10 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
       ...LAYOUT_EXTENSIONS,
       ...REVIEW_EXTENSIONS,
       ...VIEW_EXTENSIONS,
+      ...(live ? [Collaboration.configure({ document: live.ydoc, field: 'default' }), CollaborationCaret.configure({ provider: { awareness: live.awareness }, user: live.user })] : []),
     ],
-    content: content.json || { type: 'doc', content: [{ type: 'paragraph' }] },
+    content: live ? undefined : content.json || { type: 'doc', content: [{ type: 'paragraph' }] },
+    editable: !live?.readOnly,
     editorProps: {
       attributes: { spellcheck: 'true', lang: getSettings().proofLanguage, 'aria-label': 'Nội dung tài liệu' },
       handlePaste: (_view, event) => (editorRef.current ? handleConfiguredPaste(editorRef.current, event) : false),
@@ -360,7 +380,53 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
     };
   }, [savedStatus, persist]);
 
+  const liveRef = useRef(live);
+  liveRef.current = live;
+  const seeded = useRef(false);
   useEffect(() => {
+    const binding = liveRef.current;
+    if (!binding || !binding.seed || seeded.current) return;
+    seeded.current = true;
+    editor.commands.setContent(content.json || { type: 'doc', content: [{ type: 'paragraph' }] });
+    const shared = binding.ydoc.getMap(LIVE_META);
+    binding.ydoc.transact(() => {
+      shared.set('page', { ...basePage(), ...content.page });
+      shared.set('comments', content.comments ?? []);
+    });
+    binding.onSeeded();
+  }, [editor, content]);
+
+  useEffect(() => {
+    const binding = liveRef.current;
+    if (!binding) return;
+    const shared = binding.ydoc.getMap(LIVE_META);
+    const pull = () => {
+      const remotePage = shared.get('page') as PageSettings | undefined;
+      const remoteComments = shared.get('comments') as CommentItem[] | undefined;
+      if (remotePage) setPageState((current) => (sameJson(current, remotePage) ? current : { ...basePage(), ...remotePage }));
+      if (remoteComments) setCommentsState((current) => (sameJson(current, remoteComments) ? current : remoteComments));
+    };
+    pull();
+    shared.observe(pull);
+    return () => shared.unobserve(pull);
+  }, []);
+
+  useEffect(() => {
+    const binding = liveRef.current;
+    if (!binding || binding.readOnly) return;
+    const shared = binding.ydoc.getMap(LIVE_META);
+    if (!sameJson(shared.get('page'), page)) shared.set('page', page);
+  }, [page]);
+
+  useEffect(() => {
+    const binding = liveRef.current;
+    if (!binding || binding.readOnly) return;
+    const shared = binding.ydoc.getMap(LIVE_META);
+    if (!sameJson(shared.get('comments'), comments)) shared.set('comments', comments);
+  }, [comments]);
+
+  useEffect(() => {
+    if (live) return;
     const timer = setInterval(() => {
       if (!dirtySinceVersion.current) return;
       dirtySinceVersion.current = false;
@@ -368,7 +434,7 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
       void saveVersion(m.id, { kind: 'doc', json: editor.getJSON(), page: p, comments: c }, `Tự động lưu ${new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`);
     }, AUTO_VERSION_MS);
     return () => clearInterval(timer);
-  }, [editor, saveVersion]);
+  }, [editor, saveVersion, live]);
 
   useEffect(() => {
     try {
@@ -382,7 +448,7 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
   useEffect(() => {
     const locked = Boolean(page.protectHash);
     const mode = locked ? (page.protectMode === 'tracked' ? 'suggesting' : 'viewing') : view.editMode;
-    editor.setEditable(mode !== 'viewing');
+    editor.setEditable(mode !== 'viewing' && !live?.readOnly);
     editor.commands.setTrackChanges(mode === 'suggesting');
   }, [editor, view.editMode, page.protectHash, page.protectMode]);
 
@@ -559,13 +625,15 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
                 <SuiteLogo kind="doc" size={32} decorative={false} />
                 <input className="editor-title-input" value={title} aria-label="Tên tài liệu" onChange={(e) => { autoTitleRef.current = false; setTitle(e.target.value); markDirty(); }} onBlur={handleTitleBlur} onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()} />
                 <QuickAccess placement="above" />
-                <button className={`save-pill ${savedStatus}`} onClick={() => user ? setDialog('history') : void saveNow()} title={user ? 'Xem lịch sử phiên bản' : 'Đăng nhập để lưu tài liệu'}>
-                  {savedStatus === 'saved' ? <><CheckCircle2 size={13} /><span>{user ? 'Đã lưu trên máy' : 'Đã lưu nháp trên máy'}</span></> : <><Clock size={13} /><span>{user ? 'Đang lưu…' : 'Đang lưu nháp…'}</span></>}
-                </button>
+                {live ? live.bar : (
+                  <button className={`save-pill ${savedStatus}`} onClick={() => user ? setDialog('history') : void saveNow()} title={user ? 'Xem lịch sử phiên bản' : 'Đăng nhập để lưu tài liệu'}>
+                    {savedStatus === 'saved' ? <><CheckCircle2 size={13} /><span>{user ? 'Đã lưu trên máy' : 'Đã lưu nháp trên máy'}</span></> : <><Clock size={13} /><span>{user ? 'Đang lưu…' : 'Đang lưu nháp…'}</span></>}
+                  </button>
+                )}
               </div>
               <div className="topbar-right">
                 <button className="command-search" onClick={() => setDialog('commandpalette')} title="Tìm lệnh (Alt+Q)"><Search size={14} /><span>Tìm lệnh</span></button>
-                <button className="btn" onClick={() => setDialog('history')} title="Lịch sử phiên bản"><History size={15} /><span>Lịch sử</span></button>
+                {!live && <button className="btn" onClick={() => setDialog('history')} title="Lịch sử phiên bản"><History size={15} /><span>Lịch sử</span></button>}
                 <button className={`btn ${view.sidePanel === 'comments' ? 'btn-primary' : ''}`} onClick={() => setView({ sidePanel: view.sidePanel === 'comments' ? null : 'comments' })} title="Bình luận"><MessageSquare size={15} /><span>Bình luận{openComments ? ` (${openComments})` : ''}</span></button>
                 <button className="btn" onClick={() => setView({ viewMode: 'read' })} title="Chế độ đọc"><BookOpen size={15} /><span>Đọc</span></button>
                 <button className="btn btn-doc" onClick={() => setDialog('backstage')} title="Xuất & chia sẻ"><Share2 size={15} /><span>Chia sẻ</span></button>

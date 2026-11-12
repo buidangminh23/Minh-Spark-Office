@@ -202,6 +202,22 @@ export function inviteBody(input: { teamName: string; inviterName: string; role:
   ].join('\n');
 }
 
+export function inviteGroupBody(input: { teamName: string; inviterName: string; role: TeamRole; entries: Array<{ email: string; link: string }>; expireAt: number }) {
+  const expires = new Date(input.expireAt).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return [
+    'Xin chào mọi người,',
+    '',
+    `${input.inviterName || 'Một thành viên'} mời mọi người tham gia nhóm "${input.teamName}" trên Minh Spark Office với vai trò ${ROLE_LABEL[input.role]}.`,
+    'Trong nhóm, mọi người chia sẻ mẫu tài liệu, bảng tính, bài thuyết trình và cùng chỉnh sửa tài liệu chung.',
+    '',
+    'Mỗi người mở đúng liên kết ghi email của mình và đăng nhập Google bằng chính email đó (liên kết của người khác sẽ không dùng được):',
+    '',
+    ...input.entries.map((entry) => `${entry.email}: ${entry.link}`),
+    '',
+    `Lời mời có hiệu lực đến ngày ${expires}.`,
+  ].join('\n');
+}
+
 export function gmailComposeUrl(to: string, subject: string, body: string) {
   const url = new URL('https://mail.google.com/mail/');
   url.searchParams.set('view', 'cm');

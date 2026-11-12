@@ -13,9 +13,12 @@ import {
   where,
   writeBatch,
   type DocumentData,
+  type DocumentReference,
+  type Query,
   type DocumentSnapshot,
   type Firestore,
   type QueryDocumentSnapshot,
+  type QuerySnapshot,
 } from 'firebase/firestore';
 import { decodeCloudPayload, encodeCloudPayload } from './cloudCodec';
 import type { FileContent, FileMeta } from './storage';
@@ -41,6 +44,33 @@ export type Unsubscribe = () => void;
 export type PublishInput = { type: TeamItemType; name: string; kind: TeamItemKind; description: string; category: string; content: FileContent };
 
 const BATCH_LIMIT = 400;
+const WATCH_RETRIES = 5;
+const WATCH_BACKOFF_MS = 800;
+
+type Watchable = DocumentReference<DocumentData> | Query<DocumentData>;
+type Listen = (target: Watchable, onNext: (snapshot: never) => void, onError: (error: unknown) => void) => Unsubscribe;
+const listen = onSnapshot as unknown as Listen;
+
+export function watchWithRetry<T>(target: Watchable, onNext: (snapshot: T) => void, onError: (error: unknown) => void): Unsubscribe {
+  let attempt = 0;
+  let stop: Unsubscribe | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let closed = false;
+  const start = () => {
+    stop = listen(target, (snapshot: T) => { attempt = 0; onNext(snapshot); }, (error: unknown) => {
+      const code = String((error as { code?: string })?.code ?? '');
+      if (closed) return;
+      if (code.includes('permission-denied') && attempt < WATCH_RETRIES) {
+        attempt++;
+        timer = setTimeout(() => { if (!closed) start(); }, WATCH_BACKOFF_MS * 2 ** (attempt - 1));
+        return;
+      }
+      onError(error);
+    });
+  };
+  start();
+  return () => { closed = true; if (timer) clearTimeout(timer); stop?.(); };
+}
 const CHUNK_BATCH = 8;
 
 const millis = (value: unknown) => (value instanceof Timestamp ? value.toMillis() : typeof value === 'number' ? value : Date.now());
@@ -158,7 +188,7 @@ export function createTeamStore(db: Firestore, user: TeamUser) {
         seen.add(teamId);
         roles.set(teamId, role);
         if (!teamStops.has(teamId)) {
-          teamStops.set(teamId, onSnapshot(teamRef(teamId), (teamSnapshot) => {
+          teamStops.set(teamId, watchWithRetry<DocumentSnapshot<DocumentData>>(teamRef(teamId), (teamSnapshot) => {
             const team = toTeam(teamSnapshot);
             if (team) teams.set(teamId, team); else teams.delete(teamId);
             emit();
@@ -178,16 +208,16 @@ export function createTeamStore(db: Firestore, user: TeamUser) {
   };
 
   const subscribeMembers = (teamId: string, onChange: (members: TeamMember[]) => void, onError: (error: unknown) => void): Unsubscribe =>
-    onSnapshot(collection(db, 'teams', teamId, 'members'), (snapshot) => onChange(snapshot.docs.flatMap((entry) => toMember(entry) ?? [])), onError);
+    watchWithRetry<QuerySnapshot<DocumentData>>(collection(db, 'teams', teamId, 'members'), (snapshot) => onChange(snapshot.docs.flatMap((entry) => toMember(entry) ?? [])), onError);
 
   const subscribeInvites = (teamId: string, onChange: (invites: TeamInvite[]) => void, onError: (error: unknown) => void): Unsubscribe =>
-    onSnapshot(collection(db, 'teams', teamId, 'invites'), (snapshot) => onChange(snapshot.docs.flatMap((entry) => toInvite(entry) ?? []).sort((a, b) => b.createdAt - a.createdAt)), onError);
+    watchWithRetry<QuerySnapshot<DocumentData>>(collection(db, 'teams', teamId, 'invites'), (snapshot) => onChange(snapshot.docs.flatMap((entry) => toInvite(entry) ?? []).sort((a, b) => b.createdAt - a.createdAt)), onError);
 
   const subscribeItems = (teamId: string, onChange: (items: TeamItem[]) => void, onError: (error: unknown) => void): Unsubscribe =>
-    onSnapshot(query(collection(db, 'teams', teamId, 'items'), orderBy('updatedAt', 'desc')), (snapshot) => onChange(snapshot.docs.flatMap((entry) => toItem(entry) ?? [])), onError);
+    watchWithRetry<QuerySnapshot<DocumentData>>(query(collection(db, 'teams', teamId, 'items'), orderBy('updatedAt', 'desc')), (snapshot) => onChange(snapshot.docs.flatMap((entry) => toItem(entry) ?? [])), onError);
 
   const subscribeItem = (teamId: string, itemId: string, onChange: (item: TeamItem | null) => void, onError: (error: unknown) => void): Unsubscribe =>
-    onSnapshot(itemRef(teamId, itemId), (snapshot) => onChange(snapshot.exists() ? toItem(snapshot) : null), onError);
+    watchWithRetry<DocumentSnapshot<DocumentData>>(itemRef(teamId, itemId), (snapshot) => onChange(snapshot.exists() ? toItem(snapshot) : null), onError);
 
   const subscribeMyInvites = (onChange: (invites: TeamInvite[]) => void, onError: (error: unknown) => void): Unsubscribe => {
     if (!email) { onChange([]); return () => undefined; }
@@ -346,12 +376,12 @@ export function createTeamStore(db: Firestore, user: TeamUser) {
     await batch.commit();
   };
 
-  const replaceItemContent = async (item: TeamItem, content: FileContent) => {
+  const replaceItemContent = async (item: TeamItem, content: FileContent, patch: Partial<Pick<TeamItem, 'name' | 'description' | 'category'>> = {}) => {
     const revision = crypto.randomUUID();
     const encoded = await encode(item.id, item.kind, item.name, content);
     await writeChunks(item.teamId, item.id, revision, encoded.chunks);
     const batch = writeBatch(db);
-    batch.set(itemRef(item.teamId, item.id), { ...itemFields(item, {}), ...storedFields(revision, encoded, content) });
+    batch.set(itemRef(item.teamId, item.id), { ...itemFields(item, patch), ...storedFields(revision, encoded, content) });
     try { await batch.commit(); }
     catch (error) { await removeChunks(item.teamId, item.id, revision, encoded.chunks.length).catch(() => undefined); throw error; }
     await removeChunks(item.teamId, item.id, item.revision, item.chunkCount).catch(() => undefined);
@@ -374,7 +404,28 @@ export function createTeamStore(db: Firestore, user: TeamUser) {
   const deleteItem = async (item: TeamItem) => {
     await deleteDoc(itemRef(item.teamId, item.id));
     await removeChunks(item.teamId, item.id, item.revision, item.chunkCount).catch(() => undefined);
+    if (item.type !== 'document') return;
+    for (const name of ['live', 'liveChunks', 'peers', 'signals']) {
+      const rest = await getDocs(collection(db, 'teams', item.teamId, 'items', item.id, name)).catch(() => null);
+      if (!rest?.size) continue;
+      const batch = writeBatch(db);
+      rest.docs.slice(0, BATCH_LIMIT).forEach((entry) => batch.delete(entry.ref));
+      await batch.commit().catch(() => undefined);
+    }
   };
+
+  const getMyRole = async (teamId: string): Promise<TeamRole | null> => {
+    const snapshot = await getDoc(memberRef(teamId, user.uid));
+    const role = snapshot.data()?.role;
+    return isTeamRole(role) ? role : null;
+  };
+
+  const getItem = async (teamId: string, itemId: string) => {
+    const snapshot = await getDoc(itemRef(teamId, itemId));
+    return snapshot.exists() ? toItem(snapshot) : null;
+  };
+
+  const getTeam = async (teamId: string) => toTeam(await getDoc(teamRef(teamId)));
 
   const deleteTeam = async (team: Team) => {
     const items = await getDocs(collection(db, 'teams', team.id, 'items'));
@@ -395,7 +446,11 @@ export function createTeamStore(db: Firestore, user: TeamUser) {
   };
 
   return {
+    db,
     user,
+    getMyRole,
+    getItem,
+    getTeam,
     subscribeMemberships,
     subscribeMembers,
     subscribeInvites,

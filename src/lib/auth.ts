@@ -8,11 +8,22 @@ const config = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
+let emulatorReady: Promise<void> | null = null;
+
 export const authConfigured = Object.values(config).every((value) => typeof value === 'string' && value.trim());
 
 export async function initializeAuthentication() {
   if (!authConfigured) throw new Error('auth/missing-config');
-  const app = getApps().length ? getApp() : initializeApp(config);
+  const fresh = !getApps().length;
+  const app = fresh ? initializeApp(config) : getApp();
+  const emulator = import.meta.env.DEV ? String(import.meta.env.VITE_FIRESTORE_EMULATOR ?? '') : '';
+  if (fresh && emulator) {
+    emulatorReady = import('firebase/firestore').then(({ connectFirestoreEmulator, getFirestore }) => {
+      const [host, port] = emulator.split(':');
+      connectFirestoreEmulator(getFirestore(app), host, Number(port));
+    });
+  }
+  await emulatorReady;
   const auth = getAuth(app);
   auth.languageCode = 'vi';
   await setPersistence(auth, browserLocalPersistence);

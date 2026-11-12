@@ -16,6 +16,9 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import Home from './components/Home';
+import { SharedFrame } from './components/teams/SharedFrame';
+import { isSharedTabId, sharedMeta } from './lib/live/sharedTabs';
+import type { SharedOpen } from './components/teams/TeamsPage';
 import { formatFileSize } from './lib/imageFormatNames';
 import { UiProvider, useUi } from './components/ui';
 import {
@@ -953,6 +956,24 @@ function MainApp({ onEditing, frameId }: { onEditing: (editing: boolean) => void
   };
 
   // Duplicate file
+  const handleCreateFromContent = async (name: string, content: FileContent) => {
+    if (content.kind !== 'doc' && content.kind !== 'sheet' && content.kind !== 'slide') return;
+    preloadEditor(content.kind);
+    const extension = content.kind === 'doc' ? '.docx' : content.kind === 'sheet' ? '.xlsx' : '.pptx';
+    const base = name.replace(/\.(docx?|xlsx|xlsm|xls|pptx?)$/i, '').trim() || 'Tài liệu từ mẫu';
+    const now = Date.now();
+    const meta: FileMeta = { id: `${content.kind}-${now}`, name: `${base}${extension}`, kind: content.kind, createdAt: now, updatedAt: now, openedAt: now, starred: false, deletedAt: null, size: JSON.stringify(content).length, preview: '' };
+    await saveFile(meta, structuredClone(content));
+    refreshFilesSoon();
+    showDocument(meta, content);
+    ui.toast(`Đã tạo “${meta.name}” từ mẫu của nhóm`);
+  };
+
+  const handleOpenShared: SharedOpen = (item) => {
+    preloadEditor(item.kind);
+    tabs?.open(sharedMeta(item));
+  };
+
   const handleDuplicate = async (file: FileMeta) => {
     try {
       const content = await loadContent(file.id);
@@ -1142,6 +1163,8 @@ function MainApp({ onEditing, frameId }: { onEditing: (editing: boolean) => void
       onDeletePermanent={handleDeletePermanent}
       onExportBackup={handleExportBackup}
       onImportBackup={handleImportBackup}
+      onCreateFromContent={(name, content) => void handleCreateFromContent(name, content)}
+      onOpenShared={handleOpenShared}
     />
   );
 }
@@ -1155,7 +1178,7 @@ function Workspace({ userId, onEditing, editing }: { userId: string | null; onEd
     <WorkspaceContext value={workspace}>
       <UiProvider>
         {frameId ? (
-          <div className={`workspace-frame ${editing ? 'is-editing' : ''}`}><div className="workspace-content"><MainApp onEditing={onEditing} frameId={frameId} /></div><WorkspaceStatus /><SettingsHost /></div>
+          <div className={`workspace-frame ${editing ? 'is-editing' : ''}`}><div className="workspace-content">{isSharedTabId(frameId) ? <SharedFrame frameId={frameId} onEditing={onEditing} /> : <MainApp onEditing={onEditing} frameId={frameId} />}</div><WorkspaceStatus /><SettingsHost /></div>
         ) : (
           <>
             <DesktopCloseGuard />

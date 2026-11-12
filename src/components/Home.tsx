@@ -20,6 +20,7 @@ import {
   Star,
   Trash2,
   Upload,
+  Users,
 } from 'lucide-react';
 import { useAccount } from './Authentication';
 import { SuiteLogo } from './SuiteLogo';
@@ -34,7 +35,9 @@ import { useSettings } from '../lib/appSettings';
 import { updateNeedsAttention, useUpdaterStatus } from '../lib/updaterStatus';
 import './home.css';
 
-import type { FileKind, FileMeta } from '../lib/storage';
+import type { FileContent, FileKind, FileMeta } from '../lib/storage';
+import { INVITE_PARAM, parseInviteToken } from '../lib/teams';
+import type { SharedOpen } from './teams/TeamsPage';
 import type { WorkbookData } from '../lib/sheetTypes';
 import type { PresentationData } from '../lib/slideTypes';
 import { businessPitchPresentation, productLaunchPresentation, blankPresentation } from '../lib/slideTemplates';
@@ -72,12 +75,15 @@ interface HomeProps {
   onDeletePermanent: (file: FileMeta) => void;
   onExportBackup: () => void;
   onImportBackup: (file: File) => void;
+  onCreateFromContent: (name: string, content: FileContent) => void;
+  onOpenShared: SharedOpen;
 }
 
-type View = 'home' | 'all' | 'starred' | FileKind | 'trash';
+type View = 'home' | 'all' | 'starred' | FileKind | 'trash' | 'team';
 type KindTab = 'all' | FileKind;
 type SortOrder = 'recent' | 'oldest' | 'name';
 
+const TeamsPage = lazy(() => import('./teams/TeamsPage').then((module) => ({ default: module.TeamsPage })));
 const FilePartsDialog = lazy(() => import('./FilePartsDialog').then((module) => ({ default: module.FilePartsDialog })));
 const FEATURED_TEMPLATES = 4;
 const IMPORT_ACCEPT = '.docx,.txt,.md,.html,.htm,.xlsx,.xlsm,.xls,.csv,.tsv,.pdf,.pptx,.ppt,.png,.jpg,.jpeg,.jfif,.jpe,.webp,.gif,.svg,.svgz,.bmp,.dib,.ico,.avif,.tiff,.tif,.heic,.heif';
@@ -93,6 +99,7 @@ const VIEW_TITLE: Record<Exclude<View, 'home'>, string> = {
   slide: 'Minh Slides',
   image: 'Minh Photos',
   trash: 'Thùng rác',
+  team: 'Nhóm',
 };
 const SORT_LABEL: Record<SortOrder, string> = { recent: 'Mới cập nhật', oldest: 'Cũ nhất', name: 'Tên A → Z' };
 
@@ -141,7 +148,8 @@ export default function Home(props: HomeProps) {
   const appSettings = useSettings();
   const updater = useUpdaterStatus();
   const RECENT_LIMIT = appSettings.recentCount;
-  const [view, setView] = useState<View>('home');
+  const [inviteToken, setInviteToken] = useState(() => (typeof window === 'undefined' ? null : parseInviteToken(new URLSearchParams(window.location.search).get(INVITE_PARAM))));
+  const [view, setView] = useState<View>(() => (inviteToken ? 'team' : 'home'));
   const [kindTab, setKindTab] = useState<KindTab>('all');
   const [sortOrder, setSortOrder] = useState<SortOrder>('recent');
   const [starredOnly, setStarredOnly] = useState(false);
@@ -220,6 +228,14 @@ export default function Home(props: HomeProps) {
   };
 
   const showDashboard = view === 'home' && !isSearching;
+  const showTeams = view === 'team' && !isSearching;
+  const finishInvite = useCallback(() => {
+    setInviteToken(null);
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has(INVITE_PARAM)) return;
+    url.searchParams.delete(INVITE_PARAM);
+    window.history.replaceState(window.history.state, '', url.toString());
+  }, []);
   const location = (file: FileMeta) => (file.deletedAt ? 'Thùng rác' : user ? 'Kho tài liệu' : 'Trên máy này');
   const fileList = (items: FileMeta[]) => viewMode === 'list'
     ? <FileTable files={items} location={location} props={props} onOpen={openFile} />
@@ -316,6 +332,7 @@ export default function Home(props: HomeProps) {
           ))}
           <NavItem active={conversion !== null || conversionAnchor !== null} menuOpen={conversionAnchor !== null} onClick={(event) => { const anchor = event.currentTarget; setConversionAnchor((current) => current ? null : anchor); }} icon={<ConvertLogo size={26} />}>Chuyển định dạng</NavItem>
           <button className="ws-nav-item" aria-haspopup="dialog" onClick={() => setFilePartsOpen(true)}><span className="ws-nav-icon" aria-hidden="true"><Files size={22} /></span><span className="ws-nav-label">Gộp và tách tệp</span></button>
+          <NavItem active={view === 'team' && !isSearching} onClick={() => goTo('team')} icon={<Users size={22} />}>Nhóm</NavItem>
           <hr />
           <NavItem active={view === 'trash' && !isSearching} onClick={() => goTo('trash')} icon={<Trash2 size={20} />} badge={trashCount || undefined}>Thùng rác</NavItem>
           <NavItem active={settingsOpen} onClick={() => setSettingsOpen(true)} icon={<Settings size={20} />} dot={updateNeedsAttention(updater.phase) ? `Có phiên bản ${updater.nextVersion}` : undefined}>Cài đặt</NavItem>
@@ -347,7 +364,11 @@ export default function Home(props: HomeProps) {
         </header>
 
         <div className="ws-content">
-          {showDashboard ? (
+          {showTeams ? (
+            <Suspense fallback={<p className="tm-muted" role="status">Đang tải nhóm…</p>}>
+              <TeamsPage files={files} inviteToken={inviteToken} onInviteDone={finishInvite} onCreateFromContent={props.onCreateFromContent} onOpenShared={props.onOpenShared} />
+            </Suspense>
+          ) : showDashboard ? (
             <>
               <div className="ws-heading">
                 <div>
