@@ -89,3 +89,17 @@ test('a measured table may be retained in full and a cut through its rows fails 
   assert.deepEqual(map.slice(0, 1).map(p => p.node.textContent), ['A', 'BC']);
   assert.deepEqual(map.slice(2, 2).map(p => p.node.textContent), ['D']);
 });
+
+test('leading paragraph spacing is suppressed only on natural page rollover', () => {
+  const measured = { pageCount: 2, boundaries: [{ paragraph: 1, offset: 0, text: 'B', inTable: false }] };
+  const natural = paragraph('A') + '<w:p><w:r>' + cached + '<w:t>B</w:t></w:r></w:p>';
+  assert.equal(buildWordPageMap(body(natural), undefined, 2).slice(1, 1)[0].suppressBeforeSpacing, true);
+  assert.equal(buildWordPageMap(body(natural), undefined, undefined, measured).slice(1, 1)[0].suppressBeforeSpacing, true);
+  const hardEnding = '<w:p><w:r><w:t>A</w:t>' + hard + '</w:r></w:p>' + paragraph('B');
+  const before = paragraph('A') + '<w:p><w:pPr><w:pageBreakBefore/></w:pPr><w:r><w:t>B</w:t></w:r></w:p>';
+  const section = '<w:p><w:pPr><w:sectPr/></w:pPr><w:r><w:t>A</w:t></w:r></w:p>' + paragraph('B') + '<w:sectPr/>';
+  for (const source of [hardEnding, before, section]) {
+    assert.equal(buildWordPageMap(body(source), undefined, 2).slice(1, 1)[0].suppressBeforeSpacing, false);
+    assert.equal(buildWordPageMap(body(source), undefined, undefined, measured).slice(1, 1)[0].suppressBeforeSpacing, false);
+  }
+});
