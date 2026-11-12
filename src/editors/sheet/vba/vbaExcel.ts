@@ -125,6 +125,16 @@ export class ExcelModel {
     return new WorksheetObject(this, this.workbook().getActiveSheet());
   }
 
+  sheetById(sheetId: string): WorksheetObject | null {
+    const sheet = (this.workbook().getSheets() as Facade[]).find((item) => item.getSheetId() === sheetId);
+    return sheet ? new WorksheetObject(this, sheet) : null;
+  }
+
+  rangeOn(sheetId: string, box: Box4): RangeObject | null {
+    const sheet = this.sheetById(sheetId);
+    return sheet ? new RangeObject(this, sheet.sheet, box) : null;
+  }
+
   sheetByKey(key: VbaValue): WorksheetObject {
     const workbook = this.workbook();
     const sheets: Facade[] = workbook.getSheets();
@@ -422,6 +432,10 @@ export class ApplicationObject extends VbaObject {
     return GLOBAL_MEMBERS.has(name);
   }
 
+  get eventsEnabled(): boolean {
+    return toBool(this.settings.get('enableevents') ?? true);
+  }
+
   get(name: string, args: VbaArgs): VbaValue {
     const model = this.model;
     switch (name) {
@@ -703,6 +717,10 @@ export class WorksheetObject extends VbaObject {
 
   fullBox(): Box4 {
     return { r0: 0, c0: 0, r1: this.sheet.getMaxRows() - 1, c1: this.sheet.getMaxColumns() - 1 };
+  }
+
+  hasMember(name: string): boolean {
+    return name === 'range' || name === 'cells' || name === 'rows' || name === 'columns';
   }
 
   private indexArg(value: VbaValue, kind: 'row' | 'column'): { start: number; end: number } {

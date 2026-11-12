@@ -32,7 +32,13 @@ export interface VbaHost {
   evaluateBracket(text: string): VbaValue;
   createObject(progId: string): VbaObject | null;
   documentObject?(target: string): VbaObject | null;
+  beginSlice?(): void;
+  endSlice?(): void;
+  endAll?(): void;
 }
+
+export type VbaWait = Promise<unknown>;
+type Gen<T = void> = Generator<VbaWait, T, void>;
 
 export interface VbaModuleSource {
   name: string;
@@ -49,7 +55,7 @@ export interface VbaProcedureInfo {
   line: number;
 }
 
-class Box {
+export class Box {
   v: VbaValue;
   typeName: string;
   constructor(value: VbaValue, typeName = 'variant') {
@@ -152,6 +158,9 @@ export class VbaInterpreter {
   readonly maxSteps: number;
   readonly maxMilliseconds: number;
   private randomState = 0x2f6b9a51;
+  private waitRequest: VbaWait | null = null;
+  private activeRuns = 0;
+  private sliceDepth = 0;
 
   constructor(sources: VbaModuleSource[], host: VbaHost, options: { maxSteps?: number; maxMilliseconds?: number } = {}) {
     this.host = host;
@@ -201,27 +210,119 @@ export class VbaInterpreter {
     if (module.initialized) return;
     module.initialized = true;
     const frame = this.newFrame(module, { kind: 'sub', name: '(module)', params: [], body: [], isPrivate: true, line: 0 }, module.vars);
-    for (const statement of module.parsed.declarations) this.execStmt(statement, frame);
+    for (const statement of module.parsed.declarations) {
+      const pending = this.execStmt(statement, frame);
+      if (pending) drain(pending);
+    }
+  }
+
+  resetModule(name: string) {
+    const module = this.modules.find((item) => item.name.toLowerCase() === name.toLowerCase());
+    if (!module) return;
+    module.vars.clear();
+    module.initialized = false;
+  }
+
+  resetAll() {
+    for (const module of this.modules) {
+      module.vars.clear();
+      module.initialized = false;
+    }
+  }
+
+  hasProcedure(module: string, proc: string): boolean {
+    return !!this.findProc(`${module}.${proc}`);
+  }
+
+  get isRunning(): boolean {
+    return this.sliceDepth > 0;
+  }
+
+  requestWait(wait: VbaWait) {
+    this.waitRequest = wait;
   }
 
   private newFrame(module: ModuleRuntime, proc: Proc, vars = new Map<string, Box>()): Frame {
     return { module, proc, vars, withStack: [], onError: { mode: 'none' }, inHandler: false, topBody: proc.body, topIndex: 0, resumeAt: 0 };
   }
 
-  run(name: string, args: VbaValue[] = []): VbaValue {
+  run(name: string, args: Array<VbaValue | Box> = []): VbaValue {
+    const gen = this.runGen(name, args);
+    this.enterSlice();
+    try {
+      return drain(gen);
+    } finally {
+      this.leaveSlice();
+    }
+  }
+
+  async runAsync(name: string, args: Array<VbaValue | Box> = []): Promise<VbaValue> {
+    const gen = this.runGen(name, args);
+    let step: IteratorResult<VbaWait, VbaValue>;
+    this.enterSlice();
+    try {
+      step = gen.next();
+    } finally {
+      this.leaveSlice();
+    }
+    while (!step.done) {
+      await step.value;
+      this.steps = 0;
+      this.startedAt = Date.now();
+      this.enterSlice();
+      try {
+        step = gen.next();
+      } finally {
+        this.leaveSlice();
+      }
+    }
+    return step.value;
+  }
+
+  runEvent(name: string, args: Array<VbaValue | Box> = []): Promise<VbaValue> {
+    if (this.sliceDepth > 0) {
+      try {
+        return Promise.resolve(this.run(name, args));
+      } catch (error) {
+        return Promise.reject(error);
+      }
+    }
+    return this.runAsync(name, args);
+  }
+
+  private enterSlice() {
+    if (this.sliceDepth === 0) this.host.beginSlice?.();
+    this.sliceDepth += 1;
+  }
+
+  private leaveSlice() {
+    this.sliceDepth -= 1;
+    if (this.sliceDepth === 0) this.host.endSlice?.();
+  }
+
+  private *runGen(name: string, args: Array<VbaValue | Box>): Gen<VbaValue> {
+    if (this.activeRuns === 0) {
+      this.depth = 0;
+      this.err.clear();
+    }
     this.steps = 0;
     this.startedAt = Date.now();
-    this.depth = 0;
-    this.err.clear();
     for (const module of this.modules) this.ensureModule(module);
     const target = this.findProc(name);
     if (!target) throw new VbaError(1004, `Không tìm thấy macro "${name}"`);
+    this.activeRuns += 1;
     try {
-      return this.callProc(target.module, target.proc, args.map((value) => ({ value })), null);
+      return yield* this.callProcGen(target.module, target.proc, args.map((value) => (value instanceof Box ? { value: value.v, box: value } : { value })), null);
     } catch (error) {
-      if (error instanceof EndSignal) return undefined;
+      if (error instanceof EndSignal) {
+        this.resetAll();
+        this.host.endAll?.();
+        return undefined;
+      }
       if (error instanceof ExitSignal) return undefined;
       throw error;
+    } finally {
+      this.activeRuns -= 1;
     }
   }
 
@@ -233,7 +334,11 @@ export class VbaInterpreter {
     }
   }
 
-  private callProc(module: ModuleRuntime, proc: Proc, args: Array<{ value: VbaValue; box?: Box; name?: string }>, _caller: Frame | null): VbaValue {
+  private callProc(module: ModuleRuntime, proc: Proc, args: Array<{ value: VbaValue; box?: Box; name?: string }>, caller: Frame | null): VbaValue {
+    return drain(this.callProcGen(module, proc, args, caller));
+  }
+
+  private *callProcGen(module: ModuleRuntime, proc: Proc, args: Array<{ value: VbaValue; box?: Box; name?: string }>, _caller: Frame | null): Gen<VbaValue> {
     this.depth += 1;
     if (this.depth > 400) throw new VbaError(28, 'Hết bộ nhớ ngăn xếp: gọi đệ quy quá sâu');
     try {
@@ -257,7 +362,7 @@ export class VbaInterpreter {
       });
       if (proc.kind === 'function' || proc.kind === 'get') frame.vars.set(proc.name.toLowerCase(), new Box(undefined));
       try {
-        this.execBlock(proc.body, frame);
+        yield* this.execBlock(proc.body, frame);
       } catch (error) {
         if (!(error instanceof ExitSignal) || !['sub', 'function', 'property'].includes(error.what)) throw error;
       }
@@ -268,7 +373,7 @@ export class VbaInterpreter {
     }
   }
 
-  private execBlock(body: Stmt[], frame: Frame) {
+  private *execBlock(body: Stmt[], frame: Frame): Gen {
     const isTop = body === frame.topBody;
     let labels: Map<string, number> | null = null;
     const labelIndex = (name: string) => {
@@ -285,7 +390,13 @@ export class VbaInterpreter {
       const statement = body[index];
       if (isTop) frame.topIndex = index;
       try {
-        this.execStmt(statement, frame);
+        const pending = this.execStmt(statement, frame);
+        if (pending) yield* pending;
+        if (this.waitRequest) {
+          const wait = this.waitRequest;
+          this.waitRequest = null;
+          yield wait;
+        }
         index += 1;
       } catch (error) {
         if (error instanceof GotoSignal) {
@@ -340,7 +451,7 @@ export class VbaInterpreter {
     return wrapped;
   }
 
-  private execStmt(statement: Stmt, frame: Frame) {
+  private execStmt(statement: Stmt, frame: Frame): Gen<unknown> | void {
     this.tick(statement.line);
     switch (statement.k) {
       case 'dim':
@@ -362,39 +473,23 @@ export class VbaInterpreter {
         this.assign(statement.target, statement.expr, statement.isSet, frame);
         return;
       case 'call':
-        this.evalCallStatement(statement.expr, frame);
-        return;
+        return this.evalCallStatement(statement.expr, frame);
       case 'if': {
         for (const branch of statement.branches) {
-          if (toBool(this.evalValue(branch.cond, frame) ?? false)) {
-            this.execBlock(branch.body, frame);
-            return;
-          }
+          if (toBool(this.evalValue(branch.cond, frame) ?? false)) return this.execBlock(branch.body, frame);
         }
-        if (statement.elseBody) this.execBlock(statement.elseBody, frame);
-        return;
+        return statement.elseBody ? this.execBlock(statement.elseBody, frame) : undefined;
       }
       case 'for':
-        this.execFor(statement, frame);
-        return;
+        return this.execFor(statement, frame);
       case 'foreach':
-        this.execForEach(statement, frame);
-        return;
+        return this.execForEach(statement, frame);
       case 'do':
-        this.execDo(statement, frame);
-        return;
+        return this.execDo(statement, frame);
       case 'select':
-        this.execSelect(statement, frame);
-        return;
-      case 'with': {
-        frame.withStack.push(this.evalExpr(statement.obj, frame));
-        try {
-          this.execBlock(statement.body, frame);
-        } finally {
-          frame.withStack.pop();
-        }
-        return;
-      }
+        return this.execSelect(statement, frame);
+      case 'with':
+        return this.execWith(statement, frame);
       case 'exit':
         throw new ExitSignal(statement.what);
       case 'end':
@@ -415,6 +510,15 @@ export class VbaInterpreter {
       case 'label':
       case 'nop':
         return;
+    }
+  }
+
+  private *execWith(statement: Extract<Stmt, { k: 'with' }>, frame: Frame): Gen {
+    frame.withStack.push(this.evalExpr(statement.obj, frame));
+    try {
+      yield* this.execBlock(statement.body, frame);
+    } finally {
+      frame.withStack.pop();
     }
   }
 
@@ -489,7 +593,7 @@ export class VbaInterpreter {
     return undefined;
   }
 
-  private execFor(statement: Extract<Stmt, { k: 'for' }>, frame: Frame) {
+  private *execFor(statement: Extract<Stmt, { k: 'for' }>, frame: Frame): Gen {
     const key = statement.varName.toLowerCase();
     let box = this.lookupBox(key, frame);
     if (!box) {
@@ -503,7 +607,7 @@ export class VbaInterpreter {
     box.v = coerce(start, box.typeName);
     while (step >= 0 ? toNumber(box.v) <= end : toNumber(box.v) >= end) {
       try {
-        this.execBlock(statement.body, frame);
+        yield* this.execBlock(statement.body, frame);
       } catch (error) {
         if (error instanceof ExitSignal && error.what === 'for') return;
         throw error;
@@ -513,7 +617,7 @@ export class VbaInterpreter {
     }
   }
 
-  private execForEach(statement: Extract<Stmt, { k: 'foreach' }>, frame: Frame) {
+  private *execForEach(statement: Extract<Stmt, { k: 'foreach' }>, frame: Frame): Gen {
     const key = statement.varName.toLowerCase();
     let box = this.lookupBox(key, frame);
     if (!box) {
@@ -528,7 +632,7 @@ export class VbaInterpreter {
     for (const item of items) {
       box.v = item;
       try {
-        this.execBlock(statement.body, frame);
+        yield* this.execBlock(statement.body, frame);
       } catch (error) {
         if (error instanceof ExitSignal && error.what === 'for') return;
         throw error;
@@ -536,7 +640,7 @@ export class VbaInterpreter {
     }
   }
 
-  private execDo(statement: Extract<Stmt, { k: 'do' }>, frame: Frame) {
+  private *execDo(statement: Extract<Stmt, { k: 'do' }>, frame: Frame): Gen {
     const holds = (condition: { until: boolean; cond: Expr }) => {
       const value = toBool(this.evalValue(condition.cond, frame) ?? false);
       return condition.until ? !value : value;
@@ -544,7 +648,7 @@ export class VbaInterpreter {
     while (true) {
       if (statement.pre && !holds(statement.pre)) return;
       try {
-        this.execBlock(statement.body, frame);
+        yield* this.execBlock(statement.body, frame);
       } catch (error) {
         if (error instanceof ExitSignal && error.what === 'do') return;
         throw error;
@@ -554,7 +658,7 @@ export class VbaInterpreter {
     }
   }
 
-  private execSelect(statement: Extract<Stmt, { k: 'select' }>, frame: Frame) {
+  private *execSelect(statement: Extract<Stmt, { k: 'select' }>, frame: Frame): Gen {
     const subject = this.evalValue(statement.expr, frame);
     const textCompare = frame.module.parsed.optionCompareText;
     for (const item of statement.cases) {
@@ -566,11 +670,11 @@ export class VbaInterpreter {
         return toBool(binaryOp(test.op, subject, this.evalValue(test.e, frame), textCompare) ?? false);
       });
       if (matched) {
-        this.execBlock(item.body, frame);
+        yield* this.execBlock(item.body, frame);
         return;
       }
     }
-    if (statement.elseBody) this.execBlock(statement.elseBody, frame);
+    if (statement.elseBody) yield* this.execBlock(statement.elseBody, frame);
   }
 
   private evalArgs(args: Arg[], frame: Frame): VbaArgs {
@@ -698,10 +802,22 @@ export class VbaInterpreter {
       return this.applyArgs(box.v, this.evalArgs(args, frame), name);
     }
     if (name === 'err') return args ? this.err.get('number', this.evalArgs(args, frame)) : this.err;
+    if (name === 'me' && !args) return this.moduleValue(frame.module);
     const target = this.findProc(name, frame.module);
     if (target) return this.callProc(target.module, target.proc, this.procArgs(args ?? [], frame), frame);
     const moduleRuntime = this.modules.find((item) => item.name.toLowerCase() === name);
     if (moduleRuntime && !args) return this.moduleValue(moduleRuntime);
+    if ((name === 'unload' || name === 'load') && args?.length) {
+      const subject = this.evalExpr(args[0].expr ?? { t: 'str', v: '' }, frame);
+      const object = subject instanceof ModuleObject ? subject.documentObject : subject;
+      if (object instanceof VbaObject) {
+        if (name === 'unload') object.unload?.();
+        else object.load?.();
+      }
+      return undefined;
+    }
+    const document = this.documentOf(frame.module);
+    if (document?.hasMember?.(name)) return document.get(name, this.evalArgs(args ?? [], frame));
     if (name === 'createobject' || name === 'getobject') {
       const progId = toStr(this.evalValue(args?.[0]?.expr ?? { t: 'str', v: '' }, frame));
       return this.createNew(progId, frame);
@@ -741,16 +857,24 @@ export class VbaInterpreter {
     return this.applyArgs(value, this.evalArgs(expr.args, frame), 'biểu thức');
   }
 
-  private evalCallStatement(expr: Expr, frame: Frame) {
+  private evalCallStatement(expr: Expr, frame: Frame): Gen<VbaValue> | void {
     if (expr.t === 'id') {
       const target = this.findProc(expr.name, frame.module);
-      if (target) {
-        this.callProc(target.module, target.proc, [], frame);
+      if (target) return this.callProcGen(target.module, target.proc, [], frame);
+    }
+    if (expr.t === 'call' && expr.callee.t === 'id' && !this.lookupBox(expr.callee.name, frame)) {
+      const target = this.findProc(expr.callee.name, frame.module);
+      if (target) return this.callProcGen(target.module, target.proc, this.procArgs(expr.args, frame), frame);
+    }
+    const member = expr.t === 'member' ? { obj: expr.obj, name: expr.name, args: [] as Arg[] } : expr.t === 'call' && expr.callee.t === 'member' ? { obj: expr.callee.obj, name: expr.callee.name, args: expr.args } : null;
+    if (member) {
+      const owner = member.obj ? this.evalExpr(member.obj, frame) : this.withTarget(frame);
+      if (owner instanceof ModuleObject && owner.module.procs.has(member.name)) return this.callProcGen(owner.module, owner.procFor(member.name), this.procArgs(member.args, frame), frame);
+      if (owner === this.host.application && member.name === 'run') {
+        this.runByName(this.evalArgs(member.args, frame));
         return;
       }
-    }
-    if (expr.t === 'member' && expr.obj === null) {
-      this.memberGet(this.withTarget(frame), expr.name, { values: [], names: [] }, frame);
+      this.memberGet(owner, member.name, this.evalArgs(member.args, frame), frame);
       return;
     }
     this.evalExpr(expr, frame);
@@ -773,6 +897,11 @@ export class VbaInterpreter {
         }
         if (this.host.application.hasGlobal(target.name)) {
           this.host.application.set(target.name, { values: [], names: [] }, value);
+          return;
+        }
+        const document = this.documentOf(frame.module);
+        if (document?.hasMember?.(target.name)) {
+          if (!document.set(target.name, { values: [], names: [] }, value)) this.objectOf(document.get(target.name, { values: [], names: [] }), target.name).defaultSet({ values: [], names: [] }, value);
           return;
         }
         if (frame.module.parsed.optionExplicit) throw new VbaError(1004, `Biến chưa khai báo: ${target.name} (Option Explicit)`);
@@ -837,6 +966,9 @@ class ModuleObject extends VbaObject {
   readonly module: ModuleRuntime;
   private readonly interpreter: VbaInterpreter;
   private readonly document: VbaObject | null;
+  get documentObject(): VbaObject | null {
+    return this.document;
+  }
   constructor(interpreter: VbaInterpreter, module: ModuleRuntime, document: VbaObject | null = null) {
     super();
     this.interpreter = interpreter;
@@ -862,6 +994,12 @@ class ModuleObject extends VbaObject {
     if (!proc) throw new VbaError(438, `Module ${this.module.name} không có thủ tục "${name}"`);
     return proc;
   }
+}
+
+function drain<T>(gen: Gen<T>): T {
+  let step = gen.next();
+  while (!step.done) step = gen.next();
+  return step.value;
 }
 
 class DebugObject extends VbaObject {

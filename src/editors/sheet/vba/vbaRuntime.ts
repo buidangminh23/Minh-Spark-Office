@@ -80,6 +80,9 @@ export abstract class VbaObject {
   items(): VbaValue[] {
     throw new VbaError(438, `Không duyệt For Each được trên ${this.typeName}`);
   }
+  hasMember?(name: string): boolean;
+  unload?(): void;
+  load?(): void;
 }
 
 export type VbaValue = number | string | boolean | null | undefined | VbaDate | VbaArray | VbaObject | typeof NOTHING | typeof MISSING;

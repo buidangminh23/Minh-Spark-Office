@@ -4484,7 +4484,6 @@
  "Macro gắn với nút này đã bị xoá. Chọn ô bằng phím mũi tên rồi vào Automate → Chèn nút để gán lại.": "The macro assigned to this button was deleted. Select the cell with the arrow keys, then go to Automate → Insert Button to reassign.",
  "Macro kế toán 1 chạm": "One-click accounting macros",
  "Macro VBA \"{0}\" dừng: {1}": "VBA macro \"{0}\" stopped: {1}",
- "Macro VBA chạy ngay trong Minh Sheets: đọc ghi ô, định dạng, trang tính, vòng lặp, hàm, MsgBox, InputBox. Các sự kiện tự chạy như Workbook_Open hay Worksheet_Change chưa tự kích hoạt; sếp chạy chúng bằng tay ở đây.": "VBA macros run right inside Minh Sheets: reading and writing cells, formatting, sheets, loops, functions, MsgBox, InputBox. Automatic events such as Workbook_Open or Worksheet_Change do not trigger on their own yet; you run them manually here.",
  "Macro VBA trong mô-đun": "VBA macro in module",
  "Màn hình": "Monitor",
  "Màn hình & Thời gian": "Monitors & Timing",
@@ -7464,5 +7463,18 @@
  "Căn đối tượng vào giữa theo chiều dọc": "Align objects middle",
  "Căn đối tượng xuống dưới": "Align objects bottom",
  "Giãn đều các đối tượng theo chiều ngang": "Distribute objects horizontally",
- "Giãn đều các đối tượng theo chiều dọc": "Distribute objects vertically"
+ "Giãn đều các đối tượng theo chiều dọc": "Distribute objects vertically",
+ "Macro VBA chạy ngay trong Minh Sheets: đọc ghi ô, định dạng, trang tính, vòng lặp, hàm, MsgBox, InputBox và UserForm. Sau khi bật macro, các sự kiện Workbook_Open, Workbook_BeforeSave, Worksheet_Change, Worksheet_SelectionChange và Worksheet_Activate tự chạy như trong Excel.": "VBA macros run right inside Minh Sheets: reading and writing cells, formatting, sheets, loops, functions, MsgBox, InputBox and UserForms. Once macros are enabled, the Workbook_Open, Workbook_BeforeSave, Worksheet_Change, Worksheet_SelectionChange and Worksheet_Activate events run on their own, as in Excel.",
+ "Macro Workbook_BeforeSave đã huỷ lần lưu này": "The Workbook_BeforeSave macro cancelled this save",
+ "Macro VBA dừng: {0}": "VBA macro stopped: {0}",
+ "Tệp có mã VBA. Macro, sự kiện tự chạy và UserForm đang tắt cho tới khi bạn bật.": "This file contains VBA code. Macros, automatic events and UserForms stay off until you enable them.",
+ "Bật macro": "Enable macros",
+ "Ẩn thông báo macro": "Hide the macro notice",
+ "Không có điều khiển thứ {0}": "There is no control number {0}",
+ "Không có điều khiển tên \"{0}\"": "There is no control named \"{0}\"",
+ "Không có dòng {0} trong danh sách": "The list has no row {0}",
+ "ListIndex {0} nằm ngoài danh sách (0 đến {1})": "ListIndex {0} is outside the list (0 to {1})",
+ "{0} không có AddItem": "{0} has no AddItem",
+ "Không AddItem được khi danh sách lấy từ RowSource": "AddItem cannot be used while the list comes from RowSource",
+ "Không chèn được vào vị trí {0}": "Cannot insert at position {0}"
 }

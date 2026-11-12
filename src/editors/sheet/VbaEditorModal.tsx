@@ -47,9 +47,9 @@ export function VbaEditorModal({
   const [selected, setSelected] = useState(() => initialModule ?? initialModules.find((module) => module.kind === 'standard')?.name ?? initialModules[0]?.name ?? 'Module1');
   const [renaming, setRenaming] = useState<string | null>(null);
   const current = modules.find((module) => module.name === selected) ?? modules[0];
-  const sources = useMemo(() => modules.filter((module) => module.kind !== 'form').map((module) => ({ name: module.name, code: module.code })), [modules]);
+  const sources = useMemo(() => modules.map((module) => ({ name: module.name, code: module.code })), [modules]);
   const errors = useMemo(() => listProcedures(sources).errors, [sources]);
-  const macros = useMemo(() => runnableMacros(sources), [sources]);
+  const macros = useMemo(() => runnableMacros(sources.filter((_, index) => modules[index].kind !== 'form')), [sources, modules]);
   const [macroId, setMacroId] = useState('');
   const runTarget = macros.find((proc) => `${proc.module}.${proc.name}` === macroId) ?? macros.find((proc) => proc.module === current?.name) ?? macros[0];
   const isDirty = JSON.stringify(modules) !== JSON.stringify(initialModules);

@@ -94,7 +94,10 @@ import {
   type SheetMacro,
 } from './sheetMacros';
 import { VbaEditorModal } from './VbaEditorModal';
-import { createExcelHost, listVbaMacros, messageBoxAnswer, runVbaMacro, vbaSources } from './vba/runVba';
+import { isVbaTrusted, listVbaMacros, messageBoxAnswer, trustVba, vbaSources, VbaSession } from './vba/runVba';
+import type { UserFormSession } from './vba/vbaUserForm';
+import { UserFormHost } from './UserFormHost';
+import { changedValueBox, type VbaSheetEvent } from './vba/vbaEvents';
 import { listProcedures } from './vba/vbaInterpreter';
 import { recordedMacrosToVba } from './vba/recordedToVba';
 import { defaultAttributes, withProcShortcut, type VbaModuleData, type VbaProjectData } from '../../lib/vbaProject';
@@ -176,6 +179,7 @@ import {
   Filter,
   ArrowUpDown,
   Eraser,
+  ShieldAlert,
   ShieldCheck,
   Check,
   Send,
@@ -734,6 +738,18 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
   const [designMode, setDesignMode] = useState(false);
   const designModeRef = useRef(false);
   designModeRef.current = designMode;
+  const vbaSessionRef = useRef<VbaSession | null>(null);
+  const [userForms, setUserForms] = useState<UserFormSession | null>(null);
+  const [macrosEnabled, setMacrosEnabled] = useState(() => isVbaTrusted(meta.id));
+  const macrosEnabledRef = useRef(macrosEnabled);
+  macrosEnabledRef.current = macrosEnabled;
+  const [macroBarDismissed, setMacroBarDismissed] = useState(false);
+  const vbaHasCode = useMemo(() => !!vbaProject?.modules.some((module) => module.code.trim()), [vbaProject]);
+  const vbaEventRef = useRef<(event: VbaSheetEvent) => void>(() => undefined);
+  const vbaOpenRef = useRef<() => void>(() => undefined);
+  const beforeSaveRef = useRef<() => Promise<boolean>>(async () => false);
+  const lastSelectionKeyRef = useRef('');
+  const lastSheetIdRef = useRef('');
   const suppressRecordRef = useRef(0);
   const outlinesRef = useRef(outlines);
   outlinesRef.current = outlines;
@@ -1133,7 +1149,18 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
     }
   }, [setSavedStatus, captureHydratedWorkbook, meta, title, onSave, comments, printSettings, outlines, macros, vbaProject, ui]);
 
-  const handleSaveNow = useCallback(() => void persistWorkbook(true), [persistWorkbook]);
+  const handleSaveNow = useCallback(() => {
+    void (async () => {
+      if (await beforeSaveRef.current()) {
+        ui.toast('Macro Workbook_BeforeSave đã huỷ lần lưu này', true);
+        return;
+      }
+      await persistWorkbook(true);
+    })();
+  }, [persistWorkbook, ui]);
+  const handleSaveNowRef = useRef(handleSaveNow);
+  handleSaveNowRef.current = handleSaveNow;
+  useEffect(() => () => vbaSessionRef.current?.dispose(), []);
 
   const recalculateAndBindWorkbook = useCallback(
     (api: ReturnType<typeof createUniver>['univerAPI']) => {
@@ -1148,8 +1175,21 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
 
       const fWb = api.getActiveWorkbook();
       if (fWb) {
+        lastSheetIdRef.current = fWb.getActiveSheet()?.getSheetId() ?? '';
         const selectionSub = fWb.onSelectionChange(() => {
           syncUiFromSelection();
+          try {
+            const sheet = api.getActiveWorkbook()?.getActiveSheet();
+            const range = sheet?.getSelection()?.getActiveRange()?.getRange();
+            if (!sheet || !range) return;
+            const sheetId = sheet.getSheetId();
+            const key = `${sheetId}:${range.startRow}:${range.startColumn}:${range.endRow}:${range.endColumn}`;
+            if (key === lastSelectionKeyRef.current) return;
+            lastSelectionKeyRef.current = key;
+            vbaEventRef.current({ kind: 'selection', sheetId, box: { r0: range.startRow, c0: range.startColumn, r1: range.endRow, c1: range.endColumn } });
+          } catch {
+            void 0;
+          }
         });
         const commandSub = fWb.onCommandExecuted((cmd) => {
           const id = cmd.id || '';
@@ -1172,6 +1212,19 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
           }
           if (isSheetSwitch || id.includes('active-sheet') || id.includes('set-style') || id.includes('zoom') || id.includes('freeze') || id.includes('gridlines')) {
             setTimeout(() => syncUiFromSelection(), 20);
+          }
+          if (id === 'sheet.mutation.set-range-values') {
+            const params = cmd.params as { subUnitId?: string; cellValue?: Record<string, Record<string, unknown>> } | undefined;
+            const box = changedValueBox(params?.cellValue);
+            if (box && params?.subUnitId) vbaEventRef.current({ kind: 'change', sheetId: params.subUnitId, box });
+          }
+          if (isSheetSwitch) {
+            const current = api.getActiveWorkbook()?.getActiveSheet()?.getSheetId() ?? '';
+            const previous = lastSheetIdRef.current;
+            if (current && current !== previous) {
+              lastSheetIdRef.current = current;
+              vbaEventRef.current({ kind: 'activate', previous: previous || null, sheetId: current });
+            }
           }
         });
         const editStartSub = api.addEvent(api.Event.SheetEditStarted, ({ worksheet, row, column }) => {
@@ -1333,6 +1386,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
         syncDefinedNames();
         if (truncationNotice) ui.toast(truncationNotice, true);
         if (vbaNotice) ui.toast(vbaNotice, true);
+        vbaOpenRef.current();
       }, 140);
     } catch (err) {
       console.error('Failed to initialize Univer:', err);
@@ -4343,6 +4397,63 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
     });
   };
 
+  const getVbaSession = (): VbaSession | null => {
+    const project = vbaProjectRef.current;
+    const api = univerAPIRef.current;
+    if (!project?.modules.length || !api) return null;
+    const existing = vbaSessionRef.current;
+    if (existing && existing.project === project && existing.api === api) return existing;
+    existing?.dispose();
+    const withTitle = (title: string, prompt: string) => (title && title !== 'Microsoft Excel' ? `${title}\n\n${prompt}` : prompt);
+    const session = new VbaSession(project, api, {
+      msgBox: (prompt, buttons, title) => messageBoxAnswer(buttons, (text) => window.confirm(text), (text) => window.alert(text), withTitle(title, prompt)),
+      inputBox: (prompt, title, defaultValue) => window.prompt(withTitle(title, prompt), defaultValue) ?? '',
+      statusBar: (text) => {
+        if (text) ui.toast(text);
+      },
+      save: () => handleSaveNowRef.current(),
+      print: (text) => setVbaOutput((previous) => [...previous, text].slice(-MAX_VBA_OUTPUT_LINES)),
+      report: (error) => ui.toast(`Macro VBA dừng: ${error}`, true),
+      beginSlice: () => {
+        isReplayingRef.current = true;
+      },
+      endSlice: () => {
+        isReplayingRef.current = false;
+        setSavedStatus('saving');
+      },
+    });
+    vbaSessionRef.current = session;
+    setUserForms(session.forms);
+    return session;
+  };
+
+  const enableMacros = (runOpen: boolean) => {
+    macrosEnabledRef.current = true;
+    setMacrosEnabled(true);
+    trustVba(meta.id);
+    if (runOpen) void getVbaSession()?.workbookOpen();
+  };
+
+  vbaOpenRef.current = () => {
+    if (macrosEnabledRef.current && vbaProjectRef.current?.modules.some((module) => module.code.trim())) void getVbaSession()?.workbookOpen();
+  };
+
+  vbaEventRef.current = (event) => {
+    if (!macrosEnabledRef.current || !vbaProjectRef.current?.modules.length) return;
+    const session = getVbaSession();
+    if (!session) return;
+    if (event.kind === 'change') void session.sheetChange(event.sheetId, event.box);
+    else if (event.kind === 'selection') void session.selectionChange(event.sheetId, event.box);
+    else void session.sheetActivate(event.previous, event.sheetId);
+  };
+
+  beforeSaveRef.current = async () => {
+    if (!macrosEnabledRef.current || !vbaProjectRef.current?.modules.length) return false;
+    const session = getVbaSession();
+    if (!session?.hasEvent('workbook', 'Workbook_BeforeSave')) return false;
+    return session.beforeSave();
+  };
+
   const runVbaMacroById = (id: string, project: VbaProjectData | null = vbaProjectRef.current) => {
     const name = id.split('.').pop() ?? id;
     if (!project?.modules.length) {
@@ -4356,30 +4467,14 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
     if (isReplayingRef.current) return;
     const ctx = getEditableContext();
     if (!ctx) return;
-    const lines: string[] = [];
-    const withTitle = (title: string, prompt: string) => (title && title !== 'Microsoft Excel' ? `${title}\n\n${prompt}` : prompt);
-    const host = createExcelHost(ctx.api, {
-      msgBox: (prompt, buttons, title) => messageBoxAnswer(buttons, (text) => window.confirm(text), (text) => window.alert(text), withTitle(title, prompt)),
-      inputBox: (prompt, title, defaultValue) => window.prompt(withTitle(title, prompt), defaultValue) ?? '',
-      statusBar: (text) => {
-        if (text) ui.toast(text);
-      },
-      save: () => handleSaveNow(),
-      print: (text) => {
-        lines.push(text);
-      },
+    vbaProjectRef.current = project;
+    if (!macrosEnabledRef.current) enableMacros(false);
+    const session = getVbaSession();
+    if (!session) return;
+    void session.run(id).then((result) => {
+      if (result.ok) ui.toast(`Đã chạy macro VBA "${name}"`);
+      else ui.toast(`Macro VBA "${name}" dừng: ${result.error}`, true);
     });
-    isReplayingRef.current = true;
-    let result: ReturnType<typeof runVbaMacro>;
-    try {
-      result = runVbaMacro(project, id, host);
-    } finally {
-      isReplayingRef.current = false;
-    }
-    if (lines.length) setVbaOutput((previous) => [...previous, ...lines].slice(-MAX_VBA_OUTPUT_LINES));
-    setSavedStatus('saving');
-    if (result.ok) ui.toast(`Đã chạy macro VBA "${name}"`);
-    else ui.toast(`Macro VBA "${name}" dừng: ${result.error}`, true);
   };
   runVbaRef.current = (id) => runVbaMacroById(id);
 
@@ -4392,6 +4487,7 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
   const saveVbaModules = (modules: VbaModuleData[]): VbaProjectData => {
     const next: VbaProjectData = { ...(vbaProjectRef.current ?? { codePage: 1252 }), modules };
     vbaProjectRef.current = next;
+    if (!macrosEnabledRef.current) enableMacros(false);
     setVbaProject(next);
     setSavedStatus('saving');
     return next;
@@ -7643,6 +7739,22 @@ export default function SheetEditor({ meta, content, onSave, onBack }: SheetEdit
           onClearOutput={() => setVbaOutput([])}
           onClose={() => setModal(null)}
         />
+      )}
+      <UserFormHost session={userForms} />
+      {vbaHasCode && !macrosEnabled && !macroBarDismissed && (
+        <div
+          role="status"
+          style={{ position: 'fixed', left: '50%', transform: 'translateX(-50%)', bottom: 54, zIndex: 61, display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px 8px 14px', borderRadius: 10, border: '1px solid #fcd34d', background: '#fffbeb', color: '#78350f', fontSize: 13, boxShadow: '0 6px 18px rgba(15,23,42,.18)', maxWidth: 'calc(100vw - 32px)' }}
+        >
+          <ShieldAlert size={16} color="#b45309" />
+          <span>Tệp có mã VBA. Macro, sự kiện tự chạy và UserForm đang tắt cho tới khi bạn bật.</span>
+          <button className="btn btn-primary" style={{ padding: '4px 10px' }} onClick={() => enableMacros(true)}>
+            Bật macro
+          </button>
+          <button aria-label="Ẩn thông báo macro" onClick={() => setMacroBarDismissed(true)} style={{ border: 0, background: 'transparent', cursor: 'pointer', color: '#78350f', display: 'grid', placeItems: 'center' }}>
+            <X size={15} />
+          </button>
+        </div>
       )}
       {designMode && (
         <button

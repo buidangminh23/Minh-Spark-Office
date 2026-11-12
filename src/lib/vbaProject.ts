@@ -1,5 +1,7 @@
 import type * as CFBModule from 'cfb';
 import { CFB as SHEETJS_CFB } from 'xlsx';
+import { fixCfbSiblingOrder } from './cfbOrder';
+import { readUserForm, type VbaUserFormDef } from './vbaForms';
 
 const CFB = SHEETJS_CFB as typeof CFBModule;
 
@@ -20,6 +22,7 @@ export interface VbaProjectData {
   originalCodes?: Record<string, string>;
   workbookCodeName?: string;
   sheetCodeNames?: Record<string, string>;
+  forms?: VbaUserFormDef[];
 }
 
 const DIR_PROJECTCODEPAGE = 0x0003;
@@ -355,8 +358,29 @@ export function readVbaProject(bytes: Uint8Array): VbaProjectData {
     result.modules.push({ name: module.name, kind, code, attributes, procAttributes: extracted.attributes });
     result.originalCodes![module.name] = code;
   }
+  result.forms = readProjectForms(cfb, result.modules, codePage);
   result.raw = toBase64(bytes);
   return result;
+}
+
+function readProjectForms(cfb: CFBModule.CFB$Container, modules: VbaModuleData[], codePage: number): VbaUserFormDef[] {
+  const lowerPaths = cfb.FullPaths.map((path) => path.replace(/^Root Entry\//i, '/').toLowerCase());
+  const read = (path: string): Uint8Array | null => {
+    const index = lowerPaths.indexOf(path.toLowerCase());
+    const entry = index >= 0 ? cfb.FileIndex[index] : null;
+    return entry?.content && entry.type === 2 ? toBytes(entry.content) : null;
+  };
+  const forms: VbaUserFormDef[] = [];
+  for (const module of modules) {
+    if (module.kind !== 'form') continue;
+    try {
+      const form = readUserForm(module.name, read, codePage, (bytes) => decodeText(bytes, codePage));
+      if (form) forms.push(form);
+    } catch (error) {
+      console.warn(`UserForm ${module.name} could not be read:`, error);
+    }
+  }
+  return forms;
 }
 
 export function toBase64(bytes: Uint8Array): string {
@@ -569,7 +593,7 @@ export function buildVbaProject(project: VbaProjectData, options: BuildVbaOption
   }
   CFB.utils.cfb_del(cfb, '\u0001Sh33tJ5');
   CFB.utils.cfb_gc(cfb);
-  return toBytes(CFB.write(cfb, { type: 'array', fileType: 'cfb' }) as Uint8Array);
+  return fixCfbSiblingOrder(toBytes(CFB.write(cfb, { type: 'array', fileType: 'cfb' }) as Uint8Array));
 }
 
 export function updateVbaProject(raw: Uint8Array, project: VbaProjectData, options: BuildVbaOptions): Uint8Array {
@@ -601,7 +625,7 @@ export function updateVbaProject(raw: Uint8Array, project: VbaProjectData, optio
       continue;
     }
     const source = wantedByName.get(module.name.toLowerCase());
-    if (!source || source.kind === 'form') {
+    if (!source) {
       const path = streamPath(cfb, module.streamName);
       const entry = path ? CFB.find(cfb, path) : null;
       if (entry?.content && module.offset > 0) {
@@ -634,7 +658,7 @@ export function updateVbaProject(raw: Uint8Array, project: VbaProjectData, optio
     CFB.utils.cfb_add(cfb, '/PROJECTwm', projectWmStream(allModules, codePage));
   }
   CFB.utils.cfb_gc(cfb);
-  return toBytes(CFB.write(cfb, { type: 'array', fileType: 'cfb' }) as Uint8Array);
+  return fixCfbSiblingOrder(toBytes(CFB.write(cfb, { type: 'array', fileType: 'cfb' }) as Uint8Array));
 }
 
 const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
