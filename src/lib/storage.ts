@@ -111,6 +111,9 @@ export type PageSettings = {
   language?: string;
   properties?: DocProperties;
   autocorrect?: boolean;
+  mergeType?: 'letters' | 'emails' | 'envelopes' | 'labels' | 'directory';
+  mergeEmail?: { to?: string; cc?: string; subject?: string; format?: 'html' | 'text' | 'attachment' };
+  headingNumbers?: 'none' | 'decimal' | 'legal' | 'chapter';
 };
 
 export type DocContent = {

@@ -41,14 +41,6 @@ ${page.pageNumbers ? `@bottom-right { ${box(`"Trang " counter(page) " / " counte
   return <style media="print">{css}</style>;
 }
 
-function MergePreviewStyles() {
-  const { merge, mergePreview } = useDoc();
-  if (!merge || mergePreview === null) return null;
-  const row = merge.rows[mergePreview] ?? {};
-  const css = merge.headers.map((h) => `.merge-preview-on .merge-field[data-merge-field=${cssString(h)}]::after { content: ${cssString(row[h] ?? '')}; }`).join('\n');
-  return <style>{css}</style>;
-}
-
 function Region({ zones, kind, top, bottom, left, right, onEdit }: { zones: [string, string, string]; kind: 'header' | 'footer'; top?: number; bottom?: number; left: number; right: number; onEdit: () => void }) {
   return (
     <div className={`${kind}-region`} style={{ top, bottom, left, right }} title="Nhấp đúp để sửa" onDoubleClick={onEdit}>
@@ -156,6 +148,7 @@ export function Paper({ onPages }: { onPages: (count: number, current: number) =
     page.mirrorMargins ? 'mirror-margins' : '',
     page.background && page.background !== 'none' ? `bg-${page.background}` : '',
     ctx.mergePreview !== null ? 'merge-preview-on' : '',
+    ctx.view.highlightMerge ? 'merge-highlight' : '',
     view.inkTool ? 'inking' : '',
     `columns-${page.columns ?? 1}`,
   ].filter(Boolean).join(' ');
@@ -193,7 +186,6 @@ export function Paper({ onPages }: { onPages: (count: number, current: number) =
   return (
     <div className="paper-zoom" style={{ zoom }} onWheel={side ? (event) => { if (!event.shiftKey && Math.abs(event.deltaY) > Math.abs(event.deltaX)) event.currentTarget.closest('.doc-canvas')?.scrollBy({ left: event.deltaY }); } : undefined}>
       <style>{styleCss}</style>
-      <MergePreviewStyles />
       {view.showRuler && viewPrint && !side && <HorizontalRuler width={dims.width} />}
       <div ref={paperRef} className={classes} style={style}>
         {view.showRuler && paged && <VerticalRuler height={dims.height} top={(current - 1) * span} />}

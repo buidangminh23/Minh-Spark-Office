@@ -44,6 +44,7 @@ import { latexToMath as docxLatexToMath } from 'docx/math';
 import { latexToMath as fallbackLatexToMath } from './docxMath';
 import { expandChemistry } from './chemLatex';
 import { normalizePresentation } from '../editors/doc/equationStyle';
+import { blockLabel, type BlockKind } from '../editors/doc/mailMerge';
 
 const TWIP = 15;
 const ALIGN: Record<string, (typeof AlignmentType)[keyof typeof AlignmentType]> = {
@@ -232,6 +233,8 @@ async function inlineChildren(nodes: JSONContent[] = [], context: Context, base:
       children.push(new FootnoteReferenceRun(Number(id)));
     } else if (node.type === 'mergeField') {
       children.push(new TextRun({ ...runOptions(node.marks as Mark[], base), text: `«${String(node.attrs?.name ?? '')}»` }));
+    } else if (node.type === 'mergeBlock') {
+      children.push(new TextRun({ ...runOptions(node.marks as Mark[], base), text: `«${blockLabel(String(node.attrs?.kind ?? 'next') as BlockKind, String(node.attrs?.options ?? '{}'))}»` }));
     } else if (node.type === 'hardBreak') {
       children.push(new TextRun({ text: '', break: 1 }));
     } else if (node.type === 'image') {

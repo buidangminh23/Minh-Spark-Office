@@ -8,7 +8,10 @@ mod native_print;
 #[cfg(target_os = "macos")]
 mod native_quit;
 mod open_files;
+mod outlook_mail;
 mod printers;
+#[cfg(windows)]
+mod win_job;
 mod word_pages;
 
 #[tauri::command]
@@ -35,6 +38,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             open_web_app,
             word_pages::word_physical_pages,
+            outlook_mail::outlook_status,
+            outlook_mail::outlook_send,
             native_print::print_window,
             native_print::default_printer,
             native_print::list_printers,
@@ -79,7 +84,7 @@ fn main() {
                             && url.port() == Some(1420))
                 })
                 .on_new_window(|url, _| {
-                    if matches!(url.scheme(), "https" | "http") {
+                    if matches!(url.scheme(), "https" | "http" | "mailto") {
                         let _ = open::that(url.as_str());
                     }
                     NewWindowResponse::Deny

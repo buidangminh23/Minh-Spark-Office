@@ -1058,6 +1058,7 @@ function MainApp({ onEditing, frameId }: { onEditing: (editing: boolean) => void
           onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
           onNewDocument={(html) => void handleCreateDoc(html)}
           onOpenFile={(file) => void handleImportFile(file)}
+          onOpenSaved={(meta, content) => { refreshFilesSoon(); showDocument(meta, content); }}
           onBack={handleCloseEditor}
         />
       );

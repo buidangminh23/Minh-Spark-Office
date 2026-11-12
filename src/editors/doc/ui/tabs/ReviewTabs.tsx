@@ -1,9 +1,8 @@
-import { Accessibility, BookMarked, BookOpenCheck, Check, CheckCheck, ChevronLeft, ChevronRight, Database, Eye, EyeOff, FileDiff, FilePlus2, FileStack, FileText, FolderInput, Gauge, Globe, Images, IndentIncrease, Languages, Library, Link2, ListChecks, ListPlus, ListTree, Lock, LockOpen, MessageSquare, MessageSquarePlus, MessageSquareX, PanelBottom, PanelRight, PencilLine, Pencil, Quote, RefreshCw, Scale, ScrollText, SpellCheck, StickyNote, Tag, Trash2, Volume2, VolumeX, Wand2, X, XCircle, Calculator, Download, ShieldCheck, Filter, UserX } from 'lucide-react';
+import { Accessibility, BookMarked, BookOpenCheck, Check, CheckCheck, ChevronLeft, ChevronRight, Eye, EyeOff, FileDiff, FilePlus2, FileStack, FileText, FolderInput, Gauge, Globe, Images, IndentIncrease, Languages, Library, Link2, ListChecks, ListPlus, ListTree, Lock, LockOpen, MessageSquare, MessageSquarePlus, MessageSquareX, PanelBottom, PanelRight, PencilLine, Pencil, Quote, RefreshCw, Scale, ScrollText, SpellCheck, StickyNote, Tag, Trash2, Volume2, VolumeX, Wand2, X, XCircle, Calculator, ShieldCheck, Filter, UserX } from 'lucide-react';
 import { useDoc, type MarkupMode } from '../../DocContext';
 import { addComment, imageSettings, insertFootnote } from '../../actions';
 import { insertEndnote } from '../../actionsExtra';
 import type { CitationStyle } from '../../../../lib/storage';
-import { finishMerge } from '../MailMerge';
 import { addPlaceholderSource, insertCaptionPrompt, insertManualToc, jumpNote, markEntryPrompt, removeToc, setTocLevel, showNotes, updateAuthorities, updateFigures, updateIndex, updateTocPrompt } from '../../refsActions';
 import { TRACK_EVERYONE, changeAuthors, countLocked, deleteComments, jumpChange, jumpComment, resolveAll, resolveCurrent, resolveShown, setLocked, setTrackScope, toggleTrackLock, trackLocked } from '../../reviewActions';
 import { Big, Dropdown, Group, MenuHeading, MenuItem, MenuSeparator, Rows, Small } from '../RibbonParts';
@@ -121,43 +120,6 @@ export function ReferencesTab() {
           <Small icon={<ListChecks size={14} />} label="Chèn danh mục viện dẫn" title="Chèn danh mục văn bản đã đánh dấu" onClick={() => ctx.openDialog('toa')} />
           <Small icon={<RefreshCw size={14} />} label="Cập nhật danh mục" title="Cập nhật danh mục viện dẫn" onClick={() => updateAuthorities(ctx)} />
         </Rows>
-      </Group>
-    </>
-  );
-}
-
-export function MailingsTab() {
-  const ctx = useDoc();
-  const { merge, mergePreview, setMergePreview, editor } = ctx;
-  const total = merge?.rows.length ?? 0;
-  const step = (delta: number) => setMergePreview(Math.max(0, Math.min(total - 1, (mergePreview ?? 0) + delta)));
-  return (
-    <>
-      <Group label="Bắt đầu trộn thư">
-        <Big icon={<Database size={22} color="#2b579a" />} label="Chọn danh sách" title="Chọn danh sách người nhận (CSV, Excel hoặc Minh Sheets)" onClick={() => ctx.openDialog('mailmerge')} />
-      </Group>
-      <Group label="Trường dữ liệu">
-        <Dropdown large title="Chèn trường trộn" trigger={<><PencilLine size={22} color={merge ? '#2b579a' : '#9aa3b2'} /><span>Chèn trường</span></>}>
-          {(close) => merge ? merge.headers.map((h) => <MenuItem key={h} label={`«${h}»`} onClick={() => { close(); editor.chain().focus().insertMergeField(h).run(); }} />) : <div className="ribbon-menu-empty">Hãy chọn danh sách người nhận trước.</div>}
-        </Dropdown>
-      </Group>
-      <Group label="Xem trước">
-        <Big icon={<Eye size={22} color={merge ? '#2b579a' : '#9aa3b2'} />} label="Xem kết quả" title="Hiện dữ liệu thật thay cho «trường»" active={mergePreview !== null} disabled={!merge} onClick={() => setMergePreview(mergePreview === null ? 0 : null)} />
-        <Rows>
-          <Small icon={<ChevronLeft size={14} />} title="Bản ghi trước" disabled={mergePreview === null || mergePreview <= 0} onClick={() => step(-1)} />
-          <span className="merge-counter">{mergePreview === null ? '—' : `${mergePreview + 1} / ${total}`}</span>
-          <Small icon={<ChevronRight size={14} />} title="Bản ghi sau" disabled={mergePreview === null || mergePreview >= total - 1} onClick={() => step(1)} />
-        </Rows>
-      </Group>
-      <Group label="Hoàn tất">
-        <Dropdown large title="Hoàn tất & trộn" trigger={<><FileStack size={22} color={merge ? '#107c41' : '#9aa3b2'} /><span>Hoàn tất</span></>}>
-          {(close) => merge ? (
-            <>
-              <MenuItem icon={<FileStack size={14} />} label="Tạo tài liệu mới chứa mọi bản ghi" onClick={() => { close(); void finishMerge(ctx, 'single'); }} />
-              <MenuItem icon={<Download size={14} />} label="Tải mỗi bản ghi thành một .docx" onClick={() => { close(); void finishMerge(ctx, 'files'); }} />
-            </>
-          ) : <div className="ribbon-menu-empty">Hãy chọn danh sách người nhận trước.</div>}
-        </Dropdown>
       </Group>
     </>
   );

@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
 import { FileSpreadsheet, Upload, X } from 'lucide-react';
-import type { JSONContent } from '@tiptap/react';
-import { exportDocx } from '../../../lib/docxConvertLazy';
-import { downloadBlob, pickFile } from '../../../lib/download';
+import { pickFile } from '../../../lib/download';
 import { type FileMeta } from '../../../lib/storage';
 import type { WorkbookData } from '../../../lib/sheetTypes';
-import { newId, useDoc, type DocCtx, type MergeData } from '../DocContext';
-import { fillMergeFields, jsonText, parseDelimited } from '../docTools';
+import { useDoc, type MergeData } from '../DocContext';
+import { parseDelimited } from '../docTools';
+import { guessFieldMap } from '../mailMerge';
 
 const cellText = (cell?: { v?: unknown; p?: { body?: { dataStream?: string } } }) => {
   if (!cell) return '';
@@ -89,54 +88,9 @@ export function MailMergeDialog({ onClose }: { onClose: () => void }) {
         )}
         <div className="dialog-actions">
           <button className="btn" onClick={onClose}>Huỷ</button>
-          <button className="btn btn-primary" disabled={!data?.rows.length} onClick={() => { ctx.setMerge(data); ctx.ui.toast('Đã nạp danh sách. Vào tab Gửi thư → Chèn trường.'); onClose(); }}>Dùng danh sách này</button>
+          <button className="btn btn-primary" disabled={!data?.rows.length} onClick={() => { if (data) ctx.setMerge({ ...data, excluded: [], fieldMap: guessFieldMap(data.headers) }); ctx.setMergePreview(null); ctx.ui.toast('Đã nạp danh sách. Vào tab Gửi thư → Chèn trường.'); onClose(); }}>Dùng danh sách này</button>
         </div>
       </section>
     </div>
   );
-}
-
-const MAX_FILES = 300;
-
-export async function finishMerge(ctx: DocCtx, mode: 'single' | 'files') {
-  const merge = ctx.merge;
-  if (!merge?.rows.length) return;
-  const doc = ctx.editor.getJSON();
-  let hasField = false;
-  JSON.stringify(doc, (key, value) => {
-    if (key === 'type' && value === 'mergeField') hasField = true;
-    return value;
-  });
-  if (!hasField && !(await ctx.ui.confirm('Chưa có trường trộn nào', 'Tài liệu chưa chèn «trường» nào nên mọi bản sẽ giống hệt nhau. Vẫn tiếp tục?'))) return;
-  const base = ctx.title.replace(/\.[^/.]+$/, '');
-  try {
-    if (mode === 'single') {
-      ctx.ui.showBusy(`Đang trộn ${merge.rows.length} bản ghi…`);
-      const content: JSONContent[] = [];
-      merge.rows.forEach((row, index) => {
-        content.push(...(fillMergeFields(doc, row).content ?? []));
-        if (index < merge.rows.length - 1) content.push({ type: 'pageBreak' });
-      });
-      const json: JSONContent = { type: 'doc', content };
-      const meta: FileMeta = { id: newId('doc'), name: `${base} - đã trộn (${merge.rows.length}).docx`, kind: 'doc', createdAt: Date.now(), updatedAt: Date.now(), openedAt: Date.now(), starred: false, deletedAt: null, size: JSON.stringify(json).length, preview: jsonText(json).slice(0, 160) };
-      await ctx.storage.saveFile(meta, { kind: 'doc', json, page: ctx.page });
-      ctx.ui.toast(`Đã tạo “${meta.name}” trong danh sách tệp`);
-    } else {
-      const rows = merge.rows.slice(0, MAX_FILES);
-      const JSZip = (await import('jszip')).default;
-      const zip = new JSZip();
-      const firstKey = merge.headers[0];
-      for (const [index, row] of rows.entries()) {
-        ctx.ui.showBusy(`Đang tạo tệp ${index + 1}/${rows.length}…`);
-        const name = `${String(index + 1).padStart(3, '0')} - ${(row[firstKey] || 'ban-ghi').replace(/[\\/:*?"<>|]+/g, '_').slice(0, 60)}.docx`;
-        zip.file(name, await exportDocx(fillMergeFields(doc, row), ctx.page, base));
-      }
-      downloadBlob(await zip.generateAsync({ type: 'blob' }), `${base} - tron thu.zip`);
-      ctx.ui.toast(`Đã tải ${rows.length} tệp .docx (nén trong .zip)${merge.rows.length > MAX_FILES ? `, giới hạn ${MAX_FILES} bản` : ''}`);
-    }
-  } catch (error) {
-    ctx.ui.toast((error as Error).message || 'Trộn thư thất bại', true);
-  } finally {
-    ctx.ui.showBusy(null);
-  }
 }
