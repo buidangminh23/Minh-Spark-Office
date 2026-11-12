@@ -50,6 +50,7 @@ import LayoutExtras, { LayoutPanels } from './ui/LayoutExtras';
 import ReviewExtras, { ReviewPanels } from './ui/ReviewExtras';
 import ViewExtras, { SplitPane, ViewPanels } from './ui/ViewExtras';
 import MailingsExtras from './ui/MailingsExtras';
+import OnlinePicturesDialog from './ui/OnlinePicturesDialog';
 import MailingsTab from './ui/tabs/MailingsTab';
 
 import HomeTab from './ui/tabs/HomeTab';
@@ -662,6 +663,7 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
         <ReviewExtras dialog={dialog} onClose={closeDialog} />
         <ViewExtras dialog={dialog} onClose={closeDialog} />
         <MailingsExtras dialog={dialog} onClose={closeDialog} />
+        {dialog === 'onlinepictures' && <OnlinePicturesDialog onClose={closeDialog} />}
         </SafeBoundary>
       </div>
     </DocContext.Provider>

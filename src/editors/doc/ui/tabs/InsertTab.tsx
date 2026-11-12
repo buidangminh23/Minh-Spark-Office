@@ -1,4 +1,4 @@
-import { BarChart3, Blocks, Bookmark, BookOpen, Box, Calendar, CalendarClock, CaseUpper, CircleUser, FilePlus2, FileSpreadsheet, FileText, FileUp, Globe, Grid3x3, Hash, Image as ImageIcon, Link2, ListChecks, ListTree, MapPin, MessageSquarePlus, Minus, Monitor, Network, Omega, PanelBottom, PanelTop, Paperclip, Pencil, PenTool, ScissorsLineDashed, Shapes, Signature, Sigma, Smile, SquareDashed, SquareSplitVertical, Table as TableIcon, TableProperties, Trash2, Type, Upload, Variable, Video } from 'lucide-react';
+import { Search, BarChart3, Blocks, Bookmark, BookOpen, Box, Calendar, CalendarClock, CaseUpper, CircleUser, FilePlus2, FileSpreadsheet, FileText, FileUp, Globe, Grid3x3, Hash, Image as ImageIcon, Link2, ListChecks, ListTree, MapPin, MessageSquarePlus, Minus, Monitor, Network, Omega, PanelBottom, PanelTop, Paperclip, Pencil, PenTool, ScissorsLineDashed, Shapes, Signature, Sigma, Smile, SquareDashed, SquareSplitVertical, Table as TableIcon, TableProperties, Trash2, Type, Upload, Variable, Video } from 'lucide-react';
 import { useDoc } from '../../DocContext';
 import { addComment, editLink, insertFootnote, insertImageFromDevice, insertImageFromUrl, mergeDocument } from '../../actions';
 import { insertChip, textToTable } from '../../actionsExtra';
@@ -129,6 +129,7 @@ export default function InsertTab() {
           {(close) => (
             <>
               <MenuItem icon={<Upload size={14} />} label="Tải lên từ máy" onClick={() => { close(); void insertImageFromDevice(ctx); }} />
+              <MenuItem icon={<Search size={14} />} label="Ảnh trực tuyến…" onClick={() => { close(); ctx.openDialog('onlinepictures'); }} />
               <MenuItem icon={<Globe size={14} />} label="Theo địa chỉ URL" onClick={() => { close(); void insertImageFromUrl(ctx); }} />
             </>
           )}

@@ -82,6 +82,24 @@ export function AiDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
+export function parallelRows(source: string, translated: string): [string, string][] {
+  const left = source.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  const right = translated.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  const count = Math.max(left.length, 1);
+  const rows: [string, string][] = left.map((line, i) => [line, right[i] ?? '']);
+  if (right.length > count) rows[count - 1][1] = right.slice(count - 1).join(' ');
+  return rows;
+}
+
+function insertParallel(ctx: ReturnType<typeof useDoc>, source: string, translated: string, language: string, range: { from: number; to: number } | null) {
+  const cell = (text: string, type = 'tableCell') => ({ type, content: [{ type: 'paragraph', content: text ? [{ type: 'text', text }] : [] }] });
+  const rows = parallelRows(source, translated).map(([a, b]) => ({ type: 'tableRow', content: [cell(a), cell(b)] }));
+  const table = { type: 'table', attrs: { tableStyle: 'lines' }, content: [{ type: 'tableRow', attrs: { repeatHeader: true }, content: [cell('Bản gốc', 'tableHeader'), cell(`Bản dịch (${language})`, 'tableHeader')] }, ...rows] };
+  const at = range ? range.to : ctx.editor.state.doc.content.size;
+  ctx.editor.chain().focus().insertContentAt(at, table).run();
+  ctx.ui.toast(`Đã chèn bảng song ngữ ${rows.length} dòng`);
+}
+
 export function TranslateDialog({ onClose }: { onClose: () => void }) {
   const ctx = useDoc();
   const [{ text, range }] = useState(() => selectionOrAll(ctx.editor));
@@ -94,7 +112,7 @@ export function TranslateDialog({ onClose }: { onClose: () => void }) {
   };
   return (
     <Modal title="Dịch tài liệu" subtitle={`Dịch ${range ? 'đoạn đang chọn' : 'toàn bộ tài liệu'} (${text.length.toLocaleString('vi-VN')} ký tự)`} icon={<Languages size={20} />} onClose={onClose} width={760}
-      actions={task.busy ? <button className="btn" onClick={task.stop}><Square size={13} /> Dừng</button> : <ResultActions output={task.output} range={range} onDone={onClose} />}>
+      actions={task.busy ? <button className="btn" onClick={task.stop}><Square size={13} /> Dừng</button> : <>{task.output.trim() && <button className="btn" title="Chèn bảng hai cột, bản gốc bên trái, bản dịch bên phải" onClick={() => { insertParallel(ctx, text, task.output, LANGUAGES.find((l) => l.code === target)?.label ?? target, range); onClose(); }}>Chèn song ngữ</button>}<ResultActions output={task.output} range={range} onDone={onClose} /></>}>
       <div className="ai-prompt">
         <select className="text-field" value={target} onChange={(e) => setTarget(e.target.value)}>{LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}</select>
         <button className="btn btn-primary" disabled={task.busy || !text.trim()} onClick={() => void task.start((onText, signal) => translateText(text, target, onText, signal))}>Dịch</button>
