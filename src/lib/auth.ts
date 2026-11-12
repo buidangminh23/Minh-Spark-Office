@@ -1,5 +1,5 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
-import { browserLocalPersistence, getAuth, setPersistence } from 'firebase/auth';
+import { browserLocalPersistence, browserSessionPersistence, connectAuthEmulator, getAuth, setPersistence } from 'firebase/auth';
 
 const config = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -8,25 +8,41 @@ const config = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
+const AUTH_EMULATOR_FLAG = 'office-auth-emulator';
+
 let emulatorReady: Promise<void> | null = null;
 
 export const authConfigured = Object.values(config).every((value) => typeof value === 'string' && value.trim());
+
+function devAuthEmulator() {
+  if (!import.meta.env.DEV) return '';
+  const target = String(import.meta.env.VITE_AUTH_EMULATOR ?? '');
+  if (!target) return '';
+  try {
+    if (new URLSearchParams(window.location.search).has('authEmu')) sessionStorage.setItem(AUTH_EMULATOR_FLAG, '1');
+    return sessionStorage.getItem(AUTH_EMULATOR_FLAG) ? target : '';
+  } catch {
+    return '';
+  }
+}
 
 export async function initializeAuthentication() {
   if (!authConfigured) throw new Error('auth/missing-config');
   const fresh = !getApps().length;
   const app = fresh ? initializeApp(config) : getApp();
-  const emulator = import.meta.env.DEV ? String(import.meta.env.VITE_FIRESTORE_EMULATOR ?? '') : '';
-  if (fresh && emulator) {
+  const firestoreEmulator = import.meta.env.DEV ? String(import.meta.env.VITE_FIRESTORE_EMULATOR ?? '') : '';
+  if (fresh && firestoreEmulator) {
     emulatorReady = import('firebase/firestore').then(({ connectFirestoreEmulator, getFirestore }) => {
-      const [host, port] = emulator.split(':');
+      const [host, port] = firestoreEmulator.split(':');
       connectFirestoreEmulator(getFirestore(app), host, Number(port));
     });
   }
   await emulatorReady;
   const auth = getAuth(app);
+  const authEmulator = devAuthEmulator();
+  if (fresh && authEmulator) connectAuthEmulator(auth, `http://${authEmulator}`, { disableWarnings: true });
   auth.languageCode = 'vi';
-  await setPersistence(auth, browserLocalPersistence);
+  await setPersistence(auth, authEmulator ? browserSessionPersistence : browserLocalPersistence);
   return auth;
 }
 

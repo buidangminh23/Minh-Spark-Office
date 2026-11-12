@@ -30,8 +30,8 @@ type Message = (channel: number, data: Uint8Array, from: LivePeer) => void;
 
 const HEARTBEAT_MS = 25_000;
 const STALE_MS = 80_000;
-const CONNECT_TIMEOUT_MS = 20_000;
-const RETRY_MS = 45_000;
+const CONNECT_TIMEOUT_MS = 90_000;
+const RETRY_MS = 60_000;
 const ICE_WAIT_MS = 3_000;
 const FRAME_BYTES = 15_000;
 const ICE_SERVERS: RTCIceServer[] = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }];
@@ -75,10 +75,23 @@ export function decodeFrame(frame: Uint8Array) {
 function waitForIce(pc: RTCPeerConnection) {
   if (pc.iceGatheringState === 'complete') return Promise.resolve();
   return new Promise<void>((resolve) => {
-    const done = () => { pc.removeEventListener('icegatheringstatechange', check); clearTimeout(timer); resolve(); };
+    let finished = false;
+    const done = () => {
+      if (finished) return;
+      finished = true;
+      pc.removeEventListener('icegatheringstatechange', check);
+      pc.removeEventListener('icecandidate', candidate);
+      clearTimeout(timer);
+      resolve();
+    };
     const check = () => { if (pc.iceGatheringState === 'complete') done(); };
+    const candidate = (event: RTCPeerConnectionIceEvent) => {
+      if (!event.candidate) { done(); return; }
+      if (/ typ (srflx|relay)/.test(event.candidate.candidate)) queueMicrotask(done);
+    };
     const timer = setTimeout(done, ICE_WAIT_MS);
     pc.addEventListener('icegatheringstatechange', check);
+    pc.addEventListener('icecandidate', candidate);
   });
 }
 
@@ -243,10 +256,12 @@ export function createPeerMesh(db: Firestore, path: { teamId: string; itemId: st
   };
 
   const status = (): MeshStatus => {
-    const others = peers().filter((peer) => !peer.self);
-    if (!others.length) return 'alone';
-    if (others.every((peer) => peer.connected)) return 'online';
-    return others.some((peer) => !peer.connected && failures.has(peer.peerId)) ? 'degraded' : 'connecting';
+    const people = new Map<string, LivePeer[]>();
+    for (const peer of peers()) if (!peer.self && peer.uid !== self.uid) people.set(peer.uid, [...(people.get(peer.uid) ?? []), peer]);
+    if (!people.size) return 'alone';
+    const waiting = [...people.values()].filter((list) => !list.some((peer) => peer.connected));
+    if (!waiting.length) return 'online';
+    return waiting.some((list) => list.every((peer) => failures.has(peer.peerId))) ? 'degraded' : 'connecting';
   };
 
   const stop = () => {

@@ -9,7 +9,8 @@ import { teamErrorMessage, type TeamStore } from '../../lib/teamStore';
 import { can, colorForUid, type TeamItem, type TeamRole } from '../../lib/teams';
 import { createPeerMesh, type LivePeer, type MeshStatus, type PeerMesh } from '../../lib/live/peerMesh';
 import { createLiveDocument, type LiveDocument, type OpenResult, type SaveState } from '../../lib/live/liveDoc';
-import { parseSharedTabId, pickLeader, sharedMeta } from '../../lib/live/sharedTabs';
+import { parseSharedTabId, pickLeader, rememberSharedMeta, sharedMeta } from '../../lib/live/sharedTabs';
+import { caretColorsByUid, keepCaretColorUnique } from '../../lib/live/caretColors';
 import { LiveBar } from './LiveBar';
 import { TmButton } from './TeamParts';
 import { useTeamStore } from './useTeams';
@@ -59,6 +60,20 @@ function useMeshState(mesh: PeerMesh | null) {
   return { peers, status };
 }
 
+function useCaretColors(session: Session | null) {
+  const [colors, setColors] = useState<Map<string, string>>(() => new Map());
+  useEffect(() => {
+    if (!session) return;
+    const awareness = session.live.awareness;
+    const stopUnique = keepCaretColorUnique(awareness, session.store.user.uid);
+    const update = () => setColors(caretColorsByUid(awareness));
+    update();
+    awareness.on('change', update);
+    return () => { stopUnique(); awareness.off('change', update); };
+  }, [session]);
+  return colors;
+}
+
 function useSaveState(live: LiveDocument | null) {
   const [state, setState] = useState<{ value: SaveState; at: number }>({ value: 'saved', at: Date.now() });
   useEffect(() => {
@@ -80,6 +95,7 @@ export function SharedFrame({ frameId, onEditing }: { frameId: string; onEditing
   const session = phase.kind === 'ready' ? phase.session : null;
   const meshState = useMeshState(session?.mesh ?? null);
   const saveState = useSaveState(session?.live ?? null);
+  const caretColors = useCaretColors(session);
   const snapshot = useRef<{ meta: FileMeta; content: FileContent } | null>(null);
   const lastFlush = useRef(0);
   const flushing = useRef<Promise<void> | null>(null);
@@ -94,6 +110,9 @@ export function SharedFrame({ frameId, onEditing }: { frameId: string; onEditing
     openSession(store, ids.teamId, ids.itemId, (text) => { if (alive) setPhase({ kind: 'loading', text }); }).then((next) => {
       opened = next;
       if (!alive) { void next.live.destroy(); next.mesh.stop(); return; }
+      const meta = sharedMeta(next.item);
+      rememberSharedMeta(meta);
+      tabHost()?.updateMeta(meta);
       setWaiting(next.opened === 'wait');
       setPhase({ kind: 'ready', session: next });
     }, (failure) => {
@@ -179,7 +198,8 @@ export function SharedFrame({ frameId, onEditing }: { frameId: string; onEditing
 
   const meta = sharedMeta(session.item);
   const readOnly = !can(session.role, 'editDocument');
-  const bar = <LiveBar peers={meshState.peers} status={meshState.status} saveState={saveState.value} savedAt={saveState.at} />;
+  const peers = meshState.peers.map((peer) => ({ ...peer, color: caretColors.get(peer.uid) ?? peer.color }));
+  const bar = <LiveBar peers={peers} status={meshState.status} saveState={saveState.value} savedAt={saveState.at} />;
   const back = () => host?.showHome();
 
   if (session.item.kind === 'doc' && session.content.kind === 'doc' && loadedEditors.doc) {

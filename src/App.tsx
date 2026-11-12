@@ -17,7 +17,7 @@ import { listen } from '@tauri-apps/api/event';
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import Home from './components/Home';
 import { SharedFrame } from './components/teams/SharedFrame';
-import { isSharedTabId, sharedMeta } from './lib/live/sharedTabs';
+import { isSharedTabId, rememberSharedMeta, sharedMeta } from './lib/live/sharedTabs';
 import type { SharedOpen } from './components/teams/TeamsPage';
 import { formatFileSize } from './lib/imageFormatNames';
 import { UiProvider, useUi } from './components/ui';
@@ -971,7 +971,9 @@ function MainApp({ onEditing, frameId }: { onEditing: (editing: boolean) => void
 
   const handleOpenShared: SharedOpen = (item) => {
     preloadEditor(item.kind);
-    tabs?.open(sharedMeta(item));
+    const meta = sharedMeta(item);
+    rememberSharedMeta(meta);
+    tabs?.open(meta);
   };
 
   const handleDuplicate = async (file: FileMeta) => {

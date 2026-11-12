@@ -214,4 +214,56 @@ describe('team rules', { skip: !process.env.FIRESTORE_EMULATOR_HOST }, () => {
     await assertSucceeds(deleteDoc(doc(db, 'teams', TEAM)));
     await assertSucceeds(deleteDoc(doc(db, 'teams', TEAM, 'members', 'owner')));
   });
+
+  const DOC = 'D'.repeat(20);
+  const OTHER_REVISION = '22345678-1234-4123-8123-123456789abc';
+  const seedDocument = () => environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore() as unknown as Firestore, 'teams', TEAM, 'items', DOC), item('editor', 'document'));
+  });
+  const peerId = (who: Person, suffix = 'abcdefghij') => `${people[who].uid}_${suffix}`;
+  const peer = (who: Person, role: string, suffix = 'abcdefghij') => ({ peerId: peerId(who, suffix), uid: people[who].uid, name: who, photoURL: '', color: '#2563eb', role, at: serverTimestamp() });
+  const signal = (from: Person, to: string, kind = 'offer') => ({ from: peerId(from), fromUid: people[from].uid, to, kind, sdp: 'v=0', at: serverTimestamp() });
+  const head = (by: Person) => ({ revision: REVISION, chunkCount: 1, bytes: 10, updatedBy: peerId(by), updatedByUid: people[by].uid, updatedByName: by, at: serverTimestamp() });
+
+  test('presence: members announce only themselves with their real role, on shared documents only', async () => {
+    await seedDocument();
+    const peers = (who: Person) => collection(as(who), 'teams', TEAM, 'items', DOC, 'peers');
+    await assertSucceeds(setDoc(doc(peers('viewer'), peerId('viewer')), peer('viewer', 'viewer')));
+    await assertFails(setDoc(doc(peers('viewer'), peerId('viewer', 'bcdefghijk')), peer('viewer', 'editor', 'bcdefghijk')));
+    await assertFails(setDoc(doc(peers('editor'), peerId('viewer', 'cdefghijkl')), peer('viewer', 'viewer', 'cdefghijkl')));
+    await assertFails(setDoc(doc(peers('stranger'), peerId('stranger')), peer('stranger', 'viewer')));
+    await assertFails(setDoc(doc(collection(as('editor'), 'teams', TEAM, 'items', ITEM, 'peers'), peerId('editor')), peer('editor', 'editor')));
+    await assertSucceeds(getDocs(peers('viewer')));
+    await assertFails(getDocs(peers('stranger')));
+  });
+
+  test('signals: members send offers only under their own identity', async () => {
+    await seedDocument();
+    const signals = (who: Person) => collection(as(who), 'teams', TEAM, 'items', DOC, 'signals');
+    await assertSucceeds(setDoc(doc(signals('editor'), 'S'.repeat(20)), signal('editor', peerId('viewer'))));
+    await assertFails(setDoc(doc(signals('editor'), 'T'.repeat(20)), { ...signal('editor', peerId('viewer')), from: peerId('viewer') }));
+    await assertFails(setDoc(doc(signals('editor'), 'U'.repeat(20)), signal('editor', peerId('viewer'), 'candidate')));
+    await assertFails(setDoc(doc(signals('stranger'), 'V'.repeat(20)), signal('stranger', peerId('viewer'))));
+    await assertFails(updateDoc(doc(signals('editor'), 'S'.repeat(20)), { sdp: 'x' }));
+    await assertSucceeds(deleteDoc(doc(signals('viewer'), 'S'.repeat(20))));
+  });
+
+  test('live state: editors save heads and chunks, viewers only read, the current revision is immutable', async () => {
+    await seedDocument();
+    const live = (who: Person, name: string) => doc(as(who), 'teams', TEAM, 'items', DOC, 'live', name);
+    const liveChunk = (who: Person, revision = REVISION) => doc(as(who), 'teams', TEAM, 'items', DOC, 'liveChunks', `${revision}_0`);
+    await assertSucceeds(setDoc(liveChunk('editor'), { revision: REVISION, index: 0, data: 'AAA' }));
+    await assertFails(setDoc(liveChunk('viewer', OTHER_REVISION), { revision: OTHER_REVISION, index: 0, data: 'AAA' }));
+    await assertSucceeds(setDoc(live('editor', 'head'), head('editor')));
+    await assertFails(setDoc(live('viewer', 'head'), head('viewer')));
+    await assertFails(setDoc(live('editor', 'head'), { ...head('editor'), updatedByUid: 'admin' }));
+    await assertFails(setDoc(liveChunk('editor'), { revision: REVISION, index: 0, data: 'BBB' }));
+    await assertFails(deleteDoc(liveChunk('editor')));
+    await assertSucceeds(setDoc(live('editor', 'lock'), { peerId: peerId('editor'), uid: 'editor', at: serverTimestamp() }));
+    await assertFails(setDoc(live('viewer', 'lock'), { peerId: peerId('viewer'), uid: 'viewer', at: serverTimestamp() }));
+    await assertSucceeds(getDoc(live('viewer', 'head')));
+    await assertFails(getDoc(live('stranger', 'head')));
+    await assertFails(deleteDoc(live('editor', 'head')));
+    await assertSucceeds(deleteDoc(live('admin', 'head')));
+  });
 });

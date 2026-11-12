@@ -9,6 +9,7 @@ import { suiteLogos } from '../lib/suiteBranding';
 import { useDocumentCloser } from '../lib/documentCloser';
 import { printFrameDocument } from '../lib/print/tabPrint';
 import { getSettings } from '../lib/appSettings';
+import { restoredSharedMeta } from '../lib/live/sharedTabs';
 import {
   cycleTarget,
   gotoTarget,
@@ -79,8 +80,9 @@ function useTabState(uid: string | null, ready: boolean) {
     void storage.listFiles().then((files) => {
       if (!alive) return;
       const live = new Map(files.filter((file) => !file.deletedAt).map((file) => [file.id, file]));
-      const tabs = session.ids.flatMap((id) => { const meta = live.get(id); return meta ? [tabFromMeta(meta)] : []; });
-      const active = session.active && live.has(session.active) && !startOnHome() ? session.active : null;
+      const tabs = session.ids.flatMap((id) => { const meta = live.get(id) ?? restoredSharedMeta(id); return meta ? [tabFromMeta(meta)] : []; });
+      const known = (id: string) => live.has(id) || Boolean(restoredSharedMeta(id));
+      const active = session.active && known(session.active) && !startOnHome() ? session.active : null;
       setState((current) => ({ tabs: tabs.reduce(withTab, current.tabs), active: current.active ?? active }));
     }).catch(() => undefined).finally(() => { if (alive) setRestored(true); });
     return () => { alive = false; };
