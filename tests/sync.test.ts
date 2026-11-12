@@ -490,3 +490,29 @@ test('an unrelated file is still adopted while other files are held by tabs', as
   await homeTab.syncNow();
   assert.deepEqual(await homeTab.loadContent('held'), content('held remote'));
 });
+
+test('the outbox keeps large records out of the state blob and still reads them back', async () => {
+  const { createStore, get, keys, set } = await import('idb-keyval');
+  const device = `outbox-split-${++sequence}`;
+  const store = createSyncStateStore(device);
+  const raw = createStore(`minh-office-sync:${device}`, 'outbox');
+  const big = content('x'.repeat(200_000));
+  const record: RemoteRecord = { id: 'big', meta: meta('big'), content: big, versions: [], deleted: false, revision: '' };
+  await store.write({ bases: {}, pending: { big: { generation: 1, record } }, generation: 1 });
+  const blob = await get<Record<string, unknown>>('state', raw);
+  assert.ok(JSON.stringify(blob).length < 1000);
+  assert.deepEqual((await createSyncStateStore(device).read()).pending.big.record.content, big);
+  const next: RemoteRecord = { ...record, content: content('y') };
+  await store.write({ bases: {}, pending: { big: { generation: 2, record: next } }, generation: 2 });
+  const stored = (await keys(raw)).map(String).sort();
+  assert.equal(stored.length, 2);
+  assert.ok(stored[0].startsWith('record:big:'));
+  assert.equal(stored[1], 'state');
+  await set('record:big:orphan', record, raw);
+  await createSyncStateStore(device).write({ bases: {}, pending: { big: { generation: 2, record: next } }, generation: 2 });
+  assert.equal((await keys(raw)).map(String).filter((key) => key.startsWith('record:')).length, 1);
+  await store.write({ bases: { big: '7' }, pending: {}, generation: 2 });
+  assert.deepEqual((await keys(raw)).map(String), ['state']);
+  await set('state', { bases: {}, pending: { legacy: { generation: 3, record: { ...record, id: 'legacy' } } }, generation: 3 }, raw);
+  assert.equal((await createSyncStateStore(device).read()).pending.legacy.record.id, 'legacy');
+});

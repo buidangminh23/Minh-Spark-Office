@@ -7,6 +7,10 @@ describe('download and usage counters', () => {
     assert.equal(installerCounter('MinhSparkOffice-0.2.32-windows-x64-vi-Setup.exe'), 'downloadsWindows');
     assert.equal(installerCounter('MinhSparkOffice-0.2.32-windows-x64-en-US.msi'), 'downloadsWindows');
     assert.equal(installerCounter('MinhSparkOffice-0.2.32-macos-arm64.dmg'), 'downloadsMac');
+    assert.equal(installerCounter('MinhSparkOffice-0.2.32-linux-x64.deb'), 'downloadsLinux');
+    assert.equal(installerCounter('MinhSparkOffice-0.2.32-linux-x64.AppImage'), 'downloadsLinux');
+    assert.equal(installerCounter('MinhSparkOffice-0.2.32-linux-x64.AppImage.sig'), null);
+    assert.equal(installerCounter('MinhSparkOffice-0.2.32-linux-arm64.deb'), null);
     assert.equal(installerCounter('MinhSparkOffice-0.2.32-macos-arm64.app.tar.gz'), null);
     assert.equal(installerCounter('../SHA256SUMS.txt'), null);
     assert.equal(installerCounter('MinhSparkOffice-0.2.32-windows-x64-vi-Setup.exe?x=1'), null);
@@ -37,8 +41,8 @@ describe('download and usage counters', () => {
       { found: { name: 'projects/p/databases/(default)/documents/publicStats/users', fields: { count: { integerValue: '37' } } } },
     ];
     const stats = await readStats({ projectId: 'p', apiKey: 'k', fetch: (async () => new Response(JSON.stringify(rows))) as typeof fetch });
-    assert.deepEqual(stats, { downloadsWindows: 1064, downloadsMac: 0, users: 37 });
+    assert.deepEqual(stats, { downloadsWindows: 1064, downloadsMac: 0, downloadsLinux: 0, users: 37 });
     const failed = await readStats({ projectId: 'p', apiKey: 'k', fetch: (async () => new Response('', { status: 403 })) as typeof fetch });
-    assert.deepEqual(failed, { downloadsWindows: null, downloadsMac: null, users: null });
+    assert.deepEqual(failed, { downloadsWindows: null, downloadsMac: null, downloadsLinux: null, users: null });
   });
 });

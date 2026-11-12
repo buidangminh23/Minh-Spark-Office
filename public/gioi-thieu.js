@@ -31,7 +31,7 @@
       const response = await fetch(STATS_URL, { cache: 'no-store' });
       if (!response.ok) throw new Error(String(response.status));
       const stats = await response.json();
-      for (const key of ['users', 'downloadsWindows', 'downloadsMac']) {
+      for (const key of ['users', 'downloadsWindows', 'downloadsMac', 'downloadsLinux']) {
         if (Number.isFinite(stats[key])) animate(key, stats[key]);
       }
       live.dataset.state = 'on';
@@ -76,5 +76,9 @@
     const hero = document.getElementById('hero-download');
     hero.href = '#macos';
     hero.querySelector('use').setAttribute('href', '#i-apple');
+  } else if (/Linux/.test(navigator.userAgent) && !/Android/.test(navigator.userAgent)) {
+    const hero = document.getElementById('hero-download');
+    hero.href = '#linux';
+    hero.querySelector('use').setAttribute('href', '#i-monitor');
   }
 })();

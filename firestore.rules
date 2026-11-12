@@ -71,7 +71,7 @@ service cloud.firestore {
       allow delete: if desktopLoginId(id);
     }
     function publicCounter(counter) {
-      return counter in ['downloadsWindows', 'downloadsMac', 'users'];
+      return counter in ['downloadsWindows', 'downloadsMac', 'downloadsLinux', 'users'];
     }
     match /publicStats/{counter} {
       allow read: if publicCounter(counter);

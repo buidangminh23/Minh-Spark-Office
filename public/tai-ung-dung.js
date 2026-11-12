@@ -12,7 +12,7 @@ document.querySelectorAll('[data-copy]').forEach((button) => {
       button.textContent = 'Đã chép';
     } catch {
       getSelection().selectAllChildren(source);
-      button.textContent = 'Nhấn ⌘C';
+      button.textContent = /Mac/.test(navigator.platform) ? 'Nhấn ⌘C' : 'Nhấn Ctrl+C';
     }
     setTimeout(() => { button.textContent = 'Sao chép'; }, 2000);
   });
@@ -20,15 +20,22 @@ document.querySelectorAll('[data-copy]').forEach((button) => {
 (() => {
   const ua = navigator.userAgent;
   const isMac = /Macintosh|Mac OS X/.test(ua) && !/iPhone|iPad/.test(ua);
-  if (!isMac) return;
+  const isLinux = /Linux/.test(ua) && !/Android/.test(ua);
+  if (!isMac && !isLinux) return;
   const primary = document.getElementById('hero-primary');
   const secondary = document.getElementById('hero-secondary');
-  primary.href = '#macos';
-  primary.querySelector('use').setAttribute('href', '#i-apple');
-  primary.querySelector('span').textContent = 'Tải cho macOS';
+  primary.href = isLinux ? '#linux' : '#macos';
+  primary.querySelector('use').setAttribute('href', isLinux ? '#i-monitor' : '#i-apple');
+  primary.querySelector('span').textContent = isLinux ? 'Tải cho Linux' : 'Tải cho macOS';
   secondary.href = '#windows';
   secondary.querySelector('use').setAttribute('href', '#i-windows');
   secondary.querySelector('span').textContent = 'Tải cho Windows';
+  if (isLinux) {
+    const tertiary = document.getElementById('hero-tertiary');
+    tertiary.href = '#macos';
+    tertiary.querySelector('use').setAttribute('href', '#i-apple');
+    tertiary.querySelector('span').textContent = 'Tải cho macOS';
+  }
 })();
 (() => {
   const format = new Intl.NumberFormat('vi-VN');

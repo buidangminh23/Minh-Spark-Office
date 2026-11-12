@@ -55,10 +55,10 @@ test('parseChecksums accepts CRLF and binary markers', () => {
 });
 
 test('releaseArtifactNames and missingPlatforms describe a complete release', () => {
-  assert.equal(releaseArtifactNames('0.2.13').length, 4);
-  const full = { platforms: { 'windows-x86_64-nsis': { signature: 's' }, 'windows-x86_64': { signature: 's' }, 'windows-x86_64-msi': { signature: 's' }, 'darwin-aarch64': { signature: 's' } } };
+  assert.equal(releaseArtifactNames('0.2.13').length, 6);
+  const full = { platforms: { 'windows-x86_64-nsis': { signature: 's' }, 'windows-x86_64': { signature: 's' }, 'windows-x86_64-msi': { signature: 's' }, 'darwin-aarch64': { signature: 's' }, 'linux-x86_64': { signature: 's' }, 'linux-x86_64-deb': { signature: 's' }, 'linux-x86_64-appimage': { signature: 's' } } };
   assert.deepEqual(missingPlatforms(full), []);
-  assert.deepEqual(missingPlatforms({ platforms: {} }).length, 4);
+  assert.deepEqual(missingPlatforms({ platforms: {} }).length, 7);
 });
 
 test('retainedUpdaterFiles keeps the updater files of the last releases before this one', () => {
@@ -67,10 +67,12 @@ test('retainedUpdaterFiles keeps the updater files of the last releases before t
     `MinhSparkOffice-${version}-windows-x64-en-US.msi`,
     `MinhSparkOffice-${version}-macos-arm64.app.tar.gz`,
     `MinhSparkOffice-${version}-macos-arm64.dmg`,
+    `MinhSparkOffice-${version}-linux-x64.deb`,
+    `MinhSparkOffice-${version}-linux-x64.AppImage`,
   ]).concat('SHA256SUMS.txt');
   const kept = retainedUpdaterFiles(files, '0.2.18');
   assert.deepEqual([...new Set(kept.map((name) => name.split('-')[1]))], ['0.2.15', '0.2.16', '0.2.17']);
-  assert.equal(kept.length, 9);
+  assert.equal(kept.length, 15);
   assert.ok(kept.every((name) => !name.endsWith('.dmg')));
   assert.deepEqual(retainedUpdaterFiles(files, '0.2.10'), retainedUpdaterFiles(files, '0.2.10', 3));
   assert.deepEqual([...new Set(retainedUpdaterFiles(files, '0.2.10').map((name) => name.split('-')[1]))], ['0.2.9']);

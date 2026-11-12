@@ -139,6 +139,16 @@
   visibility: hidden;
 }
 
+.doc-stage > .workspace-content[data-hidden='true'],
+.doc-stage > .workspace-content[data-hidden='true'] * {
+  scrollbar-width: none;
+}
+
+.doc-stage > .workspace-content[data-hidden='true']::-webkit-scrollbar,
+.doc-stage > .workspace-content[data-hidden='true'] *::-webkit-scrollbar {
+  display: none;
+}
+
 .doc-frame {
   position: absolute;
   inset: 0;
