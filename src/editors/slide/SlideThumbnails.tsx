@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   Plus,
   EyeOff,
@@ -8,6 +8,8 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import type { SlideData, SlideLayout } from '../../lib/slideTypes';
+import { finalSlideIndex } from './slideReorder';
+import { useThumbReorder } from './useThumbReorder';
 
 interface SlideThumbnailsProps {
   slides: SlideData[];
@@ -43,6 +45,9 @@ export function SlideThumbnails({
   peerMarks = {},
 }: SlideThumbnailsProps) {
   const [layoutMenuOpen, setLayoutMenuOpen] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
+  const { drag, onPointerDown, consumeClick } = useThumbReorder(listRef, onMoveSlide);
+  const dropAt = drag && finalSlideIndex(drag.from, drag.insertBefore) !== drag.from ? drag.insertBefore : -1;
 
   return (
     <aside className="ppt-thumbnails-pane">
@@ -107,15 +112,21 @@ export function SlideThumbnails({
         </div>
       </div>
 
-      <div className="ppt-thumbnails-list">
+      <div ref={listRef} className={`ppt-thumbnails-list ${drag ? 'is-reordering' : ''}`}>
         {slides.map((slide, idx) => {
           const isSelected = idx === activeSlideIndex;
+          const isDragged = drag?.from === idx;
+          const dropClass = dropAt === idx ? 'drop-before' : dropAt === slides.length && idx === slides.length - 1 ? 'drop-after' : '';
 
           return (
             <div
               key={slide.id}
-              className={`ppt-thumb-item ${isSelected ? 'is-selected' : ''}`}
-              onClick={() => onSelectSlide(idx)}
+              className={`ppt-thumb-item ${isSelected ? 'is-selected' : ''} ${isDragged ? 'is-dragging' : ''} ${dropClass}`}
+              style={isDragged ? { ['--thumb-drag' as string]: `${drag.offset}px` } : undefined}
+              title={drag ? undefined : 'Bấm giữ rồi kéo để đổi thứ tự'}
+              onPointerDown={(event) => onPointerDown(event, idx)}
+              onContextMenu={(event) => { if (drag) event.preventDefault(); }}
+              onClick={() => { if (!consumeClick()) onSelectSlide(idx); }}
             >
               <div className="ppt-thumb-index" style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
                 {slide.hidden && <span title="Trang chiếu này bị ẩn khi trình chiếu" style={{ display: 'inline-flex' }}><EyeOff size={12} color="#DC2626" /></span>}

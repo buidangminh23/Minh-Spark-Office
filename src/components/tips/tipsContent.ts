@@ -135,6 +135,7 @@ const SLIDE_TIPS: TipSection[] = [
     id: 'edit',
     title: 'Soạn trang chiếu',
     tips: [
+      { title: 'Đổi thứ tự trang', body: 'Bấm giữ ảnh thu nhỏ của trang ở cột bên trái, kéo lên hoặc xuống tới vạch cam rồi thả. Bấm Esc để huỷ khi đang kéo.' },
       { title: 'Nhân bản đối tượng', body: 'Tạo bản sao của hình, ô chữ hoặc ảnh đang chọn.', keys: [['Ctrl', 'D']] },
       { title: 'Nhóm và bỏ nhóm', body: 'Chọn nhiều đối tượng rồi bấm Ctrl+G để nhóm, Ctrl+Shift+G để bỏ nhóm.', keys: [['Ctrl', 'G'], ['Ctrl', 'Shift', 'G']] },
       { title: 'Hoàn tác, làm lại', body: 'Ctrl+Z hoàn tác, Ctrl+Y (hoặc Ctrl+Shift+Z) làm lại.', keys: [['Ctrl', 'Z'], ['Ctrl', 'Y']] },

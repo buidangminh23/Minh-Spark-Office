@@ -8939,5 +8939,8 @@
  "Bấm AI tạo slide ở nhóm Công cụ, nhập chủ đề, AI dựng trang bìa, các trang nội dung và ghi chú diễn giả.": "Click AI slides in the Tools group and enter a topic; AI builds a title slide, content slides and speaker notes.",
  "Chọn một ô chữ, bấm Đọc chính tả ở nhóm Giọng nói rồi nói để nhập chữ.": "Select a text box, click Dictate in the Voice group, then speak to type.",
  "Quay video bài giảng": "Record a video",
- "Tab Record quay bài thuyết trình kèm camera. Bong bóng camera kéo đi chỗ khác và đổi cỡ được.": "The Record tab records your presentation with your camera. You can drag and resize the camera bubble."
+ "Tab Record quay bài thuyết trình kèm camera. Bong bóng camera kéo đi chỗ khác và đổi cỡ được.": "The Record tab records your presentation with your camera. You can drag and resize the camera bubble.",
+ "Bấm giữ rồi kéo để đổi thứ tự": "Press and hold, then drag to reorder",
+ "Đổi thứ tự trang": "Reorder slides",
+ "Bấm giữ ảnh thu nhỏ của trang ở cột bên trái, kéo lên hoặc xuống tới vạch cam rồi thả. Bấm Esc để huỷ khi đang kéo.": "Press and hold a slide thumbnail in the left column, drag it up or down to the orange line, then release. Press Esc to cancel while dragging."
 }
