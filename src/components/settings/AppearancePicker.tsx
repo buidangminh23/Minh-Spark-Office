@@ -78,13 +78,15 @@ export function ThemePicker() {
               );
             })}
           </div>
+          {settings.theme === 'custom' && group.themes.some((card) => card.id === 'custom') && (
+            <>
+              <CustomColorPanel />
+              <span className="st-theme-group-title is-preview">Xem trước</span>
+              <div className="st-win-large"><ThemeWindow theme="custom" settings={settings} /></div>
+            </>
+          )}
         </div>
       ))}
-      {settings.theme === 'custom' && <CustomColorPanel />}
-      <div className="st-theme-group">
-        <span className="st-theme-group-title">Xem trước</span>
-        <div className="st-win-large"><ThemeWindow theme={settings.theme === 'system' ? 'light' : settings.theme} settings={settings} /></div>
-      </div>
     </div>
   );
 }

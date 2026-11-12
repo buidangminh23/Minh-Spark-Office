@@ -400,6 +400,7 @@
 .st-appearance { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
 .st-theme-group { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .st-theme-group-title { color: var(--st-muted); font-size: 12px; font-weight: 600; }
+.st-theme-group-title.is-preview { margin-top: 8px; }
 .st-themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 12px; }
 .st-theme { display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 0; color: var(--st-ink-2); }
 .st-theme.is-active { color: var(--st-ink); font-weight: 600; }

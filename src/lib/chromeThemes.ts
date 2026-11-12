@@ -302,11 +302,11 @@ export function chromeStyleSheet(vars: ChromeVars) {
 
 export const THEME_GROUPS: Array<{ title: string; themes: ThemeCard[] }> = [
   {
-    title: 'Hiện đại',
+    title: 'Mặc định',
     themes: [
-      { id: 'light', label: 'Sáng', group: 'Hiện đại', family: 'modern' },
-      { id: 'dark', label: 'Tối', group: 'Hiện đại', family: 'modern' },
-      { id: 'system', label: 'Theo hệ thống', group: 'Hiện đại', family: 'modern' },
+      { id: 'light', label: 'Sáng', group: 'Mặc định', family: 'modern' },
+      { id: 'dark', label: 'Tối', group: 'Mặc định', family: 'modern' },
+      { id: 'system', label: 'Theo hệ thống', group: 'Mặc định', family: 'modern' },
     ],
   },
   { title: 'Màu riêng', themes: [{ id: 'custom', label: 'Màu của bạn', group: 'Màu riêng', family: '2016' }] },
