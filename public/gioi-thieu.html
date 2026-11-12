@@ -193,14 +193,15 @@
     @media (max-width: 340px) {
       .lp-brand span { display: none; }
     }
+    .platform-logo { flex: none; width: 24px; height: 24px; object-fit: contain; }
+    .lp-btn-primary .platform-logo { background: #fff; border-radius: 4px; padding: 3px; width: 28px; height: 28px; }
+    .lp-os .platform-logo { width: 36px; height: 36px; }
+    .lp-stat-label .platform-logo { width: 20px; height: 20px; }
   </style>
 </head>
 <body>
   <a class="lp-skip" href="#noi-dung">Bỏ qua đến nội dung</a>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-    <symbol id="i-windows" viewBox="0 0 128 128"><path fill="#0078d4" d="M67.328 67.331h60.669V128H67.328zm-67.325 0h60.669V128H.003zM67.328 0h60.669v60.669H67.328zM.003 0h60.669v60.669H.003z"/></symbol>
-    <symbol id="i-windows-white" viewBox="0 0 128 128"><path fill="currentColor" d="M67.328 67.331h60.669V128H67.328zm-67.325 0h60.669V128H.003zM67.328 0h60.669v60.669H67.328zM.003 0h60.669v60.669H.003z"/></symbol>
-    <symbol id="i-apple" viewBox="0 0 128 128"><path fill="currentColor" d="M97.905 67.885c.174 18.8 16.494 25.057 16.674 25.137-.138.44-2.607 8.916-8.597 17.669-5.178 7.568-10.553 15.108-19.018 15.266-8.318.152-10.993-4.934-20.504-4.934-9.508 0-12.479 4.776-20.354 5.086-8.172.31-14.395-8.185-19.616-15.724C15.822 94.961 7.669 66.8 18.616 47.791c5.438-9.44 15.158-15.417 25.707-15.571 8.024-.153 15.598 5.398 20.503 5.398 4.902 0 14.106-6.676 23.782-5.696 4.051.169 15.421 1.636 22.722 12.324-.587.365-13.566 7.921-13.425 23.639M82.272 21.719c4.338-5.251 7.258-12.563 6.462-19.836-6.254.251-13.816 4.167-18.301 9.416-4.02 4.647-7.54 12.087-6.591 19.216 6.971.54 14.091-3.542 18.43-8.796"/></symbol>
     <symbol id="i-users" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></g></symbol>
     <symbol id="i-globe" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></g></symbol>
     <symbol id="i-file" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 15l2 2 4-4"/></g></symbol>
@@ -230,7 +231,9 @@
       <h1 id="hero-title">Bộ văn phòng <span>cho người Việt</span>, mở là dùng</h1>
       <p class="lp-lead">Soạn văn bản, làm bảng tính, dựng trình chiếu và sửa PDF trong một không gian. Mở thẳng tệp Word, Excel, PowerPoint đang có, không cần cài bộ Office.</p>
       <div class="lp-actions">
-        <a class="lp-btn lp-btn-primary" id="hero-download" href="#tai-ve"><svg aria-hidden="true"><use href="#i-windows-white" /></svg><span>Tải ứng dụng miễn phí</span></a>
+        <a class="lp-btn lp-btn-primary" id="hero-windows" href="#windows"><img class="platform-logo" src="/platforms/windows.svg" alt="" aria-hidden="true"><span>Tải cho Windows</span></a>
+        <a class="lp-btn lp-btn-ghost" id="hero-macos" href="#macos"><img class="platform-logo" src="/platforms/apple.svg" alt="" aria-hidden="true"><span>Tải cho macOS</span></a>
+        <a class="lp-btn lp-btn-ghost" id="hero-linux" href="#linux"><img class="platform-logo" src="/platforms/linux.svg" alt="" aria-hidden="true"><span>Tải cho Linux</span></a>
         <a class="lp-btn lp-btn-ghost" href="/"><svg aria-hidden="true"><use href="#i-globe" /></svg><span>Dùng ngay trên web</span></a>
       </div>
       <p class="lp-hero-note">Bản web không cần đăng nhập. Đăng nhập Google khi muốn đồng bộ giữa các máy.</p>
@@ -243,15 +246,15 @@
         </div>
         <div class="lp-stat">
           <span class="lp-stat-value" data-stat="downloadsWindows">—</span>
-          <span class="lp-stat-label"><svg aria-hidden="true"><use href="#i-windows" /></svg>Lượt tải Windows</span>
+          <span class="lp-stat-label"><img class="platform-logo" src="/platforms/windows.svg" alt="" aria-hidden="true">Lượt tải Windows</span>
         </div>
         <div class="lp-stat">
           <span class="lp-stat-value" data-stat="downloadsMac">—</span>
-          <span class="lp-stat-label"><svg aria-hidden="true"><use href="#i-apple" /></svg>Lượt tải macOS</span>
+          <span class="lp-stat-label"><img class="platform-logo" src="/platforms/apple.svg" alt="" aria-hidden="true">Lượt tải macOS</span>
         </div>
         <div class="lp-stat">
           <span class="lp-stat-value" data-stat="downloadsLinux">—</span>
-          <span class="lp-stat-label"><svg aria-hidden="true"><use href="#i-monitor" /></svg>Lượt tải Linux</span>
+          <span class="lp-stat-label"><img class="platform-logo" src="/platforms/linux.svg" alt="" aria-hidden="true">Lượt tải Linux</span>
         </div>
       </div>
       <p class="lp-live" id="stats-live" data-state="off" aria-live="polite"><span class="lp-live-dot" aria-hidden="true"></span><span id="stats-status">Đang tải số liệu…</span></p>
@@ -365,24 +368,24 @@
       </div>
       <div class="lp-downloads">
         <article class="lp-dl" id="windows">
-          <span class="lp-os"><svg aria-hidden="true"><use href="#i-windows" /></svg></span>
+          <span class="lp-os"><img class="platform-logo" src="/platforms/windows.svg" alt="" aria-hidden="true"></span>
           <div><h3>Windows</h3><p class="lp-dl-sub">Windows 10 và 11, 64-bit</p></div>
           <p class="lp-dl-count"><strong data-stat="downloadsWindows">—</strong> lượt tải</p>
-          <a class="lp-btn lp-btn-primary" href="/api/download?file=MinhSparkOffice-0.2.62-windows-x64-vi-Setup.exe" download><svg aria-hidden="true"><use href="#i-windows-white" /></svg>Tải bộ cài cho Windows</a>
+          <a class="lp-btn lp-btn-primary" href="/api/download?file=MinhSparkOffice-0.2.62-windows-x64-vi-Setup.exe" download><img class="platform-logo" src="/platforms/windows.svg" alt="" aria-hidden="true">Tải bộ cài cho Windows</a>
           <p class="lp-dl-more"><a href="/api/download?file=MinhSparkOffice-0.2.62-windows-x64-en-US.msi" download>Bộ cài MSI (tiếng Anh)</a><a href="/tai-ung-dung.html#win-setup">Hướng dẫn cài từng bước</a></p>
         </article>
         <article class="lp-dl" id="macos">
-          <span class="lp-os lp-os-apple"><svg aria-hidden="true"><use href="#i-apple" /></svg></span>
+          <span class="lp-os lp-os-apple"><img class="platform-logo" src="/platforms/apple.svg" alt="" aria-hidden="true"></span>
           <div><h3>macOS</h3><p class="lp-dl-sub">Chip Apple (M1 trở lên), macOS 13.3+</p></div>
           <p class="lp-dl-count"><strong data-stat="downloadsMac">—</strong> lượt tải</p>
-          <a class="lp-btn lp-btn-primary" href="/api/download?file=MinhSparkOffice-0.2.62-macos-arm64.dmg" download><svg aria-hidden="true"><use href="#i-apple" /></svg>Tải file DMG</a>
+          <a class="lp-btn lp-btn-primary" href="/api/download?file=MinhSparkOffice-0.2.62-macos-arm64.dmg" download><img class="platform-logo" src="/platforms/apple.svg" alt="" aria-hidden="true">Tải file DMG</a>
           <p class="lp-dl-more"><a href="/tai-ung-dung.html#mac-dmg">Cách mở lần đầu trên Mac</a></p>
         </article>
         <article class="lp-dl" id="linux">
-          <span class="lp-os"><svg aria-hidden="true"><use href="#i-monitor" /></svg></span>
+          <span class="lp-os"><img class="platform-logo" src="/platforms/linux.svg" alt="" aria-hidden="true"></span>
           <div><h3>Linux</h3><p class="lp-dl-sub">x64 · Ubuntu 22.04+ / Debian 12+</p></div>
           <p class="lp-dl-count"><strong data-stat="downloadsLinux">—</strong> lượt tải</p>
-          <a class="lp-btn lp-btn-primary" href="/api/download?file=MinhSparkOffice-0.2.62-linux-x64.deb" download><svg aria-hidden="true"><use href="#i-monitor" /></svg>Tải gói DEB</a>
+          <a class="lp-btn lp-btn-primary" href="/api/download?file=MinhSparkOffice-0.2.62-linux-x64.deb" download><img class="platform-logo" src="/platforms/linux.svg" alt="" aria-hidden="true">Tải gói DEB</a>
           <p class="lp-dl-more"><a href="/api/download?file=MinhSparkOffice-0.2.62-linux-x64.AppImage" download>Tải AppImage</a><a href="/tai-ung-dung.html#linux-setup">Hướng dẫn cài Linux</a></p>
         </article>
       </div>

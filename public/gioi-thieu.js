@@ -72,13 +72,12 @@
     });
   });
 
-  if (/Mac/.test(navigator.platform) && !/iPhone|iPad/.test(navigator.userAgent)) {
-    const hero = document.getElementById('hero-download');
-    hero.href = '#macos';
-    hero.querySelector('use').setAttribute('href', '#i-apple');
-  } else if (/Linux/.test(navigator.userAgent) && !/Android/.test(navigator.userAgent)) {
-    const hero = document.getElementById('hero-download');
-    hero.href = '#linux';
-    hero.querySelector('use').setAttribute('href', '#i-monitor');
+  const platform = /Mac/.test(navigator.platform) && !/iPhone|iPad/.test(navigator.userAgent)
+    ? 'macos'
+    : /Linux/.test(navigator.userAgent) && !/Android/.test(navigator.userAgent) ? 'linux' : 'windows';
+  for (const name of ['windows', 'macos', 'linux']) {
+    const button = document.getElementById(`hero-${name}`);
+    button.classList.toggle('lp-btn-primary', name === platform);
+    button.classList.toggle('lp-btn-ghost', name !== platform);
   }
 })();

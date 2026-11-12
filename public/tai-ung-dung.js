@@ -25,15 +25,15 @@ document.querySelectorAll('[data-copy]').forEach((button) => {
   const primary = document.getElementById('hero-primary');
   const secondary = document.getElementById('hero-secondary');
   primary.href = isLinux ? '#linux' : '#macos';
-  primary.querySelector('use').setAttribute('href', isLinux ? '#i-monitor' : '#i-apple');
+  primary.querySelector('img').src = isLinux ? '/platforms/linux.svg' : '/platforms/apple.svg';
   primary.querySelector('span').textContent = isLinux ? 'Tải cho Linux' : 'Tải cho macOS';
   secondary.href = '#windows';
-  secondary.querySelector('use').setAttribute('href', '#i-windows');
+  secondary.querySelector('img').src = '/platforms/windows.svg';
   secondary.querySelector('span').textContent = 'Tải cho Windows';
   if (isLinux) {
     const tertiary = document.getElementById('hero-tertiary');
     tertiary.href = '#macos';
-    tertiary.querySelector('use').setAttribute('href', '#i-apple');
+    tertiary.querySelector('img').src = '/platforms/apple.svg';
     tertiary.querySelector('span').textContent = 'Tải cho macOS';
   }
 })();

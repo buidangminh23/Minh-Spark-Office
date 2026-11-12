@@ -233,7 +233,7 @@ function buildLinux(version) {
   const bundle = join(work, 'source.tar');
   run('git', ['archive', '--format=tar', '-o', bundle, 'HEAD', 'src-tauri', 'scripts', 'package.json', 'package-lock.json']);
   run(WINDOWS_TAR, ['-rf', bundle, 'dist']);
-  const linuxPath = (path) => capture('wsl.exe', ['-d', LINUX_DISTRO, '--', 'wslpath', '-a', '-u', path]);
+  const linuxPath = (path) => capture('wsl.exe', ['-d', LINUX_DISTRO, '--', 'wslpath', '-a', '-u', path.replace(/\\/g, '/')]);
   const source = linuxPath(bundle);
   const output = linuxPath(join(root, 'release'));
   const script = [
@@ -250,7 +250,9 @@ function buildLinux(version) {
     'sha256sum -c SHA256SUMS-linux.txt',
     'cp "MinhSparkOffice-$3-linux-x64.deb" "MinhSparkOffice-$3-linux-x64.AppImage" SHA256SUMS-linux.txt "$2/"',
   ].join('\n');
-  run('wsl.exe', ['-d', LINUX_DISTRO, '--', 'bash', '-c', script, 'build-linux', source, output, version]);
+  const quote = (value) => "'" + value.replaceAll("'", "'\"'\"'") + "'";
+  const command = `set -- ${[source, output, version].map(quote).join(' ')}\n${script}`;
+  run('wsl.exe', ['-d', LINUX_DISTRO, '--', 'bash', '-lc', remoteBash(command)]);
   for (const { hash, file } of parseChecksums(readFileSync(join(root, 'release/SHA256SUMS-linux.txt'), 'utf8'))) {
     if (sha256(readFileSync(join(root, 'release', file))) !== hash) throw new Error(`${file} changed in transfer`);
   }
