@@ -31,7 +31,8 @@ const OPENSSH_DIR = join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'O
 const SSH = process.platform === 'win32' ? join(OPENSSH_DIR, 'ssh.exe') : 'ssh';
 const SCP = process.platform === 'win32' ? join(OPENSSH_DIR, 'scp.exe') : 'scp';
 const SSH_OPTIONS = ['-n', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=4'];
-const STEPS = ['bump', 'windows', 'mac', 'package', 'commit', 'deploy', 'verify', 'push'];
+const LINUX_DISTRO = process.env.MINHSPARK_LINUX_DISTRO || 'Ubuntu-26.04';
+const STEPS = ['bump', 'windows', 'mac', 'linux', 'package', 'commit', 'deploy', 'verify', 'push'];
 const LIVE_RETRIES = 6;
 const LIVE_RETRY_MS = 10_000;
 
@@ -67,7 +68,12 @@ async function main() {
   if (runs('bump')) bump(current, target);
   if (runs('windows')) buildWindows();
   if (runs('mac')) buildMac(target);
-  if (runs('package')) packageMac();
+  if (runs('linux')) buildLinux(target);
+  if (runs('package')) {
+    packageMac();
+    ensureSigningKey();
+    run(process.execPath, ['scripts/package-linux.mjs']);
+  }
   if (runs('commit')) commitRelease(target);
   if (runs('deploy')) deploy(target);
   if (runs('verify')) await verify(target);
@@ -150,6 +156,7 @@ function preflight({ checkClean }) {
     throw new Error('Updater signing key not found; never generate a replacement key');
   }
   if (sshCapture('echo ok', { timeout: 60_000 }) !== 'ok') throw new Error(`Mac ${MAC_HOST} unreachable`);
+  run('wsl.exe', ['-d', LINUX_DISTRO, '--', 'docker', 'info', '--format', '{{.ServerVersion}}']);
   run('npx', ['--yes', 'vercel@latest', 'whoami']);
   console.log('Preflight OK');
 }
@@ -214,6 +221,39 @@ function buildMac(version) {
     if (sha256(readFileSync(join(root, 'release', file))) !== hash) throw new Error(`${file} changed in transfer`);
   }
   console.log('macOS artifacts copied and checksums match');
+}
+
+function buildLinux(version) {
+  heading(`Build Linux ${version} on Ubuntu 22.04 in WSL`);
+  if (!existsSync(join(root, 'dist/index.html')) || existsSync(join(root, 'dist/downloads'))) {
+    throw new Error('dist is not the prepared desktop build; run --from windows first');
+  }
+  const work = mkdtempSync(join(tmpdir(), 'mso-linux-'));
+  temporaryPaths.push(work);
+  const bundle = join(work, 'source.tar');
+  run('git', ['archive', '--format=tar', '-o', bundle, 'HEAD', 'src-tauri', 'scripts', 'package.json', 'package-lock.json']);
+  run(WINDOWS_TAR, ['-rf', bundle, 'dist']);
+  const linuxPath = (path) => capture('wsl.exe', ['-d', LINUX_DISTRO, '--', 'wslpath', '-a', '-u', path]);
+  const source = linuxPath(bundle);
+  const output = linuxPath(join(root, 'release'));
+  const script = [
+    'set -euo pipefail',
+    'build="$HOME/.cache/minh-spark-office/linux-build"',
+    'mkdir -p "$build"',
+    'cd "$build"',
+    'test "$PWD" = "$HOME/.cache/minh-spark-office/linux-build"',
+    'rm -rf dist',
+    'tar -xf "$1"',
+    'docker build -t minh-spark-office-linux:22.04 -f scripts/linux-build.Dockerfile scripts',
+    'docker run --rm --init --memory=10g --cpus=4 -v "$build:/build" -v minh-spark-office-cargo:/root/.cargo/registry minh-spark-office-linux:22.04',
+    'cd release',
+    'sha256sum -c SHA256SUMS-linux.txt',
+    'cp "MinhSparkOffice-$3-linux-x64.deb" "MinhSparkOffice-$3-linux-x64.AppImage" SHA256SUMS-linux.txt "$2/"',
+  ].join('\n');
+  run('wsl.exe', ['-d', LINUX_DISTRO, '--', 'bash', '-c', script, 'build-linux', source, output, version]);
+  for (const { hash, file } of parseChecksums(readFileSync(join(root, 'release/SHA256SUMS-linux.txt'), 'utf8'))) {
+    if (sha256(readFileSync(join(root, 'release', file))) !== hash) throw new Error(`${file} changed in transfer`);
+  }
 }
 
 function packageMac() {
@@ -313,6 +353,9 @@ async function verify(version) {
   }
   const page = await (await fetchLive('/tai-ung-dung.html')).text();
   if (!page.includes(`MinhSparkOffice-${version}-windows-x64-vi-Setup.exe`)) throw new Error('Download page does not link this version');
+  for (const extension of ['deb', 'AppImage']) {
+    if (!page.includes(`MinhSparkOffice-${version}-linux-x64.${extension}`)) throw new Error(`Download page is missing Linux ${extension}`);
+  }
   if (!page.includes(MAC_INSTALL_COMMAND)) throw new Error('Download page lost the macOS curl installer');
   const probe = [
     'set -euo pipefail',

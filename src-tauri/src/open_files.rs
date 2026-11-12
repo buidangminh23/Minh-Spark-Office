@@ -221,10 +221,17 @@ pub fn open_default_apps() -> Result<(), String> {
         return open::that_detached("ms-settings:defaultapps?registeredAppUser=MinhSparkOffice")
             .map_err(|_| "Không mở được cài đặt ứng dụng mặc định.".to_string());
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
     {
         Err(
             "Trong Finder: chọn tệp → Get Info → Open with → Minh Spark Office → Change All."
+                .into(),
+        )
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
+    {
+        Err(
+            "Trong trình quản lý tệp: nhấp chuột phải tài liệu → Thuộc tính → Mở bằng → Minh Spark Office → Đặt làm mặc định."
                 .into(),
         )
     }

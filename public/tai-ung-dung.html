@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tải Minh Spark Office cho Windows và macOS</title>
-  <meta name="description" content="Tải Minh Spark Office 0.2.61 cho Windows 10, 11 và macOS Apple Silicon: soạn văn bản, làm bảng tính, trình chiếu và xử lý PDF ngay trên máy, kể cả khi không có mạng." />
+  <title>Tải Minh Spark Office cho Windows, macOS và Linux</title>
+  <meta name="description" content="Tải Minh Spark Office 0.2.61 cho Windows 10, 11, macOS Apple Silicon và Linux x64: soạn văn bản, làm bảng tính, trình chiếu và xử lý PDF ngay trên máy, kể cả khi không có mạng." />
   <meta name="theme-color" content="#2563eb" />
   <link rel="canonical" href="https://office.minhspark.com/tai-ung-dung.html" />
   <link rel="icon" type="image/png" href="/logo-icon.png" />
@@ -47,7 +47,7 @@
     .dl-section-head h2 { margin-bottom: 8px; font-size: clamp(24px, 3vw, 32px); letter-spacing: -.02em; }
     .dl-section-head p { margin: 0; color: var(--ink-2); }
 
-    .dl-platforms { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-items: stretch; }
+    .dl-platforms { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; align-items: stretch; }
     .dl-card { display: flex; flex-direction: column; gap: 24px; padding: 32px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); scroll-margin-top: 24px; }
     .dl-card:target { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-soft); }
     .dl-card-head { display: flex; flex-direction: column; align-items: center; gap: 16px; text-align: center; }
@@ -102,6 +102,9 @@
     .dl-band p { margin: 0; color: var(--ink-2); }
 
     @media (prefers-reduced-motion: reduce) { .dl-faq summary::after { transition: none; } }
+    @media (max-width: 1050px) {
+      .dl-platforms { grid-template-columns: 1fr; }
+    }
     @media (max-width: 900px) {
       .dl-hero { grid-template-columns: 1fr; gap: 48px; padding-top: 48px; }
       .dl-guide-step { grid-template-columns: 1fr; gap: 16px; }
@@ -128,6 +131,7 @@
     <symbol id="i-windows" viewBox="0 0 128 128"><path fill="#0078d4" d="M67.328 67.331h60.669V128H67.328zm-67.325 0h60.669V128H.003zM67.328 0h60.669v60.669H67.328zM.003 0h60.669v60.669H.003z"/></symbol>
     <symbol id="i-windows-white" viewBox="0 0 128 128"><path fill="currentColor" d="M67.328 67.331h60.669V128H67.328zm-67.325 0h60.669V128H.003zM67.328 0h60.669v60.669H67.328zM.003 0h60.669v60.669H.003z"/></symbol>
     <symbol id="i-apple" viewBox="0 0 128 128"><path fill="currentColor" d="M97.905 67.885c.174 18.8 16.494 25.057 16.674 25.137-.138.44-2.607 8.916-8.597 17.669-5.178 7.568-10.553 15.108-19.018 15.266-8.318.152-10.993-4.934-20.504-4.934-9.508 0-12.479 4.776-20.354 5.086-8.172.31-14.395-8.185-19.616-15.724C15.822 94.961 7.669 66.8 18.616 47.791c5.438-9.44 15.158-15.417 25.707-15.571 8.024-.153 15.598 5.398 20.503 5.398 4.902 0 14.106-6.676 23.782-5.696 4.051.169 15.421 1.636 22.722 12.324-.587.365-13.566 7.921-13.425 23.639M82.272 21.719c4.338-5.251 7.258-12.563 6.462-19.836-6.254.251-13.816 4.167-18.301 9.416-4.02 4.647-7.54 12.087-6.591 19.216 6.971.54 14.091-3.542 18.43-8.796"/></symbol>
+    <symbol id="i-monitor" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></g></symbol>
   </svg>
   <div class="seo-page">
     <header class="seo-header">
@@ -137,14 +141,15 @@
     <main>
       <section class="dl-hero" aria-labelledby="download-title">
         <div>
-          <p class="dl-eyebrow">Bản 0.2.61 · Windows và macOS</p>
+          <p class="dl-eyebrow">Bản 0.2.61 · Windows, macOS và Linux</p>
           <h1 id="download-title">Cả bộ văn phòng,<br />ngay trên máy tính.</h1>
           <p class="seo-lead">Minh Docs, Minh Sheets, Minh Slides và Minh PDF trong một ứng dụng. Mở từ màn hình desktop, làm việc cả khi không có mạng và tự đồng bộ với bản web khi kết nối lại.</p>
           <div class="dl-actions">
             <a class="dl-btn dl-btn-primary" id="hero-primary" href="#windows" data-platform="auto"><svg aria-hidden="true"><use href="#i-windows-white" /></svg><span>Tải cho Windows</span></a>
             <a class="dl-btn dl-btn-ghost" id="hero-secondary" href="#macos"><svg aria-hidden="true"><use href="#i-apple" /></svg><span>Tải cho macOS</span></a>
+            <a class="dl-btn dl-btn-ghost" id="hero-tertiary" href="#linux"><svg aria-hidden="true"><use href="#i-monitor" /></svg><span>Tải cho Linux</span></a>
           </div>
-          <p class="dl-meta" id="hero-meta">Miễn phí · Windows 10 / 11 x64 · macOS 13.3+ Apple Silicon</p>
+          <p class="dl-meta" id="hero-meta">Miễn phí · Windows x64 · macOS Apple Silicon · Linux x64</p>
         </div>
         <figure class="dl-shot">
           <div class="dl-window">
@@ -168,7 +173,7 @@
       <section class="dl-section" aria-labelledby="platform-title">
         <div class="dl-section-head">
           <h2 id="platform-title">Chọn hệ điều hành</h2>
-          <p>Hai bản dùng chung tài khoản và kho tài liệu với bản web. Sau lần cài đầu, ứng dụng tự cập nhật.</p>
+          <p>Các bản dùng chung tài khoản và kho tài liệu với bản web. Windows, macOS và Linux hỗ trợ cập nhật trong ứng dụng.</p>
         </div>
         <div class="dl-platforms">
           <article class="dl-card" id="windows" aria-labelledby="installer-title">
@@ -209,6 +214,49 @@
               <div><dt>Lượt tải</dt><dd data-stat="downloadsMac">—</dd></div>
             </dl>
           </article>
+          <article class="dl-card" id="linux" aria-labelledby="linux-installer-title">
+            <div class="dl-card-head">
+              <span class="dl-os"><svg aria-hidden="true"><use href="#i-monitor" /></svg></span>
+              <div><h3 id="linux-installer-title">Linux</h3><p>Ubuntu 22.04+ / Debian 12+, 64-bit</p></div>
+            </div>
+            <div class="dl-card-body">
+              <p>Chọn DEB để cài vào menu ứng dụng hoặc AppImage để chạy từ một tệp.</p>
+              <a class="dl-btn dl-btn-primary" href="/api/download?file=MinhSparkOffice-0.2.61-linux-x64.deb" download><svg aria-hidden="true"><use href="#i-monitor" /></svg>Tải gói DEB</a>
+              <a class="dl-btn dl-btn-ghost" href="/api/download?file=MinhSparkOffice-0.2.61-linux-x64.AppImage" download>Tải AppImage</a>
+              <div class="dl-alt"><a href="#linux-setup">Hướng dẫn cài Linux</a><a href="/downloads/SHA256SUMS.txt">Kiểm tra SHA-256</a></div>
+              <p class="dl-hint">Cả DEB và AppImage hỗ trợ cập nhật trong ứng dụng. DEB có thể yêu cầu quyền quản trị. Cũng có thể tải và cài gói DEB mới để cập nhật.</p>
+            </div>
+            <dl class="dl-specs">
+              <div><dt>Phiên bản</dt><dd>0.2.61</dd></div>
+              <div><dt>Kiến trúc</dt><dd>x64 (AMD64)</dd></div>
+              <div><dt>Lượt tải</dt><dd data-stat="downloadsLinux">—</dd></div>
+            </dl>
+          </article>
+        </div>
+      </section>
+
+      <section class="dl-section" id="linux-setup" aria-labelledby="linux-steps-title">
+        <div class="dl-section-head">
+          <h2 id="linux-steps-title">Cài đặt trên Linux</h2>
+          <p>Dành cho máy dùng CPU Intel hoặc AMD 64-bit. Máy ARM hiện dùng <a href="/">bản web</a>.</p>
+        </div>
+        <div class="dl-faq">
+          <details open>
+            <summary>Ubuntu / Debian: cài gói DEB</summary>
+            <div class="dl-faq-body">
+              <p>Tải gói DEB, mở Terminal tại thư mục chứa tệp rồi chạy:</p>
+              <div class="dl-command"><code id="linux-deb-command">sudo apt install ./MinhSparkOffice-0.2.61-linux-x64.deb</code><button type="button" data-copy="linux-deb-command" aria-label="Sao chép lệnh cài DEB">Sao chép</button></div>
+              <p>APT cài các thư viện cần thiết. Sau đó mở Minh Spark Office từ menu ứng dụng. Khi cập nhật trong ứng dụng, máy có thể yêu cầu quyền quản trị. Hoặc tải gói DEB mới và chạy lại lệnh cài.</p>
+            </div>
+          </details>
+          <details>
+            <summary>Chạy tệp AppImage</summary>
+            <div class="dl-faq-body">
+              <p>Tải AppImage vào thư mục có quyền ghi của tài khoản, mở Terminal tại thư mục đó rồi cấp quyền chạy:</p>
+              <div class="dl-command"><code id="linux-appimage-command">chmod +x MinhSparkOffice-0.2.61-linux-x64.AppImage &amp;&amp; ./MinhSparkOffice-0.2.61-linux-x64.AppImage</code><button type="button" data-copy="linux-appimage-command" aria-label="Sao chép lệnh chạy AppImage">Sao chép</button></div>
+              <p>Nếu máy báo thiếu FUSE, chạy với <code>--appimage-extract-and-run</code>. AppImage vẫn cần môi trường desktop Linux tương thích; không dành cho máy ARM hoặc hệ thống chỉ có dòng lệnh.</p>
+            </div>
+          </details>
         </div>
       </section>
 
