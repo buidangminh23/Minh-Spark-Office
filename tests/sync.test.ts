@@ -19,12 +19,13 @@ class FakeRemote implements RemoteWorkspace {
   check() { if (!this.online) throw Object.assign(new Error('Offline'), { code: 'unavailable' }); }
   async list() { this.check(); return [...this.records.values()].map(({ id, revision, deleted }) => ({ id, revision, deleted })); }
   async read(id: string) { this.check(); return structuredClone(this.records.get(id) ?? null); }
-  async write(record: RemoteRecord, expected: string | null) {
+  async write(record: RemoteRecord, expected: string | null, planned?: string) {
     this.check();
     await this.beforeWrite?.();
     const current = this.records.get(record.id) ?? null;
+    if (planned && current?.revision === planned) return planned;
     if ((current?.revision ?? null) !== expected) throw new RemoteConflictError(structuredClone(current));
-    const revision = `${++this.revision}`;
+    const revision = planned ?? `${++this.revision}`;
     this.records.set(record.id, structuredClone({ ...record, revision }));
     for (const listener of this.listeners) listener();
     return revision;
@@ -69,6 +70,9 @@ test('offline outbox survives reopening and uploads backup imports', async () =>
   remote.online = false;
   const device = client(remote);
   await device.workspace.saveFile(meta('offline'), content('saved offline'));
+  await device.workspace.syncNow();
+  assert.equal(device.workspace.getStatus().state, 'syncing');
+  await device.workspace.syncNow();
   await device.workspace.syncNow();
   assert.equal(device.workspace.getStatus().state, 'offline');
   const reopened = device.reopen();
@@ -296,7 +300,7 @@ test('an interrupted remote adoption is replayed on reopening', async () => {
   const device = client(remote);
   const broken = { ...device.local, replaceFile: async () => { throw new Error('Interrupted download'); } };
   const b = createSyncedWorkspace('download-crash', broken, remote, device.state);
-  await b.syncNow();
+  for (let attempt = 0; attempt < 3; attempt++) await b.syncNow();
   assert.equal(b.getStatus().state, 'error');
   const recovered = device.reopen();
   assert.deepEqual(await recovered.loadContent('incoming'), content('remote contents'));
@@ -361,7 +365,7 @@ test('a file rejected by the cloud stays local without blocking other pending fi
   const write = remote.write.bind(remote);
   let rejected = 0;
   remote.write = async (record, expected) => {
-    if (record.id === 'too-large') { rejected++; throw new Error('Tài liệu quá lớn để đồng bộ. Bản cục bộ vẫn được giữ.'); }
+    if (record.id === 'too-large') { rejected++; throw new Error('cloud/payload-too-large: record exceeds the sync limit'); }
     return write(record, expected);
   };
   const a = client(remote).workspace;
@@ -373,6 +377,12 @@ test('a file rejected by the cloud stays local without blocking other pending fi
   assert.deepEqual(await a.loadContent('too-large'), content('large file'));
   assert.equal(a.getStatus().pending, 1);
   assert.equal(a.getStatus().state, 'error');
+  await a.syncNow();
+  assert.equal(rejected, 1);
+  assert.equal(a.getStatus().state, 'error');
+  await a.saveFile(meta('too-large'), content('smaller file'));
+  await a.syncNow();
+  assert.equal(rejected, 2);
 });
 
 test('remote adoption retries in the same engine after a temporary local write failure', async () => {
@@ -388,7 +398,7 @@ test('remote adoption retries in the same engine after a temporary local write f
   } };
   const target = createSyncedWorkspace('retry-account', storage, remote, device.state);
   await target.syncNow();
-  assert.equal(target.getStatus().state, 'error');
+  assert.equal(target.getStatus().state, 'syncing');
   await target.syncNow();
   assert.deepEqual(await target.loadContent('retry-incoming'), content('remote copy'));
   assert.equal(target.getStatus().state, 'synced');
@@ -515,4 +525,156 @@ test('the outbox keeps large records out of the state blob and still reads them 
   assert.deepEqual((await keys(raw)).map(String), ['state']);
   await set('state', { bases: {}, pending: { legacy: { generation: 3, record: { ...record, id: 'legacy' } } }, generation: 3 }, raw);
   assert.equal((await createSyncStateStore(device).read()).pending.legacy.record.id, 'legacy');
+});
+
+test('a single transient failure stays quiet and repeated failures become visible', async () => {
+  const remote = new FakeRemote();
+  const device = client(remote).workspace;
+  await device.saveFile(meta('quiet'), content('quiet'));
+  remote.online = false;
+  await device.syncNow();
+  assert.equal(device.getStatus().state, 'syncing');
+  remote.online = true;
+  await device.syncNow();
+  assert.equal(device.getStatus().state, 'synced');
+  remote.online = false;
+  await device.syncNow(); await device.syncNow();
+  assert.equal(device.getStatus().state, 'syncing');
+  await device.syncNow();
+  assert.equal(device.getStatus().state, 'offline');
+});
+
+test('a save that reached the cloud before the reply was lost is adopted instead of becoming a conflict', async () => {
+  const remote = new FakeRemote();
+  const device = client(remote).workspace;
+  await device.saveFile(meta('lost-ack'), content('first'));
+  await device.syncNow();
+  device.setActiveFile('lost-ack');
+  await device.saveFile(meta('lost-ack'), content('second'));
+  const write = remote.write.bind(remote);
+  let dropReply = true;
+  remote.write = async (record, expected, planned) => {
+    const revision = await write(record, expected, planned);
+    if (dropReply) { dropReply = false; throw Object.assign(new Error('Network dropped'), { code: 'unavailable' }); }
+    return revision;
+  };
+  await device.syncNow();
+  await device.saveFile(meta('lost-ack'), content('third'));
+  await device.syncNow();
+  assert.equal(device.getStatus().state, 'synced');
+  assert.equal(device.getStatus().message, undefined);
+  device.setActiveFile(null);
+  await device.syncNow();
+  assert.deepEqual((await device.listFiles()).map((file) => file.name), ['lost-ack.docx']);
+  assert.deepEqual(remote.records.get('lost-ack')?.content, content('third'));
+});
+
+test('a star or rename from Home while the file is open in a tab never creates a conflict copy', async () => {
+  const remote = new FakeRemote();
+  const device = client(remote);
+  const home = device.workspace;
+  const tab = device.reopen();
+  await home.saveFile(meta('shared'), content('start'));
+  await home.syncNow();
+  tab.setActiveFile('shared');
+  home.setOpenFiles(['shared']);
+  await tab.saveFile(meta('shared'), content('tab edit'));
+  await home.updateMeta('shared', { starred: true });
+  await tab.saveFile(meta('shared'), content('tab edit 2'));
+  await home.syncNow();
+  await home.updateMeta('shared', { name: 'renamed.docx' });
+  await home.syncNow();
+  await tab.saveFile({ ...meta('shared'), name: 'renamed.docx' }, content('tab edit 3'));
+  await home.syncNow();
+  assert.equal(home.getStatus().state, 'synced');
+  tab.setActiveFile(null);
+  home.setOpenFiles([]);
+  await home.syncNow();
+  const files = await home.listFiles();
+  assert.deepEqual(files.map((file) => file.name), ['renamed.docx']);
+  assert.equal(files[0].starred, true);
+  assert.deepEqual(remote.records.get('shared')?.content, content('tab edit 3'));
+});
+
+test('opening a file updates only the local list and uploads nothing', async () => {
+  const remote = new FakeRemote();
+  const device = client(remote).workspace;
+  await device.saveFile(meta('opened'), content('body'));
+  await device.syncNow();
+  let writes = 0;
+  const write = remote.write.bind(remote);
+  remote.write = async (...args) => { writes++; return write(...args); };
+  await device.updateMeta('opened', { openedAt: 99 });
+  assert.equal(device.getStatus().pending, 0);
+  await device.syncNow();
+  assert.equal(writes, 0);
+  assert.equal((await device.listFiles())[0].openedAt, 99);
+});
+
+test('a dropped change listener is opened again', async () => {
+  const remote = new FakeRemote();
+  let subscriptions = 0;
+  let failListener: ((error: unknown) => void) | undefined;
+  remote.subscribe = (callback, onError) => { subscriptions++; failListener = onError; remote.listeners.add(callback); return () => { remote.listeners.delete(callback); }; };
+  const device = client(remote).workspace;
+  const stop = device.start();
+  try {
+    assert.equal(subscriptions, 1);
+    failListener?.(Object.assign(new Error('listen stream closed'), { code: 'unavailable' }));
+    await new Promise((resolve) => setTimeout(resolve, 4000));
+    assert.equal(subscriptions, 2);
+  } finally {
+    stop();
+  }
+});
+
+test('a Home change made before another device edited the file does not rebase a later tab edit onto it', async () => {
+  const remote = new FakeRemote();
+  const device = client(remote);
+  const home = device.workspace;
+  const other = client(remote).workspace;
+  await home.saveFile(meta('later'), content('v1'));
+  await home.syncNow();
+  await home.updateMeta('later', { starred: true });
+  await home.syncNow();
+  await other.syncNow();
+  await other.saveFile({ ...meta('later'), starred: true }, content('v2 from other device'));
+  await other.syncNow();
+  await home.syncNow();
+  const tab = device.reopen();
+  tab.setActiveFile('later');
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  await tab.saveFile({ ...meta('later'), starred: true }, content('v3 typed on v2'));
+  await home.syncNow();
+  tab.setActiveFile(null);
+  await home.syncNow();
+  assert.deepEqual((await home.listFiles()).map((file) => file.name), ['later.docx']);
+  assert.deepEqual(remote.records.get('later')?.content, content('v3 typed on v2'));
+});
+
+test('a permanent read error is reported and retried instead of being treated as synced', async () => {
+  const remote = new FakeRemote();
+  const source = client(remote).workspace;
+  await source.saveFile(meta('unreadable'), content('remote'));
+  await source.syncNow();
+  remote.read = async () => { throw new Error('cloud/invalid-data: Invalid cloud manifest or chunk'); };
+  const target = client(remote).workspace;
+  await target.syncNow();
+  assert.equal(target.getStatus().state, 'error');
+});
+
+test('a permission error is retried later instead of blocking the change for good', async () => {
+  const remote = new FakeRemote();
+  const write = remote.write.bind(remote);
+  let deny = true;
+  remote.write = async (...args) => {
+    if (deny) { deny = false; throw Object.assign(new Error('Missing or insufficient permissions.'), { code: 'permission-denied' }); }
+    return write(...args);
+  };
+  const device = client(remote);
+  await device.workspace.saveFile(meta('denied'), content('body'));
+  await device.workspace.syncNow();
+  assert.equal(device.workspace.getStatus().state, 'error');
+  await device.reopen().syncNow();
+  assert.deepEqual(remote.records.get('denied')?.content, content('body'));
 });

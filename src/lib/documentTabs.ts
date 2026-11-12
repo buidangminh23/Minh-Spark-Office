@@ -36,6 +36,7 @@ export type TabHost = {
   openIds(): string[];
   subscribe(id: string, listener: (ids: string[]) => void): () => void;
   print(request: NativePrintRequest, frame: Window): Promise<PrintResult>;
+  workspace(): unknown;
 };
 
 export function tabFrameId(win: Window = window): string | null {

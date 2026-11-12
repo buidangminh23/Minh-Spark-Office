@@ -1,6 +1,7 @@
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { createDraftWorkspaceStorage, useWorkspace, type FileMeta } from '../lib/storage';
 import { syncedWorkspace } from '../lib/workspaces';
+import { tabFrameId, tabHost } from '../lib/documentTabs';
 import { useAccount } from './Authentication';
 import { useUi } from './ui';
 import type { SyncStatus } from '../lib/syncTypes';
@@ -15,11 +16,23 @@ export function openDraftImport() {
   window.dispatchEvent(new Event(openDraftsEvent));
 }
 
+function frameSubscribe(shell: NonNullable<ReturnType<typeof syncedWorkspace>>) {
+  return (listener: () => void) => {
+    const release = shell.subscribe(listener);
+    const leave = () => release();
+    window.addEventListener('pagehide', leave, { once: true });
+    return () => { window.removeEventListener('pagehide', leave); release(); };
+  };
+}
+
 export function useWorkspaceSync() {
   const storage = useWorkspace();
-  const sync = syncedWorkspace(storage);
+  const own = syncedWorkspace(storage);
+  const shell = tabFrameId() ? syncedWorkspace(tabHost()?.workspace()) : null;
+  const sync = shell ?? own;
   const { user, login } = useAccount();
-  const status = useSyncExternalStore(sync?.subscribe ?? noSubscribe, sync?.getStatus ?? getDraftStatus);
+  const subscribe = useMemo(() => (shell ? frameSubscribe(shell) : sync?.subscribe ?? noSubscribe), [shell, sync]);
+  const status = useSyncExternalStore(subscribe, sync?.getStatus ?? getDraftStatus);
   return { user, login, status, syncNow: () => void sync?.syncNow() };
 }
 

@@ -11,7 +11,7 @@ export function accountWorkspace(uid: string) {
   const remote: RemoteWorkspace = {
     list: async () => (await connect()).list(),
     read: async (id) => (await connect()).read(id),
-    write: async (record, revision) => (await connect()).write(record, revision),
+    write: async (record, revision, planned) => (await connect()).write(record, revision, planned),
     subscribe(onChange, onError) {
       let active = true;
       let stop: (() => void) | undefined;
