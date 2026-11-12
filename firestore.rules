@@ -79,6 +79,160 @@ service cloud.firestore {
       allow update: if publicCounter(counter) && request.resource.data.keys().hasOnly(['count']) && request.resource.data.count == resource.data.count + 1;
       allow delete: if false;
     }
+    function signedIn() {
+      return request.auth != null;
+    }
+    function myEmail() {
+      return request.auth.token.email.lower();
+    }
+    function verifiedEmail() {
+      return signedIn() && request.auth.token.email is string && request.auth.token.email_verified == true;
+    }
+    function roleRank(role) {
+      return role == 'owner' ? 4 : (role == 'admin' ? 3 : (role == 'editor' ? 2 : (role == 'viewer' ? 1 : 0)));
+    }
+    function teamDoc(teamId) {
+      return /databases/$(database)/documents/teams/$(teamId);
+    }
+    function memberDoc(teamId, uid) {
+      return /databases/$(database)/documents/teams/$(teamId)/members/$(uid);
+    }
+    function inviteDoc(teamId, inviteId) {
+      return /databases/$(database)/documents/teams/$(teamId)/invites/$(inviteId);
+    }
+    function itemDoc(teamId, itemId) {
+      return /databases/$(database)/documents/teams/$(teamId)/items/$(itemId);
+    }
+    function isMember(teamId) {
+      return signedIn() && exists(memberDoc(teamId, request.auth.uid));
+    }
+    function myRank(teamId) {
+      return isMember(teamId) ? roleRank(get(memberDoc(teamId, request.auth.uid)).data.role) : 0;
+    }
+    function shortText(value, min, max) {
+      return value is string && value.size() >= min && value.size() <= max;
+    }
+    function validTeam(data) {
+      return data.keys().hasAll(['name', 'description', 'color', 'ownerUid', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['name', 'description', 'color', 'ownerUid', 'createdAt', 'updatedAt'])
+        && shortText(data.name, 1, 80) && data.name.matches('.*[^ ].*') && shortText(data.description, 0, 500)
+        && data.color is string && data.color.matches('^#[0-9a-f]{6}$')
+        && data.ownerUid is string && data.createdAt is timestamp && data.updatedAt == request.time;
+    }
+    function validMember(data, uid) {
+      return data.keys().hasAll(['uid', 'email', 'name', 'photoURL', 'role', 'joinedAt', 'inviteId'])
+        && data.keys().hasOnly(['uid', 'email', 'name', 'photoURL', 'role', 'joinedAt', 'inviteId'])
+        && data.uid == uid && shortText(data.email, 0, 320) && shortText(data.name, 0, 120) && shortText(data.photoURL, 0, 2048)
+        && data.role in ['owner', 'admin', 'editor', 'viewer'] && data.joinedAt is timestamp && shortText(data.inviteId, 0, 40);
+    }
+    function validInvite(teamId, data) {
+      return data.keys().hasAll(['email', 'role', 'invitedBy', 'invitedByName', 'teamName', 'createdAt', 'expireAt'])
+        && data.keys().hasOnly(['email', 'role', 'invitedBy', 'invitedByName', 'teamName', 'createdAt', 'expireAt'])
+        && shortText(data.email, 3, 254) && data.email.matches('^[a-z0-9._%+-]+@[a-z0-9.-]+[.][a-z]{2,}$')
+        && data.role in ['admin', 'editor', 'viewer'] && data.invitedBy == request.auth.uid && shortText(data.invitedByName, 0, 120)
+        && data.teamName == get(teamDoc(teamId)).data.name && data.createdAt == request.time
+        && data.expireAt is timestamp && data.expireAt > request.time && data.expireAt <= request.time + duration.value(7, 'd');
+    }
+    function validItem(data) {
+      return data.keys().hasAll(['type', 'name', 'kind', 'description', 'category', 'authorUid', 'authorName', 'createdAt', 'updatedAt', 'updatedBy', 'updatedByName', 'revision', 'chunkCount', 'compressedBytes', 'uncompressedBytes', 'sha256', 'preview', 'size'])
+        && data.keys().hasOnly(['type', 'name', 'kind', 'description', 'category', 'authorUid', 'authorName', 'createdAt', 'updatedAt', 'updatedBy', 'updatedByName', 'revision', 'chunkCount', 'compressedBytes', 'uncompressedBytes', 'sha256', 'preview', 'size'])
+        && data.type in ['template', 'document'] && data.kind in ['doc', 'sheet', 'slide']
+        && shortText(data.name, 1, 200) && shortText(data.description, 0, 1000) && shortText(data.category, 0, 60)
+        && data.authorUid is string && shortText(data.authorName, 0, 120) && data.createdAt is timestamp
+        && data.updatedAt == request.time && data.updatedBy == request.auth.uid && shortText(data.updatedByName, 0, 120)
+        && validRevision(data.revision) && data.chunkCount is int && data.chunkCount >= 1 && data.chunkCount <= 60
+        && data.compressedBytes is int && data.compressedBytes >= 1 && data.compressedBytes <= data.chunkCount * 450000
+        && data.compressedBytes > (data.chunkCount - 1) * 450000
+        && data.uncompressedBytes is int && data.uncompressedBytes >= 1 && data.uncompressedBytes <= 134217728
+        && data.sha256 is string && data.sha256.matches('^[a-f0-9]{64}$') && shortText(data.preview, 0, 2000) && safeNumber(data.size);
+    }
+    function sameStoredPayload(after, before) {
+      return after.revision == before.revision && after.chunkCount == before.chunkCount && after.compressedBytes == before.compressedBytes
+        && after.uncompressedBytes == before.uncompressedBytes && after.sha256 == before.sha256;
+    }
+    match /{path=**}/members/{memberId} {
+      allow read: if signedIn() && resource.data.uid == request.auth.uid;
+    }
+    match /{path=**}/invites/{inviteId} {
+      allow read: if verifiedEmail() && resource.data.email == myEmail();
+    }
+    match /teams/{teamId} {
+      allow read: if isMember(teamId);
+      allow create: if signedIn() && teamId.matches('^[A-Za-z0-9_-]{20}$') && validTeam(request.resource.data)
+        && request.resource.data.ownerUid == request.auth.uid && request.resource.data.createdAt == request.time
+        && existsAfter(memberDoc(teamId, request.auth.uid)) && getAfter(memberDoc(teamId, request.auth.uid)).data.role == 'owner';
+      allow update: if myRank(teamId) == 4 && validTeam(request.resource.data) && request.resource.data.createdAt == resource.data.createdAt
+        && (request.resource.data.ownerUid == resource.data.ownerUid
+          || (exists(memberDoc(teamId, request.resource.data.ownerUid))
+            && getAfter(memberDoc(teamId, request.resource.data.ownerUid)).data.role == 'owner'
+            && getAfter(memberDoc(teamId, request.auth.uid)).data.role == 'admin'));
+      allow delete: if myRank(teamId) == 4;
+
+      match /members/{uid} {
+        allow read: if isMember(teamId);
+        allow create: if signedIn() && uid == request.auth.uid && validMember(request.resource.data, uid) && request.resource.data.joinedAt == request.time
+          && ((request.resource.data.role == 'owner' && request.resource.data.inviteId == '' && !exists(teamDoc(teamId))
+              && existsAfter(teamDoc(teamId)) && getAfter(teamDoc(teamId)).data.ownerUid == uid)
+            || (verifiedEmail() && request.resource.data.email == myEmail() && request.resource.data.inviteId.matches('^[A-Za-z0-9_-]{24}$')
+              && exists(inviteDoc(teamId, request.resource.data.inviteId))
+              && get(inviteDoc(teamId, request.resource.data.inviteId)).data.email == myEmail()
+              && get(inviteDoc(teamId, request.resource.data.inviteId)).data.expireAt > request.time
+              && get(inviteDoc(teamId, request.resource.data.inviteId)).data.role == request.resource.data.role
+              && !existsAfter(inviteDoc(teamId, request.resource.data.inviteId))));
+        allow update: if validMember(request.resource.data, uid) && (
+          (uid == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'photoURL']))
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role']) && (
+            (uid != request.auth.uid && myRank(teamId) >= 3 && roleRank(resource.data.role) < myRank(teamId)
+              && request.resource.data.role != 'owner' && roleRank(request.resource.data.role) < myRank(teamId))
+            || (myRank(teamId) == 4 && uid != request.auth.uid && request.resource.data.role == 'owner'
+              && getAfter(teamDoc(teamId)).data.ownerUid == uid)
+            || (myRank(teamId) == 4 && uid == request.auth.uid && request.resource.data.role == 'admin'
+              && getAfter(teamDoc(teamId)).data.ownerUid != uid
+              && getAfter(memberDoc(teamId, getAfter(teamDoc(teamId)).data.ownerUid)).data.role == 'owner'))));
+        allow delete: if signedIn() && (
+          (uid == request.auth.uid && (resource.data.role != 'owner' || !exists(teamDoc(teamId))))
+          || (uid != request.auth.uid && myRank(teamId) >= 3 && roleRank(resource.data.role) < myRank(teamId)));
+      }
+
+      match /invites/{inviteId} {
+        allow read: if isMember(teamId) || (verifiedEmail() && resource.data.email == myEmail());
+        allow create: if inviteId.matches('^[A-Za-z0-9_-]{24}$') && myRank(teamId) >= 3
+          && roleRank(request.resource.data.role) < myRank(teamId) && validInvite(teamId, request.resource.data);
+        allow update: if false;
+        allow delete: if myRank(teamId) >= 3 || (verifiedEmail() && resource.data.email == myEmail());
+      }
+
+      match /items/{itemId} {
+        allow read: if isMember(teamId);
+        allow create: if itemId.matches('^[A-Za-z0-9_-]{20}$') && myRank(teamId) >= 2 && validItem(request.resource.data)
+          && request.resource.data.authorUid == request.auth.uid && request.resource.data.createdAt == request.time;
+        allow update: if myRank(teamId) >= 2 && validItem(request.resource.data)
+          && request.resource.data.authorUid == resource.data.authorUid && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.type == resource.data.type && request.resource.data.kind == resource.data.kind
+          && (resource.data.type == 'document' || resource.data.authorUid == request.auth.uid || myRank(teamId) >= 3)
+          && (request.resource.data.revision != resource.data.revision || sameStoredPayload(request.resource.data, resource.data));
+        allow delete: if (myRank(teamId) >= 2 && resource.data.authorUid == request.auth.uid) || myRank(teamId) >= 3;
+
+        match /chunks/{chunkId} {
+          function chunkRevision() {
+            return chunkId.split('_')[0];
+          }
+          function notLiveRevision() {
+            return !exists(itemDoc(teamId, itemId)) || get(itemDoc(teamId, itemId)).data.revision != chunkRevision();
+          }
+          allow read: if isMember(teamId);
+          allow create: if myRank(teamId) >= 2
+            && chunkId.matches('^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}_([0-9]|[1-5][0-9])$')
+            && request.resource.data.keys().hasAll(['revision', 'index', 'data']) && request.resource.data.keys().hasOnly(['revision', 'index', 'data'])
+            && request.resource.data.revision == chunkRevision() && request.resource.data.index is int
+            && chunkId == request.resource.data.revision + '_' + string(request.resource.data.index)
+            && request.resource.data.data is string && request.resource.data.data.size() > 0 && request.resource.data.data.size() <= 600000
+            && request.resource.data.data.matches('^[A-Za-z0-9+/]*={0,2}$') && notLiveRevision();
+          allow update: if false;
+          allow delete: if myRank(teamId) >= 2 && notLiveRevision();
+        }
+      }
+    }
     match /users/{uid}/files/{fileId} {
       allow read: if owner(uid);
       allow create: if owner(uid) && validManifest(request.resource.data, fileId);
