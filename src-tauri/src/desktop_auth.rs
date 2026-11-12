@@ -10,11 +10,13 @@ use std::convert::Infallible;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use subtle::ConstantTimeEq;
-use tokio::net::TcpListener;
+use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Notify;
+use tokio::task::JoinSet;
 use tokio::time::timeout;
 
 const ORIGIN_URL: &str = "https://office.minhspark.com";
+const MAX_CONNECTIONS: usize = 8;
 const MAX_BODY: usize = 16_384;
 const LOGIN_TIMEOUT: Duration = Duration::from_secs(300);
 const CONNECTION_TIMEOUT: Duration = Duration::from_secs(8);
@@ -199,43 +201,45 @@ async fn listen_for_token(
     port: u16,
     state: Arc<String>,
 ) -> Result<String, String> {
+    let mut connections = JoinSet::new();
     loop {
-        let (stream, address) = listener
-            .accept()
-            .await
-            .map_err(|_| "auth/desktop-listener".to_string())?;
-        if !address.ip().is_loopback() {
-            continue;
-        }
-        let result = Arc::new(Mutex::new(None));
-        let callback_result = result.clone();
-        let callback_state = state.clone();
-        let service = service_fn(move |request| {
-            handle_callback(
-                request,
-                port,
-                callback_state.clone(),
-                callback_result.clone(),
-            )
-        });
-        let mut builder = http1::Builder::new();
-        builder
-            .keep_alive(false)
-            .max_headers(32)
-            .max_buf_size(16_384);
-        let _ = timeout(
-            CONNECTION_TIMEOUT,
-            builder.serve_connection(TokioIo::new(stream), service),
-        )
-        .await;
-        let token = result
-            .lock()
-            .unwrap_or_else(|error| error.into_inner())
-            .take();
-        if let Some(token) = token {
-            return Ok(token);
+        tokio::select! {
+            accepted = listener.accept(), if connections.len() < MAX_CONNECTIONS => {
+                let (stream, address) = accepted.map_err(|_| "auth/desktop-listener".to_string())?;
+                if address.ip().is_loopback() {
+                    connections.spawn(serve_connection(stream, port, state.clone()));
+                }
+            }
+            Some(finished) = connections.join_next() => {
+                if let Ok(Some(token)) = finished {
+                    return Ok(token);
+                }
+            }
         }
     }
+}
+
+async fn serve_connection(stream: TcpStream, port: u16, state: Arc<String>) -> Option<String> {
+    let result = Arc::new(Mutex::new(None));
+    let callback_result = result.clone();
+    let service = service_fn(move |request| {
+        handle_callback(request, port, state.clone(), callback_result.clone())
+    });
+    let mut builder = http1::Builder::new();
+    builder
+        .keep_alive(false)
+        .max_headers(32)
+        .max_buf_size(16_384);
+    let _ = timeout(
+        CONNECTION_TIMEOUT,
+        builder.serve_connection(TokioIo::new(stream), service),
+    )
+    .await;
+    let token = result
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .take();
+    token
 }
 
 fn bring_to_front(window: &tauri::WebviewWindow) {
@@ -293,7 +297,36 @@ pub fn cancel_desktop_sign_in(login: tauri::State<'_, DesktopLogin>) {
 mod tests {
     use super::*;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    use tokio::net::TcpStream;
+
+    #[tokio::test]
+    async fn idle_connections_do_not_block_the_callback() {
+        let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0))
+            .await
+            .unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let task = tokio::spawn(listen_for_token(
+            listener,
+            port,
+            Arc::new("expected".to_string()),
+        ));
+        let mut idle = Vec::new();
+        for _ in 0..3 {
+            idle.push(
+                TcpStream::connect((std::net::Ipv4Addr::LOCALHOST, port))
+                    .await
+                    .unwrap(),
+            );
+        }
+        let accepted = timeout(
+            Duration::from_secs(2),
+            post(port, ORIGIN_URL, "state=expected&idToken=abc.def.ghi"),
+        )
+        .await
+        .unwrap();
+        assert!(accepted.starts_with("HTTP/1.1 200"));
+        assert_eq!(task.await.unwrap().unwrap(), "abc.def.ghi");
+        drop(idle);
+    }
 
     async fn post(port: u16, origin: &str, body: &str) -> String {
         let mut stream = TcpStream::connect((std::net::Ipv4Addr::LOCALHOST, port))

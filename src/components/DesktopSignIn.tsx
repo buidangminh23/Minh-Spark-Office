@@ -29,10 +29,14 @@ export function DesktopSignIn() {
     initializeAuthentication().then((value) => { if (active) setAuth(value); }).catch((failure: unknown) => {
       if (active) setError(authenticationError(failure));
     });
-    const timer = window.setTimeout(() => { setExpired(true); setCredential(null); }, 5 * 60 * 1000);
+    const expire = () => { setExpired(true); setCredential(null); };
+    const restored = (event: PageTransitionEvent) => { if (event.persisted) expire(); };
+    const timer = window.setTimeout(expire, 5 * 60 * 1000);
+    window.addEventListener('pageshow', restored);
     return () => {
       active = false;
       window.clearTimeout(timer);
+      window.removeEventListener('pageshow', restored);
       if (existingPolicy) existingPolicy.content = previousPolicy || '';
       else policy.remove();
     };
