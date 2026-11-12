@@ -8,14 +8,14 @@ export async function openWebApp() {
   await invoke<void>('open_web_app');
 }
 
-export async function desktopGoogleToken() {
+export async function openDesktopSignIn(publicKey: string) {
   try {
-    return await invoke<string>('desktop_google_sign_in');
+    await invoke<void>('desktop_google_sign_in', { publicKey });
   } catch (error) {
-    throw new Error(typeof error === 'string' ? error : 'auth/desktop-failed');
+    throw new Error(typeof error === 'string' ? error : 'auth/desktop-browser');
   }
 }
 
-export async function cancelDesktopSignIn() {
-  await invoke<void>('cancel_desktop_sign_in');
+export async function focusDesktopWindow() {
+  await invoke<void>('desktop_sign_in_received').catch(() => undefined);
 }

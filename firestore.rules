@@ -50,6 +50,26 @@ service cloud.firestore {
           || (resource.data.day != usageDay() && request.resource.data.count == 1));
       allow delete: if false;
     }
+    function desktopLoginId(id) {
+      return id.matches('^[A-Za-z0-9_-]{43}$');
+    }
+    function validDesktopLogin(data) {
+      return data.keys().hasAll(['ephemeralKey', 'iv', 'ciphertext', 'createdAt', 'expireAt'])
+        && data.keys().hasOnly(['ephemeralKey', 'iv', 'ciphertext', 'createdAt', 'expireAt'])
+        && data.ephemeralKey is string && data.ephemeralKey.matches('^B[A-Za-z0-9_-]{86}$')
+        && data.iv is string && data.iv.matches('^[A-Za-z0-9_-]{16}$')
+        && data.ciphertext is string && data.ciphertext.size() >= 32 && data.ciphertext.size() <= 8192
+        && data.ciphertext.matches('^[A-Za-z0-9_-]+$')
+        && data.createdAt == request.time
+        && data.expireAt is timestamp && data.expireAt > request.time && data.expireAt <= request.time + duration.value(15, 'm');
+    }
+    match /desktopLogins/{id} {
+      allow get: if desktopLoginId(id);
+      allow list: if false;
+      allow create: if request.auth != null && desktopLoginId(id) && validDesktopLogin(request.resource.data);
+      allow update: if false;
+      allow delete: if desktopLoginId(id);
+    }
     function publicCounter(counter) {
       return counter in ['downloadsWindows', 'downloadsMac', 'users'];
     }

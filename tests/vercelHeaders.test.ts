@@ -3,7 +3,6 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { videoEmbedUrl } from '../src/editors/doc/insertNodes';
 import { PYODIDE_INDEX_URL } from '../src/lib/python/protocol';
-import { desktopSignInTarget } from '../src/lib/desktopAuth.ts';
 import { VERSION_FILES, bumpVersionText, nextPatchVersion } from '../scripts/release-lib.mjs';
 
 type Rule = { source: string; headers: { key: string; value: string }[] };
@@ -94,8 +93,7 @@ test('the app policy admits every external origin the web build uses', () => {
   assert.ok(allows(policy['img-src'], 'https://img.vietqr.io/image/a.png'), 'remote images');
   assert.ok(allows(policy['media-src'], 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'), 'sample slide video');
   assert.ok(policy['worker-src'].includes("'self'"));
-  const target = desktopSignInTarget({ origin: 'https://office.minhspark.com', hash: `#desktopLogin=1&port=49152&state=${'a'.repeat(64)}` });
-  assert.ok(allows(policy['form-action'], target.action), 'desktop sign-in hands the token to the loopback callback');
+  assert.ok(!allows(policy['form-action'], 'http://127.0.0.1:49152/callback'), 'no page may post to a loopback port');
 });
 
 test('static pages run no inline scripts, so the policy needs no line-ending dependent hashes', () => {

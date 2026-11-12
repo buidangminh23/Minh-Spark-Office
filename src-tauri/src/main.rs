@@ -29,7 +29,6 @@ fn main() {
         }))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .manage(desktop_auth::DesktopLogin::default())
         .manage(open_files::OpenFiles::default())
         .manage(close_guard::CloseGuard::default())
         .invoke_handler(tauri::generate_handler![
@@ -38,7 +37,7 @@ fn main() {
             native_print::default_printer,
             native_print::list_printers,
             desktop_auth::desktop_google_sign_in,
-            desktop_auth::cancel_desktop_sign_in,
+            desktop_auth::desktop_sign_in_received,
             open_files::drain_open_files,
             open_files::take_open_file,
             open_files::open_default_apps,
