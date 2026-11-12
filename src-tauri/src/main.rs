@@ -1,7 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use tauri::webview::{Color, NewWindowResponse};
-use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use tauri::webview::{Color, NewWindowFeatures, NewWindowResponse};
+use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindowBuilder, Wry};
 mod close_guard;
 mod desktop_auth;
 mod native_print;
@@ -20,6 +21,58 @@ fn open_web_app() -> Result<(), String> {
 }
 
 const DESKTOP_MARKER_SCRIPT: &str = "(()=>{const mark=()=>{const root=document.documentElement;if(!root)return false;root.classList.add('ms-desktop');return true};if(!mark())new MutationObserver((_,observer)=>{if(mark())observer.disconnect()}).observe(document,{childList:true})})()";
+
+static APP_WINDOW_COUNT: AtomicUsize = AtomicUsize::new(0);
+
+fn is_app_url(url: &Url) -> bool {
+    (url.scheme() == "tauri" && url.host_str() == Some("localhost"))
+        || (matches!(url.scheme(), "http" | "https")
+            && url.host_str() == Some("tauri.localhost")
+            && url.port().is_none())
+        || (cfg!(debug_assertions)
+            && url.scheme() == "http"
+            && url.host_str() == Some("127.0.0.1")
+            && url.port() == Some(1420))
+}
+
+fn open_externally(url: &Url) -> NewWindowResponse<Wry> {
+    if matches!(url.scheme(), "https" | "http" | "mailto") {
+        let _ = open::that(url.as_str());
+    }
+    NewWindowResponse::Deny
+}
+
+fn open_app_window(app: &AppHandle, features: NewWindowFeatures) -> NewWindowResponse<Wry> {
+    let label = format!(
+        "window-{}",
+        APP_WINDOW_COUNT.fetch_add(1, Ordering::Relaxed) + 1
+    );
+    let Ok(blank) = "about:blank".parse() else {
+        return NewWindowResponse::Deny;
+    };
+    let mut builder = WebviewWindowBuilder::new(app, label, WebviewUrl::External(blank))
+        .window_features(features)
+        .title("Minh Spark Office")
+        .background_color(Color(246, 247, 251, 255))
+        .initialization_script(DESKTOP_MARKER_SCRIPT)
+        .min_inner_size(480.0, 360.0)
+        .disable_drag_drop_handler()
+        .on_navigation(|url| url.as_str() == "about:blank" || is_app_url(url))
+        .on_new_window(|url, _| open_externally(&url))
+        .on_document_title_changed(|window, title| {
+            let _ = window.set_title(&title);
+        });
+    if let Some(icon) = app.default_window_icon() {
+        builder = match builder.icon(icon.clone()) {
+            Ok(next) => next,
+            Err(_) => return NewWindowResponse::Deny,
+        };
+    }
+    match builder.build() {
+        Ok(window) => NewWindowResponse::Create { window },
+        Err(_) => NewWindowResponse::Deny,
+    }
+}
 
 fn main() {
     tauri::Builder::default()
@@ -61,6 +114,7 @@ fn main() {
                     &cwd,
                 );
             }
+            let handle = app.handle().clone();
             WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
                 .icon(
                     app.default_window_icon()
@@ -73,21 +127,13 @@ fn main() {
                 .inner_size(1440.0, 940.0)
                 .min_inner_size(1024.0, 680.0)
                 .disable_drag_drop_handler()
-                .on_navigation(|url| {
-                    (url.scheme() == "tauri" && url.host_str() == Some("localhost"))
-                        || (matches!(url.scheme(), "http" | "https")
-                            && url.host_str() == Some("tauri.localhost")
-                            && url.port().is_none())
-                        || (cfg!(debug_assertions)
-                            && url.scheme() == "http"
-                            && url.host_str() == Some("127.0.0.1")
-                            && url.port() == Some(1420))
-                })
-                .on_new_window(|url, _| {
-                    if matches!(url.scheme(), "https" | "http" | "mailto") {
-                        let _ = open::that(url.as_str());
+                .on_navigation(is_app_url)
+                .on_new_window(move |url, features| {
+                    if is_app_url(&url) {
+                        open_app_window(&handle, features)
+                    } else {
+                        open_externally(&url)
                     }
-                    NewWindowResponse::Deny
                 })
                 .build()?;
             Ok(())
@@ -96,6 +142,17 @@ fn main() {
         .expect("Failed to build Minh Spark Office")
         .run(|app, event| {
             match &event {
+                tauri::RunEvent::WindowEvent {
+                    label,
+                    event: tauri::WindowEvent::Destroyed,
+                    ..
+                } if label == "main" => {
+                    for (other, window) in app.webview_windows() {
+                        if other != "main" {
+                            let _ = window.close();
+                        }
+                    }
+                }
                 tauri::RunEvent::WindowEvent {
                     label,
                     event: tauri::WindowEvent::CloseRequested { api, .. },
@@ -127,4 +184,29 @@ fn main() {
             #[cfg(not(target_os = "macos"))]
             let _ = (app, event);
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_app_url;
+    use tauri::Url;
+
+    fn app(url: &str) -> bool {
+        is_app_url(&Url::parse(url).unwrap())
+    }
+
+    #[test]
+    fn app_pages_stay_inside_the_desktop_app() {
+        assert!(app("http://tauri.localhost/?mirror=w_13zfclo"));
+        assert!(app("https://tauri.localhost/?officeTab=doc-1"));
+        assert!(app("tauri://localhost/index.html"));
+    }
+
+    #[test]
+    fn other_pages_open_in_the_browser() {
+        assert!(!app("http://tauri.localhost:8080/"));
+        assert!(!app("https://office.minhspark.com/"));
+        assert!(!app("http://localhost/"));
+        assert!(!app("mailto:someone@example.com"));
+    }
 }
