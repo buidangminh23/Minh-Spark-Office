@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { PDFDocument, degrees } from 'pdf-lib';
+import { PDFArray, PDFDict, PDFDocument, PDFName, degrees } from 'pdf-lib';
 import JSZip from 'jszip';
 import {
   compressPdf,
@@ -62,7 +62,39 @@ test('mergePdfs appends pages in the given order', async () => {
 
 test('mergePdfs reports which file is not a PDF', async () => {
   const first = await makePdf([[100, 100]]);
-  await assert.rejects(mergePdfs([first, new TextEncoder().encode('not a pdf')]), (error) => isPdfToolError(error) && /Tệp thứ 1/.test(error.message));
+  await assert.rejects(mergePdfs([first, new TextEncoder().encode('not a pdf')]), (error) => isPdfToolError(error) && /Tệp thứ 2/.test(error.message));
+});
+
+test('PDF links keep their actual destination after page indices change', async () => {
+  const doc = await PDFDocument.create();
+  const first = doc.addPage();
+  const second = doc.addPage();
+  first.drawText('Formatted page', { size: 26 });
+  first.setCropBox(12, 20, 400, 500);
+  const link = doc.context.obj({ Type: 'Annot', Subtype: 'Link', Rect: [10, 10, 80, 30], P: first.ref, Dest: [second.ref, 'Fit'] });
+  first.node.set(PDFName.of('Annots'), doc.context.obj([doc.context.register(link)]));
+  const bytes = await doc.save();
+  const leading = await makePdf([[200, 300]]);
+  const { bytes: merged } = await mergePdfs([leading, bytes], { keepAttributes: true });
+  const output = await PDFDocument.load(merged);
+  const page = output.getPage(1);
+  assert.deepEqual(page.getCropBox(), first.getCropBox());
+  const annotation = page.node.Annots()!.lookup(0, PDFDict);
+  assert.equal(annotation.get(PDFName.of('P')), page.ref);
+  assert.equal(annotation.lookup(PDFName.of('Dest'), PDFArray).get(0), output.getPage(2).ref);
+  await assert.rejects(splitPdf(bytes, [{ label: '1', pages: [0] }]), /liên kết/);
+});
+
+test('PDF assembly rejects document structures it cannot transfer', async () => {
+  const doc = await PDFDocument.create();
+  doc.addPage();
+  doc.addPage();
+  doc.getForm().createTextField('Customer');
+  const bytes = await doc.save();
+  await assert.rejects(mergePdfs([bytes, bytes]), /AcroForm/);
+  await assert.rejects(splitPdf(bytes, [{ label: '1', pages: [0] }]), /AcroForm/);
+  const [whole] = await splitPdf(bytes, [{ label: '1-2', pages: [0, 1] }]);
+  assert.deepEqual(whole, bytes);
 });
 
 test('compressPdf never reports a saving it did not make', async () => {

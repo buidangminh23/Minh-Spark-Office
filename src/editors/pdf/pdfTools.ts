@@ -1,4 +1,4 @@
-import { PDFDocument, degrees } from 'pdf-lib';
+import { PDFDocument, PDFName, PDFObjectCopier, PDFPage, PDFPageLeaf, degrees } from 'pdf-lib';
 import JSZip from 'jszip';
 
 export class PdfToolError extends Error {
@@ -75,14 +75,49 @@ export function parsePageRanges(input: string, pageCount: number): PageRange[] {
   });
 }
 
+const portablePdfKeys = new Set(['Type', 'Pages', 'Info', 'Lang', 'Version', 'Metadata', 'ViewerPreferences', 'PageMode', 'PageLayout', 'OutputIntents']);
+
+function checkPdfStructure(doc: PDFDocument, merging: boolean) {
+  for (const key of doc.catalog.keys()) {
+    const name = key.decodeText();
+    if (!portablePdfKeys.has(name) || (merging && ['OutputIntents', 'Version'].includes(name))) {
+      throw new PdfToolError(`Chưa thể giữ nguyên thành phần PDF /${name} khi gộp hoặc tách.`);
+    }
+  }
+}
+
+function appendPdfPages(source: PDFDocument, target: PDFDocument, indices: number[]) {
+  const copier = PDFObjectCopier.for(source.context, target.context);
+  for (const index of indices) {
+    const page = source.getPage(index);
+    const ref = copier.copy(page.ref);
+    const leaf = target.context.lookup(ref);
+    if (!(leaf instanceof PDFPageLeaf)) throw new PdfToolError('Không đọc được cấu trúc trang PDF.');
+    target.addPage(PDFPage.of(leaf, ref, target));
+  }
+}
+
 export async function splitPdf(bytes: Uint8Array, ranges: PageRange[], options: PdfToolOptions = {}): Promise<Uint8Array[]> {
   const source = await loadPdf(bytes, options);
   const outputs: Uint8Array[] = [];
   for (const range of ranges) {
-    const target = await createDerived(source, options);
-    const pages = await target.copyPages(source, range.pages);
-    pages.forEach((page) => target.addPage(page));
-    outputs.push(await target.save());
+    if (range.pages.length === source.getPageCount() && range.pages.every((n, i) => n === i)) {
+      outputs.push(bytes);
+      continue;
+    }
+    checkPdfStructure(source, false);
+    const target = await PDFDocument.create({ updateMetadata: false });
+    const copier = PDFObjectCopier.for(source.context, target.context);
+    for (const [key, value] of source.catalog.entries()) {
+      if (key !== PDFName.of('Type') && key !== PDFName.of('Pages')) target.catalog.set(key, copier.copy(value));
+    }
+    if (options.keepAttributes && source.context.trailerInfo.Info) target.context.trailerInfo.Info = copier.copy(source.context.trailerInfo.Info);
+    appendPdfPages(source, target, range.pages);
+    const retained = new Set(target.getPages().map(page => page.ref));
+    if (target.context.enumerateIndirectObjects().some(([ref, object]) => object instanceof PDFPageLeaf && !retained.has(ref))) {
+      throw new PdfToolError('Trang PDF có liên kết đến trang bị bỏ. Hãy tách các trang liên quan vào cùng một tệp.');
+    }
+    outputs.push(await target.save({ updateFieldAppearances: false }));
   }
   return outputs;
 }
@@ -91,18 +126,20 @@ export async function mergePdfs(sources: Uint8Array[], options: PdfToolOptions =
   if (sources.length === 0) throw new PdfToolError('Chọn ít nhất một tệp PDF để ghép.');
   const [first, ...rest] = sources;
   const target = await loadPdf(first, options);
+  if (!rest.length) return { bytes: first, pageCount: target.getPageCount() };
+  checkPdfStructure(target, true);
   for (const [index, source] of rest.entries()) {
     let doc: PDFDocument;
     try {
       doc = await loadPdf(source, { keepAttributes: true });
+      checkPdfStructure(doc, true);
     } catch (error) {
-      if (isPdfToolError(error)) throw new PdfToolError(`Tệp thứ ${index + 1}: ${error.message}`);
+      if (isPdfToolError(error)) throw new PdfToolError(`Tệp thứ ${index + 2}: ${error.message}`);
       throw error;
     }
-    const pages = await target.copyPages(doc, doc.getPageIndices());
-    pages.forEach((page) => target.addPage(page));
+    appendPdfPages(doc, target, doc.getPageIndices());
   }
-  return { bytes: await target.save(), pageCount: target.getPageCount() };
+  return { bytes: await target.save({ updateFieldAppearances: false }), pageCount: target.getPageCount() };
 }
 
 export async function compressPdf(bytes: Uint8Array, options: PdfToolOptions = {}) {

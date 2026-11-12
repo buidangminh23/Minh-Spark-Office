@@ -59,3 +59,13 @@
 @media (max-width: 620px) { .conversion-menu-grid { grid-template-columns: minmax(0, 1fr); } }
 .format-logo { display: inline-flex; flex: none; width: var(--format-logo-size, 28px); height: var(--format-logo-size, 28px); filter: drop-shadow(0 1px 1.5px #0f172a2e); }
 .format-logo svg { display: block; width: 100%; height: 100%; }
+.parts-dialog { max-width: 680px; }
+.parts-modes { display: flex; gap: 8px; margin-bottom: 16px; }
+.parts-modes [aria-pressed="true"] { background: #e5eeff; border-color: #87a6da; color: #173c78; }
+.parts-dialog .parts-file { grid-template-columns: minmax(0, 1fr) auto; }
+.parts-dialog .parts-file .conversion-file { grid-column: auto; }
+.parts-split { display: grid; gap: 16px; margin-top: 16px; }
+.parts-split details { font-size: 14px; }
+.parts-split summary { cursor: pointer; }
+.parts-split ol { max-height: 160px; overflow: auto; overflow-wrap: anywhere; }
+.parts-split .field { display: grid; gap: 6px; }

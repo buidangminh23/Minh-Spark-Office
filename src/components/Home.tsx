@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import {
   ArrowRight,
   Check,
@@ -6,6 +6,7 @@ import {
   Edit2,
   Ellipsis,
   File,
+  Files,
   Folder,
   Funnel,
   HardDrive,
@@ -74,6 +75,7 @@ type View = 'home' | 'all' | 'starred' | FileKind | 'trash';
 type KindTab = 'all' | FileKind;
 type SortOrder = 'recent' | 'oldest' | 'name';
 
+const FilePartsDialog = lazy(() => import('./FilePartsDialog').then((module) => ({ default: module.FilePartsDialog })));
 const RECENT_LIMIT = 5;
 const FEATURED_TEMPLATES = 4;
 const IMPORT_ACCEPT = '.docx,.txt,.md,.html,.htm,.xlsx,.xlsm,.xls,.csv,.tsv,.pdf,.pptx,.ppt,.png,.jpg,.jpeg,.jfif,.jpe,.webp,.gif,.svg,.svgz,.bmp,.dib,.ico,.avif,.tiff,.tif,.heic,.heif';
@@ -142,6 +144,7 @@ export default function Home(props: HomeProps) {
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [createOpen, setCreateOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [filePartsOpen, setFilePartsOpen] = useState(false);
   const [conversion, setConversion] = useState<null | 'all' | ConversionPreset>(null);
   const [conversionAnchor, setConversionAnchor] = useState<HTMLElement | null>(null);
   const [showAllTemplates, setShowAllTemplates] = useState(false);
@@ -307,6 +310,7 @@ export default function Home(props: HomeProps) {
             <NavItem key={kind} active={view === kind && !isSearching} onClick={() => goTo(kind)} icon={<SuiteLogo kind={kind} size={26} />}>{PRODUCT_NAME[kind]}</NavItem>
           ))}
           <NavItem active={conversion !== null || conversionAnchor !== null} menuOpen={conversionAnchor !== null} onClick={(event) => { const anchor = event.currentTarget; setConversionAnchor((current) => current ? null : anchor); }} icon={<ConvertLogo size={26} />}>Chuyển định dạng</NavItem>
+          <button className="ws-nav-item" aria-haspopup="dialog" onClick={() => setFilePartsOpen(true)}><span className="ws-nav-icon" aria-hidden="true"><Files size={22} /></span><span className="ws-nav-label">Gộp và tách tệp</span></button>
           <hr />
           <NavItem active={view === 'trash' && !isSearching} onClick={() => goTo('trash')} icon={<Trash2 size={20} />} badge={trashCount || undefined}>Thùng rác</NavItem>
           <NavItem active={settingsOpen} onClick={() => setSettingsOpen(true)} icon={<Settings size={20} />}>Cài đặt</NavItem>
@@ -417,6 +421,7 @@ export default function Home(props: HomeProps) {
       </main>
 
       {settingsOpen && <SettingsDialog onClose={closeSettings} onExportBackup={onExportBackup} onImportBackup={onImportBackup} />}
+      {filePartsOpen && <Suspense fallback={null}><FilePartsDialog onClose={() => setFilePartsOpen(false)} /></Suspense>}
       {conversionAnchor && <ConversionMenu anchor={conversionAnchor} onPick={(preset) => { setConversionAnchor(null); setConversion(preset); }} onAll={() => { setConversionAnchor(null); setConversion('all'); }} onClose={() => setConversionAnchor(null)} />}
       {conversion !== null && <ConversionDialog key={conversion === 'all' ? 'all' : conversion.id} preset={conversion === 'all' ? undefined : conversion} onClose={() => setConversion(null)} />}
     </div>
