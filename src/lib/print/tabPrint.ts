@@ -4,15 +4,39 @@ const STYLE_SELECTOR = 'link[rel="stylesheet"], style';
 const COPY_MARK = 'data-tab-print';
 const STYLE_TIMEOUT_MS = 5000;
 
-function copyCanvases(source: Element, target: Element) {
-  const copies = target.querySelectorAll('canvas');
-  source.querySelectorAll('canvas').forEach((canvas, index) => {
-    const copy = copies[index];
-    if (!copy) return;
-    copy.width = canvas.width;
-    copy.height = canvas.height;
-    copy.getContext('2d')?.drawImage(canvas, 0, 0);
-  });
+const ELEMENT_NODE = 1;
+
+function hostSheet(sheet: CSSStyleSheet, view: Window & typeof globalThis): CSSStyleSheet {
+  const copy = new view.CSSStyleSheet();
+  copy.replaceSync(Array.from(sheet.cssRules, (rule) => rule.cssText).join('\n'));
+  return copy;
+}
+
+function copyCanvas(source: Element, target: Element) {
+  if (source.localName !== 'canvas') return;
+  const from = source as HTMLCanvasElement;
+  const to = target as HTMLCanvasElement;
+  to.width = from.width;
+  to.height = from.height;
+  to.getContext('2d')?.drawImage(from, 0, 0);
+}
+
+function copyShadow(source: Element, target: Element, host: Document, view: Window & typeof globalThis) {
+  const shadow = source.shadowRoot;
+  if (!shadow) return;
+  const root = target.attachShadow({ mode: 'open' });
+  root.adoptedStyleSheets = shadow.adoptedStyleSheets.map((sheet) => hostSheet(sheet, view));
+  shadow.childNodes.forEach((child) => root.appendChild(cloneNode(child, host, view)));
+}
+
+function cloneNode(source: Node, host: Document, view: Window & typeof globalThis): Node {
+  const copy = host.importNode(source, false);
+  if (source.nodeType === ELEMENT_NODE) {
+    copyCanvas(source as Element, copy as Element);
+    copyShadow(source as Element, copy as Element, host, view);
+  }
+  source.childNodes.forEach((child) => copy.appendChild(cloneNode(child, host, view)));
+  return copy;
 }
 
 function stylesLoaded(nodes: Element[]): Promise<void> {
@@ -34,8 +58,7 @@ export async function printFrameDocument(request: NativePrintRequest, frame: Win
     copy.setAttribute(COPY_MARK, '');
     return host.head.appendChild(copy);
   });
-  const root = host.importNode(source, true) as HTMLElement;
-  copyCanvases(source, root);
+  const root = cloneNode(source, host, view as Window & typeof globalThis) as HTMLElement;
   host.getElementById(PRINT_ROOT_ID)?.remove();
   host.body.appendChild(root);
   host.body.classList.add(PRINTING_CLASS);
