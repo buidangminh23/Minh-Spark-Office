@@ -136,7 +136,7 @@ service cloud.firestore {
     function validItem(data) {
       return data.keys().hasAll(['type', 'name', 'kind', 'description', 'category', 'authorUid', 'authorName', 'createdAt', 'updatedAt', 'updatedBy', 'updatedByName', 'revision', 'chunkCount', 'compressedBytes', 'uncompressedBytes', 'sha256', 'preview', 'size'])
         && data.keys().hasOnly(['type', 'name', 'kind', 'description', 'category', 'authorUid', 'authorName', 'createdAt', 'updatedAt', 'updatedBy', 'updatedByName', 'revision', 'chunkCount', 'compressedBytes', 'uncompressedBytes', 'sha256', 'preview', 'size'])
-        && data.type in ['template', 'document'] && data.kind in ['doc', 'sheet', 'slide', 'pdf']
+        && data.type in ['template', 'document'] && data.kind in ['doc', 'sheet', 'slide', 'pdf'] && !(data.type == 'document' && data.kind == 'pdf')
         && shortText(data.name, 1, 200) && shortText(data.description, 0, 1000) && shortText(data.category, 0, 60)
         && data.authorUid is string && shortText(data.authorName, 0, 120) && data.createdAt is timestamp
         && data.updatedAt == request.time && data.updatedBy == request.auth.uid && shortText(data.updatedByName, 0, 120)

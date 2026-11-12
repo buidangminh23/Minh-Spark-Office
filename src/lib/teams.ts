@@ -107,6 +107,11 @@ export const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export const TEAM_ITEM_MAX_COMPRESSED = MAX_COMPRESSED_BYTES;
 export const TEAM_ITEM_MAX_UNCOMPRESSED = MAX_UNCOMPRESSED_BYTES;
 export const TEAM_ITEM_KINDS: TeamItemKind[] = ['doc', 'sheet', 'slide', 'pdf'];
+export const LIVE_ITEM_KINDS: TeamItemKind[] = ['doc', 'sheet', 'slide'];
+
+export function teamTypeForKind(kind: string): TeamItemType {
+  return (LIVE_ITEM_KINDS as string[]).includes(kind) ? 'document' : 'template';
+}
 
 export function isTeamRole(value: unknown): value is TeamRole {
   return value === 'owner' || value === 'admin' || value === 'editor' || value === 'viewer';

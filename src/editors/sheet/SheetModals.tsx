@@ -2053,7 +2053,7 @@ export function ShareAndProtectModal({
           {onShareTeam && (
             <button className="btn" style={{ justifyContent: 'flex-start', padding: '10px 14px' }} onClick={onShareTeam}>
               <TeamUsers size={16} color="#107c41" />
-              <span>Chia sẻ với nhóm (thành viên mở và dùng bản sao)</span>
+              <span>Chia sẻ với nhóm để cùng mở và sửa chung</span>
             </button>
           )}
 

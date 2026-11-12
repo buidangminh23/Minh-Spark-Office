@@ -6,7 +6,7 @@
 - Share from the editors: the Docs "Chia sẻ" button opens the Share pane directly, and Docs, Sheets and PDF can send the current file to a team in one click.
 - Team invite links always point to office.minhspark.com, also when sent from the desktop app, and "Ứng dụng email" works there.
 - Viewers see the published content of a shared document instead of a blank page, and editors take over the first setup when nobody else is online.
-- Teams can share PDF files, and shared files may be as large as personal cloud files (up to 256 MB compressed).
+- Teams can share PDF files (members open their own copy), and shared files may be as large as personal cloud files (up to 256 MB compressed).
 - Show errors from the "Lời mời dành cho bạn" list and retry it, and leave room for clock differences when creating invites.
 
 - Open any number of documents at once in tabs above the workspace (Word, Excel, PowerPoint, PDF and images together). Each tab keeps its own editor alive, so switching is instant and undo history, selection and scroll position survive.

@@ -4,7 +4,7 @@ import { SuiteLogo } from '../SuiteLogo';
 import { useWorkspace, type FileMeta } from '../../lib/storage';
 import { relativeTime } from '../../lib/download';
 import { teamErrorMessage, type TeamStore } from '../../lib/teamStore';
-import { TEAM_ITEM_KINDS, type TeamItem, type TeamItemKind, type TeamItemType } from '../../lib/teams';
+import { LIVE_ITEM_KINDS, TEAM_ITEM_KINDS, type TeamItem, type TeamItemKind, type TeamItemType } from '../../lib/teams';
 import { TmButton, TmField, TmModal } from './TeamParts';
 
 const stripExtension = (name: string) => name.replace(/\.(docx?|xlsx|xlsm|xls|csv|pptx?|pdf|md|txt|html?)$/i, '');
@@ -22,8 +22,8 @@ export function PublishDialog({ store, teamId, type, files, categories, replacin
 }) {
   const workspace = useWorkspace();
   const candidates = useMemo(() => files
-    .filter((file) => !file.deletedAt && (TEAM_ITEM_KINDS as string[]).includes(file.kind) && (!replacing || file.kind === replacing.kind))
-    .sort((a, b) => b.updatedAt - a.updatedAt), [files, replacing]);
+    .filter((file) => !file.deletedAt && ((type === 'document' ? LIVE_ITEM_KINDS : TEAM_ITEM_KINDS) as string[]).includes(file.kind) && (!replacing || file.kind === replacing.kind))
+    .sort((a, b) => b.updatedAt - a.updatedAt), [files, replacing, type]);
   const [query, setQuery] = useState('');
   const initialFile = useMemo(() => (initialFileId ? candidates.find((file) => file.id === initialFileId) ?? null : null), [candidates, initialFileId]);
   const [selected, setSelected] = useState<FileMeta | null>(initialFile);

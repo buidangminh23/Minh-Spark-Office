@@ -6,7 +6,7 @@ import { useUi } from '../ui';
 import type { FileContent, FileMeta } from '../../lib/storage';
 import { teamErrorMessage, type TeamStore } from '../../lib/teamStore';
 import type { ShareFileRequest } from '../../lib/teamShare';
-import { can, ROLE_LABEL, type TeamItem, type TeamMembership, type TeamRole } from '../../lib/teams';
+import { can, ROLE_LABEL, teamTypeForKind, type TeamItem, type TeamMembership, type TeamRole } from '../../lib/teams';
 import { InviteAcceptDialog, PendingInvites } from './InviteAccept';
 import { TeamCreateForm, TeamOnboarding } from './TeamOnboarding';
 import { TeamLibrary } from './TeamLibrary';
@@ -74,7 +74,7 @@ export function TeamsPage({ files, inviteToken, onInviteDone, onCreateFromConten
     if (!user) { done?.(); return; }
     if (current) {
       if (can(current.role, 'publish')) {
-        setTab(shareRequest.kind === 'doc' ? 'documents' : 'templates');
+        setTab(teamTypeForKind(shareRequest.kind) === 'document' ? 'documents' : 'templates');
         setPublishFileId(shareRequest.fileId);
       } else {
         toastUi.toast('Bạn chỉ có quyền xem trong nhóm này nên chưa chia sẻ tài liệu lên nhóm được.', true);

@@ -200,6 +200,7 @@ describe('team rules', { skip: !process.env.FIRESTORE_EMULATOR_HOST }, () => {
     await assertSucceeds(setDoc(doc(as('editor'), 'teams', TEAM, 'items', 'C'.repeat(20), 'chunks', `${REVISION}_596`), { revision: REVISION, index: 596, data: 'QUJD' }));
     await assertFails(setDoc(doc(as('editor'), 'teams', TEAM, 'items', 'D'.repeat(20)), { ...big, chunkCount: 601, compressedBytes: 270000001 }));
     await assertFails(setDoc(doc(as('editor'), 'teams', TEAM, 'items', 'E'.repeat(20)), { ...item('editor'), kind: 'image' }));
+    await assertFails(setDoc(doc(as('editor'), 'teams', TEAM, 'items', 'G'.repeat(20)), { ...item('editor', 'document'), kind: 'pdf' }));
     await assertFails(setDoc(doc(as('editor'), 'teams', TEAM, 'items', 'F'.repeat(20), 'chunks', `${REVISION}_600`), { revision: REVISION, index: 600, data: 'QUJD' }));
   });
 

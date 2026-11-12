@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { gmailComposeUrl, inviteGroupBody, inviteLink, parseEmailList, parseInviteToken, PUBLIC_WEB_ORIGIN, shareOrigin, TEAM_ITEM_KINDS } from '../src/lib/teams';
+import { gmailComposeUrl, inviteGroupBody, inviteLink, parseEmailList, parseInviteToken, PUBLIC_WEB_ORIGIN, shareOrigin, TEAM_ITEM_KINDS, teamTypeForKind } from '../src/lib/teams';
 
 const ORIGIN = 'https://office.minhspark.com';
 const TEAM_ID = 'T'.repeat(20);
@@ -48,5 +48,8 @@ describe('team invite helpers', () => {
 
   it('lets teams share PDF files', () => {
     assert.ok(TEAM_ITEM_KINDS.includes('pdf'));
+    assert.equal(teamTypeForKind('pdf'), 'template');
+    assert.equal(teamTypeForKind('sheet'), 'document');
+    assert.equal(teamTypeForKind('doc'), 'document');
   });
 });
