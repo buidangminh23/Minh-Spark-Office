@@ -24,8 +24,10 @@ MiscButtonText "Quay lại" "Tiếp tục"
     ReadRegStr $R9 SHCTX "${LEGACY_PRODUCTKEY}" ""
     ${If} $R9 != ""
     ${AndIf} ${FileExists} "$R9\${MAINBINARYNAME}.exe"
+      StrCpy $R8 $INSTDIR
       StrCpy $INSTDIR $R9
       SetOutPath $INSTDIR
+      RMDir $R8
     ${EndIf}
   ${EndIf}
 !macroend
@@ -74,6 +76,7 @@ MiscButtonText "Quay lại" "Tiếp tục"
   !insertmacro REGISTER_OPEN_WITH "tiff"
   !insertmacro REGISTER_OPEN_WITH "tif"
   ${If} $AppStartMenuFolder != ""
+    CreateDirectory "$SMPROGRAMS\$AppStartMenuFolder"
     CreateShortcut "$SMPROGRAMS\$AppStartMenuFolder\${PRODUCTNAME}.lnk" "$INSTDIR\${MAINBINARYNAME}.exe" "" "$INSTDIR\office-app.ico" 0
     !insertmacro SetLnkAppUserModelId "$SMPROGRAMS\$AppStartMenuFolder\${PRODUCTNAME}.lnk"
     System::Call 'shell32::SHChangeNotify(i 0x00002000, i 0x0005, w "$SMPROGRAMS\$AppStartMenuFolder\${PRODUCTNAME}.lnk", p 0)'
