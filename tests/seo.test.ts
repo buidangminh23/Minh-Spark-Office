@@ -10,6 +10,7 @@ const pages = [
   { path: '/gioi-thieu.html', file: 'public/gioi-thieu.html' },
   { path: '/minh-docs.html', file: 'public/minh-docs.html' },
   { path: '/minh-sheets.html', file: 'public/minh-sheets.html' },
+  { path: '/tai-ung-dung.html', file: 'public/tai-ung-dung.html' },
 ].map((page) => ({ ...page, html: readFileSync(new URL(page.file, root), 'utf8') }));
 
 test('public URLs expose unique metadata, readable content and matching canonical signals', () => {
@@ -30,7 +31,7 @@ test('public URLs expose unique metadata, readable content and matching canonica
     assert.ok(page.html.includes(`rel="canonical" href="${origin}${page.path}"`));
     assert.ok(page.html.includes(`property="og:url" content="${origin}${page.path}"`));
     assert.match(page.html, /property="og:image" content="https:\/\/office\.minhspark\.com\/logo\.jpg"/);
-    assert.match(page.html, /name="twitter:card" content="summary"/);
+    assert.match(page.html, /name="twitter:card" content="summary_large_image"/);
     assert.equal((page.html.match(/<h1[ >]/g) ?? []).length, 1);
     assert.doesNotMatch(page.html, /noindex|aggregateRating|reviewCount|miễn phí trọn đời/i);
   }
@@ -54,12 +55,30 @@ test('public pages link to existing assets and pages, and remain mutually discov
       const relativePath = path === '/' ? 'index.html' : path.startsWith('/src/') ? path.slice(1) : path.startsWith('/api/') ? `${path.slice(1)}.ts` : `public${path}`;
       assert.ok(existsSync(fileURLToPath(new URL(relativePath, root))), `${page.path} references missing ${link}`);
     }
-    for (const other of pages.filter((candidate) => candidate.path !== '/')) {
+    for (const other of pages.filter((candidate) => candidate.path !== '/' && candidate.path !== page.path)) {
       assert.ok(links.includes(other.path), `${page.path} has no link to ${other.path}`);
     }
     assert.match(page.html, /<main[ >]/);
     assert.match(page.html, /trình duyệt/);
   }
+});
+
+test('the brand name Office 23 leads the home page signals and is declared as the site and app name', () => {
+  const home = pages[0].html;
+  assert.match(home, /<title>Office 23 /);
+  assert.match(home, /<meta name="description" content="Office 23 /);
+  assert.match(home, /<meta name="application-name" content="Office 23"/);
+  assert.match(home, /<link rel="manifest" href="\/manifest\.webmanifest"/);
+  const schema = JSON.parse(home.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)![1]);
+  const website = schema['@graph'].find((node: Record<string, unknown>) => node['@type'] === 'WebSite');
+  const app = schema['@graph'].find((node: Record<string, unknown>) => node['@type'] === 'SoftwareApplication');
+  assert.equal(website.name, 'Office 23');
+  assert.ok(website.alternateName.includes('Minh Spark Office'));
+  assert.equal(app.name, 'Office 23');
+  const manifest = JSON.parse(readFileSync(new URL('public/manifest.webmanifest', root), 'utf8'));
+  assert.equal(manifest.name, 'Office 23');
+  for (const icon of manifest.icons) assert.ok(existsSync(fileURLToPath(new URL(`public${icon.src}`, root))), icon.src);
+  assert.ok(existsSync(fileURLToPath(new URL('public/favicon.ico', root))));
 });
 
 test('JSON-LD describes the public website without unsupported review or offer claims', () => {

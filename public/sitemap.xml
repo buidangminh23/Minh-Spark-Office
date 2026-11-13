@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://office.minhspark.com/</loc></url>
-  <url><loc>https://office.minhspark.com/gioi-thieu.html</loc></url>
-  <url><loc>https://office.minhspark.com/minh-docs.html</loc></url>
-  <url><loc>https://office.minhspark.com/minh-sheets.html</loc></url>
+  <url><loc>https://office.minhspark.com/</loc><lastmod>2026-11-13</lastmod></url>
+  <url><loc>https://office.minhspark.com/gioi-thieu.html</loc><lastmod>2026-11-13</lastmod></url>
+  <url><loc>https://office.minhspark.com/tai-ung-dung.html</loc><lastmod>2026-11-13</lastmod></url>
+  <url><loc>https://office.minhspark.com/minh-docs.html</loc><lastmod>2026-11-13</lastmod></url>
+  <url><loc>https://office.minhspark.com/minh-sheets.html</loc><lastmod>2026-11-13</lastmod></url>
 </urlset>
