@@ -297,6 +297,9 @@ async function applyOcr(page: MediaPage, options: ConversionOptions, warnings: s
   const scaleY = page.height / recognized.height;
   page.lines = recognized.lines.flatMap((line) => line.words?.length ? line.words : [line]).map((line) => ({ text: line.text, x: line.bbox.x0 * scaleX, y: line.bbox.y0 * scaleY, width: (line.bbox.x1 - line.bbox.x0) * scaleX, height: (line.bbox.y1 - line.bbox.y0) * scaleY }));
   warnings.push('Đã dùng OCR. Hãy đối chiếu chữ, dấu tiếng Việt và số liệu với bản gốc trước khi sử dụng.');
+  if (recognized.fallbackReason) warnings.push(`Chưa dùng được bộ đọc chữ tiếng Việt (${recognized.fallbackReason}), đã chuyển sang bộ OCR cơ bản nên độ chính xác thấp hơn.`);
+  const turn = Math.round((recognized.angle ?? 0) / 90) % 4;
+  if (turn) warnings.push(`Trang ${turn === 2 ? 'bị lật ngược' : 'bị xoay ngang'} đã được tự xoay lại trước khi nhận dạng.`);
   if (recognized.confidence < 70) warnings.push(`Độ tin cậy OCR thấp (${Math.round(recognized.confidence)}%). Nên dùng ảnh rõ hơn và kiểm tra lại nội dung nhận dạng.`);
 }
 

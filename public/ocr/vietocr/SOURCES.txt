@@ -1,0 +1,13 @@
+VietOCR vgg_transformer (Apache-2.0): https://github.com/pbcquoc/vietocr, weights https://vocr.vn/data/vietocr/vgg_transformer.pth
+  Exported to ONNX as an encoder and a greedy decoder; weights stored as float16 and cast to float32 at load time.
+PP-OCRv6 small text detector (Apache-2.0, Baidu PaddleOCR via RapidOCR 3.10.0):
+  https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.10.0/onnx/PP-OCRv6/det/PP-OCRv6_det_small.onnx
+ONNX Runtime Web 1.31.1 (MIT): ort-wasm-simd-threaded.wasm from the onnxruntime-web npm package.
+
+vietocr-encoder.onnx     SHA256 e5329b0e591ede569b8908b6525dfab3bce04b5bcf5ce3aa3a17815a9a81c038
+vietocr-decoder.onnx     SHA256 b6847d202a730661ac9bf7d80b4c52350da2774e2a4859f6877c3e1d3b416ac1
+ppocrv6-det-small.onnx   SHA256 090f04abcd9d9a7498bc4ebf677e4cb9bdce1fe4197ddb7e529f1ef44e1ff94f
+ort-wasm-simd-threaded.wasm SHA256 4b884c203b0fa48d057be3332c65513ff85aa3c5bddd6946acc0fab7ecda001d
+
+The desktop app downloads these files once from office.minhspark.com, checks each SHA256 and keeps them on the device.
+Images are processed on the user's device. See LICENSE-vietocr.txt and LICENSE-rapidocr.txt.

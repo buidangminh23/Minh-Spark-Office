@@ -1,10 +1,12 @@
 import type { Page, Worker as OcrWorker } from 'tesseract.js';
 import { checkConversionAbort, type ConversionOptions } from './conversionTypes';
+import { flattenBackground, mapBoxToSource, rgbaToGray, rotateGray, uprightAngle, type GrayImage, type PageGeometry } from './ocr/pagePrep';
 
 export type OcrBox = { x0: number; y0: number; x1: number; y1: number };
 export type OcrWord = { text: string; bbox: OcrBox; confidence: number };
 export type OcrLine = OcrWord & { words: OcrWord[] };
-export type OcrPage = { text: string; width: number; height: number; confidence: number; lines: OcrLine[]; words: OcrWord[] };
+export type OcrEngine = 'vietocr' | 'tesseract';
+export type OcrPage = { text: string; width: number; height: number; confidence: number; lines: OcrLine[]; words: OcrWord[]; engine?: OcrEngine; angle?: number; fallbackReason?: string };
 
 const MAX_OCR_PIXELS = 25_000_000;
 const IDLE_TIMEOUT = 30_000;
@@ -108,6 +110,62 @@ async function prepareImage(source: string | Blob, options: ConversionOptions): 
   }
 }
 
+export function mapOcrPageToSource(page: OcrPage, geometry: PageGeometry): OcrPage {
+  const word = (item: OcrWord): OcrWord => ({ ...item, bbox: mapBoxToSource(item.bbox, geometry) });
+  const lines = page.lines.map((line) => ({ ...word(line), words: line.words.map(word) }));
+  return { ...page, width: geometry.sourceWidth, height: geometry.sourceHeight, angle: geometry.angle, lines, words: lines.flatMap((line) => line.words) };
+}
+
+function grayCanvas(image: GrayImage): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  canvas.width = image.width;
+  canvas.height = image.height;
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('Không khởi tạo được ảnh để nhận dạng chữ.');
+  const pixels = context.createImageData(image.width, image.height);
+  for (let index = 0, offset = 0; index < image.data.length; index++, offset += 4) {
+    pixels.data[offset] = pixels.data[offset + 1] = pixels.data[offset + 2] = image.data[index];
+    pixels.data[offset + 3] = 255;
+  }
+  context.putImageData(pixels, 0, 0);
+  return canvas;
+}
+
+async function tesseractPass(worker: OcrWorker, cleaned: GrayImage, angle: number, options: ConversionOptions): Promise<OcrPage> {
+  const { image, geometry } = rotateGray(cleaned, angle);
+  const canvas = grayCanvas(image);
+  try {
+    const result = await abortable(worker.recognize(canvas, {}, { text: true, blocks: true }), options.signal, () => { void releaseConversionOcr(); });
+    checkConversionAbort(options);
+    return { ...mapOcrPageToSource(normalizeOcrPage(result.data, image.width, image.height), geometry), engine: 'tesseract' };
+  } finally {
+    canvas.width = canvas.height = 0;
+  }
+}
+
+async function recognizeWithTesseract(gray: GrayImage, options: ConversionOptions): Promise<OcrPage> {
+  const cleaned = flattenBackground(gray);
+  const angle = uprightAngle(cleaned);
+  const worker = await abortable(getWorker(), options.signal, () => { void releaseConversionOcr(); });
+  checkConversionAbort(options);
+  const first = await tesseractPass(worker, cleaned, angle, options);
+  const sideways = Math.abs(((angle % 180) + 180) % 180 - 90) < 30;
+  if (!sideways && first.confidence >= 60) return first;
+  const flipped = await tesseractPass(worker, cleaned, angle + 180, options);
+  return flipped.confidence > first.confidence ? flipped : first;
+}
+
+function shouldUseVietOcr(): boolean {
+  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window && typeof Worker !== 'undefined';
+}
+
+async function recognizeWithVietOcrPage(gray: GrayImage, options: ConversionOptions): Promise<OcrPage> {
+  const { recognizeWithVietOcr } = await import('./ocr/vietOcrClient');
+  const page = await recognizeWithVietOcr({ width: gray.width, height: gray.height, data: gray.data.slice() }, { signal: options.signal, onProgress: options.onProgress });
+  const lines = page.lines.map((line) => ({ text: line.text, bbox: line.bbox, confidence: line.confidence, words: [] }));
+  return { text: lines.map((line) => line.text).join('\n'), width: page.width, height: page.height, confidence: page.confidence, lines, words: [], engine: 'vietocr', angle: page.angle };
+}
+
 export function recognizeImage(source: string | Blob, options: ConversionOptions = {}): Promise<OcrPage> {
   if (options.signal?.aborted) return Promise.reject(options.signal.reason ?? abortError());
   const task = queue.catch(() => {}).then(async () => {
@@ -117,11 +175,21 @@ export function recognizeImage(source: string | Blob, options: ConversionOptions
     let canvas: HTMLCanvasElement | undefined;
     try {
       canvas = await prepareImage(source, options);
-      const worker = await abortable(getWorker(), options.signal, () => { void releaseConversionOcr(); });
-      checkConversionAbort(options);
-      const result = await abortable(worker.recognize(canvas, {}, { text: true, blocks: true }), options.signal, () => { void releaseConversionOcr(); });
-      checkConversionAbort(options);
-      return normalizeOcrPage(result.data, canvas.width, canvas.height);
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('Không khởi tạo được ảnh để nhận dạng chữ.');
+      const gray = rgbaToGray(context.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height);
+      canvas.width = canvas.height = 0;
+      let fallbackReason: string | undefined;
+      if (shouldUseVietOcr()) {
+        try {
+          return await recognizeWithVietOcrPage(gray, options);
+        } catch (error) {
+          if (options.signal?.aborted || (error instanceof Error && error.name === 'AbortError')) throw error;
+          fallbackReason = error instanceof Error ? error.message : String(error);
+        }
+      }
+      const page = await recognizeWithTesseract(gray, options);
+      return fallbackReason ? { ...page, fallbackReason } : page;
     } catch (error) {
       await releaseConversionOcr();
       if (options.signal?.aborted) throw options.signal.reason ?? abortError();

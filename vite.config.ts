@@ -1,6 +1,6 @@
 import react from '@vitejs/plugin-react'
 import { readFileSync } from 'node:fs'
-import { defineConfig, type Plugin } from 'vite'
+import { defaultClientConditions, defineConfig, type Plugin } from 'vite'
 
 const appVersion = (JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string }).version
 
@@ -30,4 +30,5 @@ function marketApiInDev(): Plugin {
 export default defineConfig({
   plugins: [react(), marketApiInDev()],
   define: { __APP_VERSION__: JSON.stringify(appVersion) },
+  resolve: { conditions: ['onnxruntime-web-use-extern-wasm', ...defaultClientConditions] },
 })
