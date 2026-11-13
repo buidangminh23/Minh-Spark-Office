@@ -248,14 +248,14 @@ pub fn open_default_apps() -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
         Err(
-            "Trong Finder: chọn tệp → Get Info → Open with → Minh Spark Office → Change All."
+            "Trong Finder: chọn tệp → Get Info → Open with → Office 23 → Change All."
                 .into(),
         )
     }
     #[cfg(not(any(windows, target_os = "macos")))]
     {
         Err(
-            "Trong trình quản lý tệp: nhấp chuột phải tài liệu → Thuộc tính → Mở bằng → Minh Spark Office → Đặt làm mặc định."
+            "Trong trình quản lý tệp: nhấp chuột phải tài liệu → Thuộc tính → Mở bằng → Office 23 → Đặt làm mặc định."
                 .into(),
         )
     }

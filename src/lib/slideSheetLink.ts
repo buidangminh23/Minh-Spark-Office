@@ -103,7 +103,7 @@ export function readCellValue(cell: CellValue | undefined): SheetCellResult {
   const rich = cell.p?.body?.dataStream;
   if (rich) return rich.replace(/\r\n$/, '').replace(/\r/g, '\n');
   if (cell.v === undefined || cell.v === null || cell.v === '') {
-    if (cell.f) throw new SheetLinkError(`Ô có công thức "${cell.f}" chưa có kết quả đã tính. Hãy mở và lưu lại sổ tính trong Minh Sheets.`);
+    if (cell.f) throw new SheetLinkError(`Ô có công thức "${cell.f}" chưa có kết quả đã tính. Hãy mở và lưu lại sổ tính trong 23 Sheets.`);
     return null;
   }
   if (cell.t === 3) return Boolean(cell.v) && cell.v !== 0;

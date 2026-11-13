@@ -136,7 +136,7 @@ export function ConversionDialog({ preset, onClose }: { preset?: ConversionPrese
     </div>
     <footer className="conversion-footer">
       <p role="status" aria-live="polite">{packing ? 'Đang đóng gói tệp…' : progress || `${queue.length} tệp đã chọn`}</p>
-      {running ? <button className="btn" onClick={() => { controller.current?.abort(); setProgress('Đang dừng…'); }}>Dừng chuyển đổi</button> : <div>{results.length > 0 && <button className="btn" disabled={locked} onClick={() => void download({ files: results, warnings: [] }, 'Minh Spark Office.zip')}><Download size={16} />Tải tất cả</button>}<button className="btn primary" disabled={locked || !queue.some((item) => item.status !== 'done')} onClick={() => void run()}>Chuyển đổi</button></div>}
+      {running ? <button className="btn" onClick={() => { controller.current?.abort(); setProgress('Đang dừng…'); }}>Dừng chuyển đổi</button> : <div>{results.length > 0 && <button className="btn" disabled={locked} onClick={() => void download({ files: results, warnings: [] }, 'Office 23.zip')}><Download size={16} />Tải tất cả</button>}<button className="btn primary" disabled={locked || !queue.some((item) => item.status !== 'done')} onClick={() => void run()}>Chuyển đổi</button></div>}
     </footer>
   </dialog>;
 }

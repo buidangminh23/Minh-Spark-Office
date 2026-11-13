@@ -91,15 +91,15 @@ const FEATURED_TEMPLATES = 4;
 const IMPORT_ACCEPT = '.docx,.txt,.md,.html,.htm,.xlsx,.xlsm,.xls,.csv,.tsv,.pdf,.pptx,.ppt,.png,.jpg,.jpeg,.jfif,.jpe,.webp,.gif,.svg,.svgz,.bmp,.dib,.ico,.avif,.tiff,.tif,.heic,.heif';
 
 const KIND_LABEL: Record<FileKind, string> = { doc: 'Docs', sheet: 'Sheets', pdf: 'PDF', slide: 'Slides', image: 'Photos' };
-const PRODUCT_NAME: Record<FileKind, string> = { doc: 'Minh Docs', sheet: 'Minh Sheets', pdf: 'Minh PDF', slide: 'Minh Slides', image: 'Minh Photos' };
+const PRODUCT_NAME: Record<FileKind, string> = { doc: '23 Docs', sheet: '23 Sheets', pdf: '23 PDF', slide: '23 Slides', image: '23 Photos' };
 const VIEW_TITLE: Record<Exclude<View, 'home'>, string> = {
   all: 'Tất cả tệp',
   starred: 'Được gắn sao',
-  doc: 'Minh Docs',
-  sheet: 'Minh Sheets',
-  pdf: 'Minh PDF',
-  slide: 'Minh Slides',
-  image: 'Minh Photos',
+  doc: '23 Docs',
+  sheet: '23 Sheets',
+  pdf: '23 PDF',
+  slide: '23 Slides',
+  image: '23 Photos',
   trash: 'Thùng rác',
   team: 'Nhóm',
 };
@@ -310,9 +310,9 @@ export default function Home(props: HomeProps) {
       )}
 
       <aside className="ws-sidebar">
-        <button className="ws-brand" onClick={() => goTo('home')} title="Minh Spark Office — Về trang chủ">
+        <button className="ws-brand" onClick={() => goTo('home')} title="Office 23 — Về trang chủ">
           <img src="/logo-icon.png" alt="" />
-          <span>Minh Spark<br />Office</span>
+          <span>Office<br /><b className="ws-brand-num"><i>2</i><i>3</i></b></span>
         </button>
 
         <Popover
@@ -397,11 +397,11 @@ export default function Home(props: HomeProps) {
               </div>
 
               <div className="ws-apps">
-                {appSettings.homeApps.doc && <AppCard kind="doc" title="Minh Docs" desc="Soạn thảo văn bản" action="plus" onClick={() => onCreateDoc()} />}
-                {appSettings.homeApps.sheet && <AppCard kind="sheet" title="Minh Sheets" desc="Tạo bảng tính" action="plus" onClick={() => onCreateSheet()} />}
-                {appSettings.homeApps.slide && <AppCard kind="slide" title="Minh Slides" desc="Soạn bài thuyết trình" action="plus" onClick={() => props.onCreateSlide()} />}
-                {appSettings.homeApps.pdf && <AppCard kind="pdf" title="Minh PDF" desc="Chỉnh sửa & chuyển đổi" action="arrow" onClick={onCreatePdf} />}
-                {appSettings.homeApps.image && <AppCard kind="image" title="Minh Photos" desc="Xem và sửa ảnh đa định dạng" action="arrow" onClick={() => imageInput.current?.click()} />}
+                {appSettings.homeApps.doc && <AppCard kind="doc" title="23 Docs" desc="Soạn thảo văn bản" action="plus" onClick={() => onCreateDoc()} />}
+                {appSettings.homeApps.sheet && <AppCard kind="sheet" title="23 Sheets" desc="Tạo bảng tính" action="plus" onClick={() => onCreateSheet()} />}
+                {appSettings.homeApps.slide && <AppCard kind="slide" title="23 Slides" desc="Soạn bài thuyết trình" action="plus" onClick={() => props.onCreateSlide()} />}
+                {appSettings.homeApps.pdf && <AppCard kind="pdf" title="23 PDF" desc="Chỉnh sửa & chuyển đổi" action="arrow" onClick={onCreatePdf} />}
+                {appSettings.homeApps.image && <AppCard kind="image" title="23 Photos" desc="Xem và sửa ảnh đa định dạng" action="arrow" onClick={() => imageInput.current?.click()} />}
                 <input ref={imageInput} type="file" accept={IMAGE_ACCEPT_STRING} hidden onChange={handleImport} data-testid="photos-input" />
               </div>
 

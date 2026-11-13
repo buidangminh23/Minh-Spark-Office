@@ -281,8 +281,8 @@ export function createPptxDocument(presentation: PresentationData): PptxGenJS {
     pres.defineLayout({ name: 'MINH_CUSTOM', width: widthIn, height: SLIDE_HEIGHT_IN });
     pres.layout = 'MINH_CUSTOM';
   }
-  pres.title = presentation.title || 'Minh Spark Office Presentation';
-  pres.author = presentation.author || 'Minh Spark Office';
+  pres.title = presentation.title || 'Office 23 Presentation';
+  pres.author = presentation.author || 'Office 23';
 
   presentation.slides.forEach((slideData) => {
     const slide = pres.addSlide();

@@ -42,11 +42,11 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
 }
 
 const HOME_APPS: Array<[HomeApp, string, string, ReactNode]> = [
-  ['doc', 'Minh Docs', 'Soạn thảo văn bản', <FileText key="doc" size={20} />],
-  ['sheet', 'Minh Sheets', 'Bảng tính', <Sheet key="sheet" size={20} />],
-  ['slide', 'Minh Slides', 'Trình chiếu', <Presentation key="slide" size={20} />],
-  ['pdf', 'Minh PDF', 'Chỉnh sửa & chuyển đổi', <FileText key="pdf" size={20} />],
-  ['image', 'Minh Photos', 'Xem và sửa ảnh', <Image key="image" size={20} />],
+  ['doc', '23 Docs', 'Soạn thảo văn bản', <FileText key="doc" size={20} />],
+  ['sheet', '23 Sheets', 'Bảng tính', <Sheet key="sheet" size={20} />],
+  ['slide', '23 Slides', 'Trình chiếu', <Presentation key="slide" size={20} />],
+  ['pdf', '23 PDF', 'Chỉnh sửa & chuyển đổi', <FileText key="pdf" size={20} />],
+  ['image', '23 Photos', 'Xem và sửa ảnh', <Image key="image" size={20} />],
 ];
 
 export function AppsPicker() {
@@ -122,7 +122,7 @@ export function FontPicker() {
   };
   return (
     <>
-      <Row label="Phông chữ mặc định (Minh Docs)">
+      <Row label="Phông chữ mặc định (23 Docs)">
         <Select label="Phông chữ mặc định" wide value={page.fontFamily ?? 'Arial'} options={FONT_NAMES} onChange={(fontFamily) => save({ fontFamily })} />
       </Row>
       <Row label="Cỡ chữ mặc định">
@@ -308,7 +308,7 @@ export function AboutPanel() {
     <div className="st-about">
       <img src="/logo-icon.png" alt="" width="44" height="44" />
       <span className="st-row-text">
-        <span className="st-row-label">Minh Spark Office {version && `· Phiên bản ${version}`}</span>
+        <span className="st-row-label">Office 23 {version && `· Phiên bản ${version}`}</span>
         <span className="st-row-hint">{isDesktop() ? 'Ứng dụng máy tính' : 'Bản web'} · © {YEAR} Minh Spark</span>
       </span>
     </div>

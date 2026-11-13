@@ -137,7 +137,7 @@ export function SettingsDialog({ onClose, onExportBackup, onImportBackup, initia
               <span className="st-header-icon" aria-hidden="true"><Settings size={26} /></span>
               <span className="st-header-text">
                 <h2 id="st-title">Cài đặt</h2>
-                <p>Tuỳ chỉnh trải nghiệm Minh Spark Office theo nhu cầu của bạn.</p>
+                <p>Tuỳ chỉnh trải nghiệm Office 23 theo nhu cầu của bạn.</p>
               </span>
               <label className="st-search">
                 <Search size={18} aria-hidden="true" />

@@ -20,8 +20,8 @@ export async function buildPdf(input: { pages: PageImage[]; runs: TextRun[]; lin
   const properties = input.page.properties;
   pdf.setTitle(input.title);
   pdf.setAuthor(properties?.author || currentAuthorName());
-  pdf.setCreator('Minh Docs');
-  pdf.setProducer('Minh Docs');
+  pdf.setCreator('23 Docs');
+  pdf.setProducer('23 Docs');
   pdf.setLanguage(input.page.language ?? 'vi');
   if (properties?.subject) pdf.setSubject(properties.subject);
   if (properties?.keywords) pdf.setKeywords(properties.keywords.split(/[,;]/).map((word) => word.trim()).filter(Boolean));

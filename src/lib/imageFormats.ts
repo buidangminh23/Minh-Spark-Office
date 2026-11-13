@@ -337,7 +337,7 @@ export async function exportImageAsPdf(
   }
 
   pdfDoc.setTitle(fileName);
-  pdfDoc.setAuthor('Minh Spark Office');
+  pdfDoc.setAuthor('Office 23');
   const pdfBytes = await pdfDoc.save();
   return new Blob([pdfBytes as unknown as BlobPart], { type: 'application/pdf' });
 }

@@ -70,7 +70,7 @@ export function OPTIONS(request: Request) {
 
 export async function POST(request: Request) {
   const user = await verifyUser(request);
-  if (!user) return fail(request, 401, 'Hãy đăng nhập Google để dùng add-in bằng hạn mức của Minh Spark Office.', 'auth');
+  if (!user) return fail(request, 401, 'Hãy đăng nhập Google để dùng add-in bằng hạn mức của Office 23.', 'auth');
   const declared = Number(request.headers.get('content-length') ?? 0);
   if (declared > MAX_BODY_BYTES) return fail(request, 413, 'Nội dung gửi đi quá lớn cho chế độ dùng chung. Nhập API key riêng để gửi tài liệu lớn.', 'too-large');
   let body: unknown;

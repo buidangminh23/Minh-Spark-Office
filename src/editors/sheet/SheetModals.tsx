@@ -96,7 +96,7 @@ export function FormulaLibraryModal({
         <button className="dialog-close icon-btn" onClick={onClose} aria-label="Đóng">
           <X size={18} />
         </button>
-        <h2>Thư viện hàm công thức Minh Sheets ({FORMULA_CATALOG.length} hàm)</h2>
+        <h2>Thư viện hàm công thức 23 Sheets ({FORMULA_CATALOG.length} hàm)</h2>
         <div className="dialog-subtitle">
           Ô đích hiện tại: <strong>{activeCellA1}</strong> · Vùng tham chiếu: <strong>{activeRangeA1}</strong>
         </div>
@@ -1088,7 +1088,7 @@ export function SignatureStampModal({
       ctx.fillStyle = '#b91c1c';
       ctx.font = '800 14px Arial, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('XÁC THỰC CHỮ KÝ SỐ · MINH SPARK OFFICE', out.width / 2, 36);
+      ctx.fillText('XÁC THỰC CHỮ KÝ SỐ · OFFICE 23', out.width / 2, 36);
     }
 
     if (canvasRef.current && hasStrokes) {
@@ -1199,7 +1199,7 @@ export function SignatureStampModal({
               onClose();
             }}
           >
-            <span>Ký & Xuất sang Minh PDF</span>
+            <span>Ký & Xuất sang 23 PDF</span>
           </button>
         </div>
       </section>
@@ -1425,7 +1425,7 @@ export function AiAuditModal({
         <button className="dialog-close icon-btn" onClick={onClose} aria-label="Đóng">
           <X size={18} />
         </button>
-        <h2>Minh AI & Kiểm toán dữ liệu trực tiếp — {analysis.sheetName}</h2>
+        <h2>23 AI & Kiểm toán dữ liệu trực tiếp — {analysis.sheetName}</h2>
         <div className="dialog-subtitle">
           Tính toán thời gian thực trên toàn bộ dữ liệu đang mở (không dùng dữ liệu giả lập).
         </div>
@@ -1758,7 +1758,7 @@ export function SplitMergeImageModal({
           <>
             <h2>Gộp nhiều Bảng tính vào Workbook hiện tại</h2>
             <div className="dialog-subtitle">
-              Chọn các tệp Excel/CSV từ máy tính hoặc gộp trực tiếp từ kho lưu trữ Minh Spark Office.
+              Chọn các tệp Excel/CSV từ máy tính hoặc gộp trực tiếp từ kho lưu trữ Office 23.
             </div>
 
             <label
@@ -1902,7 +1902,7 @@ export function TemplatesGalleryModal({
         <button className="dialog-close icon-btn" onClick={onClose} aria-label="Đóng">
           <X size={18} />
         </button>
-        <h2>Kho mẫu nghiệp vụ Minh Sheets chuẩn doanh nghiệp</h2>
+        <h2>Kho mẫu nghiệp vụ 23 Sheets chuẩn doanh nghiệp</h2>
         <div className="dialog-subtitle">
           Tất cả mẫu đều tích hợp sẵn công thức Excel sống (SUM, AVERAGE, IF, tỷ trọng, luỹ kế).
         </div>
@@ -2097,7 +2097,7 @@ export function HelpShortcutsModal({ onClose }: { onClose: () => void }) {
         <button className="dialog-close icon-btn" onClick={onClose} aria-label="Đóng">
           <X size={18} />
         </button>
-        <h2>Phím tắt & Hướng dẫn nhanh Minh Sheets</h2>
+        <h2>Phím tắt & Hướng dẫn nhanh 23 Sheets</h2>
         <div className="dialog-subtitle">Tăng tốc thao tác kế toán, tài chính và xử lý bảng biểu chuyên nghiệp.</div>
 
         <div style={{ border: '1px solid var(--line)', borderRadius: 8, overflow: 'auto', maxHeight: '60vh' }}>

@@ -376,7 +376,7 @@ export interface SlideElement {
     qrCode?: boolean;
   };
 
-  // Live Linked Data from Minh Sheets
+  // Live Linked Data from 23 Sheets
   sheetLink?: {
     fileId?: string;
     sheetName: string;

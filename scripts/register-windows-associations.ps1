@@ -6,6 +6,7 @@ $ErrorActionPreference = 'Stop'
 
 if (-not $ExePath) {
     $candidates = @(
+        "$env:LOCALAPPDATA\Office 23\minh-spark-office.exe",
         "$env:LOCALAPPDATA\Minh Spark Office\minh-spark-office.exe",
         "$env:LOCALAPPDATA\Programs\Minh Spark Office\minh-spark-office.exe",
         "$PSScriptRoot\..\src-tauri\target\release\minh-spark-office.exe"

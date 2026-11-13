@@ -60,14 +60,14 @@ export function AiDialog({ onClose }: { onClose: () => void }) {
   useEffect(() => { void describeProvider().then(setProvider); }, []);
   const go = (action: AiAction) => void task.start((onText, signal) => runAi(action, text, prompt, onText, signal));
   const configure = async () => {
-    const res = await ctx.ui.ask({ title: 'Cài đặt Minh AI', message: 'Nhập API key Claude (bắt đầu bằng sk-ant-). Key chỉ lưu trong trình duyệt trên máy này và được gửi thẳng tới Anthropic khi dùng AI. Để trống để xoá key.', fields: [{ name: 'key', label: 'Anthropic API key', type: 'password', value: getApiKey() }], confirmText: 'Lưu' });
+    const res = await ctx.ui.ask({ title: 'Cài đặt 23 AI', message: 'Nhập API key Claude (bắt đầu bằng sk-ant-). Key chỉ lưu trong trình duyệt trên máy này và được gửi thẳng tới Anthropic khi dùng AI. Để trống để xoá key.', fields: [{ name: 'key', label: 'Anthropic API key', type: 'password', value: getApiKey() }], confirmText: 'Lưu' });
     if (!res) return;
     setApiKey(String(res.key));
     setProvider(await describeProvider());
     ctx.ui.toast(String(res.key).trim() ? 'Đã lưu API key Claude' : 'Đã xoá API key');
   };
   return (
-    <Modal title="Minh AI" subtitle={<>Đang dùng: <strong>{provider || '…'}</strong> · Áp dụng cho {range ? 'đoạn đang chọn' : 'toàn bộ tài liệu'} ({text.trim().split(/\s+/).filter(Boolean).length} từ)</>} icon={<Sparkles size={20} />} onClose={onClose} width={720}
+    <Modal title="23 AI" subtitle={<>Đang dùng: <strong>{provider || '…'}</strong> · Áp dụng cho {range ? 'đoạn đang chọn' : 'toàn bộ tài liệu'} ({text.trim().split(/\s+/).filter(Boolean).length} từ)</>} icon={<Sparkles size={20} />} onClose={onClose} width={720}
       actions={<><button className="btn" onClick={() => void configure()}><Settings size={14} /> Cài đặt</button><span className="spacer" />{task.busy ? <button className="btn" onClick={task.stop}><Square size={13} /> Dừng</button> : <ResultActions output={task.output} range={range} onDone={onClose} />}</>}>
       <div className="ai-actions">
         {AI_ACTIONS.map((a) => <button key={a.id} className="btn" disabled={task.busy} onClick={() => go(a.id)}>{a.label}</button>)}
@@ -77,7 +77,7 @@ export function AiDialog({ onClose }: { onClose: () => void }) {
         <button className="btn btn-primary" disabled={!prompt.trim() || task.busy} onClick={() => go('custom')}>Gửi</button>
       </div>
       {task.error && <div className="form-error">{task.error}</div>}
-      <textarea className="text-field ai-output" rows={12} value={task.busy && !task.output ? 'Minh AI đang xử lý…' : task.output} onChange={(e) => task.setOutput(e.target.value)} placeholder="Kết quả hiện ở đây — sửa được trước khi chèn." />
+      <textarea className="text-field ai-output" rows={12} value={task.busy && !task.output ? '23 AI đang xử lý…' : task.output} onChange={(e) => task.setOutput(e.target.value)} placeholder="Kết quả hiện ở đây — sửa được trước khi chèn." />
     </Modal>
   );
 }

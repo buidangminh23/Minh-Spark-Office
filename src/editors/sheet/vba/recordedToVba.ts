@@ -259,7 +259,7 @@ class Converter {
     for (const step of this.macro.steps) this.step(step);
     const header = [`Sub ${procName}()`];
     if (this.macro.description) header.push(`    ' ${this.macro.description.replace(/\r?\n/g, ' ')}`);
-    header.push(`    ' Ghi bằng Minh Sheets: ${this.macro.name.replace(/\r?\n/g, ' ')}`);
+    header.push(`    ' Ghi bằng 23 Sheets: ${this.macro.name.replace(/\r?\n/g, ' ')}`);
     return [...header, ...this.lines, 'End Sub'].join('\r\n');
   }
 }

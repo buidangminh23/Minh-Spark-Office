@@ -10,7 +10,7 @@ export const sampleDocHtml = () => `
 <p style="text-align: center"><em>Ngày lập: ${new Date().toLocaleDateString('vi-VN')}</em></p>
 <h2>1. Mục tiêu</h2>
 <p>Tài liệu này tổng hợp định hướng, nguồn lực và các mốc chính cho quý IV. Mọi số liệu được cập nhật từ bảng tính theo dõi chung.</p>
-<ul><li><p>Tăng trưởng doanh thu <strong>15%</strong> so với quý III.</p></li><li><p>Hoàn thiện bộ công cụ văn phòng nội bộ <mark data-color="#fff59d" style="background-color: #fff59d">Minh Office</mark>.</p></li><li><p>Chuẩn hoá quy trình báo cáo tuần.</p></li></ul>
+<ul><li><p>Tăng trưởng doanh thu <strong>15%</strong> so với quý III.</p></li><li><p>Hoàn thiện bộ công cụ văn phòng nội bộ <mark data-color="#fff59d" style="background-color: #fff59d">Office 23</mark>.</p></li><li><p>Chuẩn hoá quy trình báo cáo tuần.</p></li></ul>
 <h2>2. Ngân sách dự kiến</h2>
 <table><tbody>
 <tr><th><p>Hạng mục</p></th><th><p>Phụ trách</p></th><th><p>Ngân sách (triệu đồng)</p></th></tr>
@@ -75,7 +75,7 @@ export const meetingMinutesDocHtml = () => `
 </ul>
 <h2>2. Nội dung thảo luận</h2>
 <ol>
-  <li>Đánh giá tiến độ triển khai sản phẩm bộ phần mềm văn phòng Minh Spark Office.</li>
+  <li>Đánh giá tiến độ triển khai sản phẩm bộ phần mềm văn phòng Office 23.</li>
   <li>Thử nghiệm tính năng nhập xuất tệp Word và Excel bảo mật cao.</li>
   <li>Kế hoạch tối ưu trải nghiệm người dùng và mở rộng tính năng.</li>
 </ol>
@@ -211,7 +211,7 @@ export const salesKpiWorkbook = (): WorkbookData => {
   });
 
   const regions = [
-    ['Miền Bắc', 'Minh Spark Office Pro', 500000000, 580000000],
+    ['Miền Bắc', 'Office 23 Pro', 500000000, 580000000],
     ['Miền Trung', 'Minh Spark Cloud Suite', 250000000, 240000000],
     ['Miền Nam', 'Minh Spark Enterprise', 800000000, 920000000],
     ['Thương mại điện tử', 'Bản quyền cá nhân', 150000000, 195000000],
@@ -389,7 +389,7 @@ export const projectEstimateWorkbook = (): WorkbookData => {
 
   const tasks: [string, string, string, number, number, number, number][] = [
     ['HM-01', 'Khảo sát nghiệp vụ & kiến trúc hệ thống', 'Nguyễn Văn A', 15, 3500000, 52500000, 1],
-    ['HM-02', 'Phát triển lõi soạn thảo Minh Docs & Minh Sheets', 'Nhóm Frontend', 45, 3200000, 128000000, 0.9],
+    ['HM-02', 'Phát triển lõi soạn thảo 23 Docs & 23 Sheets', 'Nhóm Frontend', 45, 3200000, 128000000, 0.9],
     ['HM-03', 'Tích hợp xử lý chữ ký số & bảo mật ECMA-376', 'Nhóm Bảo mật', 25, 3800000, 76000000, 0.8],
     ['HM-04', 'Kiểm thử hiệu năng, bảo mật & UAT nội bộ', 'Nhóm QA', 20, 2500000, 22000000, 0.45],
     ['HM-05', 'Đào tạo chuyển giao & triển khai vận hành', 'Ban Dự án', 12, 2800000, 0, 0.15],

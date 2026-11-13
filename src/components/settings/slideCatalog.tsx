@@ -15,7 +15,7 @@ export const SLIDE_CATEGORIES: SettingCategory[] = [
     id: 'slide-view',
     group: 'slide',
     title: 'Hiển thị',
-    description: 'Thước, lưới, đường dẫn và khung nhìn của Minh Slides.',
+    description: 'Thước, lưới, đường dẫn và khung nhìn của 23 Slides.',
     icon: <Eye size={20} />,
     sections: [
       {
@@ -49,7 +49,7 @@ export const SLIDE_CATEGORIES: SettingCategory[] = [
     id: 'slide-editing',
     group: 'slide',
     title: 'Soạn thảo',
-    description: 'Văn bản mới, soát chính tả và hoàn tác trong Minh Slides.',
+    description: 'Văn bản mới, soát chính tả và hoàn tác trong 23 Slides.',
     icon: <Pencil size={20} />,
     sections: [
       {
@@ -127,7 +127,7 @@ export const SLIDE_CATEGORIES: SettingCategory[] = [
     id: 'slide-ribbon',
     group: 'slide',
     title: 'Tuỳ chỉnh Ribbon',
-    description: 'Chọn các tab hiện trên ribbon của Minh Slides.',
+    description: 'Chọn các tab hiện trên ribbon của 23 Slides.',
     icon: <PanelTop size={20} />,
     sections: [
       {
@@ -143,7 +143,7 @@ export const SLIDE_CATEGORIES: SettingCategory[] = [
     id: 'slide-qat',
     group: 'slide',
     title: 'Thanh truy cập nhanh',
-    description: 'Các lệnh dùng nhiều của Minh Slides.',
+    description: 'Các lệnh dùng nhiều của 23 Slides.',
     icon: <Keyboard size={20} />,
     sections: [
       {

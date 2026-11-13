@@ -496,7 +496,7 @@ class WorksheetFunctionObject extends VbaObject {
         return VbaArray.fromGrid(Array.from({ length: columns }, (_, c): VbaValue[] => rows.map((row) => row[c])));
       }
       default:
-        throw new VbaError(438, `WorksheetFunction.${name} chưa được hỗ trợ trong Minh Sheets`);
+        throw new VbaError(438, `WorksheetFunction.${name} chưa được hỗ trợ trong 23 Sheets`);
     }
   }
 }
@@ -542,7 +542,7 @@ export class ApplicationObject extends VbaObject {
         return new PassiveObject('Dialog', () => model.callbacks.printSheet?.());
       case 'getsaveasfilename': {
         const initial = arg(args, 0, 'initialfilename');
-        return isMissing(initial) ? 'Minh-Sheets.pdf' : toStr(initial);
+        return isMissing(initial) ? '23-Sheets.pdf' : toStr(initial);
       }
       case 'activesheet':
         return model.activeSheet();
@@ -595,7 +595,7 @@ export class ApplicationObject extends VbaObject {
         });
       }
       case 'inputbox': {
-        const answer = model.callbacks.inputBox(toStr(arg(args, 0, 'prompt')), isMissing(arg(args, 1, 'title')) ? 'Minh Sheets' : toStr(arg(args, 1, 'title')), isMissing(arg(args, 2, 'default')) ? '' : toStr(arg(args, 2, 'default')));
+        const answer = model.callbacks.inputBox(toStr(arg(args, 0, 'prompt')), isMissing(arg(args, 1, 'title')) ? '23 Sheets' : toStr(arg(args, 1, 'title')), isMissing(arg(args, 2, 'default')) ? '' : toStr(arg(args, 2, 'default')));
         const type = arg(args, 7, 'type');
         if (!isMissing(type) && toInteger(type) === 8 && answer) return model.rangeFromAddress(answer, model.activeSheet());
         if (!isMissing(type) && toInteger(type) === 1) return tryNumber(answer) ?? false;
@@ -611,11 +611,11 @@ export class ApplicationObject extends VbaObject {
       case 'goto':
         return undefined;
       case 'username':
-        return 'Minh Sheets';
+        return '23 Sheets';
       case 'version':
         return '16.0';
       case 'name':
-        return 'Minh Sheets';
+        return '23 Sheets';
       case 'operatingsystem':
         return typeof navigator !== 'undefined' ? navigator.platform : 'Windows';
       case 'pathseparator':
@@ -718,7 +718,7 @@ class WorkbooksObject extends VbaObject {
   get(name: string, args: VbaArgs): VbaValue {
     if (name === 'count') return 1;
     if (name === 'item') return new WorkbookObject(this.model);
-    if (name === 'open' || name === 'add') throw new VbaError(1004, 'Minh Sheets chưa mở hoặc tạo bảng tính khác từ macro');
+    if (name === 'open' || name === 'add') throw new VbaError(1004, '23 Sheets chưa mở hoặc tạo bảng tính khác từ macro');
     return super.get(name, args);
   }
   defaultGet(): VbaValue {
@@ -759,7 +759,7 @@ class WorkbookObject extends VbaObject {
         return false;
       case 'saveas':
       case 'savecopyas':
-        throw new VbaError(1004, 'Minh Sheets chưa lưu bảng tính sang tệp khác từ macro; dùng nút Xuất trên ribbon');
+        throw new VbaError(1004, '23 Sheets chưa lưu bảng tính sang tệp khác từ macro; dùng nút Xuất trên ribbon');
       default:
         return super.get(name, args);
     }
@@ -1732,7 +1732,7 @@ export class RangeObject extends VbaObject {
         model.api.getFormula?.()?.executeCalculation?.();
         return undefined;
       case 'specialcells':
-        throw new VbaError(1004, 'SpecialCells chưa được hỗ trợ trong Minh Sheets');
+        throw new VbaError(1004, 'SpecialCells chưa được hỗ trợ trong 23 Sheets');
       case 'areas':
         return new PropertyBag('Areas', { count: 1 });
       default:

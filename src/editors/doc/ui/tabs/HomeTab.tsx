@@ -206,8 +206,8 @@ export default function HomeTab({ fmt }: { fmt: FormatState }) {
         <TipsRibbonButton className="ribbon-btn-large" />
       </Group>
 
-      <Group label="Minh AI">
-        <Big icon={<Sparkles size={20} color="#7c3aed" />} label="Minh AI" title="Viết lại, tóm tắt, dịch, viết tiếp bằng AI" onClick={() => ctx.openDialog('ai')} />
+      <Group label="23 AI">
+        <Big icon={<Sparkles size={20} color="#7c3aed" />} label="23 AI" title="Viết lại, tóm tắt, dịch, viết tiếp bằng AI" onClick={() => ctx.openDialog('ai')} />
       </Group>
     </>
   );

@@ -147,7 +147,7 @@ function AutoCorrectDialog({ onClose }: { onClose: () => void }) {
     setTo('');
   };
   return (
-    <Modal title="Tuỳ chọn tự sửa" subtitle="Gõ cụm bên trái rồi nhấn phím cách, Minh Docs đổi sang cụm bên phải." icon={<Wand2 size={20} />} onClose={onClose} width={560}>
+    <Modal title="Tuỳ chọn tự sửa" subtitle="Gõ cụm bên trái rồi nhấn phím cách, 23 Docs đổi sang cụm bên phải." icon={<Wand2 size={20} />} onClose={onClose} width={560}>
       <div className="check-row"><label><input type="checkbox" checked={ctx.page.autocorrect !== false} onChange={(event) => ctx.setPage({ autocorrect: event.target.checked })} /> Bật tự sửa và tự viết hoa đầu câu</label></div>
       <div className="autocorrect-add">
         <input className="text-field" placeholder="Gõ tắt, ví dụ ctcp" aria-label="Cụm gõ tắt" value={from} onChange={(event) => setFrom(event.target.value)} />

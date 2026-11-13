@@ -40,7 +40,7 @@ export default function MailingsTab() {
             </>
           )}
         </Dropdown>
-        <Big icon={<Database size={22} color="#2b579a" />} label="Chọn danh sách" title="Chọn danh sách người nhận (CSV, Excel hoặc Minh Sheets)" onClick={() => ctx.openDialog('mailmerge')} />
+        <Big icon={<Database size={22} color="#2b579a" />} label="Chọn danh sách" title="Chọn danh sách người nhận (CSV, Excel hoặc 23 Sheets)" onClick={() => ctx.openDialog('mailmerge')} />
         <Big icon={<Users size={22} color={muted} />} label="Sửa danh sách" title="Chọn, lọc, sắp xếp và sửa người nhận" disabled={!merge} onClick={() => ctx.openDialog('mergerecipients')} />
       </Group>
       <Group label="Soạn & chèn trường">

@@ -17,7 +17,7 @@ export async function askSlideAi(instruction: string, context: string, signal: A
     {
       provider: slideAiProvider(),
       app: 'doc',
-      documentName: 'Minh Slides',
+      documentName: '23 Slides',
       turns: [{ role: 'user', content: instruction }],
       context: { label: 'Nội dung trang chiếu', text: context },
     },

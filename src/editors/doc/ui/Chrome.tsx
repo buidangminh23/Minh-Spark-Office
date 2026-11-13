@@ -131,7 +131,7 @@ export function Backstage({ onClose, initialSection = 'info' }: { onClose: () =>
                 <FolderOpen size={22} color="#2b579a" /><div><strong>Mở tệp từ máy</strong><span>.docx, .txt, .md, .html, .xlsx, .csv, .pdf</span></div>
               </button>
               <button className="export-tile" onClick={() => act(ctx.onBack)}>
-                <FileText size={22} color="#2b579a" /><div><strong>Tệp gần đây</strong><span>Về danh sách tệp trong Minh Office</span></div>
+                <FileText size={22} color="#2b579a" /><div><strong>Tệp gần đây</strong><span>Về danh sách tệp trong Office 23</span></div>
               </button>
             </div>
           </>

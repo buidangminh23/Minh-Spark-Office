@@ -57,7 +57,7 @@ export function TableGridButton({ onInsert, onOpenSheets }: { onInsert: (rows: n
           </div>
           <MenuSeparator />
           <MenuItem icon={<Table size={14} />} label="Chèn bảng…" onClick={() => { close(); x.openDialog('insert-table'); }} />
-          {onOpenSheets && <MenuItem icon={<Sheet size={14} />} label="Bảng tính Minh Sheets…" onClick={() => { close(); onOpenSheets(); }} />}
+          {onOpenSheets && <MenuItem icon={<Sheet size={14} />} label="Bảng tính 23 Sheets…" onClick={() => { close(); onOpenSheets(); }} />}
         </>
       )}
     </DropButton>

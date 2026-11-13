@@ -148,7 +148,7 @@ export function SlideAiModal({
 
       // Slide 1: Title Slide
       const s1 = createSlideFromLayout('title', 0, selectedTheme, titleUpper);
-      s1.elements[1].text = `KẾ HOẠCH HÀNH ĐỘNG & ĐỊNH HƯỚNG PHÁT TRIỂN NĂM 2026\nNgười trình bày: Minh Spark Office AI Team`;
+      s1.elements[1].text = `KẾ HOẠCH HÀNH ĐỘNG & ĐỊNH HƯỚNG PHÁT TRIỂN NĂM 2026\nNgười trình bày: Office 23 AI Team`;
       s1.notes = `Kính chào toàn thể quý vị đại biểu. Hôm nay em xin trình bày về chủ đề "${prompt.trim()}".`;
       generatedSlides.push(s1);
 

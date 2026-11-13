@@ -55,7 +55,7 @@ async function streamFromServer(request: AddinRequest, onText: (chunk: string) =
     response = await fetch(API_URL, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(request), signal });
   } catch (error) {
     if (signal.aborted) throw new AddinError('Đã dừng.', 'aborted');
-    throw new AddinError('Không kết nối được tới máy chủ Minh Spark Office. Kiểm tra mạng rồi thử lại.', error instanceof Error ? 'network' : 'unknown');
+    throw new AddinError('Không kết nối được tới máy chủ Office 23. Kiểm tra mạng rồi thử lại.', error instanceof Error ? 'network' : 'unknown');
   }
   if (!response.ok || !response.body) {
     const payload = await response.json().catch(() => null) as { error?: string; code?: string } | null;

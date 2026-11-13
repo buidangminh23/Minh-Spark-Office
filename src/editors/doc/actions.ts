@@ -245,7 +245,7 @@ export const customWatermark = async (ctx: DocCtx) => {
 const newDocMeta = (name: string, preview: string): FileMeta => ({ id: newId('doc'), name, kind: 'doc', createdAt: Date.now(), updatedAt: Date.now(), openedAt: Date.now(), starred: false, deletedAt: null, size: preview.length * 2, preview: preview.slice(0, 160) });
 
 export const splitDocument = async (ctx: DocCtx) => {
-  const res = await ctx.ui.ask({ title: 'Tách tài liệu', message: 'Mỗi tiêu đề ở cấp đã chọn sẽ thành một tài liệu riêng trong Minh Office.', fields: [{ name: 'level', label: 'Tách theo', type: 'select', value: '1', options: [{ value: '1', label: 'Heading 1' }, { value: '2', label: 'Heading 1 và 2' }] }], confirmText: 'Tách' });
+  const res = await ctx.ui.ask({ title: 'Tách tài liệu', message: 'Mỗi tiêu đề ở cấp đã chọn sẽ thành một tài liệu riêng trong Office 23.', fields: [{ name: 'level', label: 'Tách theo', type: 'select', value: '1', options: [{ value: '1', label: 'Heading 1' }, { value: '2', label: 'Heading 1 và 2' }] }], confirmText: 'Tách' });
   if (!res) return;
   const sections = splitByHeading(ctx.editor.getJSON(), Number(res.level));
   if (sections.length < 2) {

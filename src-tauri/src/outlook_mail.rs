@@ -123,7 +123,7 @@ pub(crate) async fn outlook_send(messages: Vec<MailMessage>, mode: String) -> Re
     #[cfg(not(windows))]
     {
         drop(messages);
-        Err("Gửi qua Outlook chỉ có trong ứng dụng Minh Spark Office trên Windows.".into())
+        Err("Gửi qua Outlook chỉ có trong ứng dụng Office 23 trên Windows.".into())
     }
 }
 

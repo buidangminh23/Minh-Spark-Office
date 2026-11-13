@@ -14,7 +14,7 @@ export function DesktopFileSettings() {
       await invoke('open_default_apps');
     } catch {
       setError(
-        'Chưa mở được phần cài đặt. Hãy mở Cài đặt Windows → Ứng dụng → Ứng dụng mặc định → Minh Spark Office.'
+        'Chưa mở được phần cài đặt. Hãy mở Cài đặt Windows → Ứng dụng → Ứng dụng mặc định → Office 23.'
       );
     }
   };
@@ -34,10 +34,10 @@ export function DesktopFileSettings() {
             <img
               className="sync-brand"
               src="/logo-icon.png"
-              alt="Minh Spark Office"
+              alt="Office 23"
             />
             <h2 id="default-app-title">
-              {windows || mac ? 'Mở tài liệu & hình ảnh bằng Minh Spark Office' : 'Mở tài liệu bằng Minh Spark Office'}
+              {windows || mac ? 'Mở tài liệu & hình ảnh bằng Office 23' : 'Mở tài liệu bằng Office 23'}
             </h2>
             {windows || mac ? (
               <p>
@@ -50,20 +50,20 @@ export function DesktopFileSettings() {
             {mac ? (
               <p>
                 Trong Finder, chọn một tài liệu hoặc tệp ảnh → Lấy thông tin (Get
-                Info) → Mở bằng (Open with) → Minh Spark Office → Thay đổi tất cả
+                Info) → Mở bằng (Open with) → Office 23 → Thay đổi tất cả
                 (Change All).
               </p>
             ) : windows ? (
               <p>
-                Trong Cài đặt Windows, chọn Minh Spark Office rồi chọn các loại tệp
+                Trong Cài đặt Windows, chọn Office 23 rồi chọn các loại tệp
                 muốn mở mặc định. Cũng có thể nhấp chuột phải bất kỳ tệp ảnh hoặc
-                tài liệu → Mở bằng (Open with) → Minh Spark Office.
+                tài liệu → Mở bằng (Open with) → Office 23.
               </p>
             ) : (
               <p>
                 Sau khi cài gói .deb, trong trình quản lý tệp, nhấp chuột phải
                 tài liệu → Thuộc tính (Properties) → Mở bằng (Open With) →
-                Minh Spark Office → Đặt làm mặc định (Set as default).
+                Office 23 → Đặt làm mặc định (Set as default).
                 Với AppImage, mở ứng dụng rồi chọn tài liệu cần dùng.
               </p>
             )}

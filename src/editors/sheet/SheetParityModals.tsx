@@ -107,7 +107,7 @@ export function ChartGalleryModal({
   return (
     <ParityDialog
       title={heading}
-      subtitle={mode === 'recommended' ? 'Minh Sheets đọc hình dạng dữ liệu rồi gợi ý loại biểu đồ phù hợp nhất.' : 'Chọn loại biểu đồ, xem trước rồi nhúng vào trang tính.'}
+      subtitle={mode === 'recommended' ? '23 Sheets đọc hình dạng dữ liệu rồi gợi ý loại biểu đồ phù hợp nhất.' : 'Chọn loại biểu đồ, xem trước rồi nhúng vào trang tính.'}
       width={980}
       onClose={onClose}
       actions={
@@ -383,7 +383,7 @@ export function ForecastSheetModal({ initialRange, onCreate, onClose }: { initia
   return (
     <ParityDialog
       title="Tạo trang dự báo (Forecast Sheet)"
-      subtitle="Chọn 2 cột: mốc thời gian (ngày hoặc số tăng đều) và giá trị. Minh Sheets dùng FORECAST.ETS như Excel."
+      subtitle="Chọn 2 cột: mốc thời gian (ngày hoặc số tăng đều) và giá trị. 23 Sheets dùng FORECAST.ETS như Excel."
       width={480}
       onClose={onClose}
       actions={

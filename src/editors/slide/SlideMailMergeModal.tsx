@@ -105,7 +105,7 @@ export function SlideMailMergeModal({
         {/* Content */}
         <div className="ppt-dialog-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div style={{ background: '#F8FAFC', padding: '12px 16px', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '13px', color: '#334155', lineHeight: '1.6' }}>
-            <Lightbulb size={14} className="ppt-inline-icon" /> <strong>Cách hoạt động:</strong> Đặt các thẻ dạng <code>{`{{ten_truong}}`}</code> trong hộp chữ trên trang chiếu mẫu (ví dụ: <code>{`{{ho_ten}}`}</code>, <code>{`{{chuc_vu}}`}</code>, <code>{`{{cong_ty}}`}</code>). Khi bấm nút tạo, Minh Slides sẽ tự động nhân bản trang chiếu và điền thông tin tương ứng cho từng người trong danh sách dữ liệu.
+            <Lightbulb size={14} className="ppt-inline-icon" /> <strong>Cách hoạt động:</strong> Đặt các thẻ dạng <code>{`{{ten_truong}}`}</code> trong hộp chữ trên trang chiếu mẫu (ví dụ: <code>{`{{ho_ten}}`}</code>, <code>{`{{chuc_vu}}`}</code>, <code>{`{{cong_ty}}`}</code>). Khi bấm nút tạo, 23 Slides sẽ tự động nhân bản trang chiếu và điền thông tin tương ứng cho từng người trong danh sách dữ liệu.
           </div>
 
           <div>

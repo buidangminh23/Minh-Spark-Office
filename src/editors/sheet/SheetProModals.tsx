@@ -270,7 +270,7 @@ export function FormatCellsModal({
               background: st.fill || '#ffffff',
             }}
           >
-            Minh Sheets AaBb 123
+            23 Sheets AaBb 123
           </div>
         </div>
       )}

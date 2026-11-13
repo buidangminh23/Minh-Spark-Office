@@ -238,8 +238,8 @@ const instr = (args: VbaArgs, context: BuiltinContext): number => {
 };
 
 export const BUILTINS: Record<string, Builtin> = {
-  msgbox: (args, context) => context.msgBox(str(args, 0, 'prompt'), isMissing(arg(args, 1, 'buttons')) ? 0 : int(args, 1, 'buttons'), isMissing(arg(args, 2, 'title')) ? 'Minh Sheets' : str(args, 2, 'title')),
-  inputbox: (args, context) => context.inputBox(str(args, 0, 'prompt'), isMissing(arg(args, 1, 'title')) ? 'Minh Sheets' : str(args, 1, 'title'), isMissing(arg(args, 2, 'default')) ? '' : str(args, 2, 'default')),
+  msgbox: (args, context) => context.msgBox(str(args, 0, 'prompt'), isMissing(arg(args, 1, 'buttons')) ? 0 : int(args, 1, 'buttons'), isMissing(arg(args, 2, 'title')) ? '23 Sheets' : str(args, 2, 'title')),
+  inputbox: (args, context) => context.inputBox(str(args, 0, 'prompt'), isMissing(arg(args, 1, 'title')) ? '23 Sheets' : str(args, 1, 'title'), isMissing(arg(args, 2, 'default')) ? '' : str(args, 2, 'default')),
   len: (args) => {
     const value = scalar(arg(args, 0));
     return value === null ? null : toStr(value).length;

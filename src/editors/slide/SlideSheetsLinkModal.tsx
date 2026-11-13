@@ -99,7 +99,7 @@ export function SlideSheetsLinkModal({
       .then((content) => {
         if (cancelled) return;
         if (!content || content.kind !== 'sheet') {
-          setError('Tệp đã chọn không phải sổ tính Minh Sheets hoặc chưa có nội dung.');
+          setError('Tệp đã chọn không phải sổ tính 23 Sheets hoặc chưa có nội dung.');
           return;
         }
         setWorkbook(content.workbook);
@@ -128,14 +128,14 @@ export function SlideSheetsLinkModal({
 
   const handleSyncData = async () => {
     if (!fileId || !selectedFile) {
-      setError('Hãy chọn một sổ tính Minh Sheets.');
+      setError('Hãy chọn một sổ tính 23 Sheets.');
       return;
     }
     setIsUpdating(true);
     setError(null);
     try {
       const content = await loadContent(fileId);
-      if (!content || content.kind !== 'sheet') throw new SheetLinkError('Tệp đã chọn không phải sổ tính Minh Sheets hoặc chưa có nội dung.');
+      if (!content || content.kind !== 'sheet') throw new SheetLinkError('Tệp đã chọn không phải sổ tính 23 Sheets hoặc chưa có nội dung.');
       const sheet = findWorkbookSheet(content.workbook, sheetId);
       const parsed = parseSheetRange(cells);
       if (parsed.sheetName && parsed.sheetName !== sheet.name) {
@@ -171,7 +171,7 @@ export function SlideSheetsLinkModal({
         <div className="ppt-dialog-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <FileSpreadsheet size={20} color="#059669" />
-            <span style={{ fontWeight: 700, fontSize: '16px' }}>Liên kết dữ liệu từ Minh Sheets</span>
+            <span style={{ fontWeight: 700, fontSize: '16px' }}>Liên kết dữ liệu từ 23 Sheets</span>
           </div>
           <button className="ppt-dialog-close-btn" onClick={onClose}>
             <X size={16} />
@@ -180,7 +180,7 @@ export function SlideSheetsLinkModal({
 
         <div className="ppt-dialog-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <p style={{ fontSize: '13px', color: '#475569', margin: 0 }}>
-            Chọn một sổ tính đã lưu trong <strong>Minh Spark Office</strong> và vùng ô cần lấy. Mỗi lần bấm cập nhật, số liệu được đọc lại từ bản đã lưu của sổ tính.
+            Chọn một sổ tính đã lưu trong <strong>Office 23</strong> và vùng ô cần lấy. Mỗi lần bấm cập nhật, số liệu được đọc lại từ bản đã lưu của sổ tính.
           </p>
 
           <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', padding: '10px 14px', borderRadius: '6px', fontSize: '12px', color: '#166534' }}>
@@ -192,12 +192,12 @@ export function SlideSheetsLinkModal({
 
           {!isSupported && (
             <div role="alert" style={{ color: '#B91C1C', fontSize: '13px' }}>
-              Chỉ biểu đồ hoặc bảng mới liên kết được với Minh Sheets.
+              Chỉ biểu đồ hoặc bảng mới liên kết được với 23 Sheets.
             </div>
           )}
 
           <div>
-            <label style={LABEL_STYLE} htmlFor="slide-sheets-link-file">Sổ tính Minh Sheets:</label>
+            <label style={LABEL_STYLE} htmlFor="slide-sheets-link-file">Sổ tính 23 Sheets:</label>
             <select
               id="slide-sheets-link-file"
               className="ppt-dialog-select"

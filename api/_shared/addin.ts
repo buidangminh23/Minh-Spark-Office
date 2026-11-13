@@ -16,9 +16,9 @@ export const MAX_DIRECT_PDF_BASE64 = 30_000_000;
 
 const PRODUCT_NAME: Record<AddinProvider, string> = { claude: 'Claude', chatgpt: 'ChatGPT' };
 const APP_DESCRIPTION: Record<AddinApp, string> = {
-  doc: 'Minh Docs, a word processor. The context is the selected passage or the whole document.',
-  sheet: 'Minh Sheets, a spreadsheet. The context lists the active sheet, the selected range with its address, and the sheet data as tab-separated rows with A1 addresses.',
-  pdf: 'Minh PDF, a PDF viewer. The PDF file itself is attached when available, followed by any notes.',
+  doc: '23 Docs, a word processor. The context is the selected passage or the whole document.',
+  sheet: '23 Sheets, a spreadsheet. The context lists the active sheet, the selected range with its address, and the sheet data as tab-separated rows with A1 addresses.',
+  pdf: '23 PDF, a PDF viewer. The PDF file itself is attached when available, followed by any notes.',
 };
 const APP_OUTPUT: Record<AddinApp, string> = {
   doc: 'When the user asks you to write, rewrite, translate or summarize content that belongs in the document, reply with that content only, formatted in simple Markdown (headings, lists, bold, tables), so it can be inserted as is.',
@@ -28,7 +28,7 @@ const APP_OUTPUT: Record<AddinApp, string> = {
 
 export function systemPrompt(provider: AddinProvider, app: AddinApp, documentName: string) {
   return [
-    `You are ${PRODUCT_NAME[provider]}, running as an add-in inside Minh Spark Office, in ${APP_DESCRIPTION[app]}`,
+    `You are ${PRODUCT_NAME[provider]}, running as an add-in inside Office 23, in ${APP_DESCRIPTION[app]}`,
     `The open file is named "${documentName.slice(0, 200)}".`,
     'Reply in the language the user writes in; default to Vietnamese.',
     APP_OUTPUT[app],

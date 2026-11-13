@@ -367,7 +367,7 @@ export function DocToSlideDialog({ onClose }: { onClose: () => void }) {
         themeId: 'office-classic',
         aspectRatio: '16:9',
         title: meta.name.replace(/\.[^/.]+$/, ''),
-        author: 'Minh Spark Office',
+        author: 'Office 23',
       };
 
       const newName = `Thuyết trình - ${meta.name.replace(/\.[^/.]+$/, '')}.pptx`;

@@ -217,7 +217,7 @@ async function inlineChildren(nodes: JSONContent[] = [], context: Context, base:
       const revision = marks.find((mark) => mark.type === 'insertion' || mark.type === 'deletion');
       if (revision) {
         const stamp = Number(revision.attrs?.date);
-        const change = { id: ++revisionCounter, author: String(revision.attrs?.author || 'Minh Office'), date: new Date(Number.isFinite(stamp) && stamp > 0 ? stamp : Date.now()).toISOString() };
+        const change = { id: ++revisionCounter, author: String(revision.attrs?.author || 'Office 23'), date: new Date(Number.isFinite(stamp) && stamp > 0 ? stamp : Date.now()).toISOString() };
         const text = node.text ?? '';
         children.push(revision.type === 'insertion' ? new InsertedTextRun({ ...options, text, ...change }) : new DeletedTextRun({ ...options, text, ...change }));
       } else if (link) {
@@ -632,7 +632,7 @@ export async function exportDocx(json: JSONContent, page: PageSettings, title: s
   };
   const roman = page.pageNumberFormat === 'roman';
   const document = new Document({
-    creator: page.properties?.author || 'Minh Office',
+    creator: page.properties?.author || 'Office 23',
     title,
     subject: page.properties?.subject,
     keywords: page.properties?.keywords,

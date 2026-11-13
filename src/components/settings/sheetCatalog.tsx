@@ -11,7 +11,7 @@ export const SHEET_CATEGORIES: SettingCategory[] = [
     id: 'sheet-formulas',
     group: 'sheet',
     title: 'Công thức',
-    description: 'Cách Minh Sheets hỗ trợ khi gõ công thức.',
+    description: 'Cách 23 Sheets hỗ trợ khi gõ công thức.',
     icon: <Sigma size={20} />,
     sections: [
       {
@@ -57,7 +57,7 @@ export const SHEET_CATEGORIES: SettingCategory[] = [
       {
         id: 'sheet-autofill',
         title: 'Tự động khi nhập',
-        description: 'Những việc Minh Sheets tự làm sau khi gõ xong một ô.',
+        description: 'Những việc 23 Sheets tự làm sau khi gõ xong một ô.',
         icon: <PenLine size={ICON} />,
         options: [
           {
@@ -80,7 +80,7 @@ export const SHEET_CATEGORIES: SettingCategory[] = [
     id: 'sheet-display',
     group: 'sheet',
     title: 'Hiển thị',
-    description: 'Các thành phần hiện trong cửa sổ Minh Sheets.',
+    description: 'Các thành phần hiện trong cửa sổ 23 Sheets.',
     icon: <Eye size={20} />,
     sections: [
       {
@@ -128,7 +128,7 @@ export const SHEET_CATEGORIES: SettingCategory[] = [
     id: 'sheet-ribbon',
     group: 'sheet',
     title: 'Tuỳ chỉnh Ribbon',
-    description: 'Chọn các tab hiện trên ribbon của Minh Sheets.',
+    description: 'Chọn các tab hiện trên ribbon của 23 Sheets.',
     icon: <PanelTop size={20} />,
     sections: [
       {
@@ -152,7 +152,7 @@ export const SHEET_CATEGORIES: SettingCategory[] = [
     id: 'sheet-qat',
     group: 'sheet',
     title: 'Thanh truy cập nhanh',
-    description: 'Các lệnh dùng nhiều, luôn nằm cạnh ribbon của Minh Sheets.',
+    description: 'Các lệnh dùng nhiều, luôn nằm cạnh ribbon của 23 Sheets.',
     icon: <Keyboard size={20} />,
     sections: [
       {

@@ -18,7 +18,7 @@ const BASE_CATEGORIES: SettingCategory[] = [
     id: 'general',
     group: 'general',
     title: 'Chung',
-    description: 'Tuỳ chọn chung khi làm việc với Minh Spark Office.',
+    description: 'Tuỳ chọn chung khi làm việc với Office 23.',
     icon: <Settings2 size={20} />,
     sections: [
       {
@@ -37,7 +37,7 @@ const BASE_CATEGORIES: SettingCategory[] = [
         description: 'Thanh công cụ, ribbon và chú giải khi rê chuột.',
         icon: <PanelTop size={ICON} />,
         options: [
-          { kind: 'toggle', key: 'miniToolbar', label: 'Hiện thanh công cụ mini khi chọn văn bản', hint: 'Thanh định dạng nhỏ hiện ngay trên đoạn chữ đang bôi đen (Minh Docs).' },
+          { kind: 'toggle', key: 'miniToolbar', label: 'Hiện thanh công cụ mini khi chọn văn bản', hint: 'Thanh định dạng nhỏ hiện ngay trên đoạn chữ đang bôi đen (23 Docs).' },
           { kind: 'toggle', key: 'collapseRibbon', label: 'Tự thu gọn ribbon khi mở tài liệu', hint: 'Chỉ hiện tên các tab; bấm vào tab để mở nhóm lệnh.' },
           { kind: 'select', key: 'tooltips', label: 'Kiểu chú giải nút', options: [['full', 'Hiện mô tả tính năng'], ['short', 'Chỉ hiện tên nút'], ['none', 'Không hiện chú giải']] },
           { kind: 'toggle', key: 'tooltipShortcuts', label: 'Hiện phím tắt trong chú giải', disabledWhen: (s) => s.tooltips === 'none' },
@@ -77,7 +77,7 @@ const BASE_CATEGORIES: SettingCategory[] = [
       {
         id: 'page',
         title: 'Tuỳ chọn hiển thị trang',
-        description: 'Áp dụng cho Minh Docs ở chế độ Bố cục in.',
+        description: 'Áp dụng cho 23 Docs ở chế độ Bố cục in.',
         icon: <Monitor size={ICON} />,
         options: [
           { kind: 'toggle', key: 'docPageGap', label: 'Hiện khoảng trắng giữa các trang' },
@@ -103,10 +103,10 @@ const BASE_CATEGORIES: SettingCategory[] = [
       {
         id: 'printing',
         title: 'Tuỳ chọn in',
-        description: 'Áp dụng khi in từ Minh Docs (Tệp → In).',
+        description: 'Áp dụng khi in từ 23 Docs (Tệp → In).',
         icon: <CheckCheck size={ICON} />,
         options: [
-          { kind: 'toggle', key: 'printDrawings', label: 'In nét vẽ tay tạo trong Minh Docs' },
+          { kind: 'toggle', key: 'printDrawings', label: 'In nét vẽ tay tạo trong 23 Docs' },
           { kind: 'toggle', key: 'printBackground', label: 'In màu nền và hình nền trang' },
           { kind: 'toggle', key: 'printProperties', label: 'In thuộc tính tài liệu', hint: 'Thêm một trang cuối ghi tên, tác giả, ngày tạo, số trang và số từ.' },
           { kind: 'toggle', key: 'printComments', label: 'In kèm nhận xét', hint: 'Thêm danh sách nhận xét ở cuối bản in.' },
@@ -118,7 +118,7 @@ const BASE_CATEGORIES: SettingCategory[] = [
     id: 'proofing',
     group: 'doc',
     title: 'Soát lỗi',
-    description: 'Cách Minh Docs sửa và đánh dấu văn bản khi gõ.',
+    description: 'Cách 23 Docs sửa và đánh dấu văn bản khi gõ.',
     icon: <SpellCheck2 size={20} />,
     sections: [
       {
@@ -214,7 +214,7 @@ const BASE_CATEGORIES: SettingCategory[] = [
       {
         id: 'desktop',
         title: 'Ứng dụng máy tính',
-        description: 'Mở tài liệu và ảnh bằng Minh Spark Office.',
+        description: 'Mở tài liệu và ảnh bằng Office 23.',
         icon: <Monitor size={ICON} />,
         options: [{ kind: 'custom', id: 'default-apps', label: 'Ứng dụng mặc định', keywords: 'mở tệp mặc định tải ứng dụng', render: () => <DefaultAppsPanel /> }],
       },
@@ -231,13 +231,13 @@ const BASE_CATEGORIES: SettingCategory[] = [
     id: 'doc-editing',
     group: 'doc',
     title: 'Soạn thảo',
-    description: 'Phông chữ mặc định và cách dán trong Minh Docs.',
+    description: 'Phông chữ mặc định và cách dán trong 23 Docs.',
     icon: <Type size={20} />,
     sections: [
       {
         id: 'editing',
         title: 'Phông chữ mặc định',
-        description: 'Áp dụng cho văn bản mới tạo trong Minh Docs.',
+        description: 'Áp dụng cho văn bản mới tạo trong 23 Docs.',
         icon: <Type size={ICON} />,
         options: [
           { kind: 'custom', id: 'font', label: 'Phông chữ và cỡ chữ mặc định', keywords: 'font phông cỡ', render: () => <FontPicker /> },
@@ -246,7 +246,7 @@ const BASE_CATEGORIES: SettingCategory[] = [
       {
         id: 'paste',
         title: 'Cắt, sao chép và dán',
-        description: 'Cách Minh Docs giữ định dạng khi dán.',
+        description: 'Cách 23 Docs giữ định dạng khi dán.',
         icon: <Code2 size={ICON} />,
         options: [
           { kind: 'select', key: 'pasteSame', label: 'Dán trong cùng tài liệu', options: [['keep', 'Giữ định dạng gốc'], ['merge', 'Gộp định dạng'], ['text', 'Chỉ giữ văn bản']] },
@@ -259,7 +259,7 @@ const BASE_CATEGORIES: SettingCategory[] = [
     id: 'ribbon',
     group: 'doc',
     title: 'Tuỳ chỉnh Ribbon',
-    description: 'Chọn các tab hiện trên ribbon của Minh Docs.',
+    description: 'Chọn các tab hiện trên ribbon của 23 Docs.',
     icon: <PanelTop size={20} />,
     sections: [
       {
@@ -275,7 +275,7 @@ const BASE_CATEGORIES: SettingCategory[] = [
     id: 'qat',
     group: 'doc',
     title: 'Thanh truy cập nhanh',
-    description: 'Các lệnh dùng nhiều, luôn nằm trên ribbon của Minh Docs.',
+    description: 'Các lệnh dùng nhiều, luôn nằm trên ribbon của 23 Docs.',
     icon: <Keyboard size={20} />,
     sections: [
       {
@@ -301,7 +301,7 @@ const BASE_CATEGORIES: SettingCategory[] = [
       {
         id: 'macros',
         title: 'Macro',
-        description: 'Áp dụng cho macro VBA trong Minh Sheets và macro ghi trong Minh Docs.',
+        description: 'Áp dụng cho macro VBA trong 23 Sheets và macro ghi trong 23 Docs.',
         icon: <Code2 size={ICON} />,
         options: [
           { kind: 'select', key: 'macroPolicy', label: 'Khi tài liệu chứa macro', options: [['disable', 'Tắt mọi macro'], ['ask', 'Hỏi trước khi chạy'], ['enable', 'Cho chạy mọi macro']], hint: 'Macro có thể sửa hoặc xoá dữ liệu. Chỉ cho chạy macro từ nguồn tin cậy.' },

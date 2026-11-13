@@ -93,7 +93,7 @@ export function MarketQuotesModal({
   return (
     <ProDialog
       title="Dữ liệu thị trường"
-      subtitle="Giá thật lấy qua máy chủ Minh Spark Office: chỉ số và cổ phiếu (SSI), tiền mã hoá (CoinGecko), tỷ giá (Vietcombank), vàng (PNJ)"
+      subtitle="Giá thật lấy qua máy chủ Office 23: chỉ số và cổ phiếu (SSI), tiền mã hoá (CoinGecko), tỷ giá (Vietcombank), vàng (PNJ)"
       width={780}
       onClose={onClose}
       actions={

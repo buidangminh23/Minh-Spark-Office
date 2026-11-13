@@ -290,7 +290,7 @@ export function MergeWizardDialog({ onClose }: { onClose: () => void }) {
         <button type="button" className="merge-result" onClick={() => go('templates')}><strong>Bắt đầu từ mẫu</strong></button>
       </div>}
       {step === 3 && <div className="merge-results">
-        <button type="button" className="merge-result" onClick={() => go('mailmerge')}><strong>Chọn danh sách</strong> · CSV, Excel hoặc Minh Sheets</button>
+        <button type="button" className="merge-result" onClick={() => go('mailmerge')}><strong>Chọn danh sách</strong> · CSV, Excel hoặc 23 Sheets</button>
         <button type="button" className="merge-result" disabled={!ctx.merge} onClick={() => go('mergerecipients')}><strong>Sửa danh sách người nhận</strong>{ctx.merge ? ` · ${activeRecords(ctx.merge).length} người` : ''}</button>
       </div>}
       {step === 4 && <div className="merge-results">

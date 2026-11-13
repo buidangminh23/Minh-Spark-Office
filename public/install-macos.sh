@@ -2,7 +2,8 @@
 set -euo pipefail
 
 BASE_URL="${MINHSPARK_OFFICE_BASE_URL:-https://office.minhspark.com}"
-APP_NAME="Minh Spark Office.app"
+APP_NAME="Office 23.app"
+LEGACY_APP_NAME="Minh Spark Office.app"
 BUNDLE_ID="com.minhspark.office"
 EXECUTABLE="minh-spark-office"
 MINIMUM_MACOS="13.3"
@@ -11,7 +12,7 @@ LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchS
 work=""
 
 say() { printf '%s\n' "$*"; }
-die() { printf 'Minh Spark Office: %s\n' "$*" >&2; exit 1; }
+die() { printf 'Office 23: %s\n' "$*" >&2; exit 1; }
 
 version_at_least() {
   local IFS=.
@@ -87,8 +88,9 @@ main() {
   [ -w "$target_dir" ] || die "không ghi được vào $target_dir; chạy lại với --dir \"$HOME/Applications\""
   target_dir="$(cd "$target_dir" && pwd -P)" || die "không mở được thư mục $target_dir"
   local destination="$target_dir/$APP_NAME"
-  if running_from "$destination"; then
-    die "Minh Spark Office đang mở. Hãy lưu tài liệu, thoát ứng dụng (Cmd+Q) rồi chạy lại lệnh cài"
+  local legacy="$target_dir/$LEGACY_APP_NAME"
+  if running_from "$destination" || running_from "$legacy"; then
+    die "Office 23 đang mở. Hãy lưu tài liệu, thoát ứng dụng (Cmd+Q) rồi chạy lại lệnh cài"
   fi
 
   work="$(mktemp -d "${TMPDIR:-/tmp}/minh-spark-office.XXXXXX")"
@@ -103,7 +105,7 @@ main() {
   local version="${archive#MinhSparkOffice-}"
   version="${version%-macos-arm64.app.tar.gz}"
 
-  say "Đang tải Minh Spark Office ${version}…"
+  say "Đang tải Office 23 ${version}…"
   curl -fL --progress-bar "$BASE_URL/downloads/$archive" -o "$work/$archive" || die "tải $archive không thành công"
   local actual
   actual="$(shasum -a 256 "$work/$archive" | awk '{ print $1 }')"
@@ -113,7 +115,7 @@ main() {
   tar -xzf "$work/$archive" -C "$work/app" || die "giải nén $archive không thành công"
   local app="$work/app/$APP_NAME"
   [ -d "$app" ] || die "gói tải về không chứa $APP_NAME"
-  [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" = "$BUNDLE_ID" ] || die "gói tải về không phải Minh Spark Office"
+  [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" = "$BUNDLE_ID" ] || die "gói tải về không phải Office 23"
   [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")" = "$version" ] || die "phiên bản trong gói không khớp $version"
   strip_quarantine "$app"
   codesign --verify --deep --strict "$app" >/dev/null 2>&1 || die "chữ ký của ứng dụng không hợp lệ; chưa cài gì"
@@ -126,7 +128,7 @@ main() {
 
   if running_from "$destination"; then
     rm -rf "$staged"
-    die "Minh Spark Office vừa được mở trong lúc cài. Hãy thoát ứng dụng rồi chạy lại lệnh cài"
+    die "Office 23 vừa được mở trong lúc cài. Hãy thoát ứng dụng rồi chạy lại lệnh cài"
   fi
   if [ -d "$destination" ]; then
     mv "$destination" "$previous" || { rm -rf "$staged"; die "không thay được bản cũ ở $destination"; }
@@ -137,10 +139,13 @@ main() {
     die "không đặt được bản mới vào chỗ; bản cũ được giữ nguyên"
   fi
   rm -rf "$previous"
+  if [ -d "$legacy" ] && [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$legacy/Contents/Info.plist" 2>/dev/null)" = "$BUNDLE_ID" ]; then
+    rm -rf "$legacy" && say "Đã gỡ bản cũ mang tên Minh Spark Office."
+  fi
   [ "$(quarantined_items "$destination")" = 0 ] || die "macOS vẫn đánh dấu ứng dụng là tải từ Internet; chạy lại lệnh cài"
   "$LSREGISTER" -f "$destination" >/dev/null 2>&1 || true
 
-  say "Đã cài Minh Spark Office $version vào $destination."
+  say "Đã cài Office 23 $version vào $destination."
   say "Từ giờ ứng dụng tự cập nhật trong mục Cập nhật ứng dụng."
   if [ "$launch" -eq 1 ]; then
     open "$destination"

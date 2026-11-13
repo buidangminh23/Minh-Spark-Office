@@ -58,7 +58,7 @@ async function main() {
   if (startIndex < 0) throw new Error(`--from must be one of: ${STEPS.join(', ')}`);
   const runs = (step) => STEPS.indexOf(step) >= startIndex;
 
-  heading(`Minh Spark Office desktop release ${current} -> ${target}`);
+  heading(`Office 23 desktop release ${current} -> ${target}`);
   preflight({ checkClean: startIndex === 0 });
   if (options.dryRun) {
     console.log(`Dry run: would run ${STEPS.slice(startIndex).join(' -> ')}`);
@@ -364,7 +364,7 @@ async function verify(version) {
     'dir=$(mktemp -d /tmp/mso-release.XXXXXX)',
     'trap \'rm -rf "$dir"\' EXIT',
     `curl -fsSL ${SITE}/install-macos.sh | PATH=/usr/bin:$PATH bash -s -- --dir "$dir" --no-launch > /dev/null 2>&1`,
-    'app="$dir/Minh Spark Office.app"',
+    'app="$dir/Office 23.app"',
     'codesign --verify --deep --strict "$app"',
     'quarantined=$(find "$app" -exec xattr -p com.apple.quarantine {} \\; 2>/dev/null | wc -l | tr -d " ")',
     'echo "$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$app/Contents/Info.plist") $quarantined"',

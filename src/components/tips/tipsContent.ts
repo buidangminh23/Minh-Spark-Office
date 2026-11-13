@@ -13,9 +13,9 @@ export type TipSection = {
 };
 
 export const TIPS_APP_NAME: Record<TipsApp, string> = {
-  doc: 'Minh Docs',
-  sheet: 'Minh Sheets',
-  slide: 'Minh Slides',
+  doc: '23 Docs',
+  sheet: '23 Sheets',
+  slide: '23 Slides',
 };
 
 const DOC_TIPS: TipSection[] = [
@@ -26,7 +26,7 @@ const DOC_TIPS: TipSection[] = [
       { title: 'Menu chèn nhanh', body: 'Gõ / ở đầu dòng hoặc sau dấu cách để chèn tiêu đề, danh sách, bảng, ảnh, biểu đồ, mục lục, ngắt trang, công thức toán mà không cần mở ribbon.', keys: [['/']] },
       { title: 'Chèn ngày, trạng thái, người', body: 'Gõ @ để chèn ngày hôm nay, trạng thái (Bản nháp, Đang làm, Chờ ký duyệt, Đã duyệt), người hoặc địa điểm.', keys: [['@']] },
       { title: 'Bảng lệnh', body: 'Gõ tên lệnh để tìm và chạy, không cần nhớ lệnh nằm ở tab nào.', keys: [['Alt', 'Q']] },
-      { title: 'Xem mọi phím tắt', body: 'Mở danh sách đầy đủ phím tắt của Minh Docs.', keys: [['Ctrl', '/']] },
+      { title: 'Xem mọi phím tắt', body: 'Mở danh sách đầy đủ phím tắt của 23 Docs.', keys: [['Ctrl', '/']] },
       { title: 'Chèn công thức toán', body: 'Mở trình soạn công thức ngay tại con trỏ.', keys: [['Alt', '=']] },
       { title: 'Chèn ngày hoặc giờ hiện tại', body: 'Alt+Shift+D chèn ngày, Alt+Shift+T chèn giờ.', keys: [['Alt', 'Shift', 'D'], ['Alt', 'Shift', 'T']] },
     ],
@@ -77,7 +77,7 @@ const DOC_TIPS: TipSection[] = [
     id: 'ai',
     title: 'AI, giọng nói và lưu',
     tips: [
-      { title: 'Minh AI', body: 'Bấm Minh AI ở tab Trang chủ để viết lại, tóm tắt, dịch hoặc viết tiếp đoạn đang chọn. Chưa chọn gì thì áp dụng cho cả tài liệu.' },
+      { title: '23 AI', body: 'Bấm 23 AI ở tab Trang chủ để viết lại, tóm tắt, dịch hoặc viết tiếp đoạn đang chọn. Chưa chọn gì thì áp dụng cho cả tài liệu.' },
       { title: 'Thanh công cụ nhỏ', body: 'Chọn một đoạn chữ là hiện thanh công cụ nhỏ ngay cạnh, có cả nút AI. Tắt được trong Cài đặt.' },
       { title: 'Đọc chính tả', body: 'Bấm Đọc chính tả ở nhóm Giọng nói rồi nói tiếng Việt để nhập chữ.' },
       { title: 'Đọc to', body: 'Đọc to đoạn đang chọn, hoặc cả tài liệu khi không chọn gì.', keys: [['Ctrl', 'Alt', 'Space']] },
@@ -114,7 +114,7 @@ const SHEET_TIPS: TipSection[] = [
     id: 'ai',
     title: 'Phân tích và AI',
     tips: [
-      { title: 'Minh AI phân tích dữ liệu', body: 'Bấm Minh AI ở tab Home để tóm tắt, tìm xu hướng và gợi ý biểu đồ cho trang tính.' },
+      { title: '23 AI phân tích dữ liệu', body: 'Bấm 23 AI ở tab Home để tóm tắt, tìm xu hướng và gợi ý biểu đồ cho trang tính.' },
       { title: 'Soát lỗi bằng AI', body: 'Ở tab Review, Soát lỗi bằng AI tìm công thức sai logic và số liệu bất thường.' },
       { title: 'Python Sandbox', body: 'Mở menu Tính năng, chọn Python Sandbox để chạy pandas, numpy trên bảng tính và xuất kết quả ra trang mới.' },
     ],
@@ -124,7 +124,7 @@ const SHEET_TIPS: TipSection[] = [
     title: 'Tự động hoá và lưu',
     tips: [
       { title: 'Ghi macro', body: 'Ở tab Automate, bấm Ghi macro, làm các bước một lần, sau đó chạy lại macro để lặp lại toàn bộ.' },
-      { title: 'Tệp có macro', body: 'Tệp .xlsm mở ra vẫn giữ macro VBA để chạy tiếp trong Minh Sheets.' },
+      { title: 'Tệp có macro', body: 'Tệp .xlsm mở ra vẫn giữ macro VBA để chạy tiếp trong 23 Sheets.' },
       { title: 'Lưu', body: 'Lưu ngay thay vì chờ tự động lưu.', keys: [['Ctrl', 'S']] },
     ],
   },

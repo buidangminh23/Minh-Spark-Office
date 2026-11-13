@@ -28,7 +28,7 @@ pub(crate) async fn word_physical_pages(data: String) -> Result<PageLayout, Stri
     #[cfg(not(windows))]
     {
         drop(data);
-        Err("Cần ứng dụng Minh Spark Office trên Windows có Microsoft Word để dàn trang tài liệu này.".into())
+        Err("Cần ứng dụng Office 23 trên Windows có Microsoft Word để dàn trang tài liệu này.".into())
     }
 }
 

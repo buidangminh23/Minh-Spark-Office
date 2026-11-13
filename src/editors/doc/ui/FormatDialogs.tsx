@@ -74,7 +74,7 @@ export function FontDialog({ onClose }: { onClose: () => void }) {
         <label><input type="checkbox" checked={smallCaps} onChange={(e) => setSmallCaps(e.target.checked)} /> Chữ hoa nhỏ</label>
         <label><input type="checkbox" checked={shadow} onChange={(e) => setShadow(e.target.checked)} /> Đổ bóng</label>
       </div>
-      <div className="font-preview" style={previewStyle}>Minh Spark Office — Xem trước</div>
+      <div className="font-preview" style={previewStyle}>Office 23 — Xem trước</div>
     </Modal>
   );
 }

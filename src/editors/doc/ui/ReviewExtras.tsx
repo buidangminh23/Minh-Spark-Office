@@ -482,7 +482,7 @@ function ThesaurusPanel() {
       const output = await runAi('custom', query, 'List up to 12 synonyms for the word or phrase below, in the same language. Reply with one synonym per line and nothing else.', () => undefined, controller.signal);
       setAiList(output.split('\n').map((line) => line.replace(/^[-*\d.\s]+/, '').trim()).filter(Boolean).slice(0, 12));
     } catch (error) {
-      if (!controller.signal.aborted) ui.toast((error as Error).message || 'Minh AI chưa trả lời được', true);
+      if (!controller.signal.aborted) ui.toast((error as Error).message || '23 AI chưa trả lời được', true);
     } finally {
       setBusy(false);
     }
@@ -498,8 +498,8 @@ function ThesaurusPanel() {
           </div>
         ) : <div className="panel-empty">{query.trim() ? `Từ điển trong máy chưa có “${query.trim()}”.` : 'Đặt con trỏ vào một từ hoặc nhập từ cần tra.'}</div>}
         {query.trim() && (hasProvider ? (
-          <button className="btn" disabled={busy} onClick={() => void askAi()}><Sparkles size={13} /> {busy ? 'Đang hỏi Minh AI…' : 'Hỏi thêm Minh AI'}</button>
-        ) : <div className="panel-empty">Nhập API key trong Minh AI để tra thêm các từ ngoài từ điển.</div>)}
+          <button className="btn" disabled={busy} onClick={() => void askAi()}><Sparkles size={13} /> {busy ? 'Đang hỏi 23 AI…' : 'Hỏi thêm 23 AI'}</button>
+        ) : <div className="panel-empty">Nhập API key trong 23 AI để tra thêm các từ ngoài từ điển.</div>)}
       </div>
     </aside>
   );

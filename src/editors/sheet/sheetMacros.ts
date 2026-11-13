@@ -57,9 +57,9 @@ const BUILTIN_CTRL_KEYS: Record<string, string> = {
   P: 'Định dạng phông chữ',
   U: 'Mở rộng thanh công thức',
   V: 'Dán đặc biệt',
-  W: 'Phím tắt của Minh Sheets',
-  X: 'Phím tắt của Minh Sheets',
-  Z: 'Phím tắt của Minh Sheets',
+  W: 'Phím tắt của 23 Sheets',
+  X: 'Phím tắt của 23 Sheets',
+  Z: 'Phím tắt của 23 Sheets',
 };
 
 export const BUILTIN_MACROS = [

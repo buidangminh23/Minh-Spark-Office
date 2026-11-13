@@ -1399,13 +1399,13 @@ export default function ImageEditor({
                     const baked = await bakeOrReport();
                     if (!baked) return;
                     if (onOpenInDoc) onOpenInDoc(baked, title);
-                    else ui.toast('Đã chuẩn bị ảnh cho Minh Docs');
+                    else ui.toast('Đã chuẩn bị ảnh cho 23 Docs');
                   }}
                   title="Tạo tài liệu Word mới chứa ảnh này"
                   style={{ background: '#1d4ed8', color: '#fff' }}
                 >
                   <FileText size={14} />
-                  <span>Mở trong Minh Docs (Word)</span>
+                  <span>Mở trong 23 Docs (Word)</span>
                 </button>
                 <button
                   className="image-tool-btn"
@@ -1413,13 +1413,13 @@ export default function ImageEditor({
                     const baked = await bakeOrReport();
                     if (!baked) return;
                     if (onOpenInSheet) onOpenInSheet(baked, title);
-                    else ui.toast('Đã chuẩn bị ảnh cho Minh Sheets');
+                    else ui.toast('Đã chuẩn bị ảnh cho 23 Sheets');
                   }}
-                  title="Chèn ảnh vào bảng tính Minh Sheets"
+                  title="Chèn ảnh vào bảng tính 23 Sheets"
                   style={{ background: '#059669', color: '#fff' }}
                 >
                   <FileSpreadsheet size={14} />
-                  <span>Mở trong Minh Sheets (Excel)</span>
+                  <span>Mở trong 23 Sheets (Excel)</span>
                 </button>
                 <button
                   className="image-tool-btn"
@@ -1427,13 +1427,13 @@ export default function ImageEditor({
                     const baked = await bakeOrReport();
                     if (!baked) return;
                     if (onOpenInSlide) onOpenInSlide(baked, title);
-                    else ui.toast('Đã chuẩn bị ảnh cho Minh Slides');
+                    else ui.toast('Đã chuẩn bị ảnh cho 23 Slides');
                   }}
                   title="Tạo Slide trình chiếu PowerPoint với ảnh này"
                   style={{ background: '#ea580c', color: '#fff' }}
                 >
                   <Presentation size={14} />
-                  <span>Mở trong Minh Slides (PowerPoint)</span>
+                  <span>Mở trong 23 Slides (PowerPoint)</span>
                 </button>
               </div>
             </>

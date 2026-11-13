@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Rebrand to Office 23: new cube logo and app icon, the suite apps become 23 Docs, 23 Sheets, 23 Slides, 23 PDF, 23 Photos and 23 AI. The installed app is renamed after updating: Windows keeps the existing install folder and replaces the old Start menu and desktop shortcuts, the macOS curl installer replaces "Minh Spark Office.app" with "Office 23.app". The Linux package keeps its old name so updates install over it.
 - Fix the app freezing after sitting idle: cloud sync no longer calls `ReadableStreamDefaultReader.releaseLock()`, which can deadlock WebKit's garbage collector on macOS and leave the whole window unclickable.
 - Share from the editors: the Docs "Chia sẻ" button opens the Share pane directly, and Docs, Sheets and PDF can send the current file to a team in one click.
 - Team invite links always point to office.minhspark.com, also when sent from the desktop app, and "Ứng dụng email" works there.

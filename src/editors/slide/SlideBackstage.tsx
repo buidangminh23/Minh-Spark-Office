@@ -119,7 +119,7 @@ export function SlideBackstage({
               </div>
               <div>
                 <strong style={{ fontSize: '14px', color: '#0F172A' }}>Tuỳ chọn</strong>
-                <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#64748B' }}>Hiển thị, soạn thảo, trình chiếu và ribbon của Minh Slides</p>
+                <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#64748B' }}>Hiển thị, soạn thảo, trình chiếu và ribbon của 23 Slides</p>
               </div>
             </div>
           </div>

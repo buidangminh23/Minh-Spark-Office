@@ -475,7 +475,7 @@ export function SlideDesignerPane({
           stroke: '#107C41',
           strokeWidth: 2,
           borderRadius: 12,
-          text: bodyText(1, 'GIẢI PHÁP MINH OFFICE (AFTER)\n\n• Tự động hóa 100% bằng AI\n• Đồng bộ thời gian thực bảo mật\n• Tối ưu 70% ngân sách'),
+          text: bodyText(1, 'GIẢI PHÁP OFFICE 23 (AFTER)\n\n• Tự động hóa 100% bằng AI\n• Đồng bộ thời gian thực bảo mật\n• Tối ưu 70% ngân sách'),
           fontSize: 16,
           fontWeight: '600',
           color: '#065F46',

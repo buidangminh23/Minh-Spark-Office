@@ -11,7 +11,7 @@ const metadata = (kind: FileMeta['kind'] = 'doc'): FileMeta => ({ id: 'roundtrip
 const document = (text: string): FileContent => ({ kind: 'doc', json: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] }, page: { size: 'A4', orientation: 'portrait', margins: { top: 1, bottom: 1, left: 1, right: 1 }, header: '', footer: '', pageNumbers: true } });
 
 test('syncs imported DOCX HTML before editor save and preserves imported version history', async () => {
-  const message = 'Minh Spark Office desktop verification. Local document save and export.';
+  const message = 'Office 23 desktop verification. Local document save and export.';
   const buffer = await Packer.toBuffer(new Document({ sections: [{ children: [new Paragraph(message)] }] }));
   const { value: html } = await mammoth.convertToHtml({ buffer });
   assert.equal(html, `<p>${message}</p>`);

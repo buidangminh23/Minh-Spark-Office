@@ -41,7 +41,7 @@ test('provider payloads attach context and PDF only to the last user turn', () =
 test('contextBlock wraps text and skips empty context', () => {
   assert.equal(contextBlock({ label: 'x', text: '  ' }), '');
   assert.match(contextBlock({ label: 'a"b', text: 'hi' }), /<context label="a'b">\nhi\n<\/context>/);
-  assert.match(systemPrompt('chatgpt', 'sheet', 'Bảng'), /ChatGPT[\s\S]*Minh Sheets/);
+  assert.match(systemPrompt('chatgpt', 'sheet', 'Bảng'), /ChatGPT[\s\S]*23 Sheets/);
 });
 
 test('trimContext keeps short text and marks truncated text', () => {

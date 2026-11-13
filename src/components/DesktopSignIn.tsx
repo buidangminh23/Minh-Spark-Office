@@ -73,7 +73,7 @@ export function DesktopSignIn() {
 
   const intro = 'failure' in request
     ? request.failure === 'outdated'
-      ? 'Ứng dụng Minh Spark Office trên máy tính đang dùng bản cũ.'
+      ? 'Ứng dụng Office 23 trên máy tính đang dùng bản cũ.'
       : 'Yêu cầu đăng nhập không hợp lệ.'
     : expired ? 'Yêu cầu đăng nhập đã hết hạn.'
     : 'Đăng nhập cùng tài khoản Google để mở chung kho tài liệu trên web và ứng dụng máy tính.';
@@ -84,7 +84,7 @@ export function DesktopSignIn() {
         <header className="auth-head">
           <img className="auth-logo" src="/logo-icon.png" alt="" width="64" height="64" />
           <div className="auth-title">
-            <h1 id="desktop-login-title">Đăng nhập Minh Spark Office</h1>
+            <h1 id="desktop-login-title">Đăng nhập Office 23</h1>
             <p className="auth-intro" id="desktop-login-intro">{intro}</p>
           </div>
         </header>
@@ -98,7 +98,7 @@ export function DesktopSignIn() {
           <p className="auth-error" role="alert">Hãy quay lại ứng dụng trên máy tính và bấm đăng nhập lại.</p>
         ) : sentTo ? (
           <div className="auth-body">
-            <p className="auth-status" role="status">Đã gửi {sentTo} về ứng dụng. Hãy xác nhận trong cửa sổ Minh Spark Office, rồi có thể đóng tab này.</p>
+            <p className="auth-status" role="status">Đã gửi {sentTo} về ứng dụng. Hãy xác nhận trong cửa sổ Office 23, rồi có thể đóng tab này.</p>
           </div>
         ) : (
           <div className="auth-body">
@@ -106,7 +106,7 @@ export function DesktopSignIn() {
               <span>Mã xác nhận</span>
               <strong>{code || '··· ···'}</strong>
             </div>
-            <p className="auth-disclosure">Chỉ tiếp tục nếu cửa sổ Minh Spark Office trên máy tính đang hiện đúng mã này. Nếu ứng dụng không hiện mã, hoặc mã khác, hãy đóng tab này.</p>
+            <p className="auth-disclosure">Chỉ tiếp tục nếu cửa sổ Office 23 trên máy tính đang hiện đúng mã này. Nếu ứng dụng không hiện mã, hoặc mã khác, hãy đóng tab này.</p>
             {error && <p className="auth-error" role="alert">{error}</p>}
             <div className="auth-buttons">
               <button className="btn auth-google google-signin" disabled={!auth || !code || pending} onClick={() => void signIn()}>

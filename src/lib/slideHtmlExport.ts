@@ -1,7 +1,7 @@
 import type { PresentationData, SlideElement } from './slideTypes';
 import { getShapeDef } from './slideShapes';
 
-const DEFAULT_TITLE = 'Bài Thuyết Trình Minh Slides';
+const DEFAULT_TITLE = 'Bài Thuyết Trình 23 Slides';
 
 export function escapeHtmlText(value: string): string {
   return value

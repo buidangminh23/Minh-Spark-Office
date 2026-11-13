@@ -73,7 +73,7 @@ function EditorLoading({ kind }: { kind?: FileKind }) {
           <svg className="desktop-splash-ring" viewBox="0 0 132 132"><circle className="desktop-splash-track" cx="66" cy="66" r="64" /><circle className="desktop-splash-arc" cx="66" cy="66" r="64" /></svg>
           <div className="desktop-splash-tile"><img src={kind ? suiteLogos[kind] : '/logo-icon.png'} alt="" width="62" height="62" /></div>
         </div>
-        <p className="desktop-splash-name">Minh Spark Office</p>
+        <p className="desktop-splash-name">Office 23</p>
       </div>
     </div>
   );
@@ -408,7 +408,7 @@ function MainApp({ onEditing, frameId }: { onEditing: (editing: boolean) => void
     await saveFile(meta, content);
     refreshFilesSoon();
     showDocument(meta, content);
-    ui.toast('Đã tạo bảng tính Minh Sheets mới');
+    ui.toast('Đã tạo bảng tính 23 Sheets mới');
   };
 
   // Open PDF Document
@@ -446,7 +446,7 @@ function MainApp({ onEditing, frameId }: { onEditing: (editing: boolean) => void
       starred: false,
       deletedAt: null,
       size: 4096,
-      preview: 'Minh PDF — Bộ công cụ xử lý và ký số PDF chuyên nghiệp',
+      preview: '23 PDF — Bộ công cụ xử lý và ký số PDF chuyên nghiệp',
     };
     const content: PdfContent = {
       kind: 'pdf',
@@ -455,7 +455,7 @@ function MainApp({ onEditing, frameId }: { onEditing: (editing: boolean) => void
     await saveFile(meta, content);
     refreshFilesSoon();
     showDocument(meta, content);
-    ui.toast('Đã tạo tài liệu Minh PDF mới');
+    ui.toast('Đã tạo tài liệu 23 PDF mới');
   };
 
   // Open Slide Presentation
@@ -493,7 +493,7 @@ function MainApp({ onEditing, frameId }: { onEditing: (editing: boolean) => void
       starred: false,
       deletedAt: null,
       size: 8192,
-      preview: 'Minh Slides — Bài thuyết trình phong cách Microsoft PowerPoint',
+      preview: '23 Slides — Bài thuyết trình phong cách Microsoft PowerPoint',
     };
     const content: SlideContent = {
       kind: 'slide',
@@ -502,7 +502,7 @@ function MainApp({ onEditing, frameId }: { onEditing: (editing: boolean) => void
     await saveFile(meta, content);
     refreshFilesSoon();
     showDocument(meta, content);
-    ui.toast('Đã tạo bài thuyết trình Minh Slides mới');
+    ui.toast('Đã tạo bài thuyết trình 23 Slides mới');
   };
 
 
@@ -551,7 +551,7 @@ function MainApp({ onEditing, frameId }: { onEditing: (editing: boolean) => void
     await saveFile(meta, content);
     refreshFilesSoon();
     showDocument(meta, content);
-    ui.toast('Đã tạo tài liệu Minh Docs từ hình ảnh');
+    ui.toast('Đã tạo tài liệu 23 Docs từ hình ảnh');
   };
 
   const handleCreateSlideWithImage = async (imageDataUrl: string, imageName: string) => {
@@ -606,7 +606,7 @@ function MainApp({ onEditing, frameId }: { onEditing: (editing: boolean) => void
     await saveFile(meta, content);
     refreshFilesSoon();
     showDocument(meta, content);
-    ui.toast('Đã tạo bài thuyết trình Minh Slides từ hình ảnh');
+    ui.toast('Đã tạo bài thuyết trình 23 Slides từ hình ảnh');
   };
 
   const handleCreateSheetWithImage = async (_imageDataUrl: string, imageName: string) => {
@@ -633,7 +633,7 @@ function MainApp({ onEditing, frameId }: { onEditing: (editing: boolean) => void
     await saveFile(meta, content);
     refreshFilesSoon();
     showDocument(meta, content);
-    ui.toast('Đã tạo bảng tính Minh Sheets từ hình ảnh');
+    ui.toast('Đã tạo bảng tính 23 Sheets từ hình ảnh');
   };
 
   // Import file (.docx, .xlsx, .csv) with password decryption support
@@ -1061,7 +1061,7 @@ function MainApp({ onEditing, frameId }: { onEditing: (editing: boolean) => void
       ui.showBusy('Đang tạo tệp sao lưu…');
       const backup = await exportBackup();
       const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
-      downloadBlob(blob, `Minh-Office-Backup-${new Date().toISOString().slice(0, 10)}.json`);
+      downloadBlob(blob, `Office23-Backup-${new Date().toISOString().slice(0, 10)}.json`);
       ui.toast('Đã tải xuống bản sao lưu toàn bộ');
     } catch {
       ui.toast('Lỗi khi tạo bản sao lưu', true);

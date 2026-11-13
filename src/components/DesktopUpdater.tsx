@@ -244,7 +244,7 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
   if (!isDesktop()) return null;
   const working = ['checking', 'downloading', 'installing'].includes(phase);
   const ringMode: RingMode = phase === 'downloading' && percent === null ? 'spinning' : ringModes[phase];
-  const title = ({ idle: 'Cập nhật Minh Spark Office', checking: 'Đang kiểm tra phiên bản', current: 'Đang dùng phiên bản mới nhất', available: `Đã có phiên bản ${nextVersion}`, downloading: 'Đang tải bản cập nhật', downloaded: `Bản ${nextVersion} đã sẵn sàng`, installing: 'Đang cài đặt bản cập nhật', error: 'Chưa kiểm tra được cập nhật' })[phase];
+  const title = ({ idle: 'Cập nhật Office 23', checking: 'Đang kiểm tra phiên bản', current: 'Đang dùng phiên bản mới nhất', available: `Đã có phiên bản ${nextVersion}`, downloading: 'Đang tải bản cập nhật', downloaded: `Bản ${nextVersion} đã sẵn sàng`, installing: 'Đang cài đặt bản cập nhật', error: 'Chưa kiểm tra được cập nhật' })[phase];
   return <>
     {open && <div className="sync-dialog-backdrop update-dialog-backdrop"><section className="sync-dialog update-dialog" ref={dialog} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="update-title" onKeyDown={(event) => {
       if (event.key === 'Escape') dismiss();
@@ -258,12 +258,12 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
     }}>
       <div className="update-ring" role={working ? 'progressbar' : undefined} aria-label={working ? title : undefined} aria-valuemin={working ? 0 : undefined} aria-valuemax={working ? 100 : undefined} aria-valuenow={ringMode === 'progress' && percent !== null ? percent : undefined}>
         <UpdateProgressRing mode={ringMode} percent={percent ?? 0} size={104} stroke={4} />
-        <div className="update-brand-ring"><img className="sync-brand" src="/logo-icon.png" alt="Minh Spark Office" /></div>
+        <div className="update-brand-ring"><img className="sync-brand" src="/logo-icon.png" alt="Office 23" /></div>
         {ringMode === 'complete' && <span className="update-ring-check"><CheckMark /></span>}
       </div>
       <div className="update-phase" key={phase}>
         <h2 id="update-title">{title}</h2>
-        <p>{nextVersion && ['available', 'downloading', 'downloaded', 'installing'].includes(phase) ? `Đang dùng ${version || '…'} · Bản mới ${nextVersion}` : `Minh Spark Office · Phiên bản ${version || '…'}`}</p>
+        <p>{nextVersion && ['available', 'downloading', 'downloaded', 'installing'].includes(phase) ? `Đang dùng ${version || '…'} · Bản mới ${nextVersion}` : `Office 23 · Phiên bản ${version || '…'}`}</p>
       </div>
       {phase === 'downloading' && <div className="update-metrics"><span>{bytes(downloaded)}{total ? ` / ${bytes(total)}` : ''}</span><strong>{percent === null ? 'Đang tải…' : `${percent}%`}</strong></div>}
       {phase === 'downloaded' && editing && <p>Tài liệu đang mở sẽ được lưu và đóng trước khi cài.</p>}

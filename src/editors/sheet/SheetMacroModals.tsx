@@ -162,7 +162,7 @@ function VbaMacroPanel({
         </button>
       </div>
       <div className="pro-result" style={{ fontSize: 12.5 }}>
-        Macro VBA chạy ngay trong Minh Sheets: đọc ghi ô, định dạng, trang tính, vòng lặp, hàm, MsgBox, InputBox và UserForm. Sau khi bật macro, các sự kiện Workbook_Open, Workbook_BeforeSave, Worksheet_Change, Worksheet_SelectionChange và Worksheet_Activate tự chạy như trong Excel.
+        Macro VBA chạy ngay trong 23 Sheets: đọc ghi ô, định dạng, trang tính, vòng lặp, hàm, MsgBox, InputBox và UserForm. Sau khi bật macro, các sự kiện Workbook_Open, Workbook_BeforeSave, Worksheet_Change, Worksheet_SelectionChange và Worksheet_Activate tự chạy như trong Excel.
       </div>
     </div>
   );

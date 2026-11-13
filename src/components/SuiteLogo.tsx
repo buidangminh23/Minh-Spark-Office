@@ -3,11 +3,11 @@ import { suiteLogos } from '../lib/suiteBranding';
 import type { FileKind } from '../lib/storage';
 
 const suiteNames: Record<FileKind, string> = {
-  doc: 'Minh Docs',
-  sheet: 'Minh Sheets',
-  pdf: 'Minh PDF',
-  slide: 'Minh Slides',
-  image: 'Minh Photos',
+  doc: '23 Docs',
+  sheet: '23 Sheets',
+  pdf: '23 PDF',
+  slide: '23 Slides',
+  image: '23 Photos',
 };
 
 export function SuiteLogo({ kind, size = 28, decorative = true }: { kind: FileKind; size?: number; decorative?: boolean }) {

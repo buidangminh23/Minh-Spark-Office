@@ -1,4 +1,4 @@
-# Minh Spark Office
+# Office 23
 
 Browser-based documents, spreadsheets and PDF workspace with Google sign-in through Firebase Authentication.
 
@@ -57,13 +57,13 @@ Desktop window close and application quit wait for a successful local save. Pend
 
 ## Deployment
 
-Use the existing Vercel project `minh-spark-office`. Set all four Firebase variables in the production environment. Build and deploy a clean, tested commit. Do not deploy the shared working directory while other agents have unfinished changes. This release retains the production Minh Docs feature set, all 22 export formats, approved product artwork and the canonical `office.minhspark.com` domain.
+Use the existing Vercel project `minh-spark-office`. Set all four Firebase variables in the production environment. Build and deploy a clean, tested commit. Do not deploy the shared working directory while other agents have unfinished changes. This release retains the production 23 Docs feature set, all 22 export formats, approved product artwork and the canonical `office.minhspark.com` domain.
 
 Google button artwork is the official Firebase UI Google asset from https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg.
 
 ## Product logos
 
-The default Minh Docs, Minh Sheets and Minh PDF identities are the approved layered PNG assets in `public/logos/`. Use `SuiteLogo` and the `suiteLogos` mapping in `src/lib/suiteBranding.ts` for product navigation, templates, file types, editor headers and browser favicons. Preserve the separate Office identity in `public/logo-icon.png`. Keep the original transparent artwork unchanged.
+The default 23 Docs, 23 Sheets and 23 PDF identities are the approved layered PNG assets in `public/logos/`. Use `SuiteLogo` and the `suiteLogos` mapping in `src/lib/suiteBranding.ts` for product navigation, templates, file types, editor headers and browser favicons. Preserve the separate Office identity in `public/logo-icon.png`. Keep the original transparent artwork unchanged.
 
 ## Windows releases and updates
 
@@ -81,7 +81,7 @@ Run `scripts/build-macos.sh` on an Apple Silicon Mac using the prepared web `dis
 
 The current Mac app has an ad-hoc signature; it has no Apple Developer ID or notarization. An Intel native build is not included. The web app remains available on Intel Macs.
 
-Gatekeeper blocks any ad-hoc app that carries the `com.apple.quarantine` attribute, which browsers attach to every download. A DMG downloaded in a browser therefore shows "Minh Spark Office chưa được mở" on first launch. The supported install path is the terminal installer served from `public/install-macos.sh`:
+Gatekeeper blocks any ad-hoc app that carries the `com.apple.quarantine` attribute, which browsers attach to every download. A DMG downloaded in a browser therefore shows "Office 23 chưa được mở" on first launch. The supported install path is the terminal installer served from `public/install-macos.sh`:
 
 ```sh
 curl -fsSL https://office.minhspark.com/install-macos.sh | bash

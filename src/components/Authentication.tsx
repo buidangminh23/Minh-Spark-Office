@@ -213,7 +213,7 @@ export function Authentication({ children }: { children: (user: User | null, ses
             )}
             {received ? (
               <>
-                <p className="auth-confirm" role="status">Trình duyệt đã gửi tài khoản <strong>{received.email}</strong>. Đăng nhập Minh Spark Office bằng tài khoản này?</p>
+                <p className="auth-confirm" role="status">Trình duyệt đã gửi tài khoản <strong>{received.email}</strong>. Đăng nhập Office 23 bằng tài khoản này?</p>
                 <div className="dialog-actions auth-actions">
                   <button className="btn btn-primary" disabled={pending} onClick={() => void confirmDesktop()}>Đăng nhập</button>
                   <button className="btn" disabled={pending} onClick={() => { setReceived(null); setError('Đã bỏ qua tài khoản vừa nhận. Bấm đăng nhập để thử lại.'); }}>Không phải tài khoản của tôi</button>

@@ -74,7 +74,7 @@ fn open_app_window(app: &AppHandle, features: NewWindowFeatures) -> NewWindowRes
     };
     let mut builder = WebviewWindowBuilder::new(app, label, WebviewUrl::External(blank))
         .window_features(features)
-        .title("Minh Spark Office")
+        .title("Office 23")
         .background_color(Color(246, 247, 251, 255))
         .initialization_script(DESKTOP_MARKER_SCRIPT)
         .min_inner_size(480.0, 360.0)
@@ -151,7 +151,7 @@ fn main() {
                         .expect("Office window icon")
                         .clone(),
                 )?
-                .title("Minh Spark Office")
+                .title("Office 23")
                 .background_color(Color(246, 247, 251, 255))
                 .initialization_script(DESKTOP_MARKER_SCRIPT)
                 .inner_size(1440.0, 940.0)
@@ -170,7 +170,7 @@ fn main() {
             Ok(())
         })
         .build(tauri::generate_context!())
-        .expect("Failed to build Minh Spark Office")
+        .expect("Failed to build Office 23")
         .run(|app, event| {
             match &event {
                 tauri::RunEvent::WindowEvent {

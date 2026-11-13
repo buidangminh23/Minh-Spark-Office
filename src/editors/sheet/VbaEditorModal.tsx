@@ -91,7 +91,7 @@ export function VbaEditorModal({
   return (
     <ProDialog
       title="Trình soạn VBA (Alt + F11)"
-      subtitle="Viết, sửa và chạy macro VBA ngay trong Minh Sheets. Mã được lưu cùng bảng tính và đi theo tệp .xlsm khi xuất để mở bằng Microsoft Excel."
+      subtitle="Viết, sửa và chạy macro VBA ngay trong 23 Sheets. Mã được lưu cùng bảng tính và đi theo tệp .xlsm khi xuất để mở bằng Microsoft Excel."
       width={1040}
       onClose={onClose}
       actions={

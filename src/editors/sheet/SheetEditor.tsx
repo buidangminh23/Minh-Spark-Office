@@ -1491,7 +1491,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
       const addedDefaultSheets = clonedWb !== parsedWb;
       const truncationNotice = describeImportTruncation(clonedWb.importTruncation);
       delete clonedWb.importTruncation;
-      const vbaNotice = clonedWb.vbaError ? `Tệp có mã VBA nhưng Minh Sheets chưa đọc được (${clonedWb.vbaError}). Dữ liệu bảng vẫn mở bình thường.` : '';
+      const vbaNotice = clonedWb.vbaError ? `Tệp có mã VBA nhưng 23 Sheets chưa đọc được (${clonedWb.vbaError}). Dữ liệu bảng vẫn mở bình thường.` : '';
       delete clonedWb.vba;
       delete clonedWb.vbaError;
       delete clonedWb.automation;
@@ -5197,14 +5197,14 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
         starred: false,
         deletedAt: null,
         size: 32768,
-        preview: `Bản xuất từ Minh Sheets "${activeSheetName}" · Đã ký xác thực bởi ${signer} (${role})`,
+        preview: `Bản xuất từ 23 Sheets "${activeSheetName}" · Đã ký xác thực bởi ${signer} (${role})`,
       },
       {
         kind: 'pdf',
         pageCount: 1,
       }
     );
-    ui.toast(`Đã lưu "${pdfName}" vào kho Minh PDF và mở hộp thoại xuất PDF`);
+    ui.toast(`Đã lưu "${pdfName}" vào kho 23 PDF và mở hộp thoại xuất PDF`);
     setPrintSettings(nextPrint);
     setModal('pageSetup');
   };
@@ -5271,11 +5271,11 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
 
   const MACRO_GROUP = 'Macro kế toán 1 chạm';
   const sheetFeatures: FeatureItem[] = [
-    { id: 'pdf', group: 'Minh PDF', label: 'Xuất PDF', description: 'In hoặc lưu bảng tính thành PDF theo vùng in', icon: <Printer size={16} color="#dc2626" />, run: () => setModal('pageSetup') },
-    { id: 'png', group: 'Minh PDF', label: 'Xuất ảnh PNG', description: 'Chụp vùng dữ liệu thành ảnh', icon: <ImageIcon size={16} color="#ea580c" />, run: () => setModal('image') },
-    { id: 'html', group: 'Minh PDF', label: 'Tải bản HTML in', description: 'Bản HTML đúng bố cục in để gửi đi', icon: <FileCheck size={16} color="#0284c7" />, run: () => handleDownloadPrintHtml(printSettings) },
-    { id: 'split', group: 'Minh PDF', label: 'Tách từng Sheet', description: 'Tách mỗi trang tính thành một tệp riêng', icon: <Split size={16} color="#107c41" />, run: () => setModal('split') },
-    { id: 'merge', group: 'Minh PDF', label: 'Gộp nhiều tệp', description: 'Gộp dữ liệu từ nhiều bảng tính', icon: <Layers size={16} color="#2563eb" />, run: () => void handleOpenMergeModal() },
+    { id: 'pdf', group: '23 PDF', label: 'Xuất PDF', description: 'In hoặc lưu bảng tính thành PDF theo vùng in', icon: <Printer size={16} color="#dc2626" />, run: () => setModal('pageSetup') },
+    { id: 'png', group: '23 PDF', label: 'Xuất ảnh PNG', description: 'Chụp vùng dữ liệu thành ảnh', icon: <ImageIcon size={16} color="#ea580c" />, run: () => setModal('image') },
+    { id: 'html', group: '23 PDF', label: 'Tải bản HTML in', description: 'Bản HTML đúng bố cục in để gửi đi', icon: <FileCheck size={16} color="#0284c7" />, run: () => handleDownloadPrintHtml(printSettings) },
+    { id: 'split', group: '23 PDF', label: 'Tách từng Sheet', description: 'Tách mỗi trang tính thành một tệp riêng', icon: <Split size={16} color="#107c41" />, run: () => setModal('split') },
+    { id: 'merge', group: '23 PDF', label: 'Gộp nhiều tệp', description: 'Gộp dữ liệu từ nhiều bảng tính', icon: <Layers size={16} color="#2563eb" />, run: () => void handleOpenMergeModal() },
     { id: 'sign', group: 'Chữ ký & thanh toán', label: 'Ký tay & đóng mộc', description: 'Vẽ chữ ký, chèn con dấu đỏ vào bảng tính', icon: <FileSignature size={16} color="#b91c1c" />, run: () => setModal('signature') },
     { id: 'vietqr', group: 'Chữ ký & thanh toán', label: 'Mã VietQR', description: 'Tạo mã chuyển khoản NAPAS 247', icon: <QrCode size={16} color="#107c41" />, run: () => setModal('vietqr') },
     { id: 'money-words', group: MACRO_GROUP, label: 'Đọc số tiền thành chữ', description: 'Đọc số VNĐ ở ô đang chọn thành chữ kế toán', icon: <Calculator size={16} color="#d97706" />, run: handleReadMoneyWords },
@@ -5569,7 +5569,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
 
                 <div className="ribbon-section">
                   <div className="ribbon-controls">
-                    <button className="ribbon-btn-large" onClick={() => openSettings('sheet-formulas')} title="Mở Tuỳ chọn của Minh Sheets (công thức, soạn thảo, hiển thị, ribbon)">
+                    <button className="ribbon-btn-large" onClick={() => openSettings('sheet-formulas')} title="Mở Tuỳ chọn của 23 Sheets (công thức, soạn thảo, hiển thị, ribbon)">
                       <SlidersHorizontal size={20} color="#475569" />
                       <span>Tuỳ chọn</span>
                     </button>
@@ -5931,7 +5931,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
                   <div className="ribbon-controls">
                     <button className="ribbon-btn-large" onClick={() => setModal('aiAnalysis')}>
                       <Bot size={20} color="#7c3aed" />
-                      <span>Minh AI</span>
+                      <span>23 AI</span>
                     </button>
                   </div>
                   <div className="ribbon-group-label">Trí tuệ AI</div>
@@ -6377,7 +6377,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
                 <div className="ribbon-section">
                   <div className="ribbon-controls">
                     {parity.reviewProofing}
-                    <button className="ribbon-btn-large" onClick={() => setModal('aiAudit')} title="Minh AI soát lỗi logic và số liệu bất thường trong trang tính">
+                    <button className="ribbon-btn-large" onClick={() => setModal('aiAudit')} title="23 AI soát lỗi logic và số liệu bất thường trong trang tính">
                       <FileCheck size={20} color="#107c41" />
                       <span>Soát lỗi bằng AI</span>
                     </button>
@@ -6583,7 +6583,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
                     </button>
                     <button className="ribbon-btn-large" onClick={() => setModal('aiAssistant')}>
                       <Bot size={20} color="#7c3aed" />
-                      <span>Hỏi Minh AI</span>
+                      <span>Hỏi 23 AI</span>
                     </button>
                     <button className="ribbon-btn-large" onClick={() => setModal('templates')}>
                       <Sparkles size={20} color="#d97706" />

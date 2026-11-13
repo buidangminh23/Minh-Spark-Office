@@ -82,7 +82,7 @@ export function FontDialog({ onClose }: CloseProps) {
         <input type="range" min={-5} max={20} step={0.5} value={draft.letterSpacing ?? 0} onChange={(e) => setDraft({ ...draft, letterSpacing: Number(e.target.value) })} />
       </Field>
       <div className="ppx-font-preview" style={{ fontFamily: draft.fontFamily, fontWeight: draft.fontWeight, fontStyle: draft.fontStyle, color: draft.color, textDecoration: [draft.textDecoration === 'underline' ? 'underline' : '', draft.strikethrough ? 'line-through' : ''].join(' ').trim() || 'none', letterSpacing: `${draft.letterSpacing ?? 0}px`, background: draft.highlight }}>
-        {el?.text?.split('\n')[0]?.slice(0, 40) || 'Minh Spark Office'}
+        {el?.text?.split('\n')[0]?.slice(0, 40) || 'Office 23'}
       </div>
     </Dialog>
   );

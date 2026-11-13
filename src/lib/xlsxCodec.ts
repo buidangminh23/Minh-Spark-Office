@@ -438,7 +438,7 @@ const toExcelValue = (cell: CellValue): ExcelJS.CellValue => {
 
 export async function writeWorkbookXlsx(data: WorkbookData, options: { macroEnabled?: boolean } = {}): Promise<ArrayBuffer> {
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'Minh Office';
+  workbook.creator = 'Office 23';
   workbook.created = new Date();
   for (const sheetId of data.sheetOrder) {
     const sheet = data.sheets[sheetId];

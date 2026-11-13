@@ -67,7 +67,7 @@ function bodyDocument(editor: Editor, json: JSONContent, math: 'mathml' | 'text'
 
 const metaTags = (page: PageSettings) => {
   const properties = page.properties;
-  const entries: [string, string | undefined][] = [['author', properties?.author], ['description', properties?.subject], ['keywords', properties?.keywords], ['generator', 'Minh Docs']];
+  const entries: [string, string | undefined][] = [['author', properties?.author], ['description', properties?.subject], ['keywords', properties?.keywords], ['generator', '23 Docs']];
   return entries.filter((entry): entry is [string, string] => Boolean(entry[1])).map(([name, content]) => `<meta name="${name}" content="${escapeHtml(content)}">`).join('');
 };
 
@@ -128,6 +128,6 @@ export function buildWordDoc(editor: Editor, json: JSONContent, title: string, p
   const height = landscape ? size.width : size.height;
   const margins = page.margins;
   const pageCss = `@page WordSection1{size:${toPt(width)} ${toPt(height)};${landscape ? 'mso-page-orientation:landscape;' : ''}margin:${toPt(margins.top)} ${toPt(margins.right)} ${toPt(margins.bottom)} ${toPt(margins.left)};}div.WordSection1{page:WordSection1;}`;
-  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><meta name="ProgId" content="Word.Document"><meta name="Generator" content="Minh Docs"><title>${escapeHtml(title)}</title><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]--><style>${pageCss}body{font-family:"${page.fontFamily ?? 'Arial'}",Arial,sans-serif;font-size:${page.fontSize ?? 12}pt}${BASE_CSS}${relevantStyles(page)}</style></head><body><div class="WordSection1">${doc.body.innerHTML}</div></body></html>`;
+  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><meta name="ProgId" content="Word.Document"><meta name="Generator" content="23 Docs"><title>${escapeHtml(title)}</title><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]--><style>${pageCss}body{font-family:"${page.fontFamily ?? 'Arial'}",Arial,sans-serif;font-size:${page.fontSize ?? 12}pt}${BASE_CSS}${relevantStyles(page)}</style></head><body><div class="WordSection1">${doc.body.innerHTML}</div></body></html>`;
   return buildMht(html, images, `${WORD_IMAGE_ROOT}tai-lieu.htm`, 'application/msword');
 }

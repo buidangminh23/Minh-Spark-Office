@@ -482,7 +482,7 @@ export function exportSheetToStyledHtml(workbook: WorkbookData, sheet: SheetData
   const headerHtml = `<div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:14px;padding-bottom:8px;border-bottom:2px solid #107c41">
     <div>
       <div style="font-size:16px;font-weight:700;color:#0f172a">${escape(options.title || workbook.name || sheet.name)}</div>
-      <div style="font-size:11px;color:#64748b">Trang tính: ${escape(sheet.name)} · Xuất từ Minh Spark Sheets</div>
+      <div style="font-size:11px;color:#64748b">Trang tính: ${escape(sheet.name)} · Xuất từ 23 Sheets</div>
     </div>
     <div style="font-size:11px;color:#64748b">${new Date().toLocaleDateString('vi-VN')}</div>
   </div>`;
@@ -537,7 +537,7 @@ export async function renderSheetToPngBlob(
   ctx.fillText(options.title || workbook.name || sheet.name, pad, pad + 10);
   ctx.fillStyle = '#64748b';
   ctx.font = '400 11px Arial, sans-serif';
-  ctx.fillText(`Sheet: ${sheet.name} · Minh Spark Office`, pad, pad + 30);
+  ctx.fillText(`Sheet: ${sheet.name} · Office 23`, pad, pad + 30);
 
   const colOffsets: number[] = [pad];
   for (let c = 0; c <= endCol; c++) colOffsets.push(colOffsets[c] + colWidths[c]);

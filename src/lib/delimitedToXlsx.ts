@@ -62,7 +62,7 @@ export async function delimitedToXlsx(source: DelimitedTable, base: string): Pro
   const table = typeTable(source);
   const widths = columnWidths(table);
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'Minh Spark Office';
+  workbook.creator = 'Office 23';
   const worksheet = workbook.addWorksheet(sheetName(base), { views: [{ state: 'frozen', ySplit: 1, xSplit: 0 }] });
   worksheet.addTable({
     name: 'BangDuLieu',

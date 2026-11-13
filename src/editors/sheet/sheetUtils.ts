@@ -249,7 +249,7 @@ export const TABLE_THEMES: TableThemePreset[] = [
 ];
 
 export const WORKBOOK_THEMES: WorkbookThemePreset[] = [
-  { id: 'emerald', name: 'Minh Sheets Green', primary: '#107c41', accentBg: '#ecfdf5', headerFg: '#ffffff', border: '#a7f3d0', fontFamily: 'Arial' },
+  { id: 'emerald', name: '23 Sheets Green', primary: '#107c41', accentBg: '#ecfdf5', headerFg: '#ffffff', border: '#a7f3d0', fontFamily: 'Arial' },
   { id: 'office-blue', name: 'Office Classic Blue', primary: '#185abd', accentBg: '#eff6ff', headerFg: '#ffffff', border: '#bfdbfe', fontFamily: 'Calibri' },
   { id: 'indigo-pro', name: 'Indigo Finance', primary: '#3730a3', accentBg: '#eef2ff', headerFg: '#ffffff', border: '#c7d2fe', fontFamily: 'Arial' },
   { id: 'teal-ledger', name: 'Teal Ledger', primary: '#0f766e', accentBg: '#f0fdfa', headerFg: '#ffffff', border: '#99f6e4', fontFamily: 'Tahoma' },
@@ -919,7 +919,7 @@ export const buildPivotSheetData = (
     0: { v: `BÁO CÁO PIVOT: ${aggFn}(${valHeaderName}) THEO ${rowHeaderName.toUpperCase()}`, t: 1, s: 'pvTitle' },
   };
   sheet.cellData[1] = {
-    0: { v: `Tổng hợp từ ${rows.length} dòng dữ liệu · Tạo tự động bởi Minh Sheets`, t: 1, s: 'pvSub' },
+    0: { v: `Tổng hợp từ ${rows.length} dòng dữ liệu · Tạo tự động bởi 23 Sheets`, t: 1, s: 'pvSub' },
   };
   sheet.mergeData.push({ startRow: 0, endRow: 0, startColumn: 0, endColumn: Math.max(1, totalCols - 1) });
   sheet.mergeData.push({ startRow: 1, endRow: 1, startColumn: 0, endColumn: Math.max(1, totalCols - 1) });

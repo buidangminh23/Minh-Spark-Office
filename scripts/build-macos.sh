@@ -33,7 +33,7 @@ iconutil --convert icns "$iconset" --output src-tauri/icons/icon.icns
 
 "$tools_directory/node_modules/.bin/tauri" build --target aarch64-apple-darwin --config src-tauri/tauri.macos.conf.json --bundles app
 
-app="$root/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Minh Spark Office.app"
+app="$root/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Office 23.app"
 test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")" = "$version"
 test "$(lipo -archs "$app/Contents/MacOS/minh-spark-office")" = arm64
 codesign --verify --deep --strict --verbose=2 "$app"
@@ -43,11 +43,11 @@ output="$root/release"
 mkdir -p "$output"
 updater="MinhSparkOffice-$version-macos-arm64.app.tar.gz"
 dmg="MinhSparkOffice-$version-macos-arm64.dmg"
-COPYFILE_DISABLE=1 tar -czf "$output/$updater" -C "$(dirname "$app")" 'Minh Spark Office.app'
+COPYFILE_DISABLE=1 tar -czf "$output/$updater" -C "$(dirname "$app")" 'Office 23.app'
 stage="$(mktemp -d "$tools_directory/dmg-stage.XXXXXX")"
-ditto "$app" "$stage/Minh Spark Office.app"
+ditto "$app" "$stage/Office 23.app"
 ln -s /Applications "$stage/Applications"
-hdiutil create -volname 'Minh Spark Office' -srcfolder "$stage" -ov -format UDZO "$output/$dmg"
+hdiutil create -volname 'Office 23' -srcfolder "$stage" -ov -format UDZO "$output/$dmg"
 hdiutil verify "$output/$dmg"
 (cd "$output" && shasum -a 256 "$dmg" "$updater" > SHA256SUMS-macos.txt)
 printf '%s\n' 'Apple Silicon artifacts built with ad-hoc code signing; no Apple notarization. Publish the curl installer (public/install-macos.sh) as the primary macOS install path; browser-downloaded DMGs are quarantined and blocked by Gatekeeper.'

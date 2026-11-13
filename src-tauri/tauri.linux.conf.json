@@ -1,4 +1,5 @@
 {
+  "productName": "Minh Spark Office",
   "build": { "beforeBuildCommand": "" },
   "bundle": {
     "targets": ["deb", "appimage"],

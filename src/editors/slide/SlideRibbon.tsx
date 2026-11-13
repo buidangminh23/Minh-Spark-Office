@@ -644,7 +644,7 @@ export function SlideRibbon(props: SlideRibbonProps) {
     { id: 'countdown', group: 'Tương tác khán giả', label: 'Đồng hồ đếm ngược', description: 'Đếm giờ có chuông báo khi hết giờ', icon: <Timer size={16} color="#D97706" />, run: () => onAddCountdown?.() },
     { id: 'poll', group: 'Tương tác khán giả', label: 'Bình chọn trực tiếp', description: 'Thẻ bình chọn kèm mã QR cho khán giả', icon: <Vote size={16} color="#16A34A" />, run: () => onAddLivePoll?.() },
     { id: 'mail-merge', group: 'Dữ liệu', label: 'Trộn thư', description: 'Nhân bản hàng loạt slide từ Excel hoặc CSV', icon: <Users size={16} color="#D83B01" />, run: () => onOpenMailMerge?.() },
-    { id: 'sheets-link', group: 'Dữ liệu', label: 'Dữ liệu từ Minh Sheets', description: 'Liên kết số liệu sống từ sổ tính .xlsx', icon: <FileSpreadsheet size={16} color="#059669" />, run: () => onOpenLiveSheetsLink?.() },
+    { id: 'sheets-link', group: 'Dữ liệu', label: 'Dữ liệu từ 23 Sheets', description: 'Liên kết số liệu sống từ sổ tính .xlsx', icon: <FileSpreadsheet size={16} color="#059669" />, run: () => onOpenLiveSheetsLink?.() },
     { id: 'brand', group: 'Nhận diện', label: 'Bảng màu thương hiệu', description: 'Lấy 5 màu từ logo và áp cho cả bài', icon: <Palette size={16} color="#7C3AED" />, run: () => onOpenBrandPalette?.() },
     { id: 'watermark', group: 'Nhận diện', label: 'Hình mờ bản quyền', description: 'Đặt chữ hoặc hình mờ cho bài thuyết trình', icon: <ShieldCheck size={16} color="#059669" />, run: () => onOpenWatermarkModal?.() },
   ];

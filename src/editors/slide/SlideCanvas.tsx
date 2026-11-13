@@ -800,7 +800,7 @@ export function SlideCanvas({
                   pointerEvents: 'none',
                 }}
               >
-                <Sheet size={10} /> Minh Sheets: {el.sheetLink.range}
+                <Sheet size={10} /> 23 Sheets: {el.sheetLink.range}
               </div>
             )}
             {!readOnly && <LinkBadge el={el} />}

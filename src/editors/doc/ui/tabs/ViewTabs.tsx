@@ -192,7 +192,7 @@ export function HelpTab() {
     <>
       <Group label="Trợ giúp">
         <Big icon={<Keyboard size={22} color="#2b579a" />} label="Phím tắt" title="Danh sách phím tắt (Ctrl+/)" onClick={() => ctx.openDialog('shortcuts')} />
-        <Big icon={<Info size={22} color="#2b579a" />} label="Giới thiệu" title="Thông tin Minh Docs" onClick={() => void ctx.ui.ask({ title: 'Minh Docs', message: 'Trình soạn thảo văn bản của bộ Minh Office. Dữ liệu lưu ngay trên máy (IndexedDB), xuất được .docx, PDF, HTML, Markdown, PNG.', confirmText: 'Đóng', cancelText: null })} />
+        <Big icon={<Info size={22} color="#2b579a" />} label="Giới thiệu" title="Thông tin 23 Docs" onClick={() => void ctx.ui.ask({ title: '23 Docs', message: 'Trình soạn thảo văn bản của bộ Office 23. Dữ liệu lưu ngay trên máy (IndexedDB), xuất được .docx, PDF, HTML, Markdown, PNG.', confirmText: 'Đóng', cancelText: null })} />
       </Group>
     </>
   );

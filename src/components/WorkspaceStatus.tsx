@@ -73,7 +73,7 @@ export function WorkspaceStatus() {
   };
   return <>
     {drafts && <div className="sync-dialog-backdrop"><section className="sync-dialog" role="dialog" aria-modal="true" aria-labelledby="draft-title">
-      <img className="sync-brand" src="/logo-icon.png" alt="Minh Spark Office" />
+      <img className="sync-brand" src="/logo-icon.png" alt="Office 23" />
       <h2 id="draft-title">Thêm tài liệu vào tài khoản</h2>
       <p>Chọn tài liệu trên thiết bị để đồng bộ với {user?.email}.</p>
       <div className="draft-selection">{drafts.length ? drafts.map((file) => <label key={file.id}><input type="checkbox" checked={selected.has(file.id)} disabled={busy} onChange={() => setSelected((current) => { const next = new Set(current); if (next.has(file.id)) next.delete(file.id); else next.add(file.id); return next; })} />{file.name}</label>) : <p>Không có bản nháp trên thiết bị.</p>}</div>

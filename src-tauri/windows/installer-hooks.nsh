@@ -1,12 +1,12 @@
 MiscButtonText "Quay lại" "Tiếp tục"
 
 !macro REGISTER_OPEN_WITH EXT
-  WriteRegStr HKCU "Software\Classes\MinhSparkOffice.${EXT}" "" "Minh Spark Office ${EXT}"
+  WriteRegStr HKCU "Software\Classes\MinhSparkOffice.${EXT}" "" "Office 23 ${EXT}"
   WriteRegStr HKCU "Software\Classes\MinhSparkOffice.${EXT}\DefaultIcon" "" '"$INSTDIR\${MAINBINARYNAME}.exe",0'
   WriteRegStr HKCU "Software\Classes\MinhSparkOffice.${EXT}\shell\open\command" "" '"$INSTDIR\${MAINBINARYNAME}.exe" "%1"'
   WriteRegStr HKCU "Software\Classes\.${EXT}\OpenWithProgids" "MinhSparkOffice.${EXT}" ""
   WriteRegStr HKCU "Software\Classes\Applications\${MAINBINARYNAME}.exe\SupportedTypes" ".${EXT}" ""
-  WriteRegStr HKCU "Software\Minh Spark\Minh Spark Office\Capabilities\FileAssociations" ".${EXT}" "MinhSparkOffice.${EXT}"
+  WriteRegStr HKCU "Software\Minh Spark\Office 23\Capabilities\FileAssociations" ".${EXT}" "MinhSparkOffice.${EXT}"
 !macroend
 
 !macro UNREGISTER_OPEN_WITH EXT
@@ -15,13 +15,41 @@ MiscButtonText "Quay lại" "Tiếp tục"
   DeleteRegKey HKCU "Software\Classes\MinhSparkOffice.${EXT}"
 !macroend
 
+!define LEGACY_PRODUCTNAME "Minh Spark Office"
+!define LEGACY_PRODUCTKEY "Software\Minh Spark\Minh Spark Office"
+
+!macro NSIS_HOOK_PREINSTALL
+  ReadRegStr $R9 SHCTX "Software\${MANUFACTURER}\${PRODUCTNAME}" ""
+  ${If} $R9 == ""
+    ReadRegStr $R9 SHCTX "${LEGACY_PRODUCTKEY}" ""
+    ${If} $R9 != ""
+    ${AndIf} ${FileExists} "$R9\${MAINBINARYNAME}.exe"
+      StrCpy $INSTDIR $R9
+      SetOutPath $INSTDIR
+    ${EndIf}
+  ${EndIf}
+!macroend
+
+!macro MIGRATE_LEGACY_SHORTCUTS
+  ${If} ${FileExists} "$DESKTOP\${LEGACY_PRODUCTNAME}.lnk"
+    Delete "$DESKTOP\${LEGACY_PRODUCTNAME}.lnk"
+    CreateShortcut "$DESKTOP\${PRODUCTNAME}.lnk" "$INSTDIR\${MAINBINARYNAME}.exe" "" "$INSTDIR\office-app.ico" 0
+    !insertmacro SetLnkAppUserModelId "$DESKTOP\${PRODUCTNAME}.lnk"
+  ${EndIf}
+  Delete "$SMPROGRAMS\${LEGACY_PRODUCTNAME}\${LEGACY_PRODUCTNAME}.lnk"
+  RMDir "$SMPROGRAMS\${LEGACY_PRODUCTNAME}"
+  Delete "$SMPROGRAMS\${LEGACY_PRODUCTNAME}.lnk"
+  DeleteRegKey SHCTX "Software\Microsoft\Windows\CurrentVersion\Uninstall\${LEGACY_PRODUCTNAME}"
+  DeleteRegKey SHCTX "${LEGACY_PRODUCTKEY}"
+!macroend
+
 !macro NSIS_HOOK_POSTINSTALL
-  WriteRegStr HKCU "Software\Classes\Applications\${MAINBINARYNAME}.exe" "FriendlyAppName" "Minh Spark Office"
+  WriteRegStr HKCU "Software\Classes\Applications\${MAINBINARYNAME}.exe" "FriendlyAppName" "Office 23"
   WriteRegStr HKCU "Software\Classes\Applications\${MAINBINARYNAME}.exe\shell\open\command" "" '"$INSTDIR\${MAINBINARYNAME}.exe" "%1"'
-  WriteRegStr HKCU "Software\Minh Spark\Minh Spark Office\Capabilities" "ApplicationName" "Minh Spark Office"
-  WriteRegStr HKCU "Software\Minh Spark\Minh Spark Office\Capabilities" "ApplicationDescription" "Documents, spreadsheets, slides and photos"
-  WriteRegStr HKCU "Software\Minh Spark\Minh Spark Office\Capabilities" "ApplicationIcon" '"$INSTDIR\${MAINBINARYNAME}.exe",0'
-  WriteRegStr HKCU "Software\RegisteredApplications" "MinhSparkOffice" "Software\Minh Spark\Minh Spark Office\Capabilities"
+  WriteRegStr HKCU "Software\Minh Spark\Office 23\Capabilities" "ApplicationName" "Office 23"
+  WriteRegStr HKCU "Software\Minh Spark\Office 23\Capabilities" "ApplicationDescription" "Documents, spreadsheets, slides and photos"
+  WriteRegStr HKCU "Software\Minh Spark\Office 23\Capabilities" "ApplicationIcon" '"$INSTDIR\${MAINBINARYNAME}.exe",0'
+  WriteRegStr HKCU "Software\RegisteredApplications" "MinhSparkOffice" "Software\Minh Spark\Office 23\Capabilities"
   !insertmacro REGISTER_OPEN_WITH "docx"
   !insertmacro REGISTER_OPEN_WITH "xlsx"
   !insertmacro REGISTER_OPEN_WITH "xlsm"
@@ -54,6 +82,7 @@ MiscButtonText "Quay lại" "Tiếp tục"
     !insertmacro SetLnkAppUserModelId "$SMPROGRAMS\${PRODUCTNAME}.lnk"
     System::Call 'shell32::SHChangeNotify(i 0x00002000, i 0x0005, w "$SMPROGRAMS\${PRODUCTNAME}.lnk", p 0)'
   ${EndIf}
+  !insertmacro MIGRATE_LEGACY_SHORTCUTS
   System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
 !macroend
 
@@ -84,7 +113,7 @@ MiscButtonText "Quay lại" "Tiếp tục"
     !insertmacro UNREGISTER_OPEN_WITH "tiff"
     !insertmacro UNREGISTER_OPEN_WITH "tif"
     DeleteRegKey HKCU "Software\Classes\Applications\${MAINBINARYNAME}.exe"
-    DeleteRegKey HKCU "Software\Minh Spark\Minh Spark Office\Capabilities"
+    DeleteRegKey HKCU "Software\Minh Spark\Office 23\Capabilities"
     DeleteRegValue HKCU "Software\RegisteredApplications" "MinhSparkOffice"
     System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
   ${EndIf}

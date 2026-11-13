@@ -29,7 +29,7 @@ async function recognizeMath(dataUrl: string, signal: AbortSignal) {
 
 const visionError = async (error: unknown) => {
   const Anthropic = await loadClaude();
-  if (error instanceof Anthropic.AuthenticationError) return 'API key Claude không hợp lệ. Mở Minh AI, phần Cài đặt để nhập lại.';
+  if (error instanceof Anthropic.AuthenticationError) return 'API key Claude không hợp lệ. Mở 23 AI, phần Cài đặt để nhập lại.';
   if (error instanceof Anthropic.RateLimitError) return 'Claude đang giới hạn tốc độ, thử lại sau ít phút.';
   if (error instanceof Anthropic.APIConnectionError) return 'Không kết nối được tới Claude. Kiểm tra mạng rồi thử lại.';
   if (error instanceof Anthropic.APIError) return `Claude báo lỗi ${error.status ?? ''}: ${error.message}`;
@@ -116,7 +116,7 @@ function InkMathDialog({ onClose }: { onClose: () => void }) {
         <span className="spacer" />
         <button className="btn btn-primary" disabled={!hasKey || !strokes.length || busy} onClick={() => void recognize()}>{busy ? 'Đang nhận dạng…' : 'Nhận dạng'}</button>
       </div>
-      {!hasKey && <p className="ink-math-note">Nhận dạng chữ viết tay cần API key Claude. Mở Minh AI, phần Cài đặt để nhập key. Chưa có key thì gõ LaTeX trực tiếp vào ô dưới, phần xem trước vẫn chạy.</p>}
+      {!hasKey && <p className="ink-math-note">Nhận dạng chữ viết tay cần API key Claude. Mở 23 AI, phần Cài đặt để nhập key. Chưa có key thì gõ LaTeX trực tiếp vào ô dưới, phần xem trước vẫn chạy.</p>}
       {error && <p className="ink-math-note error" role="alert">{error}</p>}
       <label className="field"><span className="field-label">LaTeX</span><textarea className="text-field mono" rows={2} value={latex} placeholder="\frac{a+b}{2}" onChange={(e) => setLatex(e.target.value)} /></label>
       <div className="equation-preview" ref={preview} />

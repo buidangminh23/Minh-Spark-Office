@@ -102,7 +102,7 @@ export function SelectionBubble() {
       <span className="bubble-sep" />
       <button title="Liên kết (Ctrl+K)" aria-label="Liên kết" onClick={() => void editLink(ctx)}><Link2 size={14} /></button>
       <button title="Bình luận (Ctrl+Alt+M)" aria-label="Bình luận" onClick={() => void addComment(ctx)}><MessageSquarePlus size={14} /></button>
-      <button className="ai" title="Minh AI" aria-label="Minh AI" onClick={() => ctx.openDialog('ai')}><Sparkles size={14} /> AI</button>
+      <button className="ai" title="23 AI" aria-label="23 AI" onClick={() => ctx.openDialog('ai')}><Sparkles size={14} /> AI</button>
     </div>
   );
 }
@@ -180,7 +180,7 @@ export function ContextMenu({ at, onClose }: { at: { x: number; y: number }; onC
       { label: 'Tìm trong tài liệu', icon: <Search size={14} />, run: () => ctx.setView({ showFind: true, findReplace: false }) },
       { label: 'Từ đồng nghĩa', icon: <BookText size={14} />, hint: 'Shift+F7', run: () => ctx.setView({ sidePanel: 'thesaurus' }) },
     ] : []),
-    { label: 'Minh AI…', icon: <Sparkles size={14} />, run: () => ctx.openDialog('ai') },
+    { label: '23 AI…', icon: <Sparkles size={14} />, run: () => ctx.openDialog('ai') },
     { label: 'Dịch…', icon: <Languages size={14} />, run: () => ctx.openDialog('translate') },
   ];
   return (
@@ -235,7 +235,7 @@ export function SlashMenu() {
     { id: 'diagram', label: 'Sơ đồ Vector & Lưu trình', keywords: 'diagram so do mermaid flow sequence', icon: <GitBranch size={15} />, run: () => ctx.openDialog('diagram') },
     { id: 'preflight', label: 'Tiền kỳ in ấn (Preflight)', keywords: 'preflight in an check print margin', icon: <Printer size={15} />, run: () => ctx.openDialog('preflight') },
     { id: 'docToSlide', label: 'Chuyển sang Slide trình chiếu', keywords: 'slide presentation thuyet trinh', icon: <Presentation size={15} />, run: () => ctx.openDialog('docToSlide') },
-    { id: 'ai', label: 'Minh AI', keywords: 'ai tri tue viet', icon: <Sparkles size={15} />, run: () => ctx.openDialog('ai') },
+    { id: 'ai', label: '23 AI', keywords: 'ai tri tue viet', icon: <Sparkles size={15} />, run: () => ctx.openDialog('ai') },
   ], [editor, ctx]);
   const fold = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').toLowerCase();
   const filtered = query ? items.filter((item) => fold(`${item.label} ${item.keywords}`).includes(fold(query.text))) : [];

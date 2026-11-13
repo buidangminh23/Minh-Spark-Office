@@ -205,7 +205,7 @@ export function parseInviteToken(value: string | null | undefined) {
 }
 
 export function inviteSubject(teamName: string) {
-  return `Lời mời tham gia nhóm "${teamName}" trên Minh Spark Office`;
+  return `Lời mời tham gia nhóm "${teamName}" trên Office 23`;
 }
 
 export function inviteBody(input: { teamName: string; inviterName: string; role: TeamRole; link: string; expireAt: number }) {
@@ -213,7 +213,7 @@ export function inviteBody(input: { teamName: string; inviterName: string; role:
   return [
     'Xin chào,',
     '',
-    `${input.inviterName || 'Một thành viên'} mời bạn tham gia nhóm "${input.teamName}" trên Minh Spark Office với vai trò ${ROLE_LABEL[input.role]}.`,
+    `${input.inviterName || 'Một thành viên'} mời bạn tham gia nhóm "${input.teamName}" trên Office 23 với vai trò ${ROLE_LABEL[input.role]}.`,
     'Trong nhóm, mọi người chia sẻ mẫu tài liệu, bảng tính, bài thuyết trình và cùng chỉnh sửa tài liệu chung.',
     '',
     'Mở liên kết sau và đăng nhập Google bằng chính địa chỉ email nhận thư này để tham gia:',
@@ -228,7 +228,7 @@ export function inviteGroupBody(input: { teamName: string; inviterName: string; 
   return [
     'Xin chào mọi người,',
     '',
-    `${input.inviterName || 'Một thành viên'} mời mọi người tham gia nhóm "${input.teamName}" trên Minh Spark Office với vai trò ${ROLE_LABEL[input.role]}.`,
+    `${input.inviterName || 'Một thành viên'} mời mọi người tham gia nhóm "${input.teamName}" trên Office 23 với vai trò ${ROLE_LABEL[input.role]}.`,
     'Trong nhóm, mọi người chia sẻ mẫu tài liệu, bảng tính, bài thuyết trình và cùng chỉnh sửa tài liệu chung.',
     '',
     'Mỗi người mở đúng liên kết ghi email của mình và đăng nhập Google bằng chính email đó (liên kết của người khác sẽ không dùng được):',

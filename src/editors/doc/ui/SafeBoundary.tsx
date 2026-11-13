@@ -10,7 +10,7 @@ export default class SafeBoundary extends Component<Props, { failed: boolean }> 
   }
 
   componentDidCatch(error: unknown) {
-    console.error(`[Minh Docs] ${this.props.name} failed`, error);
+    console.error(`[23 Docs] ${this.props.name} failed`, error);
   }
 
   render() {

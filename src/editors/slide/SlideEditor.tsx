@@ -1037,7 +1037,7 @@ export default function SlideEditor({
         question: 'Chiến lược trọng tâm của chúng ta trong Q4 là gì?',
         options: [
           { id: 'opt_1', text: 'Tối ưu trải nghiệm AI offline', votes: 42 },
-          { id: 'opt_2', text: 'Mở rộng hệ sinh thái Minh Spark Office', votes: 68 },
+          { id: 'opt_2', text: 'Mở rộng hệ sinh thái Office 23', votes: 68 },
           { id: 'opt_3', text: 'Bảo mật dữ liệu tuyệt đối & Cloud Sync', votes: 35 },
         ],
         type: 'multiple',
@@ -2205,7 +2205,7 @@ export default function SlideEditor({
         onSaveSlideMaster={handleSaveSlideMaster}
       />
 
-      {/* Live Linked Data from Minh Sheets Modal */}
+      {/* Live Linked Data from 23 Sheets Modal */}
       <SlideSheetsLinkModal
         isOpen={isSheetsLinkOpen}
         onClose={() => setIsSheetsLinkOpen(false)}

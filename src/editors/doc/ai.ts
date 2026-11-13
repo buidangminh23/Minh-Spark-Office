@@ -16,7 +16,7 @@ export const AI_ACTIONS: { id: AiAction; label: string; instruction: string }[] 
   { id: 'outline', label: 'Lập dàn ý', instruction: 'Produce a structured outline with numbered headings for a document about this text.' },
 ];
 
-const SYSTEM_PROMPT = 'You are Minh AI, a writing assistant inside the Minh Docs word processor. Reply with the resulting text only, in the same language as the input unless asked otherwise. Use plain text with simple "-" bullets when a list is needed. Do not add introductions or explanations.';
+const SYSTEM_PROMPT = 'You are 23 AI, a writing assistant inside the 23 Docs word processor. Reply with the resulting text only, in the same language as the input unless asked otherwise. Use plain text with simple "-" bullets when a list is needed. Do not add introductions or explanations.';
 const KEY_STORAGE = 'minh-docs-anthropic-key';
 const MODEL = 'claude-opus-5-5';
 
@@ -87,7 +87,7 @@ export async function runAi(action: AiAction, text: string, custom: string, onTe
       return await runClaude(instruction, text, onText, signal);
     } catch (error) {
       const Anthropic = await loadClaude();
-      if (error instanceof Anthropic.AuthenticationError) throw new Error('API key Claude không hợp lệ. Mở cài đặt Minh AI để nhập lại.');
+      if (error instanceof Anthropic.AuthenticationError) throw new Error('API key Claude không hợp lệ. Mở cài đặt 23 AI để nhập lại.');
       if (error instanceof Anthropic.RateLimitError) throw new Error('Claude đang giới hạn tốc độ, thử lại sau ít phút.');
       if (error instanceof Anthropic.APIConnectionError) throw new Error('Không kết nối được tới Claude. Kiểm tra mạng.');
       if (error instanceof Anthropic.APIError) throw new Error(`Claude báo lỗi ${error.status ?? ''}: ${error.message}`);
@@ -104,7 +104,7 @@ export async function runAi(action: AiAction, text: string, custom: string, onTe
     onText(result);
     return result;
   }
-  throw new Error('Tính năng này cần API key Claude (hoặc Chrome có AI tích hợp). Bấm “Cài đặt” trong Minh AI để nhập key.');
+  throw new Error('Tính năng này cần API key Claude (hoặc Chrome có AI tích hợp). Bấm “Cài đặt” trong 23 AI để nhập key.');
 }
 
 export const LANGUAGES = [

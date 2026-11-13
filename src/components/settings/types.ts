@@ -17,4 +17,4 @@ export type SettingGroup = 'general' | 'doc' | 'sheet' | 'slide';
 export type SettingSection = { id: string; title: string; description: string; icon: ReactNode; options: SettingOption[] };
 export type SettingCategory = { id: string; title: string; description: string; icon: ReactNode; group: SettingGroup; sections: SettingSection[] };
 
-export const GROUP_TITLES: Record<SettingGroup, string> = { general: 'Chung', doc: 'Minh Docs', sheet: 'Minh Sheets', slide: 'Minh Slides' };
+export const GROUP_TITLES: Record<SettingGroup, string> = { general: 'Chung', doc: '23 Docs', sheet: '23 Sheets', slide: '23 Slides' };

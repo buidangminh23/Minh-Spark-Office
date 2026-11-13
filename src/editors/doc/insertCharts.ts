@@ -43,7 +43,7 @@ export const CHART_KINDS: { id: ChartKind; label: string; group: string; hint: s
 
 export const CHART_PALETTES: { id: string; label: string; colors: string[] }[] = [
   { id: 'office', label: 'Office', colors: ['#4472c4', '#ed7d31', '#a5a5a5', '#ffc000', '#5b9bd5', '#70ad47', '#264478', '#9e480e'] },
-  { id: 'docs', label: 'Minh Docs', colors: ['#2b579a', '#107c41', '#d7473c', '#d98e04', '#7c3aed', '#0891b2', '#be185d', '#4d7c0f'] },
+  { id: 'docs', label: '23 Docs', colors: ['#2b579a', '#107c41', '#d7473c', '#d98e04', '#7c3aed', '#0891b2', '#be185d', '#4d7c0f'] },
   { id: 'blue', label: 'Xanh dương', colors: ['#1e3a8a', '#2563eb', '#60a5fa', '#93c5fd', '#1d4ed8', '#3b82f6'] },
   { id: 'green', label: 'Xanh lục', colors: ['#14532d', '#16a34a', '#4ade80', '#86efac', '#15803d', '#22c55e'] },
   { id: 'warm', label: 'Ấm', colors: ['#9a3412', '#ea580c', '#f59e0b', '#dc2626', '#facc15', '#c2410c'] },

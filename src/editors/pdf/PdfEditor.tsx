@@ -308,7 +308,7 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
 
   const ocrText = hasRealPdf
     ? realPageText ?? ''
-    : `CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM\nĐộc lập – Tự do – Hạnh phúc\n\n${title.replace(/\.[^/.]+$/, '')}\n\nKính gửi: Ban Giám đốc và các đơn vị phòng ban liên quan.\nCăn cứ theo kế hoạch phát triển giải pháp văn phòng số nội bộ Minh Spark Office, văn bản PDF này đã được biên soạn, kiểm duyệt và đóng dấu chữ ký điện tử an toàn tuyệt đối.\n\nNgười ký: ${currentAuthorName()}`;
+    : `CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM\nĐộc lập – Tự do – Hạnh phúc\n\n${title.replace(/\.[^/.]+$/, '')}\n\nKính gửi: Ban Giám đốc và các đơn vị phòng ban liên quan.\nCăn cứ theo kế hoạch phát triển giải pháp văn phòng số nội bộ Office 23, văn bản PDF này đã được biên soạn, kiểm duyệt và đóng dấu chữ ký điện tử an toàn tuyệt đối.\n\nNgười ký: ${currentAuthorName()}`;
 
   const handleExportPdf = () => {
     if (!pdfDataUrl) {
@@ -660,7 +660,7 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
               style={{ color: activeTab === 'minh_pdf' ? '#dc2626' : undefined, borderBottomColor: activeTab === 'minh_pdf' ? '#dc2626' : undefined }}
               onClick={() => setActiveTab('minh_pdf')}
             >
-              Minh PDF
+              23 PDF
             </button>
             <button className={`ribbon-tab ${activeTab === 'insert' ? 'active' : ''}`} onClick={() => setActiveTab('insert')}>
               Insert
@@ -793,10 +793,10 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
                   </button>
 
                 </div>
-                <div className="ribbon-group-label">Minh PDF Tools</div>
+                <div className="ribbon-group-label">23 PDF Tools</div>
               </div>
 
-              {/* 3. Group: Minh PDF Convert */}
+              {/* 3. Group: 23 PDF Convert */}
               <div className="ribbon-section">
                 <div className="ribbon-controls">
                   <button
@@ -835,7 +835,7 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
                     <span>OCR<br/>PDF</span>
                   </button>
                 </div>
-                <div className="ribbon-group-label">Minh PDF Convert</div>
+                <div className="ribbon-group-label">23 PDF Convert</div>
               </div>
 
               {/* 4. Group: Settings */}
@@ -860,7 +860,7 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
           {activeTab !== 'minh_pdf' && (
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '6px 12px' }}>
               <button className="btn" onClick={() => setActiveTab('minh_pdf')}>
-                <span>Quay lại tab Minh PDF</span>
+                <span>Quay lại tab 23 PDF</span>
               </button>
               <button className="btn" onClick={handleExportPdf}>
                 <Download size={14} />
@@ -975,7 +975,7 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
                 <strong>Kính gửi:</strong> Ban Giám đốc và các đơn vị phòng ban liên quan.
               </p>
               <p>
-                Căn cứ theo kế hoạch phát triển giải pháp văn phòng số nội bộ <strong>Minh Spark Office</strong>, văn bản PDF này đã được biên soạn, kiểm duyệt và đóng dấu chữ ký điện tử an toàn tuyệt đối.
+                Căn cứ theo kế hoạch phát triển giải pháp văn phòng số nội bộ <strong>Office 23</strong>, văn bản PDF này đã được biên soạn, kiểm duyệt và đóng dấu chữ ký điện tử an toàn tuyệt đối.
               </p>
               <div style={{ background: '#f8fafc', borderLeft: '3px solid #dc2626', padding: '10px 14px', margin: '16px 0', borderRadius: 4 }}>
                 <strong>Điều khoản xác thực bảo mật:</strong>
@@ -983,13 +983,13 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
                 Toàn bộ dữ liệu được mã hoá theo chuẩn ECMA-376 và bảo vệ an toàn 100% tại máy trạm, không truyền ra ngoài hệ thống mạng bên thứ ba.
               </div>
               <p>
-                Bản sao điện tử này có giá trị xác nhận và có thể chuyển đổi linh hoạt sang tài liệu <strong>Minh Docs (.docx)</strong> hoặc bảng tính <strong>Minh Sheets (.xlsx)</strong> mà không làm sai lệch cấu trúc dữ liệu ban đầu.
+                Bản sao điện tử này có giá trị xác nhận và có thể chuyển đổi linh hoạt sang tài liệu <strong>23 Docs (.docx)</strong> hoặc bảng tính <strong>23 Sheets (.xlsx)</strong> mà không làm sai lệch cấu trúc dữ liệu ban đầu.
               </p>
             </div>
 
             {/* Signature stamp area */}
             <div style={{ position: 'absolute', bottom: 60, right: 60, textAlign: 'center' }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: '#334155' }}>ĐẠI DIỆN MINH SPARK OFFICE</div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#334155' }}>ĐẠI DIỆN OFFICE 23</div>
               <div
                 style={{
                   width: 120,
