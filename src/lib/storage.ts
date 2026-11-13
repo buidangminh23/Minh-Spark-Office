@@ -3,7 +3,7 @@ import { createContext, useContext } from 'react';
 import type { JSONContent } from '@tiptap/react';
 import type { WorkbookData } from './sheetTypes';
 import type { VbaProjectData } from './vbaProject';
-import type { FormButtonMap } from './formButtons';
+import type { FormButtonMap, FormImageMap } from './formButtons';
 import type { PresentationData } from './slideTypes';
 import { PAPER_KEYS, paperLabel, paperPx, type PaperKey } from './paperSizes';
 import { validateCloudMeta, validateCloudPayload } from './cloudCodec';
@@ -174,6 +174,7 @@ export type SheetContent = {
   macros?: unknown[];
   vba?: VbaProjectData;
   formButtons?: FormButtonMap;
+  formImages?: FormImageMap;
   excel?: SheetExcelState;
 };
 export type PdfContent = {

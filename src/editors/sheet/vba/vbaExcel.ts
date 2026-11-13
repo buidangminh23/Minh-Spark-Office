@@ -37,7 +37,19 @@ export interface ExcelHostCallbacks {
   inputBox(prompt: string, title: string, defaultValue: string): string;
   statusBar(text: string): void;
   save(): void;
+  printSheet?(): void;
+  shapes?: ShapeStore;
 }
+
+export type ShapeInfo = { id: string; name: string; kind: 'button' | 'text' | 'picture'; visible: boolean };
+
+export interface ShapeStore {
+  list(sheetId: string): ShapeInfo[];
+  setVisible(sheetId: string, id: string, visible: boolean): void;
+  remove(sheetId: string, id: string): void;
+}
+
+const SHAPE_TYPE_CODES: Record<ShapeInfo['kind'], number> = { button: 8, picture: 13, text: 17 };
 
 const MAX_SCAN = 200_000;
 const ALIGN_TO_UNIVER: Record<number, number> = { [-4131]: 1, [-4108]: 2, [-4152]: 3, 1: 0, [-4130]: 4, 7: 2 };
@@ -91,7 +103,7 @@ export function boxAddress(box: Box4, rowAbsolute = true, columnAbsolute = true)
 
 const toCellInput = (value: VbaValue): unknown => {
   const v = scalar(value);
-  if (v === undefined || v === null) return null;
+  if (v === undefined || v === null) return { v: null, f: null, p: null };
   if (v instanceof VbaDate) return v.serial;
   if (typeof v === 'string' && v.startsWith('=') && v.length > 1) return { f: v };
   return v;
@@ -113,6 +125,42 @@ export class ExcelModel {
     this.api = api;
     this.callbacks = callbacks;
     this.application = new ApplicationObject(this);
+  }
+
+  private readonly pendingRowVisibility = new Map<string, { sheet: Facade; rows: Map<number, boolean> }>();
+
+  queueRowVisibility(sheet: Facade, start: number, count: number, isHidden: boolean) {
+    const key = String(sheet.getSheetId());
+    const entry = this.pendingRowVisibility.get(key) ?? { sheet, rows: new Map<number, boolean>() };
+    for (let row = start; row < start + count; row++) entry.rows.set(row, isHidden);
+    this.pendingRowVisibility.set(key, entry);
+  }
+
+  isRowHidden(sheet: Facade, row: number): boolean {
+    const pending = this.pendingRowVisibility.get(String(sheet.getSheetId()))?.rows.get(row);
+    return pending ?? this.isRowHiddenNow(sheet, row);
+  }
+
+  private isRowHiddenNow(sheet: Facade, row: number): boolean {
+    const isVisible = sheet.getSheet?.()?.getRowRawVisible?.(row);
+    return typeof isVisible === 'boolean' ? !isVisible : sheet.getRowHeight(row) === 0;
+  }
+
+  flushRowVisibility() {
+    const entries = [...this.pendingRowVisibility.values()];
+    this.pendingRowVisibility.clear();
+    for (const { sheet, rows } of entries) {
+      const ordered = [...rows.entries()].filter(([row, isHidden]) => this.isRowHiddenNow(sheet, row) !== isHidden).sort((a, b) => a[0] - b[0]);
+      let index = 0;
+      while (index < ordered.length) {
+        const [start, isHidden] = ordered[index];
+        let length = 1;
+        while (index + length < ordered.length && ordered[index + length][0] === start + length && ordered[index + length][1] === isHidden) length += 1;
+        if (isHidden) sheet.hideRows(start, length);
+        else sheet.showRows(start, length);
+        index += length;
+      }
+    }
   }
 
   workbook(): Facade {
@@ -225,6 +273,50 @@ export class ExcelModel {
     const range = this.selectionRange();
     return new RangeObject(this, sheet, { r0: range.box.r0, r1: range.box.r0, c0: range.box.c0, c1: range.box.c0 });
   }
+}
+
+class PassiveObject extends VbaObject {
+  readonly typeName: string;
+  private readonly onCall: (() => void) | undefined;
+  constructor(typeName: string, onCall?: () => void) {
+    super();
+    this.typeName = typeName;
+    this.onCall = onCall;
+  }
+  get(): VbaValue {
+    this.onCall?.();
+    return undefined;
+  }
+  set(): boolean {
+    return true;
+  }
+  defaultGet(): VbaValue {
+    return this;
+  }
+}
+
+const R1C1_REFERENCE = /(?<![A-Za-z0-9_.!$])R(\[-?\d+\]|\d+)?C(\[-?\d+\]|\d+)?(?![A-Za-z0-9_(])/g;
+
+function r1c1Part(part: string | undefined, origin: number, toText: (index: number) => string): string | null {
+  if (!part) return toText(origin);
+  const index = part.startsWith('[') ? origin + Number(part.slice(1, -1)) : Number(part) - 1;
+  if (index < 0) return null;
+  return part.startsWith('[') ? toText(index) : `$${toText(index)}`;
+}
+
+export function r1c1ToA1(formula: string, row: number, column: number): string {
+  return formula
+    .split('"')
+    .map((segment, index) =>
+      index % 2
+        ? segment
+        : segment.replace(R1C1_REFERENCE, (whole, rowPart: string | undefined, columnPart: string | undefined) => {
+            const rowText = r1c1Part(rowPart, row, (value) => String(value + 1));
+            const columnText = r1c1Part(columnPart, column, colLabel);
+            return rowText === null || columnText === null ? whole : `${columnText}${rowText}`;
+          }),
+    )
+    .join('"');
 }
 
 class PropertyBag extends VbaObject {
@@ -446,6 +538,12 @@ export class ApplicationObject extends VbaObject {
         return new WorkbookObject(model);
       case 'workbooks':
         return new WorkbooksObject(model, args);
+      case 'dialogs':
+        return new PassiveObject('Dialog', () => model.callbacks.printSheet?.());
+      case 'getsaveasfilename': {
+        const initial = arg(args, 0, 'initialfilename');
+        return isMissing(initial) ? 'Minh-Sheets.pdf' : toStr(initial);
+      }
       case 'activesheet':
         return model.activeSheet();
       case 'worksheets':
@@ -587,6 +685,7 @@ class WindowObject extends VbaObject {
       case 'zoom':
         return 100;
       case 'activesheet':
+      case 'selectedsheets':
         return this.model.activeSheet();
       case 'scrollrow':
       case 'scrollcolumn':
@@ -656,6 +755,8 @@ class WorkbookObject extends VbaObject {
       case 'activate':
       case 'close':
         return undefined;
+      case 'readonly':
+        return false;
       case 'saveas':
       case 'savecopyas':
         throw new VbaError(1004, 'Minh Sheets chưa lưu bảng tính sang tệp khác từ macro; dùng nút Xuất trên ribbon');
@@ -702,6 +803,74 @@ class SheetsObject extends VbaObject {
   }
   items(): VbaValue[] {
     return (this.model.workbook().getSheets() as Facade[]).map((sheet) => new WorksheetObject(this.model, sheet));
+  }
+}
+
+class ShapeObject extends VbaObject {
+  readonly typeName = 'Shape';
+  private readonly store: ShapeStore;
+  private readonly sheetId: string;
+  readonly info: ShapeInfo;
+  constructor(store: ShapeStore, sheetId: string, info: ShapeInfo) {
+    super();
+    this.store = store;
+    this.sheetId = sheetId;
+    this.info = info;
+  }
+  get(name: string, args: VbaArgs): VbaValue {
+    switch (name) {
+      case 'name':
+        return this.info.name;
+      case 'visible':
+        return (this.store.list(this.sheetId).find((item) => item.id === this.info.id) ?? this.info).visible;
+      case 'type':
+        return SHAPE_TYPE_CODES[this.info.kind];
+      case 'delete':
+        this.store.remove(this.sheetId, this.info.id);
+        return undefined;
+      default:
+        return super.get(name, args);
+    }
+  }
+  set(name: string, _args: VbaArgs, value: VbaValue): boolean {
+    if (name !== 'visible') return false;
+    const v = scalar(value);
+    this.store.setVisible(this.sheetId, this.info.id, typeof v === 'boolean' ? v : toInteger(v) !== 0);
+    return true;
+  }
+}
+
+class ShapesObject extends VbaObject {
+  readonly typeName = 'Shapes';
+  private readonly store: ShapeStore | undefined;
+  private readonly sheetId: string;
+  constructor(store: ShapeStore | undefined, sheetId: string) {
+    super();
+    this.store = store;
+    this.sheetId = sheetId;
+  }
+  private shapes(): ShapeObject[] {
+    const store = this.store;
+    return store ? store.list(this.sheetId).map((info) => new ShapeObject(store, this.sheetId, info)) : [];
+  }
+  items(): VbaValue[] {
+    return this.shapes();
+  }
+  private pick(key: VbaValue): VbaValue {
+    const all = this.shapes();
+    const k = scalar(key);
+    const found = typeof k === 'string' ? all.find((shape) => shape.info.name.toLowerCase() === k.toLowerCase()) : all[toInteger(k) - 1];
+    if (!found) throw new VbaError(9, 'Không có hình "' + toStr(k) + '" trên trang tính');
+    return found;
+  }
+  get(name: string, args: VbaArgs): VbaValue {
+    if (name === 'count') return this.shapes().length;
+    if (name === 'item') return this.pick(arg(args, 0));
+    return super.get(name, args);
+  }
+  defaultGet(args: VbaArgs): VbaValue {
+    if (!args.values.length) return super.defaultGet(args);
+    return this.pick(arg(args, 0));
   }
 }
 
@@ -786,6 +955,31 @@ export class WorksheetObject extends VbaObject {
       case 'protect':
       case 'unprotect':
         return undefined;
+      case 'protectcontents':
+        return false;
+      case 'next':
+      case 'previous': {
+        const sheets = model.workbook().getSheets() as Facade[];
+        const index = sheets.findIndex((item) => item.getSheetId() === sheet.getSheetId());
+        const neighbour = sheets[index + (name === 'next' ? 1 : -1)];
+        if (!neighbour) throw new VbaError(91, name === 'next' ? 'Không có trang tính nào đứng sau trang này' : 'Không có trang tính nào đứng trước trang này');
+        return new WorksheetObject(model, neighbour);
+      }
+      case 'printpreview':
+      case 'printout':
+      case 'exportasfixedformat':
+        model.callbacks.printSheet?.();
+        return undefined;
+      case 'pagesetup':
+        return new PropertyBag('PageSetup');
+      case 'outline':
+        return new PassiveObject('Outline');
+      case 'autofilter': {
+        const filter = sheet.getFilter?.();
+        if (!filter) return undefined;
+        const area = filter.getRange().getRange();
+        return new PropertyBag('AutoFilter', { range: new RangeObject(model, sheet, { r0: area.startRow, r1: area.endRow, c0: area.startColumn, c1: area.endColumn }) });
+      }
       case 'paste': {
         const destination = arg(args, 0, 'destination');
         const target = destination instanceof RangeObject ? destination : model.selectionRange();
@@ -793,7 +987,11 @@ export class WorksheetObject extends VbaObject {
         return undefined;
       }
       case 'autofiltermode':
-        return false;
+        return !!sheet.getFilter?.();
+      case 'shapes': {
+        const shapes = new ShapesObject(model.callbacks.shapes, String(sheet.getSheetId()));
+        return args.values.length ? shapes.defaultGet(args) : shapes;
+      }
       case 'tab':
         return new PropertyBag('Tab', { color: hexToVbaColor(sheet.getTabColor?.() ?? '') });
       default:
@@ -813,7 +1011,10 @@ export class WorksheetObject extends VbaObject {
       else this.sheet.hideSheet();
       return true;
     }
-    if (name === 'autofiltermode') return true;
+    if (name === 'autofiltermode') {
+      if (!toBool(value ?? false)) this.sheet.getFilter?.()?.remove();
+      return true;
+    }
     return false;
   }
 
@@ -924,6 +1125,7 @@ class InteriorObject extends VbaObject {
         if (toInteger(value) === -4142) this.range.setBackground(null);
         return true;
       case 'tintandshade':
+      case 'patterntintandshade':
       case 'patterncolorindex':
       case 'themecolor':
         return true;
@@ -1115,6 +1317,59 @@ export class RangeObject extends VbaObject {
     return VbaArray.fromGrid(Array.from({ length: this.rows }, (_, r) => Array.from({ length: this.columns }, (_, c) => read(this.box.r0 + r, this.box.c0 + c))));
   }
 
+  eachCell(visit: (cell: RangeObject, row: number, column: number) => void) {
+    for (let row = this.box.r0; row <= this.box.r1; row++) {
+      for (let column = this.box.c0; column <= this.box.c1; column++) visit(this.at({ r0: row, r1: row, c0: column, c1: column }), row, column);
+    }
+  }
+
+  private autoFill(destination: VbaValue) {
+    if (!(destination instanceof RangeObject)) throw new VbaError(1004, 'AutoFill cần tham số Destination là một vùng ô');
+    const source = this.box;
+    destination.eachCell((cell, row, column) => {
+      const isInsideSource = row >= source.r0 && row <= source.r1 && column >= source.c0 && column <= source.c1;
+      if (isInsideSource) return;
+      const fromRow = source.r0 + ((((row - source.r0) % this.rows) + this.rows) % this.rows);
+      const fromColumn = source.c0 + ((((column - source.c0) % this.columns) + this.columns) % this.columns);
+      const text = toStr(this.at({ r0: fromRow, r1: fromRow, c0: fromColumn, c1: fromColumn }).formula());
+      cell.setFormula(text.startsWith('=') ? shiftFormula(text, row - fromRow, column - fromColumn) : text);
+    });
+  }
+
+  private autoFilter(args: VbaArgs) {
+    const field = arg(args, 0, 'field');
+    const criteria = arg(args, 1, 'criteria1');
+    let filter = this.sheet.getFilter?.();
+    if (isMissing(field)) {
+      if (filter) filter.remove();
+      else this.filterSource().facade().createFilter?.();
+      return;
+    }
+    filter ??= this.filterSource().facade().createFilter?.();
+    if (!filter) throw new VbaError(1004, 'Không tạo được bộ lọc cho vùng này');
+    const area = filter.getRange().getRange();
+    const column = area.startColumn + toInteger(field) - 1;
+    if (isMissing(criteria)) {
+      filter.removeColumnFilterCriteria(column);
+      return;
+    }
+    const matches = criteriaMatcher(criteria);
+    const shown = new Set<string>();
+    let isBlankShown = false;
+    for (let row = area.startRow + 1; row <= area.endRow; row++) {
+      const value = this.cellValue(row, column);
+      const isBlank = value === undefined || value === null || value === '';
+      if (!matches(isBlank ? '' : value)) continue;
+      if (isBlank) isBlankShown = true;
+      else shown.add(String(this.sheet.getRange(row, column, 1, 1).getDisplayValue?.() ?? toStr(value)));
+    }
+    filter.setColumnFilterCriteria(column, { colId: column, filters: { filters: [...shown], ...(isBlankShown ? { blank: true } : {}) } });
+  }
+
+  private filterSource(): RangeObject {
+    return this.rows === 1 && this.columns === 1 ? this.currentRegion() : this;
+  }
+
   setFormula(value: VbaValue) {
     const v = scalar(value);
     if (v instanceof VbaArray) {
@@ -1303,7 +1558,16 @@ export class RangeObject extends VbaObject {
         return this.value();
       case 'formula':
       case 'formulalocal':
+      case 'formular1c1':
         return this.formula();
+      case 'formulahidden':
+        return false;
+      case 'autofilter':
+        this.autoFilter(args);
+        return undefined;
+      case 'autofill':
+        this.autoFill(arg(args, 0, 'destination'));
+        return undefined;
       case 'text':
         return String(this.sheet.getRange(this.box.r0, this.box.c0, 1, 1).getDisplayValue?.() ?? toStr(this.cellValue(this.box.r0, this.box.c0)));
       case 'hasformula':
@@ -1383,10 +1647,8 @@ export class RangeObject extends VbaObject {
         return Math.round(this.sheet.getRowHeight(this.box.r0) * 0.75 * 100) / 100;
       case 'columnwidth':
         return Math.round(((this.sheet.getColumnWidth(this.box.c0) - 5) / 7) * 100) / 100;
-      case 'hidden': {
-        const hidden = this.sheet.getRowHeight(this.box.r0) === 0;
-        return hidden;
-      }
+      case 'hidden':
+        return model.isRowHidden(this.sheet, this.box.r0);
       case 'select':
       case 'activate':
         model.workbook().setActiveSheet(this.sheet);
@@ -1488,6 +1750,16 @@ export class RangeObject extends VbaObject {
       case 'formulalocal':
         this.setFormula(value);
         return true;
+      case 'formular1c1': {
+        const text = toStr(scalar(value));
+        if (!text.startsWith('=')) this.setFormula(value);
+        else this.eachCell((cell, row, column) => cell.setFormula(r1c1ToA1(text, row, column)));
+        return true;
+      }
+      case 'formulahidden':
+      case 'readingorder':
+      case 'addindent':
+        return true;
       case 'horizontalalignment':
         this.setStyle('ht', ALIGN_TO_UNIVER[toInteger(value)] ?? 0);
         return true;
@@ -1520,8 +1792,7 @@ export class RangeObject extends VbaObject {
         if (this.iterateAs === 'columns' || (this.box.r0 === 0 && this.box.r1 === this.sheet.getMaxRows() - 1)) {
           if (hide) this.sheet.hideColumns(this.box.c0, this.columns);
           else this.sheet.showColumns(this.box.c0, this.columns);
-        } else if (hide) this.sheet.hideRows(this.box.r0, this.rows);
-        else this.sheet.showRows(this.box.r0, this.rows);
+        } else this.model.queueRowVisibility(this.sheet, this.box.r0, this.rows, hide);
         return true;
       }
       case 'name':

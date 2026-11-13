@@ -89,7 +89,7 @@
 .doc-editor .styles-card-sample { white-space: nowrap; overflow: hidden; max-width: 72px; }
 
 .doc-editor .doc-workspace { background: var(--doc-canvas-bg); position: relative; min-height: 0; }
-.doc-editor .doc-canvas { position: relative; display: block; padding: var(--doc-gap-6) var(--doc-gap-6) var(--doc-gap-8); overflow: auto; }
+.doc-editor .doc-canvas { position: relative; display: block; padding: var(--doc-gap-6) var(--doc-gap-6) var(--doc-gap-8); overflow: scroll; }
 .paper-zoom { width: max-content; max-width: none; margin: 0 auto; }
 .doc-ruler { position: relative; height: 20px; background: #fff; border: 1px solid #d4dae5; border-bottom: 0; font-size: 9px; color: #8c95a6; user-select: none; overflow: hidden; margin: 0 auto; }
 .ruler-margin { position: absolute; top: 0; bottom: 0; left: 0; background: #e8ecf2; }

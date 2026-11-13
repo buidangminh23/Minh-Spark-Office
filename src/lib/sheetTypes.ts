@@ -1,5 +1,5 @@
 import type { VbaProjectData } from './vbaProject';
-import type { FormButtonMap } from './formButtons';
+import type { FormButtonMap, FormImageMap } from './formButtons';
 
 export type ColorStyle = { rgb?: string };
 export type BorderSide = { s: number; cl?: ColorStyle };
@@ -65,6 +65,7 @@ export type WorkbookData = {
   vbaError?: string;
   automation?: AutomationBundle;
   formButtons?: FormButtonMap;
+  formImages?: FormImageMap;
 };
 
 export type AutomationButton = { sheet: string; row: number; column: number; target: string };

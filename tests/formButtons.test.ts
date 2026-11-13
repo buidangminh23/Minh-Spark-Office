@@ -25,6 +25,7 @@ describe('parseVmlButtons', () => {
         id: '_x0000_s3079',
         label: 'Tạo phiếu mới & in',
         macro: 'btnPhieuNhap_XoaPhieuCapSoMoi',
+        name: '3079',
         from: { row: 0, column: 10, rowOffset: 7, columnOffset: 5 },
         to: { row: 0, column: 12, rowOffset: 51, columnOffset: 93 },
         bold: true,

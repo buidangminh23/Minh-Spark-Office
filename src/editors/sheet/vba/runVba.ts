@@ -83,7 +83,10 @@ export function createExcelHost(api: unknown, callbacks: VbaRunCallbacks, model 
     print: (text) => callbacks.print(text),
     evaluateBracket: (text) => evaluateBracketText(model, text),
     beginSlice: extras.beginSlice,
-    endSlice: extras.endSlice,
+    endSlice: () => {
+      model.flushRowVisibility();
+      extras.endSlice?.();
+    },
     endAll: extras.endAll,
     documentObject: (target) => {
       try {

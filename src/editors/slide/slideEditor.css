@@ -572,7 +572,7 @@
   display: flex;
   align-items: safe center;
   justify-content: safe center;
-  overflow: auto;
+  overflow: scroll;
   padding: 32px;
   background: #CBD5E1;
   position: relative;

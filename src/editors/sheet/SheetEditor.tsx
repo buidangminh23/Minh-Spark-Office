@@ -101,7 +101,8 @@ import { defaultAttributes, withProcShortcut, type VbaModuleData, type VbaProjec
 import { RECORDED_VBA_MODULE } from '../../lib/xlsmPackage';
 import { getLanguage } from '../../lib/i18n/language';
 import { FormButtonLayer, type FormButtonSheet } from './FormButtonLayer';
-import { resolveButtonMacro, sanitizeFormButtons, type FormButton, type FormButtonMap } from '../../lib/formButtons';
+import { SheetScrollBar, type ScrollBarSheet } from './SheetScrollBar';
+import { resolveButtonMacro, sanitizeFormButtons, sanitizeFormImages, type FormButton, type FormButtonMap } from '../../lib/formButtons';
 import { MacroButtonModal, MacroManagerModal, MacroRecordModal, type MacroButtonColor, type MacroRecordOptions } from './SheetMacroModals';
 import { BACKSPACE_CLEAR_PRIORITY, selectionCoversMultipleCells } from './backspaceClear';
 import UniverPresetSheetsCoreViVN from '@univerjs/preset-sheets-core/locales/vi-VN';
@@ -733,6 +734,16 @@ const MAX_PASTE_SNAPSHOT_CELLS = 50_000;
 const MAX_VBA_OUTPUT_LINES = 500;
 const CONVERTED_VBA_MODULE = 'MacroGhiLai';
 const NO_FORM_BUTTONS: FormButton[] = [];
+const SHEET_SCROLLBAR_STYLE = {
+  barSize: 16,
+  thumbMargin: 4,
+  thumbBackgroundColor: '#7f7f7f',
+  thumbHoverBackgroundColor: '#666666',
+  thumbActiveBackgroundColor: '#555555',
+  trackBackgroundColor: '#ececf1',
+  trackBorderColor: '#dcdce3',
+  hideTrackWhenUnscrollable: false,
+};
 
 export default function SheetEditor({ meta, content, onSave, onBack, live }: SheetEditorProps) {
   const ui = useUi();
@@ -804,6 +815,9 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
   const [vbaProject, setVbaProject] = useState<VbaProjectData | null>(() => content.vba ?? content.workbook.vba ?? null);
   const [formButtons, setFormButtons] = useState<FormButtonMap>(() => sanitizeFormButtons(content.formButtons ?? content.workbook.formButtons));
   const savedFormButtons = Object.keys(formButtons).length ? formButtons : undefined;
+  const formButtonsRef = useRef(formButtons);
+  const [formImages, setFormImages] = useState(() => sanitizeFormImages(content.formImages ?? content.workbook.formImages));
+  const savedFormImages = Object.keys(formImages).length ? formImages : undefined;
   const vbaProjectRef = useRef(vbaProject);
   vbaProjectRef.current = vbaProject;
   const vbaMacros = useMemo(() => listVbaMacros(vbaProject), [vbaProject]);
@@ -866,6 +880,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
   const showFormulaBar = useSetting('sheetShowFormulaBar');
   const showStatusBar = useSetting('sheetShowStatusBar');
   const sheetTabs = useSetting('sheetTabs');
+  const showHorizontalScroll = useSetting('sheetShowHScroll');
   const formulaAutoComplete = useSetting('sheetFormulaAutoComplete');
   const ribbonTabs = useMemo(() => SHEET_RIBBON_TABS.filter(([tabId]) => isSheetTabVisible(tabId, sheetTabs)), [sheetTabs]);
   const activeTab: SheetRibbonTab = isSheetTabVisible(chosenTab, sheetTabs) ? chosenTab : 'home';
@@ -1219,6 +1234,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
         macros,
         vba: vbaProject ?? undefined,
         formButtons: savedFormButtons,
+        formImages: savedFormImages,
         excel: excelStateRef.current,
       }, explicit);
       if (saved) {
@@ -1231,7 +1247,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
       ui.toast('Chưa lưu được bản nháp. Vui lòng giữ trang này mở và thử lại.', true);
       return false;
     }
-  }, [setSavedStatus, captureHydratedWorkbook, meta, title, onSave, comments, printSettings, outlines, macros, vbaProject, savedFormButtons, ui]);
+  }, [setSavedStatus, captureHydratedWorkbook, meta, title, onSave, comments, printSettings, outlines, macros, vbaProject, savedFormButtons, savedFormImages, ui]);
 
   const handleSaveNow = useCallback(() => {
     void (async () => {
@@ -1446,7 +1462,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
               functionScreenTips: startup.sheetFormulaAutoComplete,
             },
             sheets: {
-              scrollConfig: { enableHorizontal: startup.sheetShowHScroll, enableVertical: startup.sheetShowVScroll },
+              scrollConfig: { ...SHEET_SCROLLBAR_STYLE, enableHorizontal: startup.sheetShowHScroll, enableVertical: startup.sheetShowVScroll },
             },
             footer: {
               sheetBar: startup.sheetShowSheetTabs,
@@ -1480,6 +1496,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
       delete clonedWb.vbaError;
       delete clonedWb.automation;
       delete clonedWb.formButtons;
+      delete clonedWb.formImages;
       univer.createUnit(UniverInstanceType.UNIVER_SHEET, clonedWb);
       registerBackspaceClearsSelection(univer);
       recalculateAndBindWorkbook(univerAPI);
@@ -3402,7 +3419,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
   const handleCleanWorkbook = async () => {
     const ctx = getEditableContext();
     if (!ctx || !doctorData) throw new Error('Không có sổ tính để dọn');
-    const draft: SheetContent = { kind: 'sheet', workbook: captureHydratedWorkbook(), comments, printSettings, outlines, macros, vba: vbaProject ?? undefined, formButtons: savedFormButtons, excel: excelStateRef.current };
+    const draft: SheetContent = { kind: 'sheet', workbook: captureHydratedWorkbook(), comments, printSettings, outlines, macros, vba: vbaProject ?? undefined, formButtons: savedFormButtons, formImages: savedFormImages, excel: excelStateRef.current };
     try {
       const saved = await sourceStorage.saveVersion(meta.id, draft, 'Trước khi tối ưu');
       setVersions((prev) => [saved, ...prev]);
@@ -4462,6 +4479,15 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
         if (text) ui.toast(text);
       },
       save: () => handleSaveNowRef.current(),
+      printSheet: () => setModal('pageSetup'),
+      shapes: {
+        list: (sheetId) => (formButtonsRef.current[sheetId] ?? []).map((item) => ({ id: item.id, name: item.name ?? item.label, kind: item.kind ?? 'button', visible: !item.hidden })),
+        setVisible: (sheetId, id, visible) => {
+          const target = formButtonsRef.current[sheetId]?.find((item) => item.id === id);
+          if (target && !target.hidden !== visible) updateFormButtons(sheetId, (list) => list.map((item) => (item.id === id ? { ...item, hidden: !visible } : item)));
+        },
+        remove: (sheetId, id) => updateFormButtons(sheetId, (list) => list.filter((item) => item.id !== id)),
+      },
       print: (text) => setVbaOutput((previous) => [...previous, text].slice(-MAX_VBA_OUTPUT_LINES)),
       report: (error) => ui.toast(`Macro VBA dừng: ${error}`, true),
       beginSlice: () => {
@@ -4598,7 +4624,15 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
     void runRecordedMacro(macro);
   };
 
+  const updateFormButtons = (sheetId: string, change: (list: FormButton[]) => FormButton[]) => {
+    const next = { ...formButtonsRef.current, [sheetId]: change(formButtonsRef.current[sheetId] ?? []) };
+    formButtonsRef.current = next;
+    setFormButtons(next);
+    setSavedStatus('saving');
+  };
+
   const runFormButton = (button: FormButton) => {
+    if (button.kind === 'text' || button.kind === 'picture') return;
     if (designModeRef.current || recorderRef.current) return;
     const macroId = resolveButtonMacro(button.macro, vbaMacrosRef.current.map((item) => item.id));
     if (macroId) runVbaMacroById(macroId);
@@ -4607,6 +4641,10 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
 
   const activeFormButtons = formButtons[activeSheetId] ?? NO_FORM_BUTTONS;
   const getFormButtonSheet = () => (univerAPIRef.current?.getActiveWorkbook()?.getActiveSheet() as unknown as FormButtonSheet | undefined) ?? null;
+  const getScrollBarSheet = () => getFormButtonSheet() as ScrollBarSheet | null;
+  const scrollSheetBy = (offsetX: number) => {
+    void univerAPIRef.current?.executeCommand('sheet.command.set-scroll-relative', { offsetX });
+  };
 
   cellClickRef.current = (row, column) => {
     const ctx = getActiveContext();
@@ -5078,7 +5116,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
   };
 
   const handleCreateSnapshot = async (label: string) => {
-    const draft: SheetContent = { kind: 'sheet', workbook: captureHydratedWorkbook(), comments, printSettings, outlines, macros, vba: vbaProject ?? undefined, formButtons: savedFormButtons, excel: excelStateRef.current };
+    const draft: SheetContent = { kind: 'sheet', workbook: captureHydratedWorkbook(), comments, printSettings, outlines, macros, vba: vbaProject ?? undefined, formButtons: savedFormButtons, formImages: savedFormImages, excel: excelStateRef.current };
     const currentMeta = { ...meta, name: title.trim() || meta.name, updatedAt: Date.now() };
     try {
       if (!user) await sourceStorage.saveFile(currentMeta, draft);
@@ -5105,7 +5143,9 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
     setOutlines(cont.outlines ?? {});
     setMacros(sanitizeMacros(cont.macros));
     setVbaProject(cont.vba ?? null);
-    setFormButtons(sanitizeFormButtons(cont.formButtons));
+    formButtonsRef.current = sanitizeFormButtons(cont.formButtons);
+    setFormButtons(formButtonsRef.current);
+    setFormImages(sanitizeFormImages(cont.formImages));
     setModal(null);
     setSavedStatus('saving');
     setTimeout(() => syncUiFromSelection(), 90);
@@ -7112,7 +7152,8 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
           ref={containerRef}
           className={`sheet-container ${!showFormulaBar ? 'sheet-hide-formula-bar' : ''}`}
         />
-        <FormButtonLayer buttons={activeFormButtons} container={containerRef} getSheet={getFormButtonSheet} onRun={runFormButton} />
+        <FormButtonLayer buttons={activeFormButtons} images={formImages} container={containerRef} getSheet={getFormButtonSheet} onRun={runFormButton} />
+        {showHorizontalScroll && <SheetScrollBar container={containerRef} getSheet={getScrollBarSheet} scrollBy={scrollSheetBy} />}
         {parity.overlay}
 
         <TipsPanel app="sheet" />

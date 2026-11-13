@@ -3,7 +3,8 @@ import JSZip from 'jszip';
 import * as XLSX from 'xlsx';
 import { buildVbaProject, fromBase64, readVbaProject, updateVbaProject } from './vbaProject';
 import { RECORDED_VBA_MODULE, addMinhBundle, addVbaProject, readCodeNames, readMinhBundle, worksheetPaths } from './xlsmPackage';
-import { readFormButtons } from './formButtons';
+import { readSheetObjects } from './formButtons';
+import { attachWorkbookExtras } from './xlsxExtras';
 import type { CellStyle, CellValue, ImportTruncation, WorkbookData } from './sheetTypes';
 import { emptySheet, emptyWorkbook, uid } from './workbookBasics';
 import { EXCEL_EPOCH, MAX_IMPORT_COLS, MAX_IMPORT_ROWS, importedFontFamily, inferDelimitedValue, normalizeHexColor, resolveCellStyle, toNfc } from './xlsxShared';
@@ -336,12 +337,15 @@ async function attachAutomation(data: WorkbookData, archive: Uint8Array) {
     }
   }
   try {
-    const buttons = await readFormButtons(zip, await worksheetPaths(zip));
+    const sheetPaths = await worksheetPaths(zip);
+    const { objects, images } = await readSheetObjects(zip, sheetPaths);
     data.sheetOrder.forEach((id, index) => {
-      if (buttons[index]?.length) (data.formButtons ??= {})[id] = buttons[index];
+      if (objects[index]?.length) (data.formButtons ??= {})[id] = objects[index];
     });
+    if (Object.keys(images).length) data.formImages = images;
+    await attachWorkbookExtras(data, zip, sheetPaths);
   } catch (error) {
-    console.warn('Form control buttons could not be read:', error);
+    console.warn('Workbook objects could not be read:', error);
   }
   const bundle = (await readMinhBundle(zip)) as WorkbookData['automation'] | null;
   if (bundle && typeof bundle === 'object') {
