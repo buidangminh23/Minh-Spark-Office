@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::borrow::Cow;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use tauri::webview::{Color, NewWindowFeatures, NewWindowResponse};
 use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindowBuilder, Wry};
@@ -23,6 +24,27 @@ fn open_web_app() -> Result<(), String> {
 const DESKTOP_MARKER_SCRIPT: &str = "(()=>{const mark=()=>{const root=document.documentElement;if(!root)return false;root.classList.add('ms-desktop');return true};if(!mark())new MutationObserver((_,observer)=>{if(mark())observer.disconnect()}).observe(document,{childList:true})})()";
 
 static APP_WINDOW_COUNT: AtomicUsize = AtomicUsize::new(0);
+
+fn correct_asset_content_type(
+    request: tauri::http::Request<Vec<u8>>,
+    response: &mut tauri::http::Response<Cow<'static, [u8]>>,
+) {
+    let Ok(url) = Url::parse(&request.uri().to_string()) else {
+        return;
+    };
+    if !is_app_url(&url) || !url.path().starts_with("/assets/") || !response.status().is_success() {
+        return;
+    }
+    let content_type = match url.path().rsplit('.').next() {
+        Some("js" | "mjs") => "text/javascript",
+        Some("css") => "text/css",
+        _ => return,
+    };
+    response.headers_mut().insert(
+        tauri::http::header::CONTENT_TYPE,
+        tauri::http::HeaderValue::from_static(content_type),
+    );
+}
 
 fn is_app_url(url: &Url) -> bool {
     (url.scheme() == "tauri" && url.host_str() == Some("localhost"))
@@ -57,6 +79,7 @@ fn open_app_window(app: &AppHandle, features: NewWindowFeatures) -> NewWindowRes
         .initialization_script(DESKTOP_MARKER_SCRIPT)
         .min_inner_size(480.0, 360.0)
         .disable_drag_drop_handler()
+        .on_web_resource_request(correct_asset_content_type)
         .on_navigation(|url| url.as_str() == "about:blank" || is_app_url(url))
         .on_new_window(|url, _| open_externally(&url))
         .on_document_title_changed(|window, title| {
@@ -127,6 +150,7 @@ fn main() {
                 .inner_size(1440.0, 940.0)
                 .min_inner_size(1024.0, 680.0)
                 .disable_drag_drop_handler()
+                .on_web_resource_request(correct_asset_content_type)
                 .on_navigation(is_app_url)
                 .on_new_window(move |url, features| {
                     if is_app_url(&url) {
@@ -188,7 +212,9 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::is_app_url;
+    use super::{correct_asset_content_type, is_app_url};
+    use std::borrow::Cow;
+    use tauri::http::{Request, Response};
     use tauri::Url;
 
     fn app(url: &str) -> bool {
@@ -208,5 +234,42 @@ mod tests {
         assert!(!app("https://office.minhspark.com/"));
         assert!(!app("http://localhost/"));
         assert!(!app("mailto:someone@example.com"));
+    }
+
+    #[test]
+    fn bundled_modules_keep_script_mime_when_they_contain_file_signatures() {
+        let body: Cow<'static, [u8]> = Cow::Borrowed(b"export const magic = '%PDF-';");
+        for origin in ["http://tauri.localhost", "https://tauri.localhost", "tauri://localhost"] {
+            for extension in ["js", "mjs"] {
+                let request = Request::builder()
+                    .uri(format!("{origin}/assets/pdfBytes-test.{extension}?v=1"))
+                    .body(Vec::new()).unwrap();
+                let mut response = Response::builder()
+                    .header("content-type", "application/pdf")
+                    .header("content-security-policy", "default-src 'self'")
+                    .body(body.clone()).unwrap();
+                correct_asset_content_type(request, &mut response);
+                assert_eq!(response.headers()["content-type"], "text/javascript");
+                assert_eq!(response.headers()["content-security-policy"], "default-src 'self'");
+                assert_eq!(response.body(), &body);
+            }
+        }
+    }
+
+    #[test]
+    fn asset_mime_correction_preserves_documents_external_responses_and_errors() {
+        for (url, status) in [
+            ("http://tauri.localhost/assets/document.pdf", 200),
+            ("http://tauri.localhost/document.js", 200),
+            ("https://example.com/assets/module.js", 200),
+            ("http://tauri.localhost/assets/missing.js", 404),
+        ] {
+            let request = Request::builder().uri(url).body(Vec::new()).unwrap();
+            let mut response = Response::builder().status(status)
+                .header("content-type", "application/pdf")
+                .body(Cow::Borrowed(b"%PDF-".as_slice())).unwrap();
+            correct_asset_content_type(request, &mut response);
+            assert_eq!(response.headers()["content-type"], "application/pdf");
+        }
     }
 }

@@ -9,6 +9,8 @@ use tauri::{Emitter, Manager};
 const MAX_PENDING: usize = 16;
 const EXTENSIONS: &[&str] = &[
     "docx", "xlsx", "xlsm", "xls", "csv", "tsv", "pdf", "pptx", "ppt", "txt", "md",
+    "markdown", "png", "jpg", "jpeg", "jfif", "jpe", "webp", "gif", "svg", "svgz", "bmp",
+    "dib", "ico", "avif", "tiff", "tif", "heic", "heif",
 ];
 
 #[derive(Default)]
@@ -251,6 +253,7 @@ mod tests {
         assert!(!supported_local_path(&fixture("legacy.doc")));
         assert!(!supported_local_path(&fixture("script.exe")));
         assert!(supported_local_path(&fixture("sample.XLSX")));
+        assert!(supported_local_path(&fixture("sample.PNG")));
         #[cfg(windows)]
         {
             assert!(!supported_local_path(Path::new(

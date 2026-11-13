@@ -13,12 +13,11 @@ export function createDesktopFileQueue(options: QueueOptions) {
   let alive = true;
   let running: Promise<void> | null = null;
   let requested = false;
-  let waitingForClose = false;
   let hasMore = false;
   const pending: Array<{ file: DesktopFile; bytes?: ArrayBuffer }> = [];
 
   const run = async () => {
-    while (alive && !waitingForClose && !options.isEditing()) {
+    while (alive && !options.isEditing()) {
       if (!pending.length) {
         requested = false;
         const batch = await options.drain();
@@ -40,18 +39,12 @@ export function createDesktopFileQueue(options: QueueOptions) {
         }
         if (!alive || options.isEditing()) return;
         pending.shift();
-        let opened = false;
         try {
-          opened = await options.open(new File([next.bytes], next.file.name));
+          await options.open(new File([next.bytes], next.file.name));
         } catch (error) {
           if (alive) options.notify(error instanceof Error ? error.message : 'Không thể mở tệp này', true);
         }
         if (!alive) return;
-        if (opened) {
-          waitingForClose = true;
-          if (hasMore || pending.length || requested) options.notify('Còn tệp đang chờ. Trở về danh sách sau khi lưu để mở tệp tiếp theo.');
-          return;
-        }
       }
       if (!hasMore && !pending.length && !requested) return;
     }
@@ -60,8 +53,8 @@ export function createDesktopFileQueue(options: QueueOptions) {
   const request = (notify = false): Promise<void> => {
     if (!alive) return Promise.resolve();
     requested = true;
-    if (waitingForClose || options.isEditing()) {
-      if (notify) options.notify('Đã nhận tệp từ hệ điều hành. Hãy lưu và trở về danh sách để mở tệp mới.');
+    if (options.isEditing()) {
+      if (notify) options.notify('Đã nhận tệp. Tệp sẽ mở sau khi thao tác hiện tại hoàn tất.');
       return running ?? Promise.resolve();
     }
     if (running) return running;
@@ -69,7 +62,7 @@ export function createDesktopFileQueue(options: QueueOptions) {
       if (alive) options.notify('Chưa mở được tệp từ hệ điều hành. Có thể dùng nút Mở tệp từ máy để thử lại.', true);
     }).finally(() => {
       running = null;
-      if (alive && requested && !waitingForClose && !options.isEditing()) void request();
+      if (alive && requested && !options.isEditing()) void request();
     });
     return running;
   };
@@ -77,7 +70,6 @@ export function createDesktopFileQueue(options: QueueOptions) {
   return {
     request,
     resume() {
-      if (!options.isEditing()) waitingForClose = false;
       return request();
     },
     stop() { alive = false; },

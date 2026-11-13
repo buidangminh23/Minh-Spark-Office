@@ -63,17 +63,17 @@ test('a successful import defers further files until the editor closes', async (
   assert.deepEqual(f.opened, ['first.docx', 'second.docx']);
 });
 
-test('success holds the queue even before React publishes editing state', async () => {
+test('multiple files open in separate tabs and new arrivals open without closing the previous tab', async () => {
   const f = fixture(['first.docx', 'second.docx']);
   const queue = createDesktopFileQueue({ ...f.options, open: async (file) => {
     f.opened.push(file.name);
     return true;
   } });
   await queue.request();
-  await queue.request();
-  assert.deepEqual(f.opened, ['first.docx']);
-  await queue.resume();
   assert.deepEqual(f.opened, ['first.docx', 'second.docx']);
+  f.native.push({ id: 2, name: 'third.pdf' });
+  await queue.request();
+  assert.deepEqual(f.opened, ['first.docx', 'second.docx', 'third.pdf']);
 });
 
 test('a cancelled password prompt or thrown import does not stall the queue', async () => {
