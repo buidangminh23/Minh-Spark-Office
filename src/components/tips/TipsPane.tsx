@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight, Lightbulb, Search, X } from 'lucide-react';
-import { closeAddin, useOpenAddin } from '../../addins/store';
 import { TIPS, TIPS_APP_NAME, type Tip, type TipsApp } from './tipsContent';
 import { filterSections } from './tipsSearch';
 import { closeTips, setTipsOpen, useTipsOpen } from './tipsStore';
@@ -97,21 +96,14 @@ function TipsPane({ app }: { app: TipsApp }) {
 
 export function TipsPanel({ app }: { app: TipsApp }) {
   const open = useTipsOpen();
-  const addin = useOpenAddin();
   useEffect(() => closeTips, []);
-  useEffect(() => {
-    if (addin) closeTips();
-  }, [addin]);
   if (!open) return null;
   return <TipsPane app={app} />;
 }
 
 export function TipsRibbonButton({ className, activeClass = 'active' }: { className: string; activeClass?: string }) {
   const open = useTipsOpen();
-  const toggle = () => {
-    if (!open) closeAddin();
-    setTipsOpen(!open);
-  };
+  const toggle = () => setTipsOpen(!open);
   return (
     <button
       type="button"

@@ -74,8 +74,6 @@ export const DEFAULT_SETTINGS = {
   qatPosition: 'above' as QatPosition,
   qatCommands: ['save', 'undo', 'redo'] as QatCommand[],
 
-  addinClaude: true,
-  addinChatgpt: true,
 
   macroPolicy: 'enable' as MacroPolicy,
   confirmLinks: true,

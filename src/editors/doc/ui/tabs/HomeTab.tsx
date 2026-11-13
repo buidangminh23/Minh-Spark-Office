@@ -6,7 +6,6 @@ import { changeCase, copySelection, pastePlainText, pasteRich, sortParagraphs } 
 import { BUILTIN_STYLE_ORDER, activeStyleId, applyDocStyle, resolveStyles, styleSample } from '../../docStyles';
 import FontPicker from '../FontPicker';
 import ComboBox from '../../../../components/ComboBox';
-import { AddinRibbonButtons, useAnyAddinEnabled } from '../../../../addins/AddinPane';
 import { TipsRibbonButton } from '../../../../components/tips/TipsPane';
 import { DocFeatureMenu } from './DocFeatures';
 import { MULTILEVEL_LISTS, PARAGRAPH_BORDERS, TEXT_EFFECTS, UNDERLINE_STYLES, changeListLevel, selectNextObject, selectionPane, setMultilevel, setParagraphBorder, setTextEffect, setUnderline } from '../../homeExtras';
@@ -18,7 +17,6 @@ const NUMBER_STYLES = [{ value: 'decimal', label: '1. 2. 3.' }, { value: 'decima
 const LINE_SPACINGS = [1, 1.15, 1.5, 2, 2.5, 3];
 
 export default function HomeTab({ fmt }: { fmt: FormatState }) {
-  const showAddins = useAnyAddinEnabled();
   const ctx = useDoc();
   const { editor } = ctx;
   const chain = () => editor.chain().focus();
@@ -211,12 +209,6 @@ export default function HomeTab({ fmt }: { fmt: FormatState }) {
       <Group label="Minh AI">
         <Big icon={<Sparkles size={20} color="#7c3aed" />} label="Minh AI" title="Viết lại, tóm tắt, dịch, viết tiếp bằng AI" onClick={() => ctx.openDialog('ai')} />
       </Group>
-
-      {showAddins && (
-        <Group label="Add-in">
-          <AddinRibbonButtons className="ribbon-btn-large" />
-        </Group>
-      )}
     </>
   );
 }

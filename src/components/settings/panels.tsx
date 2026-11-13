@@ -10,7 +10,6 @@ import { SYNC_DETAIL, SYNC_SHORT } from '../HomeParts';
 import { getLanguage, setLanguage, type AppLanguage } from '../../lib/i18n/language';
 import { isDesktop } from '../../lib/desktop';
 import { DEFAULT_PAGE_KEY } from '../../lib/storage';
-import { ADDIN_INFO } from '../../addins/store';
 import { FONT_CATALOG } from '../../editors/doc/fonts';
 import { AUTOCORRECT_KEY, loadAutoCorrect, type AutoCorrectEntry } from '../../editors/doc/extView';
 import {
@@ -240,27 +239,6 @@ export function DocTabsPicker() {
 
 export function QatEditor() {
   return <CommandListEditor settingKey="qatCommands" labels={QAT_LABELS} resetKeys={['qatCommands', 'qatPosition', 'qatShow']} />;
-}
-
-export function AddinsPanel() {
-  const settings = useSettings();
-  const rows: Array<[keyof typeof ADDIN_INFO, 'addinClaude' | 'addinChatgpt']> = [['claude', 'addinClaude'], ['chatgpt', 'addinChatgpt']];
-  return (
-    <>
-      {rows.map(([provider, key]) => (
-        <div key={provider} className="st-row">
-          <span className="st-addin">
-            <img src={ADDIN_INFO[provider].logo} alt="" width="28" height="28" />
-            <span className="st-row-text">
-              <span className="st-row-label">{ADDIN_INFO[provider].name}</span>
-              <span className="st-row-hint">{`Trợ lý AI trong Docs, Sheets và Slides. Cần ${ADDIN_INFO[provider].keyLabel} của riêng bạn.`}</span>
-            </span>
-          </span>
-          <Toggle label={`Bật ${ADDIN_INFO[provider].name}`} checked={settings[key]} onChange={(value) => setSettings({ [key]: value })} />
-        </div>
-      ))}
-    </>
-  );
 }
 
 export function AccountPanel() {

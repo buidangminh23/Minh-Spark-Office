@@ -4,9 +4,6 @@ import { saveAccountSnapshot } from '../../lib/accountSnapshots';
 import { useAccount } from '../../components/Authentication';
 import { useWorkspace } from '../../lib/storage';
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { AddinPanel, AddinRibbonButtons, useAnyAddinEnabled } from '../../addins/AddinPane';
-import { pdfHost } from '../../addins/hosts';
-import { getOpenAddin } from '../../addins/store';
 import {
   ArrowLeft,
   FileText,
@@ -106,7 +103,6 @@ const PDF_MIN_FIT_ZOOM = 30;
 const PDF_MIN_REAL_FIT_ZOOM = 5;
 
 export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorProps) {
-  const showAddins = useAnyAddinEnabled();
   const ui = useUi();
   const { user, login } = useAccount();
   const sourceStorage = useWorkspace();
@@ -309,17 +305,6 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
     pdfDataUrlRef.current = pdfDataUrl;
     realPageTextRef.current = realPageText;
   }, [currentPage, comments, pdfDataUrl, realPageText]);
-  const addinHost = useMemo(() => pdfHost({
-    dataUrl: () => pdfDataUrlRef.current,
-    pageText: () => (pdfDataUrlRef.current ? realPageTextRef.current ?? '' : pageRef.current?.innerText.trim() ?? ''),
-    page: () => currentPageRef.current,
-    notes: () => commentsRef.current.filter((item) => !item.resolved).map((item) => `- ${item.text}`).join('\n'),
-    addNote: (text, author) => {
-      setComments((prev) => [{ id: `cmt-${Date.now()}`, author, text: text.trim(), createdAt: Date.now(), resolved: false }, ...prev]);
-      markDirty();
-      setShowComments(true);
-    },
-  }, title, getOpenAddin), [markDirty, title]);
 
   const ocrText = hasRealPdf
     ? realPageText ?? ''
@@ -868,15 +853,6 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
                 </div>
                 <div className="ribbon-group-label">Settings</div>
               </div>
-
-              {showAddins && (
-                <div className="ribbon-section">
-                  <div className="ribbon-controls">
-                    <AddinRibbonButtons className="ribbon-btn-large" />
-                  </div>
-                  <div className="ribbon-group-label">Add-in</div>
-                </div>
-              )}
             </>
           )}
 
@@ -1142,7 +1118,6 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
             </div>
           </aside>
         )}
-        <AddinPanel host={addinHost} />
       </div>
 
       {/* MODAL 1: Sign Modal */}

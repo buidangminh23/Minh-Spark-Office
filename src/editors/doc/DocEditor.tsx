@@ -58,9 +58,7 @@ import OnlinePicturesDialog from './ui/OnlinePicturesDialog';
 import MailingsTab from './ui/tabs/MailingsTab';
 
 import HomeTab from './ui/tabs/HomeTab';
-import { AddinPanel } from '../../addins/AddinPane';
 import { TipsPanel } from '../../components/tips/TipsPane';
-import { docHost } from '../../addins/hosts';
 import InsertTab from './ui/tabs/InsertTab';
 import { DesignTab, LayoutTab } from './ui/tabs/LayoutTabs';
 import { ReferencesTab, ReviewTab } from './ui/tabs/ReviewTabs';
@@ -601,7 +599,6 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
   }, [autoFit, canvasEl, dims.width]);
   const onPages = useCallback((count: number, current: number) => setPages((p) => (p.count === count && p.current === current ? p : { count, current })), []);
   const reading = view.viewMode === 'read';
-  const addinHost = useMemo(() => docHost(editor, title), [editor, title]);
   const openComments = comments.filter((c) => !c.resolved).length;
 
   const renderTab = () => {
@@ -687,7 +684,6 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
           {!reading && <LayoutPanels />}
           {!reading && <ReviewPanels />}
           <ViewPanels />
-          {!reading && <AddinPanel host={addinHost} />}
           {!reading && <TipsPanel app="doc" />}
         </div>
 

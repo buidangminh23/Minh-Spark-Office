@@ -1,12 +1,12 @@
 import {
   Accessibility, AlignJustify, CheckCheck, CircleHelp, Cloud, Code2, Eye, Info, Keyboard, Languages, LayoutPanelTop, Monitor,
-  PanelTop, Puzzle, RefreshCw, Save, Settings2, ShieldCheck, SlidersHorizontal, SpellCheck2, Type, UserRound, Wrench,
+  PanelTop, RefreshCw, Save, Settings2, ShieldCheck, SlidersHorizontal, SpellCheck2, Type, UserRound, Wrench,
 } from 'lucide-react';
 import type { SettingCategory, SettingOption } from './types';
 import { SHEET_CATEGORIES } from './sheetCatalog';
 import { SLIDE_CATEGORIES } from './slideCatalog';
 import {
-  AboutPanel, AccountPanel, AddinsPanel, AppsPicker, AutoCorrectList, BackupPanel, DefaultAppsPanel,
+  AboutPanel, AccountPanel, AppsPicker, AutoCorrectList, BackupPanel, DefaultAppsPanel,
   DocTabsPicker, FontPicker, HelpPanel, LanguagePanel, QatEditor, ResetPanel, UpdatePanel,
 } from './panels';
 import { ThemePicker } from './AppearancePicker';
@@ -288,22 +288,6 @@ const BASE_CATEGORIES: SettingCategory[] = [
           { kind: 'segmented', key: 'qatPosition', label: 'Vị trí', options: [['above', 'Trên ribbon'], ['below', 'Dưới ribbon']], disabledWhen: (s) => !s.qatShow },
           { kind: 'custom', id: 'qat-commands', label: 'Lệnh trên thanh', keywords: 'hoàn tác làm lại in lưu', render: () => <QatEditor /> },
         ],
-      },
-    ],
-  },
-  {
-    id: 'addins',
-    group: 'general',
-    title: 'Phần bổ trợ',
-    description: 'Trợ lý AI và tiện ích gắn vào Minh Docs, Sheets, Slides.',
-    icon: <Puzzle size={20} />,
-    sections: [
-      {
-        id: 'addins',
-        title: 'Phần bổ trợ',
-        description: 'Tắt phần bổ trợ để ẩn nút của nó khỏi các ứng dụng.',
-        icon: <Puzzle size={ICON} />,
-        options: [{ kind: 'custom', id: 'addins', label: 'Danh sách phần bổ trợ', keywords: 'claude chatgpt ai', render: () => <AddinsPanel /> }],
       },
     ],
   },
