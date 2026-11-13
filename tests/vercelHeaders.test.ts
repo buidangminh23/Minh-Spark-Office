@@ -10,7 +10,7 @@ type Rule = { source: string; headers: { key: string; value: string }[] };
 const root = new URL('../', import.meta.url);
 const read = (path: string) => readFileSync(new URL(path, root), 'utf8');
 const rules: Rule[] = JSON.parse(read('vercel.json')).headers;
-const STATIC_PAGES = ['public/gioi-thieu.html', 'public/tai-ung-dung.html', 'public/minh-docs.html', 'public/minh-sheets.html'];
+const STATIC_PAGES = ['public/gioi-thieu.html', 'public/tai-ung-dung.html', 'public/minh-docs.html', 'public/minh-sheets.html', 'public/trinh-chieu-online.html', 'public/pdf-online.html', 'public/mo-file-word-excel-online.html'];
 const FIREBASE_AUTH_DOMAIN = 'https://minh-spark-office.firebaseapp.com';
 
 const matches = (source: string, path: string) => new RegExp(`^${source}$`).test(path);
@@ -102,6 +102,7 @@ test('static pages run no inline scripts, so the policy needs no line-ending dep
   const current = JSON.parse(read('src-tauri/tauri.conf.json')).version;
   const next = nextPatchVersion(current);
   for (const page of STATIC_PAGES) {
+    assert.deepEqual(policyFor(page.slice('public'.length))['script-src'], ["'self'"], page);
     const html = read(page);
     const file = VERSION_FILES.find((entry) => entry.path === page);
     const bumped = file ? bumpVersionText(html, file, current, next) : html;

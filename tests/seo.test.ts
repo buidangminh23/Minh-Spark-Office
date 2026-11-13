@@ -11,6 +11,9 @@ const pages = [
   { path: '/minh-docs.html', file: 'public/minh-docs.html' },
   { path: '/minh-sheets.html', file: 'public/minh-sheets.html' },
   { path: '/tai-ung-dung.html', file: 'public/tai-ung-dung.html' },
+  { path: '/trinh-chieu-online.html', file: 'public/trinh-chieu-online.html' },
+  { path: '/pdf-online.html', file: 'public/pdf-online.html' },
+  { path: '/mo-file-word-excel-online.html', file: 'public/mo-file-word-excel-online.html' },
 ].map((page) => ({ ...page, html: readFileSync(new URL(page.file, root), 'utf8') }));
 
 test('public URLs expose unique metadata, readable content and matching canonical signals', () => {

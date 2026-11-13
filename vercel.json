@@ -11,13 +11,13 @@
       ]
     },
     {
-      "source": "/((?!(?:gioi-thieu|tai-ung-dung|minh-docs|minh-sheets)\\.html).*)",
+      "source": "/((?!(?:gioi-thieu|tai-ung-dung|minh-docs|minh-sheets|trinh-chieu-online|pdf-online|mo-file-word-excel-online)\\.html).*)",
       "headers": [
         { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://cdn.jsdelivr.net/pyodide/v314.0.7/full/ https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' data: blob: https:; worker-src 'self' blob:; frame-src 'self' blob: https://minh-spark-office.firebaseapp.com https://www.youtube-nocookie.com https://www.youtube.com https://player.vimeo.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'" }
       ]
     },
     {
-      "source": "/(gioi-thieu|tai-ung-dung|minh-docs|minh-sheets)\\.html",
+      "source": "/(gioi-thieu|tai-ung-dung|minh-docs|minh-sheets|trinh-chieu-online|pdf-online|mo-file-word-excel-online)\\.html",
       "headers": [
         { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self'; font-src 'self' data:; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" }
       ]
