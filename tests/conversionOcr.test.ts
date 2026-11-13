@@ -3,10 +3,13 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
+import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
 import { createWorker, OEM, PSM } from 'tesseract.js';
 import { normalizeOcrPage, recognizeImage } from '../src/lib/conversionOcr.ts';
 
 const asset = (name: string) => new URL(`../public/ocr/${name}`, import.meta.url);
+const packageDir = (name: string) => dirname(createRequire(import.meta.url).resolve(`${name}/package.json`));
 
 test('bundled English and Vietnamese OCR models match their pinned source hashes', () => {
   const models = {
@@ -20,9 +23,9 @@ test('all three browser WASM capabilities have a bundled LSTM runtime', () => {
   for (const variant of ['', '-simd', '-relaxedsimd']) {
     const name = `tesseract-core${variant}-lstm.wasm.js`;
     const local = readFileSync(asset(name));
-    assert.deepEqual(local, readFileSync(new URL(`../node_modules/tesseract.js-core/${name}`, import.meta.url)));
+    assert.deepEqual(local, readFileSync(join(packageDir('tesseract.js-core'), name)));
   }
-  assert.deepEqual(readFileSync(asset('worker.min.js')), readFileSync(new URL('../node_modules/tesseract.js/dist/worker.min.js', import.meta.url)));
+  assert.deepEqual(readFileSync(asset('worker.min.js')), readFileSync(join(packageDir('tesseract.js'), 'dist', 'worker.min.js')));
 });
 
 test('real offline OCR recognizes bilingual text, numbers, and positioned words', { timeout: 30_000 }, async () => {
