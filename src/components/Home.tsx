@@ -462,7 +462,7 @@ export default function Home(props: HomeProps) {
       </main>
 
       {settingsOpen && <SettingsDialog onClose={closeSettings} onExportBackup={onExportBackup} onImportBackup={onImportBackup} />}
-      {filePartsOpen && <Suspense fallback={null}><FilePartsDialog onClose={() => setFilePartsOpen(false)} /></Suspense>}
+      {filePartsOpen && <Suspense fallback={null}><FilePartsDialog onClose={() => setFilePartsOpen(false)} onOpenFile={onImportFile} /></Suspense>}
       {conversionAnchor && <ConversionMenu anchor={conversionAnchor} onPick={(preset) => { setConversionAnchor(null); setConversion(preset); }} onAll={() => { setConversionAnchor(null); setConversion('all'); }} onClose={() => setConversionAnchor(null)} />}
       {conversion !== null && <ConversionDialog key={conversion === 'all' ? 'all' : conversion.id} preset={conversion === 'all' ? undefined : conversion} onClose={() => setConversion(null)} />}
     </div>
