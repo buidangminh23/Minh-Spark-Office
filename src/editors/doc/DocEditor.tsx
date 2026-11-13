@@ -1,4 +1,5 @@
 import { SuiteLogo } from '../../components/SuiteLogo';
+import { DomScrollBar } from '../sheet/SheetScrollBar';
 import { useAccount } from '../../components/Authentication';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Collaboration from '@tiptap/extension-collaboration';
@@ -668,6 +669,7 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
           {view.showFind && <FindBar />}
           {view.showNav && !reading && !view.focusMode && <OutlinePanel />}
           <div className="doc-center">
+          <DomScrollBar target={canvasEl} storageKey="minh-office-doc-hscroll-width" />
           <div className="doc-canvas" ref={setCanvasEl} onContextMenu={(e) => {
             if (!(e.target as HTMLElement).closest('.ProseMirror')) return;
             e.preventDefault();

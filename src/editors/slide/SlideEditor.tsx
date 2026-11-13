@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
+import { DomScrollBar } from '../sheet/SheetScrollBar';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -1765,6 +1766,7 @@ export default function SlideEditor({
                   </div>
                 )}
 
+                <DomScrollBar target={canvasContainer} storageKey="minh-office-slide-hscroll-width" />
                 <div className="ppt-canvas-container" ref={setCanvasContainer}>
                   <div className="ppt-canvas-fit" style={{ width: (slideBaseWidth * zoom) / 100, height: (SLIDE_BASE_HEIGHT * zoom) / 100, '--slide-offset-x': `${(slideBaseWidth * (zoom / 100 - 1)) / 2}px`, '--slide-offset-y': `${(SLIDE_BASE_HEIGHT * (zoom / 100 - 1)) / 2}px` } as React.CSSProperties}>
                   <SlideCanvas

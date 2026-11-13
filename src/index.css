@@ -1632,6 +1632,16 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath fill='%235f5f5f' d='M0 2h8L4 7z'/%3E%3C/svg%3E");
 }
 
+.doc-editor .doc-canvas::-webkit-scrollbar:horizontal,
+.ppt-canvas-container::-webkit-scrollbar:horizontal {
+  height: 0;
+}
+
+.doc-editor .doc-canvas,
+.ppt-canvas-container {
+  scroll-padding-bottom: 16px;
+}
+
 .sheet-hscroll {
   position: absolute;
   left: 0;
