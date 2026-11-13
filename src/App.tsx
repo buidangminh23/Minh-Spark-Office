@@ -6,7 +6,7 @@ import { WorkspaceStatus } from './components/WorkspaceStatus';
 import { DesktopUpdater } from './components/DesktopUpdater';
 import { DesktopCloseGuard } from './components/DesktopCloseGuard';
 import { DocumentTabs, useDocumentTabs } from './components/DocumentTabs';
-import { addToTabSession, readTabSession, tabFrameId, tabHost } from './lib/documentTabs';
+import { addToTabSession, createTabBootGuard, readTabSession, tabFrameId, tabHost } from './lib/documentTabs';
 import { saveActiveDocumentForExit } from './lib/documentCloser';
 import { createDesktopFileQueue } from './lib/desktopFileQueue';
 import { workspaceLifecycle } from './lib/workspaceLifecycle';
@@ -90,13 +90,14 @@ function MainApp({ onEditing, frameId }: { onEditing: (editing: boolean) => void
   const [files, setFiles] = useState<FileMeta[]>([]);
   const [activeMeta, setActiveMeta] = useState<FileMeta | null>(null);
   const [activeContent, setActiveContent] = useState<FileContent | null>(null);
+  const [bootError, setBootError] = useState('');
+  const bootGuard = useRef<ReturnType<typeof createTabBootGuard> | null>(null);
   const activeEditorKind = activeMeta && activeContent && activeMeta.kind === activeContent.kind ? activeMeta.kind : null;
   const editors = useLoadedEditors(activeEditorKind, (error) => {
     if (isChunkLoadError(error) && reloadOnceForStaleChunk()) return;
     console.error(error);
-    toast('Không tải được trình soạn thảo. Kiểm tra kết nối mạng rồi mở lại tệp.', true);
-    setActiveMeta(null);
-    setActiveContent(null);
+    bootGuard.current?.finish();
+    setBootError('Không tải được trình soạn thảo. Hãy thử lại.');
   });
   const [storageInfo, setStorageInfo] = useState<{ usage: number; quota: number } | null>(null);
 
@@ -140,20 +141,40 @@ function MainApp({ onEditing, frameId }: { onEditing: (editing: boolean) => void
   }, [frameId, storage]);
 
   useEffect(() => {
+    if (!frameId) return;
+    setBootError('');
+    const guard = createTabBootGuard(() => setBootError('Mở tài liệu mất nhiều thời gian hơn dự kiến. Hãy thử lại hoặc quay về trang chủ.'));
+    bootGuard.current = guard;
+    return () => guard.cancel();
+  }, [frameId, storage]);
+
+  const editorReady = Boolean(activeEditorKind && editors[activeEditorKind]);
+  useEffect(() => {
+    if (editorReady) bootGuard.current?.finish();
+  }, [editorReady, storage]);
+
+  useEffect(() => {
     if (!frameId || !ready) return;
     let alive = true;
+    const guard = bootGuard.current;
+    if (!guard?.isActive()) return;
     const boot = async () => {
       const handed = host?.take(frameId);
       const copy = handed ? structuredClone(handed) : null;
       const meta = copy?.meta ?? (await storage.listFiles()).find((file) => file.id === frameId && !file.deletedAt);
       const content = copy?.content ?? (meta ? await storage.loadContent(meta.id) : undefined);
-      if (!alive) return;
-      if (!meta || !content || content.kind !== meta.kind) { host?.fail(frameId, OPEN_FAILED); return; }
+      if (!alive || !guard.isActive()) return;
+      if (!meta || !content || content.kind !== meta.kind) { guard.finish(); setBootError(OPEN_FAILED); return; }
       activeDocument.current = meta;
       setActiveMeta(meta);
       setActiveContent(content);
     };
-    boot().catch(() => { if (alive) host?.fail(frameId, BOOT_FAILED); });
+    boot().catch((error: unknown) => {
+      if (!alive || !guard.isActive()) return;
+      console.error('Document tab could not start', error);
+      guard.finish();
+      setBootError(BOOT_FAILED);
+    });
     return () => { alive = false; };
   }, [frameId, ready, storage, host]);
 
@@ -1067,6 +1088,16 @@ function MainApp({ onEditing, frameId }: { onEditing: (editing: boolean) => void
 
   registerBackupActions({ exportBackup: () => void handleExportBackup(), importBackup: (file) => void handleImportBackup(file) });
 
+  if (frameId && bootError) return (
+    <div className="doc-frame-lost" role="alert">
+      <h2>Chưa mở được tài liệu</h2>
+      <p>{bootError}</p>
+      <div className="doc-frame-lost-actions">
+        <button type="button" className="btn btn-primary" onClick={() => window.location.reload()}>Thử lại</button>
+        <button type="button" className="btn" onClick={() => host?.showHome()}>Về trang chủ</button>
+      </div>
+    </div>
+  );
   if (frameId && (!activeMeta || !activeContent)) return <EditorLoading />;
   if (activeMeta && activeContent && activeEditorKind && !editors[activeEditorKind]) return <EditorLoading kind={activeEditorKind} />;
   const { doc: DocEditor, sheet: SheetEditor, slide: SlideEditor, image: ImageEditor, pdf: PdfEditor } = editors;

@@ -4,6 +4,20 @@ import type { NativePrintRequest, PrintResult } from './print/printRun';
 export const TAB_PARAM = 'officeTab';
 const HOST_KEY = '__minhOfficeTabs';
 
+export function createTabBootGuard(onTimeout: () => void, timeoutMs = 30_000) {
+  let active = true;
+  const timer = setTimeout(() => {
+    if (!active) return;
+    active = false;
+    onTimeout();
+  }, timeoutMs);
+  const finish = () => {
+    active = false;
+    clearTimeout(timer);
+  };
+  return { isActive: () => active, finish, cancel: finish };
+}
+
 export type DocumentTab = { id: string; kind: FileKind; name: string };
 export type TabHandoff = { meta: FileMeta; content: FileContent };
 export type TabSession = { ids: string[]; active: string | null };

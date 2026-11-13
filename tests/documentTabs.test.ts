@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cycleTarget, gotoTarget, parseTabSession, tabSessionStorage, tabShortcut, withoutTab, withTab, type DocumentTab } from '../src/lib/documentTabs.ts';
+import { createTabBootGuard, cycleTarget, gotoTarget, parseTabSession, tabSessionStorage, tabShortcut, withoutTab, withTab, type DocumentTab } from '../src/lib/documentTabs.ts';
 
 const WEB = { mac: false, desktop: false };
 const MAC_WEB = { mac: true, desktop: false };
@@ -14,6 +14,53 @@ const key = (code: string, options: { key?: string; ctrl?: boolean; alt?: boolea
   metaKey: options.meta ?? false,
 });
 const tab = (id: string): DocumentTab => ({ id, kind: 'doc', name: `${id}.docx` });
+
+test('a tab boot deadline expires once even if authentication never becomes ready', (context) => {
+  context.mock.timers.enable({ apis: ['setTimeout'] });
+  let failures = 0;
+  const guard = createTabBootGuard(() => {
+    assert.equal(guard.isActive(), false);
+    failures += 1;
+  });
+  context.mock.timers.tick(29_999);
+  assert.equal(guard.isActive(), true);
+  assert.equal(failures, 0);
+  context.mock.timers.tick(1);
+  assert.equal(failures, 1);
+  context.mock.timers.tick(60_000);
+  assert.equal(failures, 1);
+});
+
+test('finishing or cancelling a tab boot removes its pending deadline', (context) => {
+  context.mock.timers.enable({ apis: ['setTimeout'] });
+  let failures = 0;
+  const finished = createTabBootGuard(() => { failures += 1; }, 100);
+  const cancelled = createTabBootGuard(() => { failures += 1; }, 100);
+  finished.finish();
+  cancelled.cancel();
+  assert.equal(finished.isActive(), false);
+  assert.equal(cancelled.isActive(), false);
+  context.mock.timers.tick(200);
+  assert.equal(failures, 0);
+});
+
+test('late boot results cannot replace a timed out or cancelled tab', async (context) => {
+  context.mock.timers.enable({ apis: ['setTimeout'] });
+  for (const cancel of [false, true]) {
+    let complete!: () => void;
+    let opened = false;
+    const guard = createTabBootGuard(() => undefined, 100);
+    const result = new Promise<void>((resolve) => { complete = resolve; }).then(() => {
+      if (guard.isActive()) opened = true;
+    });
+    if (cancel) guard.cancel();
+    else context.mock.timers.tick(100);
+    complete();
+    await result;
+    assert.equal(opened, false);
+    assert.equal(guard.isActive(), false);
+  }
+});
 
 test('web shortcuts use Alt on Windows and Control on macOS', () => {
   assert.deepEqual(tabShortcut(key('BracketRight', { alt: true }), WEB), { type: 'cycle', step: 1 });
