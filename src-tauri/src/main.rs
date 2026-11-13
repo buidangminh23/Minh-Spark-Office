@@ -98,7 +98,14 @@ fn open_app_window(app: &AppHandle, features: NewWindowFeatures) -> NewWindowRes
 }
 
 fn main() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    #[cfg(windows)]
+    let builder = {
+        let mut restart_env = tauri::Env::default();
+        restart_env.args_os.truncate(1);
+        builder.manage(restart_env)
+    };
+    builder
         .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
             open_files::queue_arguments(app, args, std::path::Path::new(&cwd));
             if let Some(window) = app.get_webview_window("main") {

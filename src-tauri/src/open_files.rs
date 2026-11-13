@@ -98,11 +98,26 @@ pub fn queue_paths(app: &tauri::AppHandle, paths: impl IntoIterator<Item = PathB
     let _ = app.emit("office-open-files-changed", ());
 }
 
-pub fn queue_arguments(app: &tauri::AppHandle, args: impl IntoIterator<Item = String>, cwd: &Path) {
-    let paths = args
+fn launch_paths(args: impl IntoIterator<Item = String>, cwd: &Path) -> Vec<PathBuf> {
+    let args: Vec<_> = args.into_iter().skip(1).collect();
+    #[cfg(windows)]
+    if args.len() > 1
+        && Path::new(&args[0]).is_absolute()
+        && Path::new(&args[0]).extension().is_none()
+        && args[1..].iter().all(|arg| {
+            !arg.is_empty() && !arg.starts_with('-')
+                && matches!(Path::new(arg).components().next(), Some(std::path::Component::Normal(_)))
+        })
+        && args[..args.len() - 1].iter().all(|arg| Path::new(arg).extension().is_none())
+    {
+        let candidate = PathBuf::from(args.join(" "));
+        if supported_local_path(&candidate) && candidate.is_file() {
+            return vec![candidate];
+        }
+    }
+    args
         .into_iter()
-        .skip(1)
-        .filter(|value| !value.starts_with('-'))
+        .filter(|value| !value.is_empty() && !value.starts_with('-'))
         .map(|value| {
             let path = PathBuf::from(value);
             if path.is_absolute() {
@@ -110,8 +125,15 @@ pub fn queue_arguments(app: &tauri::AppHandle, args: impl IntoIterator<Item = St
             } else {
                 cwd.join(path)
             }
-        });
-    queue_paths(app, paths);
+        })
+        .collect()
+}
+
+pub fn queue_arguments(app: &tauri::AppHandle, args: impl IntoIterator<Item = String>, cwd: &Path) {
+    let paths = launch_paths(args, cwd);
+    if !paths.is_empty() {
+        queue_paths(app, paths);
+    }
 }
 
 fn prepare_file(path: PathBuf) -> Result<(PathBuf, String), String> {
@@ -245,6 +267,26 @@ mod tests {
 
     fn fixture(name: &str) -> PathBuf {
         std::env::temp_dir().join(format!("minh-office-{}-{name}", std::process::id()))
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_relaunch_recovers_one_existing_split_path_and_preserves_distinct_files() {
+        let dir = fixture("Minh Spark");
+        std::fs::create_dir_all(&dir).unwrap();
+        let pdf = dir.join("scan sample.pdf");
+        std::fs::write(&pdf, b"%PDF-").unwrap();
+        let cwd = std::env::temp_dir();
+        let args = |parts: Vec<String>| std::iter::once("office.exe".to_string()).chain(parts);
+        let path = pdf.to_str().unwrap();
+        let fragments = path.split(' ').map(str::to_owned).collect();
+        assert_eq!(launch_paths(args(fragments), &cwd), [pdf.clone()]);
+        assert_eq!(launch_paths(args(vec![path.into()]), &cwd), [pdf.clone()]);
+        assert_eq!(launch_paths(args(vec![path.into(), "missing.docx".into()]), &cwd),
+                   [pdf.clone(), cwd.join("missing.docx")]);
+        assert!(launch_paths(args(vec![]), &cwd).is_empty());
+        std::fs::remove_file(pdf).unwrap();
+        std::fs::remove_dir(dir).unwrap();
     }
 
     #[test]
