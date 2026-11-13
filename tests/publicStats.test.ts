@@ -45,4 +45,17 @@ describe('download and usage counters', () => {
     const failed = await readStats({ projectId: 'p', apiKey: 'k', fetch: (async () => new Response('', { status: 403 })) as typeof fetch });
     assert.deepEqual(failed, { downloadsWindows: null, downloadsMac: null, downloadsLinux: null, users: null });
   });
+
+  test('a slow or failed first read is retried before giving up', async () => {
+    let calls = 0;
+    const rows = [{ found: { name: 'projects/p/databases/(default)/documents/publicStats/users', fields: { count: { integerValue: '61' } } } }];
+    const flaky = (async () => {
+      calls += 1;
+      if (calls === 1) throw new DOMException('timed out', 'TimeoutError');
+      return new Response(JSON.stringify(rows));
+    }) as typeof fetch;
+    const stats = await readStats({ projectId: 'p', apiKey: 'k', fetch: flaky });
+    assert.equal(calls, 2);
+    assert.deepEqual(stats, { downloadsWindows: 0, downloadsMac: 0, downloadsLinux: 0, users: 61 });
+  });
 });

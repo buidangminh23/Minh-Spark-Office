@@ -1,4 +1,4 @@
-import { incrementCounter, isBot, readStats, type Counter } from './_shared/stats.js';
+import { incrementCounter, isBot, readStats, type Counter, type Stats } from './_shared/stats.js';
 
 const CONFIG = {
   projectId: process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || 'minh-spark-office',
@@ -18,15 +18,19 @@ export function OPTIONS(request: Request) {
   return new Response(null, { status: 204, headers: corsHeaders(request) });
 }
 
+let lastGood: Stats | null = null;
+
 export async function GET(request: Request) {
-  const stats = await readStats(CONFIG);
-  const ok = Object.values(stats).every((value) => value !== null);
-  return new Response(JSON.stringify(stats), {
-    status: ok ? 200 : 503,
+  const fresh = await readStats(CONFIG);
+  const ok = Object.values(fresh).every((value) => value !== null);
+  if (ok) lastGood = fresh;
+  const stats = ok ? fresh : lastGood;
+  return new Response(JSON.stringify(stats ?? fresh), {
+    status: stats ? 200 : 503,
     headers: {
       ...corsHeaders(request),
       'Content-Type': 'application/json; charset=utf-8',
-      'Cache-Control': ok ? 'public, s-maxage=5, stale-while-revalidate=30' : 'no-store',
+      'Cache-Control': ok ? 'public, s-maxage=5, stale-while-revalidate=60' : 'no-store',
     },
   });
 }

@@ -5,6 +5,8 @@ export type Stats = Record<Counter, number | null>;
 const INSTALLER = /^MinhSparkOffice-\d+\.\d+\.\d+-(windows-x64-vi-Setup\.exe|windows-x64-en-US\.msi|macos-arm64\.dmg|linux-x64\.deb|linux-x64\.AppImage)$/;
 const BOT = /bot|crawl|spider|slurp|preview|facebookexternalhit|headless|monitor|curl\/|wget|python-requests|go-http-client/i;
 const TIMEOUT_MS = 1500;
+const READ_TIMEOUT_MS = 3500;
+const READ_ATTEMPTS = 2;
 
 export type StatsConfig = { projectId: string; apiKey: string | undefined; fetch: typeof fetch };
 
@@ -43,17 +45,15 @@ export async function incrementCounter(config: StatsConfig, counter: Counter) {
   }
 }
 
-export async function readStats(config: StatsConfig): Promise<Stats> {
-  const empty: Stats = { downloadsWindows: null, downloadsMac: null, downloadsLinux: null, users: null };
-  if (!config.apiKey) return empty;
+async function readStatsOnce(config: StatsConfig): Promise<Stats | null> {
   try {
-    const response = await config.fetch(`${documentsUrl(config)}:batchGet?key=${encodeURIComponent(config.apiKey)}`, {
+    const response = await config.fetch(`${documentsUrl(config)}:batchGet?key=${encodeURIComponent(config.apiKey ?? '')}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ documents: COUNTERS.map((counter) => `projects/${config.projectId}/databases/(default)/documents/publicStats/${counter}`) }),
-      signal: withTimeout(TIMEOUT_MS),
+      signal: withTimeout(READ_TIMEOUT_MS),
     });
-    if (!response.ok) return empty;
+    if (!response.ok) return null;
     const rows = await response.json() as { found?: { name: string; fields?: { count?: { integerValue?: string } } }; missing?: string }[];
     const stats: Stats = { downloadsWindows: 0, downloadsMac: 0, downloadsLinux: 0, users: 0 };
     for (const row of rows) {
@@ -63,6 +63,16 @@ export async function readStats(config: StatsConfig): Promise<Stats> {
     }
     return stats;
   } catch {
-    return empty;
+    return null;
   }
+}
+
+export async function readStats(config: StatsConfig): Promise<Stats> {
+  const empty: Stats = { downloadsWindows: null, downloadsMac: null, downloadsLinux: null, users: null };
+  if (!config.apiKey) return empty;
+  for (let attempt = 0; attempt < READ_ATTEMPTS; attempt += 1) {
+    const stats = await readStatsOnce(config);
+    if (stats) return stats;
+  }
+  return empty;
 }

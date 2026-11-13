@@ -1,6 +1,9 @@
 (() => {
   const STATS_URL = '/api/stats';
   const REFRESH_MS = 15000;
+  const RETRY_MS = 3000;
+  const CACHE_KEY = 'office23-public-stats';
+  const KEYS = ['users', 'downloadsWindows', 'downloadsMac', 'downloadsLinux'];
   const format = new Intl.NumberFormat('vi-VN');
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const shown = {};
@@ -26,30 +29,49 @@
     requestAnimationFrame(step);
   };
 
+  const readCache = () => {
+    try { return JSON.parse(localStorage.getItem(CACHE_KEY) || 'null'); } catch { return null; }
+  };
+  const writeCache = (stats) => {
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify(stats)); } catch { }
+  };
+  const show = (stats) => {
+    for (const key of KEYS) {
+      if (Number.isFinite(stats?.[key])) animate(key, stats[key]);
+    }
+  };
+
+  let timer = 0;
+  const schedule = (ms) => {
+    clearTimeout(timer);
+    if (document.visibilityState === 'visible') timer = setTimeout(refresh, ms);
+  };
+
   const refresh = async () => {
     try {
       const response = await fetch(STATS_URL, { cache: 'no-store' });
       if (!response.ok) throw new Error(String(response.status));
       const stats = await response.json();
-      for (const key of ['users', 'downloadsWindows', 'downloadsMac', 'downloadsLinux']) {
-        if (Number.isFinite(stats[key])) animate(key, stats[key]);
-      }
+      if (!KEYS.every((key) => Number.isFinite(stats[key]))) throw new Error('incomplete');
+      show(stats);
+      writeCache(stats);
       live.dataset.state = 'on';
       status.textContent = `Cập nhật trực tiếp · ${new Date().toLocaleTimeString('vi-VN')}`;
+      schedule(REFRESH_MS);
     } catch {
       live.dataset.state = 'off';
-      status.textContent = 'Chưa lấy được số liệu, đang thử lại';
+      status.textContent = Object.keys(shown).length
+        ? 'Đang hiện số liệu gần nhất, đang cập nhật lại'
+        : 'Chưa lấy được số liệu, đang thử lại';
+      schedule(RETRY_MS);
     }
   };
 
+  show(readCache());
   refresh();
-  let timer = setInterval(refresh, REFRESH_MS);
   document.addEventListener('visibilitychange', () => {
-    clearInterval(timer);
-    if (document.visibilityState === 'visible') {
-      refresh();
-      timer = setInterval(refresh, REFRESH_MS);
-    }
+    clearTimeout(timer);
+    if (document.visibilityState === 'visible') refresh();
   });
 
   const tabs = [...document.querySelectorAll('.lp-tab')];
