@@ -38,7 +38,7 @@ function New-InstallerImage([string]$Name, [int]$Width, [int]$Height, [bool]$Sid
         $graphics.DrawString('Office', $title, [System.Drawing.Brushes]::White, [System.Drawing.RectangleF]::new(8, 148, ($panelWidth - 16), 30), $format)
         Draw-BrandNumber $graphics $panelWidth 176
         $graphics.DrawString("Văn phòng số`ntrên mọi thiết bị", $subtitle, [System.Drawing.Brushes]::White, [System.Drawing.RectangleF]::new(8, 224, ($panelWidth - 16), 45), $format)
-        $graphics.DrawString('DOCS  ·  SHEETS  ·  PDF', $subtitle, [System.Drawing.Brushes]::White, [System.Drawing.RectangleF]::new(4, ($Height - 32), ($panelWidth - 8), 25), $format)
+        $graphics.DrawString("DOCS  ·  SHEETS  ·  SLIDES`nPDF  ·  PHOTOS", $subtitle, [System.Drawing.Brushes]::White, [System.Drawing.RectangleF]::new(4, ($Height - 42), ($panelWidth - 8), 36), $format)
         $title.Dispose()
         $subtitle.Dispose()
         $format.Dispose()
