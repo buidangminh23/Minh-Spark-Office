@@ -519,6 +519,20 @@
   pointer-events: none;
   transform-origin: top left;
 }
+
+.ppt-thumb-scale {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+
+.ppt-thumb-scale > .ppt-slide-canvas {
+  box-shadow: none;
+  border-radius: 0;
+  transition: none;
+}
 
 .ppt-thumb-actions {
   position: absolute;

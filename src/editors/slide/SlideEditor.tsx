@@ -1742,6 +1742,9 @@ export default function SlideEditor({
           onDeleteSlide={handleDeleteSlide}
           onMoveSlide={handleMoveSlide}
           peerMarks={livePresence.marks}
+          aspectRatio={presentation.aspectRatio}
+          watermark={presentation.watermark}
+          slideMaster={presentation.slideMaster}
         />
         )}
 

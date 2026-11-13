@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
 import {
   Plus,
   EyeOff,
@@ -7,7 +7,10 @@ import {
   ChevronUp,
   ChevronDown,
 } from 'lucide-react';
-import type { SlideData, SlideLayout } from '../../lib/slideTypes';
+import type { SlideAspect, SlideData, SlideLayout } from '../../lib/slideTypes';
+import { SLIDE_BASE_HEIGHT, slideBaseWidth } from '../../lib/settings/slideOptions';
+import { SlideCanvas } from './SlideCanvas';
+import { useSlideDraftText, withDraftText } from './slideDraftText';
 import { finalSlideIndex } from './slideReorder';
 import { useThumbReorder } from './useThumbReorder';
 
@@ -20,7 +23,65 @@ interface SlideThumbnailsProps {
   onDeleteSlide: (index: number) => void;
   onMoveSlide: (fromIndex: number, toIndex: number) => void;
   peerMarks?: Record<string, Array<{ key: string; name: string; color: string }>>;
+  aspectRatio: SlideAspect;
+  watermark?: CanvasProps['watermark'];
+  slideMaster?: CanvasProps['slideMaster'];
 }
+
+type CanvasProps = ComponentProps<typeof SlideCanvas>;
+
+const noop = () => undefined;
+
+const ThumbPreview = memo(function ThumbPreview({
+  slide,
+  index,
+  aspectRatio,
+  watermark,
+  slideMaster,
+}: {
+  slide: SlideData;
+  index: number;
+  aspectRatio: SlideAspect;
+  watermark?: CanvasProps['watermark'];
+  slideMaster?: CanvasProps['slideMaster'];
+}) {
+  const hostRef = useRef<HTMLDivElement>(null);
+  const [hostWidth, setHostWidth] = useState(0);
+  const baseWidth = slideBaseWidth(aspectRatio);
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const measure = () => setHostWidth(host.clientWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(host);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={hostRef} className="ppt-thumb-preview" aria-hidden="true">
+      {hostWidth > 0 && (
+        <div className="ppt-thumb-scale" style={{ width: baseWidth, height: SLIDE_BASE_HEIGHT, transform: `scale(${hostWidth / baseWidth})` }}>
+          <SlideCanvas
+            slide={slide}
+            aspectRatio={aspectRatio}
+            zoom={100}
+            selectedElementId={null}
+            onSelectElement={noop}
+            onUpdateElement={noop}
+            readOnly
+            thumbnail
+            showAnimBadges={false}
+            watermark={watermark}
+            slideMaster={slideMaster}
+            slideIndex={index}
+          />
+        </div>
+      )}
+    </div>
+  );
+});
 
 const LAYOUT_OPTIONS: Array<{ layout: SlideLayout; label: string; desc: string }> = [
   { layout: 'title', label: 'Trang chiếu Tiêu đề', desc: 'Bìa bài thuyết trình với tiêu đề lớn và phụ đề' },
@@ -43,7 +104,13 @@ export function SlideThumbnails({
   onDeleteSlide,
   onMoveSlide,
   peerMarks = {},
+  aspectRatio,
+  watermark,
+  slideMaster,
 }: SlideThumbnailsProps) {
+  const draft = useSlideDraftText();
+  const liveSlides = useMemo(() => slides.map((slide) => withDraftText(slide, draft)), [slides, draft]);
+  const cardAspect = `${slideBaseWidth(aspectRatio)} / ${SLIDE_BASE_HEIGHT}`;
   const [layoutMenuOpen, setLayoutMenuOpen] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const { drag, onPointerDown, consumeClick } = useThumbReorder(listRef, onMoveSlide);
@@ -136,27 +203,8 @@ export function SlideThumbnails({
                 ))}
               </div>
 
-              <div className="ppt-thumb-card" style={{ background: slide.background.value || '#FFFFFF', opacity: slide.hidden ? 0.6 : 1 }}>
-                {/* Miniature slide preview elements */}
-                <div className="ppt-thumb-preview">
-                  {slide.elements.map((el) => {
-                    return (
-                      <div
-                        key={el.id}
-                        style={{
-                          position: 'absolute',
-                          left: `${el.x}%`,
-                          top: `${el.y}%`,
-                          width: `${el.width}%`,
-                          height: `${el.height}%`,
-                          background: el.type === 'shape' ? (el.fill || '#0284C7') : el.isTitle ? '#D83B01' : '#CBD5E1',
-                          opacity: el.type === 'text' ? 0.8 : 0.6,
-                          borderRadius: el.borderRadius ? `${el.borderRadius / 4}px` : '2px',
-                        }}
-                      />
-                    );
-                  })}
-                </div>
+              <div className="ppt-thumb-card" style={{ aspectRatio: cardAspect, background: slide.background.value || '#FFFFFF', opacity: slide.hidden ? 0.6 : 1 }}>
+                <ThumbPreview slide={liveSlides[idx]} index={idx} aspectRatio={aspectRatio} watermark={watermark} slideMaster={slideMaster} />
 
                 {/* Hover action buttons */}
                 <div className="ppt-thumb-actions" onClick={(e) => e.stopPropagation()}>

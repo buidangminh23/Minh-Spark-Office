@@ -8,6 +8,7 @@ import { isLineShape } from '../../lib/slideShapes';
 import { ShapeSvg } from './SlideShapeSvg';
 import { ToneDot } from './slideIcons';
 import { isEditableKeyTarget } from './slideKeyTarget';
+import { clearSlideDraftText, setSlideDraftText } from './slideDraftText';
 import { getSettings } from '../../lib/appSettings';
 import { gridStepPercent, slideBaseWidth, snapPosition, snapResize } from '../../lib/settings/slideOptions';
 import { AudioElementView, CameoElementView, IconElementView, LinkBadge, ObjectElementView, RichTextLines, imageEffectStyle, textDecorationOf, textEffectStyle } from './SlideElementExtras';
@@ -56,6 +57,7 @@ interface SlideCanvasProps {
   };
   slideIndex?: number;
   presenting?: boolean;
+  thumbnail?: boolean;
   remotePeers?: RemoteSlidePeer[];
 }
 
@@ -94,10 +96,15 @@ export function SlideCanvas({
   slideMaster,
   slideIndex = 0,
   presenting = false,
+  thumbnail = false,
   remotePeers = [],
 }: SlideCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!editingTextId) return;
+    return () => clearSlideDraftText(editingTextId);
+  }, [editingTextId]);
   const [isDragging, setIsDragging] = useState(false);
   const [resizingHandle, setResizingHandle] = useState<string | null>(null);
   const [isRotating, setIsRotating] = useState(false);
@@ -797,7 +804,7 @@ export function SlideCanvas({
               </div>
             )}
             {!readOnly && <LinkBadge el={el} />}
-            {renderElementContent(el, isEditing, (newText) => onUpdateElement(el.id, { text: newText, field: undefined }), (updates) => onUpdateElement(el.id, updates), { slideIndex, presenting, readOnly })}
+            {renderElementContent(el, isEditing, (newText) => onUpdateElement(el.id, { text: newText, field: undefined }), (updates) => onUpdateElement(el.id, updates), { slideIndex, presenting, readOnly, thumbnail })}
 
             {showHandles && drawMode === 'select' && !el.locked && (
               <>
@@ -891,7 +898,7 @@ function renderElementContent(
   isEditing: boolean,
   onTextChange: (val: string) => void,
   onUpdateElementProps?: (updates: Partial<SlideElement>) => void,
-  ctx: { slideIndex: number; presenting: boolean; readOnly: boolean } = { slideIndex: 0, presenting: false, readOnly: false }
+  ctx: { slideIndex: number; presenting: boolean; readOnly: boolean; thumbnail?: boolean } = { slideIndex: 0, presenting: false, readOnly: false }
 ): ReactNode {
   if (el.type === 'icon') return <IconElementView el={el} />;
   if (el.type === 'audio') return <AudioElementView el={el} presenting={ctx.presenting} />;
@@ -927,6 +934,7 @@ function renderElementContent(
           className="ppt-text-box is-editing"
           style={textStyle}
           autoFocus
+          onInput={(e) => setSlideDraftText(el.id, e.currentTarget.innerText)}
           onBlur={(e) => onTextChange(e.currentTarget.innerText)}
         >
           {el.text}
@@ -1266,14 +1274,18 @@ function renderElementContent(
           position: 'relative',
         }}
       >
-        <video
-          src={videoData.url}
-          poster={videoData.poster}
-          controls
-          autoPlay={videoData.autoplay}
-          loop={videoData.loop}
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-        />
+        {ctx.thumbnail ? (
+          <video src={videoData.url} poster={videoData.poster} muted preload="metadata" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        ) : (
+          <video
+            src={videoData.url}
+            poster={videoData.poster}
+            controls
+            autoPlay={videoData.autoplay}
+            loop={videoData.loop}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        )}
         <div
           style={{
             position: 'absolute',
