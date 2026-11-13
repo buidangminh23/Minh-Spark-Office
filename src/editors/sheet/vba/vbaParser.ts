@@ -13,6 +13,7 @@ export type Expr =
   | { t: 'bin'; op: string; l: Expr; r: Expr; line: number }
   | { t: 'un'; op: string; e: Expr; line: number }
   | { t: 'new'; typeName: string; line: number }
+  | { t: 'typeof'; e: Expr; typeName: string; line: number }
   | { t: 'bracket'; text: string; line: number };
 
 export type DimItem = { name: string; bounds: Array<{ lower: Expr | null; upper: Expr }> | null; isArray: boolean; isNew: boolean; typeName: string };
@@ -881,6 +882,12 @@ class Parser {
         if (token.text.toLowerCase() === 'new') {
           this.next();
           return { t: 'new', typeName: this.parseTypeName().toLowerCase(), line: token.line };
+        }
+        if (token.text.toLowerCase() === 'typeof') {
+          this.next();
+          const operand = this.parseConcat();
+          this.expectWord('is');
+          return { t: 'typeof', e: operand, typeName: this.parseTypeName().toLowerCase(), line: token.line };
         }
         this.next();
         return { t: 'id', name: token.text.toLowerCase(), line: token.line };

@@ -41,7 +41,7 @@ function setSheetCodeName(xml: string, codeName: string): string {
   return xml.replace(/(<worksheet\b[^>]*>)/, `$1<sheetPr codeName="${escapeXml(codeName)}"/>`);
 }
 
-async function worksheetPaths(zip: JSZip): Promise<string[]> {
+export async function worksheetPaths(zip: JSZip): Promise<string[]> {
   const workbook = await zip.file('xl/workbook.xml')!.async('string');
   const rels = await zip.file('xl/_rels/workbook.xml.rels')!.async('string');
   const attribute = (tag: string, name: string) => new RegExp(`\\b${name}="([^"]*)"`).exec(tag)?.[1] ?? '';

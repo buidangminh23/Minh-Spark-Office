@@ -106,6 +106,8 @@ import { recordedMacrosToVba } from './vba/recordedToVba';
 import { defaultAttributes, withProcShortcut, type VbaModuleData, type VbaProjectData } from '../../lib/vbaProject';
 import { RECORDED_VBA_MODULE } from '../../lib/xlsmPackage';
 import { getLanguage } from '../../lib/i18n/language';
+import { FormButtonLayer, type FormButtonSheet } from './FormButtonLayer';
+import { resolveButtonMacro, sanitizeFormButtons, type FormButton, type FormButtonMap } from '../../lib/formButtons';
 import { MacroButtonModal, MacroManagerModal, MacroRecordModal, type MacroButtonColor, type MacroRecordOptions } from './SheetMacroModals';
 import { BACKSPACE_CLEAR_PRIORITY, selectionCoversMultipleCells } from './backspaceClear';
 import UniverPresetSheetsCoreViVN from '@univerjs/preset-sheets-core/locales/vi-VN';
@@ -736,6 +738,8 @@ const PASTE_COMMAND = /^sheet\.command\.[\w-]*paste/;
 const MAX_PASTE_SNAPSHOT_CELLS = 50_000;
 const MAX_VBA_OUTPUT_LINES = 500;
 const CONVERTED_VBA_MODULE = 'MacroGhiLai';
+const NO_FORM_BUTTONS: FormButton[] = [];
+
 export default function SheetEditor({ meta, content, onSave, onBack, live }: SheetEditorProps) {
   const showAddins = useAnyAddinEnabled();
   const ui = useUi();
@@ -805,6 +809,8 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
   const macrosRef = useRef(macros);
   macrosRef.current = macros;
   const [vbaProject, setVbaProject] = useState<VbaProjectData | null>(() => content.vba ?? content.workbook.vba ?? null);
+  const [formButtons, setFormButtons] = useState<FormButtonMap>(() => sanitizeFormButtons(content.formButtons ?? content.workbook.formButtons));
+  const savedFormButtons = Object.keys(formButtons).length ? formButtons : undefined;
   const vbaProjectRef = useRef(vbaProject);
   vbaProjectRef.current = vbaProject;
   const vbaMacros = useMemo(() => listVbaMacros(vbaProject), [vbaProject]);
@@ -1219,6 +1225,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
         outlines,
         macros,
         vba: vbaProject ?? undefined,
+        formButtons: savedFormButtons,
         excel: excelStateRef.current,
       }, explicit);
       if (saved) {
@@ -1231,7 +1238,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
       ui.toast('Chưa lưu được bản nháp. Vui lòng giữ trang này mở và thử lại.', true);
       return false;
     }
-  }, [setSavedStatus, captureHydratedWorkbook, meta, title, onSave, comments, printSettings, outlines, macros, vbaProject, ui]);
+  }, [setSavedStatus, captureHydratedWorkbook, meta, title, onSave, comments, printSettings, outlines, macros, vbaProject, savedFormButtons, ui]);
 
   const handleSaveNow = useCallback(() => {
     void (async () => {
@@ -1479,6 +1486,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
       delete clonedWb.vba;
       delete clonedWb.vbaError;
       delete clonedWb.automation;
+      delete clonedWb.formButtons;
       univer.createUnit(UniverInstanceType.UNIVER_SHEET, clonedWb);
       registerBackspaceClearsSelection(univer);
       recalculateAndBindWorkbook(univerAPI);
@@ -3467,7 +3475,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
   const handleCleanWorkbook = async () => {
     const ctx = getEditableContext();
     if (!ctx || !doctorData) throw new Error('Không có sổ tính để dọn');
-    const draft: SheetContent = { kind: 'sheet', workbook: captureHydratedWorkbook(), comments, printSettings, outlines, macros, vba: vbaProject ?? undefined, excel: excelStateRef.current };
+    const draft: SheetContent = { kind: 'sheet', workbook: captureHydratedWorkbook(), comments, printSettings, outlines, macros, vba: vbaProject ?? undefined, formButtons: savedFormButtons, excel: excelStateRef.current };
     try {
       const saved = await sourceStorage.saveVersion(meta.id, draft, 'Trước khi tối ưu');
       setVersions((prev) => [saved, ...prev]);
@@ -4663,6 +4671,16 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
     void runRecordedMacro(macro);
   };
 
+  const runFormButton = (button: FormButton) => {
+    if (designModeRef.current || recorderRef.current) return;
+    const macroId = resolveButtonMacro(button.macro, vbaMacrosRef.current.map((item) => item.id));
+    if (macroId) runVbaMacroById(macroId);
+    else ui.toast(`Không tìm thấy macro "${button.macro}" gắn với nút "${button.label}"`, true);
+  };
+
+  const activeFormButtons = formButtons[activeSheetId] ?? NO_FORM_BUTTONS;
+  const getFormButtonSheet = () => (univerAPIRef.current?.getActiveWorkbook()?.getActiveSheet() as unknown as FormButtonSheet | undefined) ?? null;
+
   cellClickRef.current = (row, column) => {
     const ctx = getActiveContext();
     if (!ctx || recorderRef.current || isReplayingRef.current || designModeRef.current) return;
@@ -5133,7 +5151,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
   };
 
   const handleCreateSnapshot = async (label: string) => {
-    const draft: SheetContent = { kind: 'sheet', workbook: captureHydratedWorkbook(), comments, printSettings, outlines, macros, vba: vbaProject ?? undefined, excel: excelStateRef.current };
+    const draft: SheetContent = { kind: 'sheet', workbook: captureHydratedWorkbook(), comments, printSettings, outlines, macros, vba: vbaProject ?? undefined, formButtons: savedFormButtons, excel: excelStateRef.current };
     const currentMeta = { ...meta, name: title.trim() || meta.name, updatedAt: Date.now() };
     try {
       if (!user) await sourceStorage.saveFile(currentMeta, draft);
@@ -5160,6 +5178,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
     setOutlines(cont.outlines ?? {});
     setMacros(sanitizeMacros(cont.macros));
     setVbaProject(cont.vba ?? null);
+    setFormButtons(sanitizeFormButtons(cont.formButtons));
     setModal(null);
     setSavedStatus('saving');
     setTimeout(() => syncUiFromSelection(), 90);
@@ -7175,6 +7194,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
           ref={containerRef}
           className={`sheet-container ${!showFormulaBar ? 'sheet-hide-formula-bar' : ''}`}
         />
+        <FormButtonLayer buttons={activeFormButtons} container={containerRef} getSheet={getFormButtonSheet} onRun={runFormButton} />
         {parity.overlay}
 
         <AddinPanel host={addinHost} />

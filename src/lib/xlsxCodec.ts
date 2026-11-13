@@ -2,17 +2,26 @@ import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
 import * as XLSX from 'xlsx';
 import { buildVbaProject, fromBase64, readVbaProject, updateVbaProject } from './vbaProject';
-import { RECORDED_VBA_MODULE, addMinhBundle, addVbaProject, readCodeNames, readMinhBundle } from './xlsmPackage';
+import { RECORDED_VBA_MODULE, addMinhBundle, addVbaProject, readCodeNames, readMinhBundle, worksheetPaths } from './xlsmPackage';
+import { readFormButtons } from './formButtons';
 import type { CellStyle, CellValue, ImportTruncation, WorkbookData } from './sheetTypes';
 import { emptySheet, emptyWorkbook, uid } from './workbookBasics';
 import { EXCEL_EPOCH, MAX_IMPORT_COLS, MAX_IMPORT_ROWS, importedFontFamily, inferDelimitedValue, normalizeHexColor, resolveCellStyle, toNfc } from './xlsxShared';
 
 const THEME_COLORS = ['FFFFFF', '000000', 'E7E6E6', '44546A', '4472C4', 'ED7D31', 'A5A5A5', 'FFC000', '5B9BD5', '70AD47', '0563C1', '954F72'];
-const INDEXED_COLORS: Record<number, string> = {
-  8: '000000', 9: 'FFFFFF', 10: 'FF0000', 11: '00FF00', 12: '0000FF', 13: 'FFFF00', 14: 'FF00FF', 15: '00FFFF',
-  16: '800000', 17: '008000', 18: '000080', 19: '808000', 20: '800080', 21: '008080', 22: 'C0C0C0', 23: '808080',
-  64: '000000',
-};
+const INDEXED_PALETTE = [
+  '000000', 'FFFFFF', 'FF0000', '00FF00', '0000FF', 'FFFF00', 'FF00FF', '00FFFF',
+  '000000', 'FFFFFF', 'FF0000', '00FF00', '0000FF', 'FFFF00', 'FF00FF', '00FFFF',
+  '800000', '008000', '000080', '808000', '800080', '008080', 'C0C0C0', '808080',
+  '9999FF', '993366', 'FFFFCC', 'CCFFFF', '660066', 'FF8080', '0066CC', 'CCCCFF',
+  '000080', 'FF00FF', 'FFFF00', '00FFFF', '800080', '800000', '008080', '0000FF',
+  '00CCFF', 'CCFFFF', 'CCFFCC', 'FFFF99', '99CCFF', 'FF99CC', 'CC99FF', 'FFCC99',
+  '3366FF', '33CCCC', '99CC00', 'FFCC00', 'FF9900', 'FF6600', '666699', '969696',
+  '003366', '339966', '003300', '333300', '993300', '993366', '333399', '333333',
+];
+const SYSTEM_FOREGROUND_INDEX = 64;
+const SYSTEM_BACKGROUND_INDEX = 65;
+const INDEXED_COLORS: Record<number, string> = { ...INDEXED_PALETTE, [SYSTEM_FOREGROUND_INDEX]: '000000', [SYSTEM_BACKGROUND_INDEX]: 'FFFFFF' };
 
 const BORDER_TO_UNIVER: Record<string, number> = {
   thin: 1, hair: 2, dotted: 3, dashed: 4, dashDot: 5, dashDotDot: 6, double: 7, medium: 8,
@@ -39,6 +48,9 @@ const readColor = (color?: Partial<ExcelJS.Color> & { indexed?: number; tint?: n
   if (color.indexed !== undefined && INDEXED_COLORS[color.indexed]) return `#${INDEXED_COLORS[color.indexed]}`;
   return undefined;
 };
+
+const readFillColor = (color?: Partial<ExcelJS.Color> & { indexed?: number; tint?: number }) =>
+  color?.indexed === SYSTEM_FOREGROUND_INDEX || color?.indexed === SYSTEM_BACKGROUND_INDEX ? undefined : readColor(color);
 
 const toArgb = (rgb?: string) => {
   if (!rgb) return undefined;
@@ -69,7 +81,7 @@ function styleFromExcel(cell: ExcelJS.Cell): CellStyle | undefined {
   }
   const fill = cell.fill as ExcelJS.FillPattern | undefined;
   if (fill && fill.type === 'pattern' && fill.pattern !== 'none') {
-    const color = readColor(fill.fgColor) ?? readColor(fill.bgColor);
+    const color = readFillColor(fill.fgColor) ?? (fill.pattern === 'solid' ? undefined : readFillColor(fill.bgColor));
     if (color) style.bg = { rgb: color };
   }
   const alignment = cell.alignment;
@@ -322,6 +334,14 @@ async function attachAutomation(data: WorkbookData, archive: Uint8Array) {
       data.vba = undefined;
       data.vbaError = error instanceof Error ? error.message : String(error);
     }
+  }
+  try {
+    const buttons = await readFormButtons(zip, await worksheetPaths(zip));
+    data.sheetOrder.forEach((id, index) => {
+      if (buttons[index]?.length) (data.formButtons ??= {})[id] = buttons[index];
+    });
+  } catch (error) {
+    console.warn('Form control buttons could not be read:', error);
   }
   const bundle = (await readMinhBundle(zip)) as WorkbookData['automation'] | null;
   if (bundle && typeof bundle === 'object') {

@@ -1577,6 +1577,45 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   font-size: 12px;
 }
 
+.sheet-form-button-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 30;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.sheet-form-button {
+  position: absolute;
+  left: 0;
+  top: 0;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  border: 1px solid #8a8a8a;
+  border-radius: 3px;
+  background: linear-gradient(#fdfdfd, #e6e6e6);
+  color: #000;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  line-height: 1.15;
+  text-align: center;
+  overflow: hidden;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.sheet-form-button:hover {
+  background: linear-gradient(#f2f8ff, #d6e8fb);
+  border-color: #3b82c4;
+}
+
+.sheet-form-button:active {
+  background: #cfe0f3;
+}
+
 .sheet-ink-host {
   position: absolute;
   inset: 0;

@@ -19,6 +19,7 @@ import {
   toInteger,
   toNumber,
   toStr,
+  typeNameOf,
   unaryOp,
   type VbaArgs,
   type VbaValue,
@@ -745,6 +746,12 @@ export class VbaInterpreter {
         return unaryOp(expr.op, this.evalExpr(expr.e, frame));
       case 'new':
         return this.createNew(expr.typeName, frame);
+      case 'typeof': {
+        const value = this.evalExpr(expr.e, frame);
+        if (value === NOTHING || !(value instanceof VbaObject)) return false;
+        const wanted = expr.typeName.slice(expr.typeName.lastIndexOf('.') + 1);
+        return wanted === 'object' || typeNameOf(value).toLowerCase() === wanted;
+      }
     }
   }
 

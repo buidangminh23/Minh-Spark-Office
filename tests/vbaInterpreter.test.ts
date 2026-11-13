@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { VbaInterpreter, listProcedures, runnableMacros, type VbaHost } from '../src/editors/sheet/vba/vbaInterpreter';
 import { VbaArray, VbaError, VbaObject, arg, toStr, type VbaArgs, type VbaValue } from '../src/editors/sheet/vba/vbaRuntime';
 import { vbaFormat } from '../src/editors/sheet/vba/vbaBuiltins';
+import { parseModule } from '../src/editors/sheet/vba/vbaParser';
 
 class FakeCell extends VbaObject {
   readonly typeName = 'Range';
@@ -264,4 +265,9 @@ test('sheet code names act as the worksheet and still expose their own procedure
   assert.equal(sheet.cells.get('A1'), 5);
   assert.equal(sheet.cells.get('B2'), 6);
   assert.equal(app.cells.get('Z1'), 'log');
+});
+
+test('TypeOf ... Is parses inside If and reports non-objects as false', () => {
+  const parsed = parseModule('M', 'Sub A()\nDim x\nIf TypeOf x Is Worksheet Then\nx = 1\nEnd If\nEnd Sub');
+  assert.equal(parsed.procs.length, 1);
 });

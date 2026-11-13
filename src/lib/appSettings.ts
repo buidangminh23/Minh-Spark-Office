@@ -77,7 +77,7 @@ export const DEFAULT_SETTINGS = {
   addinClaude: true,
   addinChatgpt: true,
 
-  macroPolicy: 'ask' as MacroPolicy,
+  macroPolicy: 'enable' as MacroPolicy,
   confirmLinks: true,
   usageStats: true,
   ...SHEET_DEFAULTS,
@@ -104,10 +104,21 @@ function mergeStored(raw: Record<string, unknown>): AppSettings {
   return merged as AppSettings;
 }
 
+const MACRO_AUTO_ENABLE_KEY = 'minh-office-macro-auto-enable';
+
+function migrateMacroPolicy(raw: Record<string, unknown>): Record<string, unknown> {
+  if (localStorage.getItem(MACRO_AUTO_ENABLE_KEY)) return raw;
+  localStorage.setItem(MACRO_AUTO_ENABLE_KEY, '1');
+  if (raw.macroPolicy !== 'ask') return raw;
+  const next = { ...raw, macroPolicy: 'enable' };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  return next;
+}
+
 function read(): AppSettings {
   try {
     const raw: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}');
-    return mergeStored(isRecord(raw) ? raw : {});
+    return mergeStored(migrateMacroPolicy(isRecord(raw) ? raw : {}));
   } catch {
     return { ...DEFAULT_SETTINGS };
   }
