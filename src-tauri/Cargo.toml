@@ -35,3 +35,8 @@ windows = { version = "0.62", features = ["Win32_Graphics_Printing", "Win32_Stor
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
+
+# Tauri 2 Linux stack needs glib 0.18, which never received the fix for GHSA-wrw7-89jp-8q8g.
+# third_party/README.md explains the copy and when to remove it.
+[patch.crates-io]
+glib = { path = "third_party/glib" }
