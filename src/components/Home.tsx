@@ -312,7 +312,7 @@ export default function Home(props: HomeProps) {
       <aside className="ws-sidebar">
         <button className="ws-brand" onClick={() => goTo('home')} title="Office 23 — Về trang chủ">
           <img src="/logo-icon.png" alt="" />
-          <span>Office<br /><img className="ws-brand-num" src="/brand-23.png" alt="23" /></span>
+          <span>Office<img className="ws-brand-num" src="/brand-23.png" alt="23" /></span>
         </button>
 
         <Popover
