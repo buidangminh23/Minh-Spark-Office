@@ -73,27 +73,12 @@
   letter-spacing: -0.2px;
 }
 
-.ws-brand-num {
-  display: inline-flex;
-  font-size: 1.3em;
-  line-height: 1;
-  font-weight: 800;
-  letter-spacing: -0.5px;
-}
-
-.ws-brand-num i {
-  font-style: normal;
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
-}
-
-.ws-brand-num i:first-child {
-  background-image: linear-gradient(160deg, #ff5a4f 0%, #e3191e 55%, #b80f14 100%);
-}
-
-.ws-brand-num i:last-child {
-  background-image: linear-gradient(160deg, #3fd2ff 0%, #1c8cf2 55%, #0b5fd8 100%);
+.ws-brand span .ws-brand-num {
+  display: block;
+  width: auto;
+  height: 26px;
+  margin-top: 3px;
+  filter: none;
 }
 
 .ws-create {

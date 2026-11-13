@@ -73,7 +73,7 @@ function EditorLoading({ kind }: { kind?: FileKind }) {
           <svg className="desktop-splash-ring" viewBox="0 0 132 132"><circle className="desktop-splash-track" cx="66" cy="66" r="64" /><circle className="desktop-splash-arc" cx="66" cy="66" r="64" /></svg>
           <div className="desktop-splash-tile"><img src={kind ? suiteLogos[kind] : '/logo-icon.png'} alt="" width="62" height="62" /></div>
         </div>
-        <p className="desktop-splash-name">Office 23</p>
+        <p className="desktop-splash-name">Office<img src="/brand-23.png" alt="23" style={{ height: '1.1em', width: 'auto', verticalAlign: '-0.18em', marginLeft: '0.22em' }} /></p>
       </div>
     </div>
   );

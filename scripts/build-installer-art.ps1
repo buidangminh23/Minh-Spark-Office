@@ -4,6 +4,13 @@ $projectPath = Split-Path $PSScriptRoot -Parent
 $outputPath = Join-Path $projectPath 'src-tauri/windows'
 [System.IO.Directory]::CreateDirectory($outputPath) | Out-Null
 $logo = [System.Drawing.Image]::FromFile((Join-Path $projectPath 'public/logo-icon.png'))
+$brandNumber = [System.Drawing.Image]::FromFile((Join-Path $projectPath 'brand/office23-number.png'))
+
+function Draw-BrandNumber($Graphics, [int]$PanelWidth, [int]$Top) {
+    $height = 34
+    $width = [single]($brandNumber.Width * $height / $brandNumber.Height)
+    $Graphics.DrawImage($brandNumber, [System.Drawing.RectangleF]::new(($PanelWidth - $width) / 2, $Top, $width, $height))
+}
 
 function New-InstallerImage([string]$Name, [int]$Width, [int]$Height, [bool]$Sidebar, [bool]$AlignRight = $false) {
     $bitmap = [System.Drawing.Bitmap]::new($Width, $Height, [System.Drawing.Imaging.PixelFormat]::Format24bppRgb)
@@ -28,7 +35,8 @@ function New-InstallerImage([string]$Name, [int]$Width, [int]$Height, [bool]$Sid
         $format.Alignment = [System.Drawing.StringAlignment]::Center
         $title = [System.Drawing.Font]::new('Segoe UI', 19, [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Pixel)
         $subtitle = [System.Drawing.Font]::new('Segoe UI', 11, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Pixel)
-        $graphics.DrawString("Office`n23", $title, [System.Drawing.Brushes]::White, [System.Drawing.RectangleF]::new(8, 150, ($panelWidth - 16), 65), $format)
+        $graphics.DrawString('Office', $title, [System.Drawing.Brushes]::White, [System.Drawing.RectangleF]::new(8, 148, ($panelWidth - 16), 30), $format)
+        Draw-BrandNumber $graphics $panelWidth 176
         $graphics.DrawString("Văn phòng số`ntrên mọi thiết bị", $subtitle, [System.Drawing.Brushes]::White, [System.Drawing.RectangleF]::new(8, 224, ($panelWidth - 16), 45), $format)
         $graphics.DrawString('DOCS  ·  SHEETS  ·  PDF', $subtitle, [System.Drawing.Brushes]::White, [System.Drawing.RectangleF]::new(4, ($Height - 32), ($panelWidth - 8), 25), $format)
         $title.Dispose()
@@ -103,4 +111,5 @@ try {
     New-InstallerImage 'wix-banner.bmp' 493 58 $false $true
 } finally {
     $logo.Dispose()
+    $brandNumber.Dispose()
 }
