@@ -25,6 +25,7 @@ import {
   Minimize2,
   Image as ImageIcon,
   ScanText,
+  Type,
   ZoomIn,
   ZoomOut,
   RotateCw,
@@ -55,6 +56,7 @@ import { usePageNavigation } from './usePageNavigation';
 import { extractAllText, rasterizePages, trimmedCanvasPng } from './pdfRaster';
 import type { Margins, SignatureAnchor } from './pdfTools';
 import { isShareableFileId, requestTeamShare } from '../../lib/teamShare';
+import type { EditablePdfPage } from '../../lib/pdfOcrTypes';
 
 const loadPdfTools = () => import('./pdfTools');
 
@@ -181,31 +183,20 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
   const [showCompressModal, setShowCompressModal] = useState(false);
   const [showConvertModal, setShowConvertModal] = useState<ConvertTarget | null>(null);
   const [showOcrModal, setShowOcrModal] = useState(false);
-  const [ocrRun, setOcrRun] = useState(0);
-  const [ocrResult, setOcrResult] = useState<{ text: string; warnings: string[]; progress: string; error: string; busy: boolean }>({ text: '', warnings: [], progress: '', error: '', busy: false });
-  const ocrDoc = pdfState.status === 'ready' ? pdfState.doc : null;
+  const [ocrScope, setOcrScope] = useState<'all' | 'current'>('all');
+  const [ocrResult, setOcrResult] = useState<{ warnings: string[]; progress: string; error: string; busy: boolean; completed: boolean }>({ warnings: [], progress: '', error: '', busy: false, completed: false });
+  const ocrController = useRef<AbortController | null>(null);
+  const [editablePages, setEditablePages] = useState<EditablePdfPage[]>([]);
+  const [editOcrText, setEditOcrText] = useState(true);
   useEffect(() => {
-    if (!showOcrModal) return;
-    const controller = new AbortController();
-    setOcrResult({ text: '', warnings: [], progress: 'Đang chuẩn bị OCR…', error: '', busy: true });
-    if (!ocrDoc) {
-      if (pdfState.status !== 'loading') setOcrResult({ text: '', warnings: [], progress: '', error: hasRealPdf ? 'Chưa đọc được tệp PDF. Hãy mở lại tệp rồi thử OCR.' : NO_PDF_MESSAGE, busy: false });
-      return () => controller.abort();
-    }
-    void import('../../lib/mediaConversion')
-      .then(({ extractPdfPageText }) => extractPdfPageText(ocrDoc, currentPage, {
-        signal: controller.signal,
-        forceOcr: ocrRun > 0,
-        onProgress: (progress) => { if (!controller.signal.aborted) setOcrResult((result) => ({ ...result, progress })); },
-      }))
-      .then(({ text, warnings }) => {
-        if (!controller.signal.aborted) setOcrResult({ text, warnings, progress: '', error: '', busy: false });
-      })
-      .catch((error: unknown) => {
-        if (!controller.signal.aborted) setOcrResult({ text: '', warnings: [], progress: '', error: error instanceof Error ? error.message : 'Không nhận dạng được chữ. Hãy thử lại.', busy: false });
-      });
-    return () => controller.abort();
-  }, [showOcrModal, ocrDoc, currentPage, ocrRun, hasRealPdf, pdfState.status]);
+    let cancelled = false;
+    setEditablePages([]);
+    if (pdfDataUrl) void import('../../lib/pdfOcrDocument')
+      .then(({ readEditablePdfPages }) => readEditablePdfPages(pdfDataUrlToBytes(pdfDataUrl)))
+      .then((pages) => { if (!cancelled) setEditablePages(pages); })
+      .catch(() => { if (!cancelled) setEditablePages([]); });
+    return () => { cancelled = true; ocrController.current?.abort(); };
+  }, [pdfDataUrl]);
   const [showCropModal, setShowCropModal] = useState(false);
   const [showPlayModal, setShowPlayModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -394,6 +385,55 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
   const applyPdfBytes = async (bytes: Uint8Array) => {
     setPdfDataUrl(await pdfBytesToDataUrl(bytes));
     markDirty();
+  };
+
+  const closeOcr = () => {
+    ocrController.current?.abort();
+    setShowOcrModal(false);
+  };
+
+  const handleEditableOcr = async () => {
+    const ready = requireReadyDoc();
+    if (!ready || !pdfDataUrl || ocrResult.busy) return;
+    const source = pdfDataUrl;
+    const controller = new AbortController();
+    ocrController.current?.abort();
+    ocrController.current = controller;
+    setOcrResult({ warnings: [], progress: 'Đang chuẩn bị OCR…', error: '', busy: true, completed: false });
+    try {
+      const { createEditablePdfFromDocument } = await import('../../lib/pdfEditableOcr');
+      const result = await createEditablePdfFromDocument(ready.doc, new Uint8Array(pdfDataUrlToBytes(source)).buffer, {
+        signal: controller.signal,
+        pageNumbers: ocrScope === 'current' ? [currentPage] : undefined,
+        onProgress: (progress) => { if (!controller.signal.aborted) setOcrResult((current) => ({ ...current, progress })); },
+      });
+      if (controller.signal.aborted || pdfDataUrlRef.current !== source) return;
+      if (!result.pages && !editablePages.length) throw new Error('Không nhận dạng được vùng chữ để chỉnh sửa. Tệp gốc được giữ nguyên.');
+      if (result.pages) await applyPdfBytes(result.bytes);
+      setEditOcrText(true);
+      setOcrResult({ warnings: result.warnings, progress: 'Đã tạo chữ PDF chỉnh sửa được. Bấm vào vùng chữ trên trang để sửa.', error: '', busy: false, completed: true });
+    } catch (error) {
+      if (!controller.signal.aborted) setOcrResult({ warnings: [], progress: '', error: error instanceof Error ? error.message : 'Không tạo được PDF chỉnh sửa được.', busy: false, completed: false });
+    } finally {
+      if (ocrController.current === controller) ocrController.current = null;
+    }
+  };
+
+  const handleEditOcrText = async (pageIndex: number, lineId: string, text: string) => {
+    if (!pdfDataUrl) return;
+    const source = pdfDataUrl;
+    ui.showBusy('Đang lưu chữ đã sửa vào PDF…');
+    try {
+      const { updateEditablePdfText } = await import('../../lib/pdfOcrDocument');
+      const bytes = await updateEditablePdfText(pdfDataUrlToBytes(source), pageIndex, lineId, text);
+      if (pdfDataUrlRef.current !== source) throw new Error('Tài liệu đã thay đổi. Hãy chọn lại vùng chữ cần sửa.');
+      await applyPdfBytes(bytes);
+    } catch (error) {
+      ui.toast(error instanceof Error ? error.message : 'Không lưu được chữ đã sửa.', true);
+      throw error;
+    } finally {
+      ui.showBusy(null);
+    }
   };
 
   const openSignModal = () => {
@@ -850,11 +890,15 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
 
                   <button
                     className="ribbon-btn-large"
-                    onClick={() => { setOcrRun(0); setShowOcrModal(true); }}
+                    onClick={() => { setOcrResult({ warnings: [], progress: '', error: '', busy: false, completed: false }); setShowOcrModal(true); }}
                     title="Nhận dạng chữ quang học OCR từ tài liệu scan"
                   >
                     <ScanText size={20} color="#7c3aed" />
                     <span>OCR<br/>PDF</span>
+                  </button>
+                  <button className={`ribbon-btn-large${editOcrText && editablePages.length ? ' active' : ''}`} disabled={!editablePages.length} onClick={() => setEditOcrText((value) => !value)} title="Bấm vùng chữ OCR trên trang để chỉnh sửa">
+                    <Type size={20} color="#7c3aed" />
+                    <span>Sửa chữ<br/>OCR</span>
                   </button>
                 </div>
                 <div className="ribbon-group-label">23 PDF Convert</div>
@@ -953,6 +997,8 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
                 root={pdfCanvas}
                 title={title}
                 register={pageNav.register}
+                editablePages={editOcrText ? editablePages : []}
+                onEditText={handleEditOcrText}
               />
             ) : (
               <div className="pdf-page pdf-page-real" style={{ width: PDF_PAGE_WIDTH * (zoom / 100), height: PDF_PAGE_HEIGHT * (zoom / 100) }}>
@@ -1387,56 +1433,29 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
         </div>
       )}
 
-      {/* MODAL 6: OCR Modal */}
       {showOcrModal && (
-        <div className="dialog-backdrop" onClick={() => setShowOcrModal(false)}>
-          <div className="dialog wide" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 640 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <ScanText size={20} color="#7c3aed" />
-                <h2>Nhận diện văn bản quang học OCR (Tiếng Việt)</h2>
-              </div>
-              <button className="icon-btn" onClick={() => setShowOcrModal(false)}>
-                <X size={18} />
-              </button>
+        <div className="dialog-backdrop" onClick={closeOcr}>
+          <div className="dialog wide" role="dialog" aria-modal="true" aria-labelledby="pdf-ocr-title" onClick={(event) => event.stopPropagation()} style={{ maxWidth: 640 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h2 id="pdf-ocr-title">OCR thành PDF chỉnh sửa được</h2>
+              <button className="icon-btn" onClick={closeOcr} aria-label="Đóng"><X size={18} /></button>
             </div>
-            <p style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 14 }}>
-              {`Trích xuất chữ trang ${currentPage}/${totalPages}. Trang scan được nhận dạng bằng OCR trên thiết bị.`}
-            </p>
-            <div
-              style={{
-                background: '#fafbfc',
-                border: '1px solid var(--line)',
-                borderRadius: 8,
-                padding: 14,
-                fontSize: 12.5,
-                lineHeight: 1.6,
-                maxHeight: '40vh',
-                overflowY: 'auto',
-                whiteSpace: 'pre-wrap',
-                fontFamily: 'monospace',
-                marginBottom: 16,
-              }}
-            >
-              <span role={ocrResult.error ? 'alert' : 'status'} aria-live="polite">{ocrResult.busy ? ocrResult.progress : ocrResult.error || ocrResult.text || 'Không nhận dạng được chữ trên trang này. Hãy thử lại với bản quét rõ hơn.'}</span>
-            </div>
-            {!ocrResult.busy && ocrResult.warnings.length > 0 && <p style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'pre-wrap', marginBottom: 16 }}>{ocrResult.warnings.join('\n')}</p>}
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <button
-                className="btn"
-                disabled={ocrResult.busy || !ocrResult.text}
-                onClick={() => {
-                  void navigator.clipboard.writeText(ocrResult.text)
-                    .then(() => ui.toast('Đã sao chép văn bản vào clipboard'))
-                    .catch(() => ui.toast('Chưa sao chép được văn bản. Hãy chọn chữ và sao chép thủ công.', true));
-                }}
-              >
-                Sao chép văn bản
-              </button>
-              <button className="btn" disabled={ocrResult.busy || !ocrDoc} onClick={() => setOcrRun((run) => run + 1)}>Nhận dạng lại từ ảnh</button>
-              <button className="btn" style={{ background: '#dc2626', color: '#fff' }} onClick={() => setShowOcrModal(false)}>
-                Đóng
-              </button>
+            <p style={{ fontSize: 13, lineHeight: 1.6, marginBottom: 16 }}>Nhận dạng chữ và chuyển thành các vùng chữ PDF có thể sửa trực tiếp trên trang. Giữ nền trang, vị trí chữ, bảng biểu và hình ảnh; phông chữ tái tạo có thể khác bản scan.</p>
+            {!ocrResult.completed && <label className="field">
+              <span>Phạm vi nhận dạng</span>
+              <select className="text-field" value={ocrScope} disabled={ocrResult.busy} onChange={(event) => setOcrScope(event.target.value as 'all' | 'current')}>
+                <option value="all">Toàn bộ tài liệu</option>
+                <option value="current">Trang đang xem</option>
+              </select>
+            </label>}
+            {(ocrResult.progress || ocrResult.error) && <p role={ocrResult.error ? 'alert' : 'status'} aria-live="polite" style={{ fontSize: 13, margin: '16px 0' }}>{ocrResult.error || ocrResult.progress}</p>}
+            {ocrResult.completed && <p style={{ fontSize: 13, margin: '16px 0' }}>Đóng bảng này, bấm vùng chữ trên trang, nhập nội dung mới rồi nhấn Enter để lưu. Tải xuống PDF để giữ các thay đổi trong tệp.</p>}
+            {!!ocrResult.warnings.length && <details style={{ fontSize: 12, color: 'var(--muted)', margin: '16px 0' }}><summary>Lưu ý kết quả nhận dạng</summary><p style={{ whiteSpace: 'pre-wrap' }}>{ocrResult.warnings.join('\n')}</p></details>}
+            <div className="dialog-actions">
+              <button className="btn" onClick={closeOcr}>{ocrResult.busy ? 'Dừng nhận dạng' : 'Đóng'}</button>
+              {ocrResult.completed
+                ? <button className="btn btn-primary" onClick={closeOcr}>Sửa chữ trên trang</button>
+                : <button className="btn btn-primary" disabled={ocrResult.busy || pdfState.status !== 'ready'} onClick={() => void handleEditableOcr()}>Chuyển thành PDF sửa được chữ</button>}
             </div>
           </div>
         </div>

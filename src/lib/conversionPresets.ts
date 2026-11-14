@@ -79,6 +79,7 @@ export const CONVERSION_PRESET_GROUPS: ConversionPresetGroup[] = [
   {
     title: 'Ảnh và nhận dạng chữ',
     presets: [
+      preset('pdf', 'pdf', 'pdf', 'OCR PDF chỉnh sửa được', 'Giữ nền và bố cục'),
       preset('image', 'doc', 'docx', 'Ảnh sang Word', 'OCR → .docx'),
       preset('image', 'sheet', 'xlsx', 'Ảnh sang Excel', 'OCR bảng → .xlsx'),
       preset('image', 'slide', 'pptx', 'Ảnh sang PowerPoint', '.jpg, .png → .pptx'),

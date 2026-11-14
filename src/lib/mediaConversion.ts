@@ -110,7 +110,7 @@ async function canvasBlob(canvas: HTMLCanvasElement, target: string): Promise<Bl
   return blob;
 }
 
-async function renderPdfPage(doc: PDFDocumentProxy, number: number, target: string, options: ConversionOptions): Promise<Blob> {
+export async function renderPdfPage(doc: PDFDocumentProxy, number: number, target: string, options: ConversionOptions): Promise<Blob> {
   checkConversionAbort(options);
   const page = await doc.getPage(number);
   checkConversionAbort(options);
@@ -134,7 +134,7 @@ async function renderPdfPage(doc: PDFDocumentProxy, number: number, target: stri
   }
 }
 
-async function readPdfLines(doc: PDFDocumentProxy, number: number): Promise<MediaPage> {
+export async function readPdfLines(doc: PDFDocumentProxy, number: number): Promise<MediaPage> {
   const page = await doc.getPage(number);
   const viewport = page.getViewport({ scale: 1 });
   try {
@@ -285,7 +285,7 @@ export async function convertMediaFile(file: File, target: string, options: Conv
   let result: ConversionResult;
   if (imageTarget) result = { files: pages.map((page, index) => ({ name: `${title}${pages.length > 1 ? ` - trang ${String(index + 1).padStart(3, '0')}` : ''}.${target}`, blob: page.image! })), warnings: [] };
   else if (layout) result = await buildMediaLayoutResult(pages, target, title);
-  else if (target === 'pdf') result = await buildSearchableMediaPdf(pages, title, originalPdf, ocrPages);
+  else if (target === 'pdf') result = await buildEditableMediaPdf(pages, title, originalPdf, ocrPages, options);
   else result = await buildMediaTextResult(pages, target, title);
   checkConversionAbort(options);
   return { ...result, warnings: [...new Set([...warnings, ...result.warnings])] };
@@ -306,7 +306,7 @@ export async function extractPdfPageText(doc: PDFDocumentProxy, number: number, 
   return { text: pageText(page), warnings, usedOcr };
 }
 
-async function applyOcr(page: MediaPage, options: ConversionOptions, warnings: string[]) {
+export async function applyOcr(page: MediaPage, options: ConversionOptions, warnings: string[]) {
   const { recognizeImage } = await import('./conversionOcr');
   const recognized = await recognizeImage(page.image!, options);
   const scaleX = page.width / recognized.width;
@@ -319,11 +319,27 @@ async function applyOcr(page: MediaPage, options: ConversionOptions, warnings: s
   if (recognized.confidence < 70) warnings.push(`Độ tin cậy OCR thấp (${Math.round(recognized.confidence)}%). Nên dùng ảnh rõ hơn và kiểm tra lại nội dung nhận dạng.`);
 }
 
-async function buildSearchableMediaPdf(pages: MediaPage[], title: string, originalPdf?: ArrayBuffer, ocrPages = new Set<number>()): Promise<ConversionResult> {
+async function buildEditableMediaPdf(pages: MediaPage[], title: string, originalPdf: ArrayBuffer | undefined, ocrPages: Set<number>, options: ConversionOptions): Promise<ConversionResult> {
+  const editableIndices = originalPdf ? [...ocrPages] : pages.flatMap((page, index) => page.lines.length ? [index] : []);
+  if (editableIndices.length) {
+    const { prepareEditablePdfPage } = await import('./pdfEditableOcr');
+    const { buildEditablePdf } = await import('./pdfOcrDocument');
+    const inputs = [];
+    const warnings = ['Đã tạo chữ PDF chỉnh sửa được. Nền trang và bố cục được giữ; phông chữ tái tạo có thể khác bản scan.'];
+    for (const index of editableIndices) {
+      const result = await prepareEditablePdfPage(pages[index], index, options);
+      if (result.page.lines.length) inputs.push(result.page);
+      warnings.push(...result.warnings);
+    }
+    if (!inputs.length && originalPdf) return { files: [{ name: `${title}.pdf`, blob: new Blob([originalPdf], { type: 'application/pdf' }) }], warnings: ['Không nhận dạng được vùng chữ để chỉnh sửa. Tệp gốc được giữ nguyên.'] };
+    if (!inputs.length) throw new Error('Không nhận dạng được vùng chữ để chỉnh sửa. Tệp gốc được giữ nguyên.');
+    const bytes = await buildEditablePdf(originalPdf, inputs);
+    checkConversionAbort(options);
+    if (originalPdf) warnings.push('Việc lưu lại PDF có thể làm mất hiệu lực chữ ký số.');
+    return { files: [{ name: `${title}.pdf`, blob: new Blob([bytes as BlobPart], { type: 'application/pdf' }) }], warnings };
+  }
   if (originalPdf) {
-    if (!ocrPages.size) return { files: [{ name: `${title}.pdf`, blob: new Blob([originalPdf], { type: 'application/pdf' }) }], warnings: [] };
-    const { overlayMediaPdfText } = await import('./mediaConversionPdf');
-    return { files: [{ name: `${title}.pdf`, blob: await overlayMediaPdfText(originalPdf, pages, ocrPages) }], warnings: ['Đã bổ sung lớp chữ OCR trên trang gốc. Việc lưu lại PDF có thể làm mất hiệu lực chữ ký số.'] };
+    return { files: [{ name: `${title}.pdf`, blob: new Blob([originalPdf], { type: 'application/pdf' }) }], warnings: [] };
   }
   const { buildPdf } = await import('./docPageFormats');
   const { basePage } = await import('./storage');

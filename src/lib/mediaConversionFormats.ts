@@ -2,7 +2,7 @@ import type { ConversionTarget } from './conversionTypes';
 
 const IMAGE_EXTENSIONS = /\.(png|jpe?g|jfif|jpe|webp|gif|svg|bmp|ico|avif|tiff?|heic|heif)$/i;
 const TARGETS: Record<string, ConversionTarget> = {
-  pdf: { id: 'pdf', label: 'PDF (.pdf)', description: 'Giữ hình trang; OCR bổ sung lớp chữ tìm kiếm khi được bật.' },
+  pdf: { id: 'pdf', label: 'PDF (.pdf)', description: 'Giữ nền và bố cục; OCR tạo chữ PDF chỉnh sửa được khi được bật.' },
   docx: { id: 'docx', label: 'Word (.docx)', description: 'Giữ bố cục bằng ảnh trang, hoặc lấy chữ/OCR để chỉnh sửa.' },
   xlsx: { id: 'xlsx', label: 'Excel (.xlsx)', description: 'Nhận dạng chữ và vị trí cột; cần đối chiếu bảng, số liệu sau chuyển đổi.' },
   pptx: { id: 'pptx', label: 'PowerPoint (.pptx)', description: 'Mỗi trang thành một slide giữ nguyên hình trang.' },

@@ -67,6 +67,43 @@
   height: 100%;
 }
 
+.pdf-ocr-text-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+}
+
+.pdf-ocr-text-hit,
+.pdf-ocr-text-input {
+  position: absolute;
+  box-sizing: border-box;
+  pointer-events: auto;
+  padding: 0;
+  margin: 0;
+  border: 1px solid transparent;
+  border-radius: 1px;
+}
+
+.pdf-ocr-text-hit {
+  background: transparent;
+  cursor: text;
+}
+
+.pdf-ocr-text-hit:hover,
+.pdf-ocr-text-hit:focus-visible {
+  border-color: #7c3aed;
+  background: #7c3aed0d;
+  outline: none;
+}
+
+.pdf-ocr-text-input {
+  border-color: #7c3aed;
+  background: #fff;
+  color: #111827;
+  outline: 2px solid #7c3aed33;
+}
+
 .pdf-page-status {
   display: flex;
   align-items: center;
