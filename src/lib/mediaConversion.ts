@@ -1,6 +1,9 @@
 import type { PDFDocumentProxy } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import type { ConversionOptions, ConversionResult } from './conversionTypes';
 import { checkConversionAbort, conversionBaseName } from './conversionTypes';
+import type { OcrPage } from './conversionOcr';
+import type { EditableSlide } from './editableSlidesDeck';
+import type { TextSegment } from './slideTextPaint';
 
 export type MediaTextLine = { text: string; x: number; y: number; width: number; height: number };
 export type MediaPage = { width: number; height: number; lines: MediaTextLine[]; image?: Blob; transform?: number[] };
@@ -8,6 +11,11 @@ export type MediaPage = { width: number; height: number; lines: MediaTextLine[];
 const MAX_PIXELS = 16_000_000;
 const MAX_PAGES = 200;
 const MAX_BYTES = 100 * 1024 * 1024;
+const OCR_MAX_EDGE = 2600;
+const LAYOUT_MAX_EDGE = 3200;
+const MAX_OUTPUT_BYTES = 200 * 1024 * 1024;
+const IMAGE_POINTS_PER_PIXEL = 0.75;
+const BASE64_BYTES_PER_CHAR = 0.75;
 export { mediaConversionTargets } from './mediaConversionFormats';
 import { mediaConversionTargets } from './mediaConversionFormats';
 
@@ -77,30 +85,8 @@ export async function buildMediaTextResult(pages: MediaPage[], target: string, t
         : pageText(page).split('\n').map((line) => new Paragraph({ children: [new TextRun(line)] }));
       return { children };
     }) }));
-  } else if (target === 'pptx') {
-    blob = await buildTextSlides(pages, title);
   } else throw new Error('Định dạng trích chữ chưa được hỗ trợ.');
   return { files: [{ name: `${title}.${target}`, blob }], warnings };
-}
-
-const SLIDE_WIDTH = 13.333;
-const SLIDE_HEIGHT = 7.5;
-const SLIDE_MARGIN = 0.5;
-
-async function buildTextSlides(pages: MediaPage[], title: string): Promise<Blob> {
-  const { default: PptxGenJS } = await import('pptxgenjs');
-  const deck = new PptxGenJS();
-  deck.layout = 'LAYOUT_WIDE';
-  deck.title = title;
-  for (const [index, page] of pages.entries()) {
-    const lines = mediaTextRows(page.lines).map((cells) => cells.join('   ')).filter((line) => line.trim());
-    const slide = deck.addSlide();
-    const heading = lines[0] ?? `Trang ${index + 1}`;
-    slide.addText(heading, { x: SLIDE_MARGIN, y: 0.35, w: SLIDE_WIDTH - SLIDE_MARGIN * 2, h: 0.9, fontFace: 'Arial', fontSize: 26, bold: true, color: '1F2937', fit: 'shrink' });
-    const body = lines.slice(1);
-    if (body.length) slide.addText(body.map((text) => ({ text, options: { breakLine: true } })), { x: SLIDE_MARGIN, y: 1.4, w: SLIDE_WIDTH - SLIDE_MARGIN * 2, h: SLIDE_HEIGHT - 1.9, fontFace: 'Arial', fontSize: 16, color: '374151', valign: 'top', fit: 'shrink', paraSpaceAfter: 6 });
-  }
-  return await deck.write({ outputType: 'blob' }) as Blob;
 }
 
 async function canvasBlob(canvas: HTMLCanvasElement, target: string): Promise<Blob> {
@@ -110,11 +96,12 @@ async function canvasBlob(canvas: HTMLCanvasElement, target: string): Promise<Bl
   return blob;
 }
 
-async function renderPdfPage(doc: PDFDocumentProxy, number: number, target: string, options: ConversionOptions): Promise<Blob> {
+async function renderPdfCanvas(doc: PDFDocumentProxy, number: number, maxEdge: number, options: ConversionOptions): Promise<{ canvas: HTMLCanvasElement; scale: number }> {
   checkConversionAbort(options);
   const page = await doc.getPage(number);
   const base = page.getViewport({ scale: 1 });
-  const scale = Math.min(2, Math.sqrt(MAX_PIXELS / (base.width * base.height)), 8192 / Math.max(base.width, base.height));
+  const longest = Math.max(base.width, base.height);
+  const scale = Math.min(2, Math.sqrt(MAX_PIXELS / (base.width * base.height)), 8192 / longest, maxEdge / longest);
   const viewport = page.getViewport({ scale });
   const canvas = document.createElement('canvas');
   canvas.width = Math.max(1, Math.ceil(viewport.width));
@@ -125,11 +112,22 @@ async function renderPdfPage(doc: PDFDocumentProxy, number: number, target: stri
   try {
     await render.promise;
     checkConversionAbort(options);
-    return await canvasBlob(canvas, target);
+    return { canvas, scale };
+  } catch (error) {
+    canvas.width = canvas.height = 0;
+    throw error;
   } finally {
     options.signal?.removeEventListener('abort', cancel);
-    canvas.width = canvas.height = 0;
     page.cleanup();
+  }
+}
+
+async function renderPdfPage(doc: PDFDocumentProxy, number: number, target: string, options: ConversionOptions, maxEdge = Infinity): Promise<Blob> {
+  const { canvas } = await renderPdfCanvas(doc, number, maxEdge, options);
+  try {
+    return await canvasBlob(canvas, target);
+  } finally {
+    canvas.width = canvas.height = 0;
   }
 }
 
@@ -239,8 +237,10 @@ export async function convertMediaFile(file: File, target: string, options: Conv
   const ocrPages = new Set<number>();
   const warnings: string[] = [];
   const imageTarget = ['png', 'jpg', 'webp'].includes(target);
+  const editableSlides = target === 'pptx' && options.fidelity === 'editable';
   const layout = (target === 'pptx' || target === 'docx') && options.fidelity !== 'editable';
-  const textNeeded = !imageTarget && !layout;
+  const textNeeded = !imageTarget && !layout && !editableSlides;
+  const slides: EditableSlide[] = [];
   if (/\.pdf$/i.test(file.name)) {
     await import('../editors/pdf/pdfRender');
     const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
@@ -256,8 +256,15 @@ export async function convertMediaFile(file: File, target: string, options: Conv
         checkConversionAbort(options);
         options.onProgress?.(`Đang chuyển trang ${index}/${doc.numPages}…`);
         const page = await readPdfLines(doc, index);
+        if (editableSlides) {
+          const slide = await editablePdfSlide(doc, index, page, options, warnings);
+          totalBytes += slide.background.length * BASE64_BYTES_PER_CHAR;
+          if (totalBytes > MAX_OUTPUT_BYTES) throw new Error('Kết quả vượt 200 MB. Hãy tách tệp thành nhiều phần nhỏ.');
+          slides.push(slide);
+          continue;
+        }
         if (imageTarget || layout || (textNeeded && !page.lines.length && options.ocr !== false)) {
-          page.image = await renderPdfPage(doc, index, imageTarget ? target : 'png', options);
+          page.image = await renderPdfPage(doc, index, imageTarget ? target : 'png', options, imageTarget ? Infinity : layout ? LAYOUT_MAX_EDGE : OCR_MAX_EDGE);
           totalBytes += page.image.size;
           if (totalBytes > 200 * 1024 * 1024) throw new Error('Kết quả vượt 200 MB. Hãy tách tệp thành nhiều phần nhỏ.');
         }
@@ -273,8 +280,13 @@ export async function convertMediaFile(file: File, target: string, options: Conv
     }
   } else {
     options.onProgress?.('Đang đọc ảnh…');
-    const canvas = await loadImageCanvas(file, options, target === 'jpg');
-    try {
+    const canvas = await loadImageCanvas(file, options, target === 'jpg' || editableSlides);
+    if (editableSlides) {
+      try {
+        const segments = options.ocr === false ? [] : await ocrSegments(await canvasBlob(canvas, 'png'), canvas, options, warnings);
+        slides.push(await finishEditableSlide(canvas, canvas.width * IMAGE_POINTS_PER_PIXEL, canvas.height * IMAGE_POINTS_PER_PIXEL, 1 / IMAGE_POINTS_PER_PIXEL, segments));
+      } finally { canvas.width = canvas.height = 0; }
+    } else try {
       pages.push({ width: canvas.width * 0.75, height: canvas.height * 0.75, lines: [], image: await canvasBlob(canvas, imageTarget ? target : 'png') });
     } finally { canvas.width = canvas.height = 0; }
     if (textNeeded && options.ocr !== false) await applyOcr(pages[0], options, warnings);
@@ -282,7 +294,8 @@ export async function convertMediaFile(file: File, target: string, options: Conv
   }
   checkConversionAbort(options);
   let result: ConversionResult;
-  if (imageTarget) result = { files: pages.map((page, index) => ({ name: `${title}${pages.length > 1 ? ` - trang ${String(index + 1).padStart(3, '0')}` : ''}.${target}`, blob: page.image! })), warnings: [] };
+  if (editableSlides) result = await buildEditableSlidesResult(slides, title);
+  else if (imageTarget) result = { files: pages.map((page, index) => ({ name: `${title}${pages.length > 1 ? ` - trang ${String(index + 1).padStart(3, '0')}` : ''}.${target}`, blob: page.image! })), warnings: [] };
   else if (layout) result = await buildMediaLayoutResult(pages, target, title);
   else if (target === 'pdf') result = await buildSearchableMediaPdf(pages, title, originalPdf, ocrPages);
   else result = await buildMediaTextResult(pages, target, title);
@@ -296,11 +309,70 @@ async function applyOcr(page: MediaPage, options: ConversionOptions, warnings: s
   const scaleX = page.width / recognized.width;
   const scaleY = page.height / recognized.height;
   page.lines = recognized.lines.flatMap((line) => line.words?.length ? line.words : [line]).map((line) => ({ text: line.text, x: line.bbox.x0 * scaleX, y: line.bbox.y0 * scaleY, width: (line.bbox.x1 - line.bbox.x0) * scaleX, height: (line.bbox.y1 - line.bbox.y0) * scaleY }));
+  addOcrWarnings(recognized, warnings);
+}
+
+function addOcrWarnings(recognized: OcrPage, warnings: string[]) {
   warnings.push('Đã dùng OCR. Hãy đối chiếu chữ, dấu tiếng Việt và số liệu với bản gốc trước khi sử dụng.');
   if (recognized.fallbackReason) warnings.push(`Chưa dùng được bộ đọc chữ tiếng Việt (${recognized.fallbackReason}), đã chuyển sang bộ OCR cơ bản nên độ chính xác thấp hơn.`);
   const turn = Math.round((recognized.angle ?? 0) / 90) % 4;
   if (turn) warnings.push(`Trang ${turn === 2 ? 'bị lật ngược' : 'bị xoay ngang'} đã được tự xoay lại trước khi nhận dạng.`);
   if (recognized.confidence < 70) warnings.push(`Độ tin cậy OCR thấp (${Math.round(recognized.confidence)}%). Nên dùng ảnh rõ hơn và kiểm tra lại nội dung nhận dạng.`);
+}
+
+async function ocrSegments(image: Blob, canvas: HTMLCanvasElement, options: ConversionOptions, warnings: string[]): Promise<TextSegment[]> {
+  const [{ recognizeImage }, { segmentsFromOcr }] = await Promise.all([import('./conversionOcr'), import('./slideTextPaint')]);
+  const recognized = await recognizeImage(image, options);
+  addOcrWarnings(recognized, warnings);
+  const scaleX = canvas.width / recognized.width;
+  const scaleY = canvas.height / recognized.height;
+  const scaleBox = (box: OcrPage['lines'][number]['bbox']) => ({ x0: box.x0 * scaleX, y0: box.y0 * scaleY, x1: box.x1 * scaleX, y1: box.y1 * scaleY });
+  return segmentsFromOcr(recognized.lines.map((line) => ({ ...line, bbox: scaleBox(line.bbox), words: line.words.map((word) => ({ ...word, bbox: scaleBox(word.bbox) })) })));
+}
+
+async function slideBackground(canvas: HTMLCanvasElement): Promise<string> {
+  const png = await canvasBlob(canvas, 'png');
+  const jpeg = await canvasBlob(canvas, 'jpg');
+  return blobDataUrl(png.size <= jpeg.size * 1.5 ? png : jpeg);
+}
+
+async function finishEditableSlide(canvas: HTMLCanvasElement, width: number, height: number, scale: number, segments: TextSegment[]): Promise<EditableSlide> {
+  const { paintAndErase } = await import('./slideTextPaint');
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('Không khởi tạo được bộ xử lý ảnh.');
+  const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
+  const measure = (text: string, fontPx: number, bold: boolean) => {
+    context.font = `${bold ? 'bold ' : ''}${fontPx}px Arial, Helvetica, sans-serif`;
+    return context.measureText(text).width;
+  };
+  const lines = paintAndErase({ data: pixels.data, width: pixels.width, height: pixels.height }, segments, measure);
+  context.putImageData(pixels, 0, 0);
+  return { width, height, scale, background: await slideBackground(canvas), lines };
+}
+
+async function editablePdfSlide(doc: PDFDocumentProxy, number: number, page: MediaPage, options: ConversionOptions, warnings: string[]): Promise<EditableSlide> {
+  const { canvas, scale } = await renderPdfCanvas(doc, number, OCR_MAX_EDGE, options);
+  try {
+    let segments: TextSegment[] = [];
+    if (page.lines.length) segments = (await import('./slideTextPaint')).segmentsFromTextItems(page.lines, scale);
+    else if (options.ocr !== false) {
+      options.onProgress?.(`Đang nhận dạng chữ trang ${number}…`);
+      segments = await ocrSegments(await canvasBlob(canvas, 'png'), canvas, options, warnings);
+    }
+    checkConversionAbort(options);
+    return await finishEditableSlide(canvas, page.width, page.height, scale, segments);
+  } finally {
+    canvas.width = canvas.height = 0;
+  }
+}
+
+async function buildEditableSlidesResult(slides: EditableSlide[], title: string): Promise<ConversionResult> {
+  if (!slides.length) throw new Error('Không có trang nào để dựng slide.');
+  const [{ default: PptxGenJS }, { fillEditableDeck }] = await Promise.all([import('pptxgenjs'), import('./editableSlidesDeck')]);
+  const blob = await fillEditableDeck(new PptxGenJS(), slides, title).write({ outputType: 'blob' }) as Blob;
+  const warnings = ['Chữ được đặt lại đúng vị trí trên nền trang gốc và sửa được trong PowerPoint. Phông chữ thay bằng Arial nên độ rộng chữ có thể lệch nhẹ so với bản gốc.'];
+  if (slides.some((slide) => !slide.lines.length)) warnings.push('Một số trang không có chữ nhận dạng được nên giữ nguyên dạng ảnh.');
+  return { files: [{ name: `${title}.pptx`, blob }], warnings };
 }
 
 async function buildSearchableMediaPdf(pages: MediaPage[], title: string, originalPdf?: ArrayBuffer, ocrPages = new Set<number>()): Promise<ConversionResult> {

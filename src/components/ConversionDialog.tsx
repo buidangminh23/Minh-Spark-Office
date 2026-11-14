@@ -116,7 +116,7 @@ export function ConversionDialog({ preset, onClose }: { preset?: ConversionPrese
         <label className="field"><span className="field-label">Ưu tiên chuyển đổi</span><select className="text-field" value={fidelity} disabled={locked} onChange={(event) => { setFidelity(event.target.value as ConversionOptions['fidelity']); invalidate(); }}><option value="layout">Giữ bố cục trang</option><option value="editable">Nội dung có thể chỉnh sửa</option></select></label>
         <label className="conversion-check"><input type="checkbox" checked={ocr} disabled={locked} onChange={(event) => { setOcr(event.target.checked); invalidate(); }} /><span>OCR tiếng Việt và tiếng Anh cho ảnh, PDF quét</span></label>
       </div>
-      <p className="conversion-help">PDF → Word/PowerPoint ở chế độ giữ bố cục dùng ảnh từng trang. Chế độ chỉnh sửa lấy chữ và bảng; bố cục có thể thay đổi. OCR có thể nhận sai chữ hoặc số, cần đối chiếu với bản gốc. Công thức và định dạng chỉ được giữ khi cặp định dạng hỗ trợ.</p>
+      <p className="conversion-help">PDF → Word/PowerPoint ở chế độ giữ bố cục dùng ảnh từng trang. Chế độ chỉnh sửa lấy chữ để sửa: PowerPoint giữ nền trang và đặt chữ đúng chỗ, Word có thể đổi bố cục. OCR có thể nhận sai chữ hoặc số, cần đối chiếu với bản gốc. Công thức và định dạng chỉ được giữ khi cặp định dạng hỗ trợ.</p>
       </>}
       {notice && <p role="alert" className="conversion-error">{notice}</p>}
       <ul className="conversion-queue" aria-label="Danh sách chuyển đổi">

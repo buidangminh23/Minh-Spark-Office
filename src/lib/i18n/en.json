@@ -4708,7 +4708,6 @@
  "Mỗi trang thành ảnh JPEG nền trắng.": "Each page becomes a JPEG image with a white background.",
  "Mỗi trang thành ảnh PNG; ảnh động lấy một khung hình.": "Each page becomes a PNG image; animated images use one frame.",
  "Mỗi trang thành ảnh WebP; kiểm tra hỗ trợ trình duyệt.": "Each page becomes a WebP image; check browser support.",
- "Mỗi trang thành một slide giữ nguyên hình trang.": "Each page becomes a slide that keeps the page image.",
  "Mỗi trang tính được xuất thành một tệp; chỉ giữ giá trị hiển thị hoặc giá trị đã lưu, không giữ công thức, ô gộp và định dạng.": "Each sheet is exported as a separate file; only displayed or saved values are kept, not formulas, merged cells or formatting.",
  "Mỗi trang tính một mảng hàng; gồm giá trị ô.": "One array of rows per sheet; includes cell values.",
  "Mỗi trang trong {0} trang thành một ảnh. Nhiều trang sẽ được gom vào một tệp .zip.": "Each of the {0} pages becomes an image. Multiple pages are bundled into one .zip file.",
@@ -5225,7 +5224,6 @@
  "Ống tròn": "Tube",
  "Ở bước kế tiếp, để Lề là Mặc định hoặc Không có và Tỉ lệ là 100% để bản in đúng như xem trước.": "In the next step, set Margins to Default or None and Scale to 100% so the printout matches the preview.",
  "Ở giữa": "Middle",
- "PDF → Word/PowerPoint ở chế độ giữ bố cục dùng ảnh từng trang. Chế độ chỉnh sửa lấy chữ và bảng; bố cục có thể thay đổi. OCR có thể nhận sai chữ hoặc số, cần đối chiếu với bản gốc. Công thức và định dạng chỉ được giữ khi cặp định dạng hỗ trợ.": "PDF → Word/PowerPoint in keep-layout mode uses an image of each page. Editable mode extracts text and tables; the layout may change. OCR may misread text or numbers, so check against the original. Formulas and formatting are kept only when the format pair supports them.",
  "PDF chỉ chứa ảnh; không có lớp chữ tìm kiếm.": "The PDF contains images only; there is no searchable text layer.",
  "PDF được bảo vệ bằng mật khẩu. Hãy mở khóa bản sao rồi chuyển đổi.": "The PDF is password-protected. Unlock a copy and then convert it.",
  "PDF qua hộp thoại in": "PDF via print dialog",
@@ -9138,5 +9136,11 @@
  "Không thể xoá hết các trang. Tài liệu cần giữ lại ít nhất một trang.": "Cannot delete every page. The document must keep at least one page.",
  "Không đọc được ảnh. Chọn ảnh PNG hoặc JPG.": "Could not read the image. Choose a PNG or JPG image.",
  "Xoay trang": "Rotate pages",
- "Xoay trang PDF": "Rotate PDF pages"
+ "Xoay trang PDF": "Rotate PDF pages",
+ "PDF → Word/PowerPoint ở chế độ giữ bố cục dùng ảnh từng trang. Chế độ chỉnh sửa lấy chữ để sửa: PowerPoint giữ nền trang và đặt chữ đúng chỗ, Word có thể đổi bố cục. OCR có thể nhận sai chữ hoặc số, cần đối chiếu với bản gốc. Công thức và định dạng chỉ được giữ khi cặp định dạng hỗ trợ.": "PDF → Word/PowerPoint in keep-layout mode uses an image of each page. Editable mode extracts text for editing: PowerPoint keeps the page background with the text in place, Word may change the layout. OCR may misread text or numbers, so check against the original. Formulas and formatting are kept only when the format pair supports them.",
+ "Giữ bố cục: mỗi trang thành ảnh slide. Chỉnh sửa: giữ nền trang, chữ đặt đúng chỗ và sửa được.": "Keep layout: each page becomes a slide image. Editable: keeps the page background with the text in place and editable.",
+ "Chữ được đặt lại đúng vị trí trên nền trang gốc và sửa được trong PowerPoint. Phông chữ thay bằng Arial nên độ rộng chữ có thể lệch nhẹ so với bản gốc.": "Text is placed back in its original position on the page background and can be edited in PowerPoint. The font is replaced with Arial, so text width may differ slightly from the original.",
+ "Một số trang không có chữ nhận dạng được nên giữ nguyên dạng ảnh.": "Some pages have no recognizable text and stay as images.",
+ "Không có trang nào để dựng slide.": "There are no pages to build slides from.",
+ "Đang nhận dạng chữ trang {0}…": "Recognizing text on page {0}…"
 }

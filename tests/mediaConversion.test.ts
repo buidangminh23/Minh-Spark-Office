@@ -81,12 +81,6 @@ test('text conversion rejects empty scanned pages and respects cancellation befo
   await assert.rejects(convertMediaFile(new File([], 'sample.pdf'), 'txt'), /không lớn hơn 100 MB/);
 });
 
-test('editable PPTX puts recognised text on a slide per page instead of page images', async () => {
-  const result = await buildMediaTextResult([sample, { ...sample, lines: [line('Trang hai', 20, 20)] }], 'pptx', 'Slides');
-  const zip = await JSZip.loadAsync(await result.files[0].blob.arrayBuffer());
-  const first = await zip.file('ppt/slides/slide1.xml')!.async('string');
-  assert.match(first, /Họ tên/);
-  assert.match(first, /Nguyễn Văn A/);
-  assert.doesNotMatch(first, /<p:pic>/);
-  assert.match(await zip.file('ppt/slides/slide2.xml')!.async('string'), /Trang hai/);
+test('text-only builders no longer produce PowerPoint', async () => {
+  await assert.rejects(buildMediaTextResult([sample], 'pptx', 'Slides'), /chưa được hỗ trợ/);
 });
