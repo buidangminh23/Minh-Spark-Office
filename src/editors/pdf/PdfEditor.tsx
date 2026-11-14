@@ -181,6 +181,31 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
   const [showCompressModal, setShowCompressModal] = useState(false);
   const [showConvertModal, setShowConvertModal] = useState<ConvertTarget | null>(null);
   const [showOcrModal, setShowOcrModal] = useState(false);
+  const [ocrRun, setOcrRun] = useState(0);
+  const [ocrResult, setOcrResult] = useState<{ text: string; warnings: string[]; progress: string; error: string; busy: boolean }>({ text: '', warnings: [], progress: '', error: '', busy: false });
+  const ocrDoc = pdfState.status === 'ready' ? pdfState.doc : null;
+  useEffect(() => {
+    if (!showOcrModal) return;
+    const controller = new AbortController();
+    setOcrResult({ text: '', warnings: [], progress: 'Đang chuẩn bị OCR…', error: '', busy: true });
+    if (!ocrDoc) {
+      if (pdfState.status !== 'loading') setOcrResult({ text: '', warnings: [], progress: '', error: hasRealPdf ? 'Chưa đọc được tệp PDF. Hãy mở lại tệp rồi thử OCR.' : NO_PDF_MESSAGE, busy: false });
+      return () => controller.abort();
+    }
+    void import('../../lib/mediaConversion')
+      .then(({ extractPdfPageText }) => extractPdfPageText(ocrDoc, currentPage, {
+        signal: controller.signal,
+        forceOcr: ocrRun > 0,
+        onProgress: (progress) => { if (!controller.signal.aborted) setOcrResult((result) => ({ ...result, progress })); },
+      }))
+      .then(({ text, warnings }) => {
+        if (!controller.signal.aborted) setOcrResult({ text, warnings, progress: '', error: '', busy: false });
+      })
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted) setOcrResult({ text: '', warnings: [], progress: '', error: error instanceof Error ? error.message : 'Không nhận dạng được chữ. Hãy thử lại.', busy: false });
+      });
+    return () => controller.abort();
+  }, [showOcrModal, ocrDoc, currentPage, ocrRun, hasRealPdf, pdfState.status]);
   const [showCropModal, setShowCropModal] = useState(false);
   const [showPlayModal, setShowPlayModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -305,10 +330,6 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
     pdfDataUrlRef.current = pdfDataUrl;
     realPageTextRef.current = realPageText;
   }, [currentPage, comments, pdfDataUrl, realPageText]);
-
-  const ocrText = hasRealPdf
-    ? realPageText ?? ''
-    : `CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM\nĐộc lập – Tự do – Hạnh phúc\n\n${title.replace(/\.[^/.]+$/, '')}\n\nKính gửi: Ban Giám đốc và các đơn vị phòng ban liên quan.\nCăn cứ theo kế hoạch phát triển giải pháp văn phòng số nội bộ Office 23, văn bản PDF này đã được biên soạn, kiểm duyệt và đóng dấu chữ ký điện tử an toàn tuyệt đối.\n\nNgười ký: ${currentAuthorName()}`;
 
   const handleExportPdf = () => {
     if (!pdfDataUrl) {
@@ -495,14 +516,15 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
     if (!ready) return;
     void runPdfTool(target === 'text' ? 'Đang trích xuất chữ…' : 'Đang xuất trang thành ảnh…', async () => {
       if (target === 'text') {
-        const { text, hasText } = await extractAllText(ready.doc);
+        const { text, hasText, warnings } = await extractAllText(ready.doc, { onProgress: (message) => ui.showBusy(message) });
         if (!hasText) {
-          ui.toast('Tệp không có lớp chữ (có thể là bản quét), chưa trích xuất được chữ.', true);
+          ui.toast('Không nhận dạng được chữ trong tệp. Hãy kiểm tra chất lượng bản quét.', true);
           return;
         }
         downloadBlob(bytesBlob(`\ufeff${text}`, 'text/plain;charset=utf-8'), `${baseName}.txt`);
         setShowConvertModal(null);
         ui.toast(`Đã xuất chữ của ${ready.doc.numPages} trang thành ${baseName}.txt`);
+        if (warnings.length) void ui.ask({ title: 'Kết quả OCR', message: <div style={{ whiteSpace: 'pre-wrap' }}>{warnings.join('\n')}</div>, confirmText: 'Đóng', cancelText: null });
         return;
       }
       const ext = rasterFormat === 'png' ? 'png' : 'jpg';
@@ -828,7 +850,7 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
 
                   <button
                     className="ribbon-btn-large"
-                    onClick={() => setShowOcrModal(true)}
+                    onClick={() => { setOcrRun(0); setShowOcrModal(true); }}
                     title="Nhận dạng chữ quang học OCR từ tài liệu scan"
                   >
                     <ScanText size={20} color="#7c3aed" />
@@ -1333,7 +1355,7 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
             </div>
             <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 14 }}>
               {showConvertModal === 'text'
-                ? `Lấy lớp chữ của cả ${totalPages} trang trong tệp ${title}. Bố cục, bảng và hình không được giữ; trang scan không có lớp chữ sẽ để trống.`
+                ? `Trích xuất chữ của cả ${totalPages} trang trong tệp ${title}. Trang scan được nhận dạng bằng OCR. Bố cục, bảng và hình không được giữ.`
                 : `Mỗi trang trong ${totalPages} trang thành một ảnh. Nhiều trang sẽ được gom vào một tệp .zip.`}
             </p>
             {showConvertModal === 'image' && (
@@ -1379,7 +1401,7 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
               </button>
             </div>
             <p style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 14 }}>
-              Trích xuất toàn bộ ký tự từ hình ảnh trang quét sang văn bản có thể chỉnh sửa:
+              {`Trích xuất chữ trang ${currentPage}/${totalPages}. Trang scan được nhận dạng bằng OCR trên thiết bị.`}
             </p>
             <div
               style={{
@@ -1396,21 +1418,22 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
                 marginBottom: 16,
               }}
             >
-              {ocrText || (hasRealPdf && realPageText === null
-                ? 'Đang đọc chữ trên trang…'
-                : 'Trang này là ảnh chụp hoặc bản quét, chưa có lớp chữ để trích xuất.')}
+              <span role={ocrResult.error ? 'alert' : 'status'} aria-live="polite">{ocrResult.busy ? ocrResult.progress : ocrResult.error || ocrResult.text || 'Không nhận dạng được chữ trên trang này. Hãy thử lại với bản quét rõ hơn.'}</span>
             </div>
+            {!ocrResult.busy && ocrResult.warnings.length > 0 && <p style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'pre-wrap', marginBottom: 16 }}>{ocrResult.warnings.join('\n')}</p>}
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <button
                 className="btn"
-                disabled={!ocrText}
+                disabled={ocrResult.busy || !ocrResult.text}
                 onClick={() => {
-                  void navigator.clipboard.writeText(ocrText);
-                  ui.toast('Đã sao chép văn bản vào clipboard');
+                  void navigator.clipboard.writeText(ocrResult.text)
+                    .then(() => ui.toast('Đã sao chép văn bản vào clipboard'))
+                    .catch(() => ui.toast('Chưa sao chép được văn bản. Hãy chọn chữ và sao chép thủ công.', true));
                 }}
               >
                 Sao chép văn bản
               </button>
+              <button className="btn" disabled={ocrResult.busy || !ocrDoc} onClick={() => setOcrRun((run) => run + 1)}>Nhận dạng lại từ ảnh</button>
               <button className="btn" style={{ background: '#dc2626', color: '#fff' }} onClick={() => setShowOcrModal(false)}>
                 Đóng
               </button>

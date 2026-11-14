@@ -51,9 +51,10 @@ function handleMessage(event: MessageEvent<VietOcrResponse>) {
 function startWorker(): Worker {
   if (worker) return worker;
   const created = new Worker(new URL('./vietOcrWorker.ts', import.meta.url), { type: 'module', name: 'vietnamese-ocr' });
-  created.onmessage = handleMessage;
+  created.onmessage = (event) => { if (worker === created) handleMessage(event); };
   created.onerror = (event) => {
     event.preventDefault();
+    if (worker !== created) return;
     const waiting = [...jobs.values()];
     jobs.clear();
     worker?.terminate();
@@ -75,7 +76,7 @@ export function recognizeWithVietOcr(image: GrayImage, options: { signal?: Abort
   const active = startWorker();
   if (idleTimer) clearTimeout(idleTimer);
   return new Promise<RecognizedPage>((resolve, reject) => {
-    const cancel = () => active.postMessage({ type: 'cancel', id } satisfies VietOcrRequest);
+    const cancel = () => { if (jobs.has(id)) releaseVietOcr(); };
     options.signal?.addEventListener('abort', cancel, { once: true });
     const done = () => options.signal?.removeEventListener('abort', cancel);
     jobs.set(id, {
@@ -83,6 +84,13 @@ export function recognizeWithVietOcr(image: GrayImage, options: { signal?: Abort
       resolve: (page) => { done(); resolve(page); },
       reject: (error) => { done(); reject(error); },
     });
-    active.postMessage({ type: 'recognize', id, base: vietOcrAssetBase(), image } satisfies VietOcrRequest, [image.data.buffer]);
+    try {
+      active.postMessage({ type: 'recognize', id, base: vietOcrAssetBase(), image } satisfies VietOcrRequest, [image.data.buffer]);
+    } catch (error) {
+      jobs.delete(id);
+      done();
+      scheduleIdleStop();
+      reject(error);
+    }
   });
 }

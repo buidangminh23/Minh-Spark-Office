@@ -1,6 +1,7 @@
 import type { Page, Worker as OcrWorker } from 'tesseract.js';
 import { checkConversionAbort, type ConversionOptions } from './conversionTypes';
 import { flattenBackground, mapBoxToSource, rgbaToGray, rotateGray, uprightAngle, type GrayImage, type PageGeometry } from './ocr/pagePrep';
+import { recognizeWithVietOcr, releaseVietOcr } from './ocr/vietOcrClient';
 
 export type OcrBox = { x0: number; y0: number; x1: number; y1: number };
 export type OcrWord = { text: string; bbox: OcrBox; confidence: number };
@@ -31,6 +32,7 @@ export function normalizeOcrPage(data: Pick<Page, 'text' | 'confidence' | 'block
 
 export async function releaseConversionOcr(): Promise<void> {
   generation += 1;
+  releaseVietOcr();
   clearTimeout(idleTimer);
   idleTimer = undefined;
   progress = undefined;
@@ -156,11 +158,10 @@ async function recognizeWithTesseract(gray: GrayImage, options: ConversionOption
 }
 
 function shouldUseVietOcr(): boolean {
-  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window && typeof Worker !== 'undefined';
+  return typeof window !== 'undefined' && typeof Worker !== 'undefined';
 }
 
 async function recognizeWithVietOcrPage(gray: GrayImage, options: ConversionOptions): Promise<OcrPage> {
-  const { recognizeWithVietOcr } = await import('./ocr/vietOcrClient');
   const page = await recognizeWithVietOcr({ width: gray.width, height: gray.height, data: gray.data.slice() }, { signal: options.signal, onProgress: options.onProgress });
   const lines = page.lines.map((line) => ({ text: line.text, bbox: line.bbox, confidence: line.confidence, words: [] }));
   return { text: lines.map((line) => line.text).join('\n'), width: page.width, height: page.height, confidence: page.confidence, lines, words: [], engine: 'vietocr', angle: page.angle };

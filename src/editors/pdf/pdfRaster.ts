@@ -2,6 +2,7 @@ import type { PDFDocumentProxy } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { loadRenderer } from './usePdfDocument';
 import type { PdfPageSize } from './pdfRender';
 import type { RasterPage } from './pdfTools';
+import type { ConversionOptions } from '../../lib/conversionTypes';
 
 const POINTS_PER_INCH = 72;
 const MAX_RASTER_PIXELS = 24_000_000;
@@ -47,16 +48,22 @@ export async function rasterizePages(
   return pages;
 }
 
-export async function extractAllText(doc: PDFDocumentProxy): Promise<{ text: string; hasText: boolean }> {
-  const renderer = await loadRenderer();
+export async function extractAllText(doc: PDFDocumentProxy, options: ConversionOptions = {}): Promise<{ text: string; hasText: boolean; warnings: string[] }> {
+  const { extractPdfPageText } = await import('../../lib/mediaConversion');
   const parts: string[] = [];
+  const warnings = new Set<string>();
   let hasText = false;
   for (let page = 1; page <= doc.numPages; page++) {
-    const value = await renderer.readPageText(doc, page);
-    if (value) hasText = true;
-    parts.push(`--- Trang ${page} ---\n${value}`);
+    options.signal?.throwIfAborted();
+    const onProgress = (message: string) => options.onProgress?.(`Trang ${page}/${doc.numPages} · ${message}`);
+    onProgress('Đang trích xuất chữ…');
+    const result = await extractPdfPageText(doc, page, { ...options, onProgress });
+    if (result.text.trim()) hasText = true;
+    result.warnings.forEach((warning) => warnings.add(warning));
+    if (!result.text.trim()) warnings.add(`Trang ${page}: không nhận dạng được chữ. Hãy kiểm tra bản gốc.`);
+    parts.push(`--- Trang ${page} ---\n${result.text}`);
   }
-  return { text: parts.join('\n\n'), hasText };
+  return { text: parts.join('\n\n'), hasText, warnings: [...warnings] };
 }
 
 export async function trimmedCanvasPng(canvas: HTMLCanvasElement): Promise<Uint8Array | null> {

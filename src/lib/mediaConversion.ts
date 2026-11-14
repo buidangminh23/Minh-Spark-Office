@@ -113,6 +113,7 @@ async function canvasBlob(canvas: HTMLCanvasElement, target: string): Promise<Bl
 async function renderPdfPage(doc: PDFDocumentProxy, number: number, target: string, options: ConversionOptions): Promise<Blob> {
   checkConversionAbort(options);
   const page = await doc.getPage(number);
+  checkConversionAbort(options);
   const base = page.getViewport({ scale: 1 });
   const scale = Math.min(2, Math.sqrt(MAX_PIXELS / (base.width * base.height)), 8192 / Math.max(base.width, base.height));
   const viewport = page.getViewport({ scale });
@@ -288,6 +289,21 @@ export async function convertMediaFile(file: File, target: string, options: Conv
   else result = await buildMediaTextResult(pages, target, title);
   checkConversionAbort(options);
   return { ...result, warnings: [...new Set([...warnings, ...result.warnings])] };
+}
+
+export async function extractPdfPageText(doc: PDFDocumentProxy, number: number, options: ConversionOptions & { forceOcr?: boolean } = {}): Promise<{ text: string; warnings: string[]; usedOcr: boolean }> {
+  checkConversionAbort(options);
+  const page = await readPdfLines(doc, number);
+  checkConversionAbort(options);
+  const warnings: string[] = [];
+  const usedOcr = options.ocr !== false && (options.forceOcr === true || !page.lines.length);
+  if (usedOcr) {
+    options.onProgress?.('Đang dựng ảnh trang để nhận dạng chữ…');
+    page.image = await renderPdfPage(doc, number, 'png', options);
+    await applyOcr(page, options, warnings);
+  }
+  checkConversionAbort(options);
+  return { text: pageText(page), warnings, usedOcr };
 }
 
 async function applyOcr(page: MediaPage, options: ConversionOptions, warnings: string[]) {
