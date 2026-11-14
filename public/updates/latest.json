@@ -1,35 +1,35 @@
 {
-  "version": "0.2.83",
+  "version": "0.2.84",
   "notes": "",
-  "pub_date": "2026-11-13T15:56:11.069Z",
+  "pub_date": "2026-11-14T12:54:58.583Z",
   "platforms": {
     "windows-x86_64-nsis": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRK1h4TVEzZ3c1Y3k2QkVNa3pzS1Fwa0UwckVVdldCQXB0QkNCelFIc0JZNFNyUEE1dEpNVGRWN01TWmZiQ1VyWmRKUkRnQ1NHd2tWVTJ1d3R4QVRhRGhCS0MyVFpTREFrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NTg1MzcwCWZpbGU6T2ZmaWNlIDIzXzAuMi44M194NjQtc2V0dXAuZXhlCXZlcnNpb246MC4yLjgzCkN4MXNCbTQ0dVllV1k3NjlKYXFJcHRkUTVEL0h6OEVsYWRhbGVWZzRPb2tNU2hzLy95cno4aUd6cHpCMTBINzVmVVFVWkpmQ3pjUTV5c04vNGN5Q0FnPT0K",
-      "url": "https://office.minhspark.com/downloads/MinhSparkOffice-0.2.83-windows-x64-vi-Setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRK1h4TVEzZ3c1Yyt5ejhJN01WMWlqWWl1dUZzZ1d1VjBNS3RPTVN4cGM1bjBmZENIYnJFMVE0b2tSbWRkckdjaURQSHg3cGI2RklRcVd1YXJHQkd2Y2Ryemo3YnZrRndjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NjYwODk4CWZpbGU6T2ZmaWNlIDIzXzAuMi44NF94NjQtc2V0dXAuZXhlCXZlcnNpb246MC4yLjg0CnI5OHMrN0NxOWIwOHJBUnRVUmhiSnRIRGU3Z2g5QlV2Z254cXhkTG5zMHozamQ5akhOVEMzMWN0Q1lqVUVQZWJsWFBJZHdTbkxzdWdQcWk4NGtGOUJRPT0K",
+      "url": "https://office.minhspark.com/downloads/MinhSparkOffice-0.2.84-windows-x64-vi-Setup.exe"
     },
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRK1h4TVEzZ3c1Y3k2QkVNa3pzS1Fwa0UwckVVdldCQXB0QkNCelFIc0JZNFNyUEE1dEpNVGRWN01TWmZiQ1VyWmRKUkRnQ1NHd2tWVTJ1d3R4QVRhRGhCS0MyVFpTREFrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NTg1MzcwCWZpbGU6T2ZmaWNlIDIzXzAuMi44M194NjQtc2V0dXAuZXhlCXZlcnNpb246MC4yLjgzCkN4MXNCbTQ0dVllV1k3NjlKYXFJcHRkUTVEL0h6OEVsYWRhbGVWZzRPb2tNU2hzLy95cno4aUd6cHpCMTBINzVmVVFVWkpmQ3pjUTV5c04vNGN5Q0FnPT0K",
-      "url": "https://office.minhspark.com/downloads/MinhSparkOffice-0.2.83-windows-x64-vi-Setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRK1h4TVEzZ3c1Yyt5ejhJN01WMWlqWWl1dUZzZ1d1VjBNS3RPTVN4cGM1bjBmZENIYnJFMVE0b2tSbWRkckdjaURQSHg3cGI2RklRcVd1YXJHQkd2Y2Ryemo3YnZrRndjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NjYwODk4CWZpbGU6T2ZmaWNlIDIzXzAuMi44NF94NjQtc2V0dXAuZXhlCXZlcnNpb246MC4yLjg0CnI5OHMrN0NxOWIwOHJBUnRVUmhiSnRIRGU3Z2g5QlV2Z254cXhkTG5zMHozamQ5akhOVEMzMWN0Q1lqVUVQZWJsWFBJZHdTbkxzdWdQcWk4NGtGOUJRPT0K",
+      "url": "https://office.minhspark.com/downloads/MinhSparkOffice-0.2.84-windows-x64-vi-Setup.exe"
     },
     "windows-x86_64-msi": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRK1h4TVEzZ3c1Y3hMWFpleTdKbnJGUEM0Vk1NZWZ6Qk9oSXdZWHBUWUhBbllSN0RWUm80d2RNRnZqaUNKN3NOaW9CVGtCNHhaeFBkKzQwZ1gwM05FaEdieWgzcFVBOUF3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NTg1MzcxCWZpbGU6T2ZmaWNlIDIzXzAuMi44M194NjRfZW4tVVMubXNpCXZlcnNpb246MC4yLjgzCkFaWEEreW1TVWh3MGxYQy94RHlLbG41QUV5dUJaRnJiODBOcDN5L0l6cUVjTk5YdWV4aUpvWmdiRGFpcVU0T0NSaUdEL2d0Wk04bCtDVnNMNktyaENnPT0K",
-      "url": "https://office.minhspark.com/downloads/MinhSparkOffice-0.2.83-windows-x64-en-US.msi"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRK1h4TVEzZ3c1Y3lpSkhKMHJySWYrRWFTQUIzS3l1U2llRmMwR1ZLbzA4NXBXMGhqekgvdmdXaWZYZXBwVXpoUDB4ckxFQmVlTm5lVE1Qelc1Vm1yaDYxejNZOGNFdHdFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NjYwODk4CWZpbGU6T2ZmaWNlIDIzXzAuMi44NF94NjRfZW4tVVMubXNpCXZlcnNpb246MC4yLjg0ClNBeVlJN3g5bzFSRnlzUjdSZXdXM05vVy9DZU5CeElZaEZqaXd1QU1lQTBrK20yeDE2RVhBaVo1NDRLcVh4ZGxrQlZMNTFxZnhiTDJ4aldQbGY0K0R3PT0K",
+      "url": "https://office.minhspark.com/downloads/MinhSparkOffice-0.2.84-windows-x64-en-US.msi"
     },
     "darwin-aarch64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRK1h4TVEzZ3c1Y3d0RUFnN1l5V1NWVjJOamk5MTdwR0F0TFVRNm93THMzblJhWkxEQjIvV01aR3pnVWEzUG9YWFdQVVZJZFp6STd0WG9rYWtFek9vemt1RG1TbENmeXdNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NTg1NjM3CWZpbGU6TWluaFNwYXJrT2ZmaWNlLTAuMi44My1tYWNvcy1hcm02NC5hcHAudGFyLmd6CXZlcnNpb246MC4yLjgzCnU4UFRRM3UvRXViTEVjaVdUZCtNMGdaRFBTVjVrbmFWRjVtTThuOFhOZ0orOVVDZmQvNWhXQnVVQklYVGpxd0V4b2QrVFBLNVZZYTlEdGloM0tmYkFBPT0K",
-      "url": "https://office.minhspark.com/downloads/MinhSparkOffice-0.2.83-macos-arm64.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRK1h4TVEzZ3c1YzNJS1BTMk1OVmZ2VkhwNlRPeW8zNlFsOEdzZG1QOTBKVUUreDVycDIxUjB4M3F0NFNoVHVaaE5BU2wyYlVyWWVUOXBPdzB0Mmg5KzJ0cG12TnBRUEFFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NjYxMTM5CWZpbGU6TWluaFNwYXJrT2ZmaWNlLTAuMi44NC1tYWNvcy1hcm02NC5hcHAudGFyLmd6CXZlcnNpb246MC4yLjg0CnBVeE16ZDlFeUZHVW5UZUFLRGlNampsUEc2ODFEdWNHcmF5ZG1EV20vNGJjdVhGNXE0dnh4ZURURUw5RXZ4cm5JeFF6Zk0vNzVzWnpFeE54dTJqNERBPT0K",
+      "url": "https://office.minhspark.com/downloads/MinhSparkOffice-0.2.84-macos-arm64.app.tar.gz"
     },
     "linux-x86_64-deb": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRK1h4TVEzZ3c1YzFsOXVBS25BdHJ2bDg0SzV2VkpJczQ1Y0NTRHA4SDNmRGJidXhXNTMxWm1tTlBQVFd2ejcyU1VJOFMrTnZpN2doZFYvTnhEaHVqVTVISVBobXN5Q2dvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NTg1NjM4CWZpbGU6TWluaFNwYXJrT2ZmaWNlLTAuMi44My1saW51eC14NjQuZGViCXZlcnNpb246MC4yLjgzCkVxUWgvZFBQS3lZVkpUNndlVElJWGxwelJEbzhMMWJvMzN2Q25PVWxBY3RQKzhQMWZwekpoZWFZWGo1THk1YUVMMGwrZ0hGVjJhN1dzUzFjZkZxV0FnPT0K",
-      "url": "https://office.minhspark.com/downloads/MinhSparkOffice-0.2.83-linux-x64.deb"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRK1h4TVEzZ3c1YzdVN3pCZ25oa2UvckZIWE5JbExMZWVYNXp4MGxFdnk4Vk5ING54MERucmhoSEVNekkrYVRlY1ZlaWtua3hhbnVkcWtPcHpUSzdid3VPZkwrZ1RFbGdjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NjYxMTQwCWZpbGU6TWluaFNwYXJrT2ZmaWNlLTAuMi44NC1saW51eC14NjQuZGViCXZlcnNpb246MC4yLjg0CnBqcmZReGNyZkVJbVpBVVdpdGRUTHd2eTEyWllJUHJOb2NPa0QvYlVZdloyNWFwNFZ3S2RReU1RcS9ZWGsvbTFvYmNnMnBvVGFLU05DalJjZWtUT0FRPT0K",
+      "url": "https://office.minhspark.com/downloads/MinhSparkOffice-0.2.84-linux-x64.deb"
     },
     "linux-x86_64-appimage": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRK1h4TVEzZ3c1Y3lsZWlKdndycklYWUZYcVFWUmczZmpoUU01cFM4cVdvNWVQWFdvZm9CZTJ6ZkxydjY5a1doVEo4WlF6MDdzamF4TjJOcndrMnpnMlFQQUJoTGVrZFFjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NTg1NjM5CWZpbGU6TWluaFNwYXJrT2ZmaWNlLTAuMi44My1saW51eC14NjQuQXBwSW1hZ2UJdmVyc2lvbjowLjIuODMKOWt6Y0dyT3FZWnpUekFRMjgyU0htTDlWdTRkRDdjeEs2eVc0RVNkWlFBeG44c3lJQi9pTXlKVEhPblRPalowV290aEI3MXJQcG8xR1p6MnZETmYwQnc9PQo=",
-      "url": "https://office.minhspark.com/downloads/MinhSparkOffice-0.2.83-linux-x64.AppImage"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRK1h4TVEzZ3c1YzI4Q0IwcEo4RVE1Q0pxand6ZWIwblJBYklvQ1laSUdyZVVKVURRR1hIa2pKZXlrellEL0JRVFRia3gveWtBM1J4a2pjQ2xaT0xpMFIrbTdHOGwrSnc4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NjYxMTQxCWZpbGU6TWluaFNwYXJrT2ZmaWNlLTAuMi44NC1saW51eC14NjQuQXBwSW1hZ2UJdmVyc2lvbjowLjIuODQKTDYzV201VnpaM3JkbVk2WEV0YTBLS2ErMzVOUEsvOFJTRHozMEd1UCt2eU1sRFdhL2pHRmpGY1oxcDI2TmZ3R043N3kvYlhyZkJnVGQ0bVVEbU9URFE9PQo=",
+      "url": "https://office.minhspark.com/downloads/MinhSparkOffice-0.2.84-linux-x64.AppImage"
     },
     "linux-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRK1h4TVEzZ3c1Y3lsZWlKdndycklYWUZYcVFWUmczZmpoUU01cFM4cVdvNWVQWFdvZm9CZTJ6ZkxydjY5a1doVEo4WlF6MDdzamF4TjJOcndrMnpnMlFQQUJoTGVrZFFjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NTg1NjM5CWZpbGU6TWluaFNwYXJrT2ZmaWNlLTAuMi44My1saW51eC14NjQuQXBwSW1hZ2UJdmVyc2lvbjowLjIuODMKOWt6Y0dyT3FZWnpUekFRMjgyU0htTDlWdTRkRDdjeEs2eVc0RVNkWlFBeG44c3lJQi9pTXlKVEhPblRPalowV290aEI3MXJQcG8xR1p6MnZETmYwQnc9PQo=",
-      "url": "https://office.minhspark.com/downloads/MinhSparkOffice-0.2.83-linux-x64.AppImage"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRK1h4TVEzZ3c1YzI4Q0IwcEo4RVE1Q0pxand6ZWIwblJBYklvQ1laSUdyZVVKVURRR1hIa2pKZXlrellEL0JRVFRia3gveWtBM1J4a2pjQ2xaT0xpMFIrbTdHOGwrSnc4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NjYxMTQxCWZpbGU6TWluaFNwYXJrT2ZmaWNlLTAuMi44NC1saW51eC14NjQuQXBwSW1hZ2UJdmVyc2lvbjowLjIuODQKTDYzV201VnpaM3JkbVk2WEV0YTBLS2ErMzVOUEsvOFJTRHozMEd1UCt2eU1sRFdhL2pHRmpGY1oxcDI2TmZ3R043N3kvYlhyZkJnVGQ0bVVEbU9URFE9PQo=",
+      "url": "https://office.minhspark.com/downloads/MinhSparkOffice-0.2.84-linux-x64.AppImage"
     }
   }
 }
