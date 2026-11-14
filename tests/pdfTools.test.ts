@@ -3,7 +3,15 @@ import assert from 'node:assert/strict';
 import { PDFArray, PDFDict, PDFDocument, PDFName, degrees } from 'pdf-lib';
 import JSZip from 'jszip';
 import {
+  addPageNumbers,
   compressPdf,
+  deletePages,
+  insertBlankPage,
+  insertImagePage,
+  pageNumberLabel,
+  readProperties,
+  rotatePages,
+  writeProperties,
   cropPdf,
   imagesToPdf,
   isPdfToolError,
@@ -186,4 +194,57 @@ test('zipFiles stores every file', async () => {
   const zip = await JSZip.loadAsync(zipped);
   assert.equal(await zip.file('a.txt')?.async('string'), 'xin chào');
   assert.deepEqual([...(await zip.file('b.bin')!.async('uint8array'))], [1, 2]);
+});
+
+test('rotatePages turns only the chosen pages and keeps the angle in range', async () => {
+  const source = await makePdf([[100, 200], [100, 200]], 270);
+  const result = await rotatePages(source, 90, [1]);
+  const doc = await PDFDocument.load(result.bytes);
+  assert.deepEqual(doc.getPages().map((page) => page.getRotation().angle), [270, 0]);
+  await assert.rejects(rotatePages(source, 90, [5]), (error) => isPdfToolError(error));
+});
+
+test('deletePages removes the chosen pages and refuses to empty the document', async () => {
+  const source = await makePdf([[100, 100], [200, 200], [300, 300]]);
+  const result = await deletePages(source, [0, 2]);
+  assert.equal(result.removed, 2);
+  assert.deepEqual(await pageSizes(result.bytes), [[200, 200]]);
+  await assert.rejects(deletePages(source, [0, 1, 2]), (error) => isPdfToolError(error));
+});
+
+test('insertBlankPage adds a page after the reference page with its visual size', async () => {
+  const source = await makePdf([[100, 200], [300, 400]], 90);
+  const result = await insertBlankPage(source, 0);
+  assert.equal(result.pageNumber, 2);
+  assert.equal(result.pageCount, 3);
+  const doc = await PDFDocument.load(result.bytes);
+  assert.deepEqual([doc.getPage(1).getWidth(), doc.getPage(1).getHeight()], [200, 100]);
+});
+
+test('insertImagePage adds an image page and rejects unreadable images', async () => {
+  const source = await makePdf([[300, 300]]);
+  const result = await insertImagePage(source, { bytes: PNG_1X1, format: 'png' }, 0);
+  assert.equal(result.pageCount, 2);
+  assert.equal(result.pageNumber, 2);
+  await assert.rejects(insertImagePage(source, { bytes: new Uint8Array([1, 2, 3]), format: 'png' }, 0), (error) => isPdfToolError(error));
+});
+
+test('addPageNumbers writes a label on every page', async () => {
+  assert.equal(pageNumberLabel(2, 5, 'number'), '2');
+  assert.equal(pageNumberLabel(2, 5, 'of-total'), '2 / 5');
+  const source = await makePdf([[300, 300], [300, 300]], 90);
+  const result = await addPageNumbers(source, 'bottom-center', 'of-total');
+  assert.equal(result.pageCount, 2);
+  const doc = await PDFDocument.load(result.bytes);
+  for (const page of doc.getPages()) assert.ok(page.node.Contents());
+});
+
+test('writeProperties stores Vietnamese document properties', async () => {
+  const source = await makePdf([[100, 100]]);
+  const bytes = await writeProperties(source, { title: 'Biên bản nghiệm thu', author: 'Bùi Đăng Minh', subject: 'Hồ sơ', keywords: 'pdf, biên bản' });
+  const properties = await readProperties(bytes);
+  assert.equal(properties.title, 'Biên bản nghiệm thu');
+  assert.equal(properties.author, 'Bùi Đăng Minh');
+  assert.equal(properties.subject, 'Hồ sơ');
+  assert.equal(properties.keywords, 'pdf biên bản');
 });
