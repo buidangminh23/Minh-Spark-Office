@@ -1,4 +1,4 @@
-import { PDFDocument, PDFName, PDFObjectCopier, PDFPage, PDFPageLeaf, degrees } from 'pdf-lib';
+import { PDFDocument, PDFName, PDFObjectCopier, PDFPage, PDFPageLeaf, StandardFonts, degrees, rgb } from 'pdf-lib';
 import JSZip from 'jszip';
 
 export class PdfToolError extends Error {
@@ -263,4 +263,121 @@ export async function zipFiles(files: { name: string; bytes: Uint8Array | string
   const zip = new JSZip();
   for (const file of files) zip.file(file.name, file.bytes);
   return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
+}
+
+function requirePages(doc: PDFDocument, pageIndexes: number[] | null) {
+  const count = doc.getPageCount();
+  const targets = pageIndexes ?? doc.getPageIndices();
+  for (const index of targets) {
+    if (!Number.isInteger(index) || index < 0 || index >= count) throw new PdfToolError(`Không có trang ${index + 1}.`);
+  }
+  return targets;
+}
+
+export async function rotatePages(bytes: Uint8Array, angle: number, pageIndexes: number[] | null, options: PdfToolOptions = {}) {
+  const doc = await loadPdf(bytes, options);
+  const targets = requirePages(doc, pageIndexes);
+  const pages = doc.getPages();
+  for (const index of targets) {
+    const page = pages[index];
+    page.setRotation(degrees(normalizeRotation(page.getRotation().angle + angle)));
+  }
+  return { bytes: await doc.save(), pageCount: targets.length };
+}
+
+export async function deletePages(bytes: Uint8Array, pageIndexes: number[], options: PdfToolOptions = {}) {
+  const doc = await loadPdf(bytes, options);
+  const removed = new Set(requirePages(doc, pageIndexes));
+  if (removed.size === 0) throw new PdfToolError('Chọn ít nhất một trang cần xoá.');
+  const kept = doc.getPageIndices().filter((index) => !removed.has(index));
+  if (kept.length === 0) throw new PdfToolError('Không thể xoá hết các trang. Tài liệu cần giữ lại ít nhất một trang.');
+  const [result] = await splitPdf(bytes, [{ label: 'kept', pages: kept }], options);
+  return { bytes: result, removed: removed.size, pageCount: kept.length };
+}
+
+function referenceSize(doc: PDFDocument, index: number) {
+  const pages = doc.getPages();
+  const page = pages[Math.min(Math.max(index, 0), pages.length - 1)];
+  if (!page) return { width: 595.28, height: 841.89 };
+  return visualSize(page.getCropBox(), page.getRotation().angle);
+}
+
+export async function insertBlankPage(bytes: Uint8Array, afterIndex: number, options: PdfToolOptions = {}) {
+  const doc = await loadPdf(bytes, options);
+  const insertAt = Math.min(Math.max(afterIndex + 1, 0), doc.getPageCount());
+  const size = referenceSize(doc, afterIndex);
+  doc.insertPage(insertAt, [size.width, size.height]);
+  return { bytes: await doc.save(), pageNumber: insertAt + 1, pageCount: doc.getPageCount() };
+}
+
+export type ImagePageInput = { bytes: Uint8Array; format: 'png' | 'jpeg' };
+
+const IMAGE_PAGE_MARGIN_PT = 36;
+
+export async function insertImagePage(bytes: Uint8Array, image: ImagePageInput, afterIndex: number, options: PdfToolOptions = {}) {
+  const doc = await loadPdf(bytes, options);
+  let embedded;
+  try {
+    embedded = image.format === 'png' ? await doc.embedPng(image.bytes) : await doc.embedJpg(image.bytes);
+  } catch {
+    throw new PdfToolError('Không đọc được ảnh. Chọn ảnh PNG hoặc JPG.');
+  }
+  const insertAt = Math.min(Math.max(afterIndex + 1, 0), doc.getPageCount());
+  const size = referenceSize(doc, afterIndex);
+  const page = doc.insertPage(insertAt, [size.width, size.height]);
+  const scale = Math.min((size.width - IMAGE_PAGE_MARGIN_PT * 2) / embedded.width, (size.height - IMAGE_PAGE_MARGIN_PT * 2) / embedded.height, 1);
+  const width = embedded.width * scale;
+  const height = embedded.height * scale;
+  page.drawImage(embedded, { x: (size.width - width) / 2, y: (size.height - height) / 2, width, height });
+  return { bytes: await doc.save(), pageNumber: insertAt + 1, pageCount: doc.getPageCount() };
+}
+
+export type PageNumberPosition = 'bottom-center' | 'bottom-right' | 'top-right';
+export type PageNumberFormat = 'number' | 'of-total';
+
+export function pageNumberLabel(pageNumber: number, total: number, format: PageNumberFormat) {
+  return format === 'of-total' ? `${pageNumber} / ${total}` : String(pageNumber);
+}
+
+const PAGE_NUMBER_SIZE = 10;
+const PAGE_NUMBER_MARGIN_PT = 24;
+
+export async function addPageNumbers(bytes: Uint8Array, position: PageNumberPosition, format: PageNumberFormat, options: PdfToolOptions = {}) {
+  const doc = await loadPdf(bytes, options);
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const pages = doc.getPages();
+  pages.forEach((page, index) => {
+    const text = pageNumberLabel(index + 1, pages.length, format);
+    const box = page.getCropBox();
+    const rotation = page.getRotation().angle;
+    const visual = visualSize(box, rotation);
+    const width = font.widthOfTextAtSize(text, PAGE_NUMBER_SIZE);
+    const u = position === 'bottom-center' ? (visual.width - width) / 2 : visual.width - PAGE_NUMBER_MARGIN_PT - width;
+    const v = position === 'top-right' ? visual.height - PAGE_NUMBER_MARGIN_PT - PAGE_NUMBER_SIZE : PAGE_NUMBER_MARGIN_PT;
+    const draw = visualRectToDraw({ u, v, width, height: PAGE_NUMBER_SIZE }, box, rotation);
+    page.drawText(text, { x: draw.x, y: draw.y, size: PAGE_NUMBER_SIZE, font, color: rgb(0.2, 0.2, 0.2), rotate: degrees(draw.rotate) });
+  });
+  return { bytes: await doc.save(), pageCount: pages.length };
+}
+
+export type PdfProperties = { title: string; author: string; subject: string; keywords: string };
+
+export async function readProperties(bytes: Uint8Array): Promise<PdfProperties> {
+  const doc = await loadPdf(bytes, { keepAttributes: true });
+  return {
+    title: doc.getTitle() ?? '',
+    author: doc.getAuthor() ?? '',
+    subject: doc.getSubject() ?? '',
+    keywords: doc.getKeywords() ?? '',
+  };
+}
+
+export async function writeProperties(bytes: Uint8Array, properties: PdfProperties) {
+  const doc = await loadPdf(bytes, { keepAttributes: true });
+  doc.setTitle(properties.title.trim());
+  doc.setAuthor(properties.author.trim());
+  doc.setSubject(properties.subject.trim());
+  doc.setKeywords(properties.keywords.split(/[,;\s]+/).filter(Boolean));
+  doc.setModificationDate(new Date());
+  return doc.save();
 }

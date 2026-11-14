@@ -36,6 +36,25 @@ import {
   Play,
   Share,
   Users as TeamUsers,
+  ChevronsLeft,
+  ChevronsRight,
+  RotateCcw,
+  Maximize,
+  PanelLeft,
+  Copy,
+  FilePlus,
+  ImagePlus,
+  Hash,
+  StickyNote,
+  Info,
+  Keyboard,
+  BookOpen,
+  FolderOpen,
+  Camera,
+  MoveHorizontal,
+  FileMinus,
+  FileOutput,
+  RectangleHorizontal,
 } from 'lucide-react';
 
 import {
@@ -54,7 +73,7 @@ import { PdfPrintDialog } from './PdfPrintDialog';
 import { PdfPageScroller, PdfThumb, typicalWidth } from './PdfPageScroller';
 import { usePageNavigation } from './usePageNavigation';
 import { extractAllText, rasterizePages, trimmedCanvasPng } from './pdfRaster';
-import type { Margins, SignatureAnchor } from './pdfTools';
+import type { ImagePageInput, Margins, PageNumberFormat, PageNumberPosition, PdfProperties, SignatureAnchor } from './pdfTools';
 import { isShareableFileId, requestTeamShare } from '../../lib/teamShare';
 import type { EditablePdfPage } from '../../lib/pdfOcrTypes';
 
@@ -68,6 +87,36 @@ const SIGN_ANCHORS: { value: SignatureAnchor; label: string }[] = [
   { value: 'top-left', label: 'Góc trên bên trái' },
   { value: 'center', label: 'Giữa trang' },
 ];
+
+const PAGE_NUMBER_POSITIONS: { value: PageNumberPosition; label: string }[] = [
+  { value: 'bottom-center', label: 'Giữa cuối trang' },
+  { value: 'bottom-right', label: 'Góc dưới bên phải' },
+  { value: 'top-right', label: 'Góc trên bên phải' },
+];
+
+const PDF_SHORTCUTS: { keys: string; action: string }[] = [
+  { keys: 'Ctrl + S', action: 'Lưu tài liệu' },
+  { keys: 'Ctrl + P', action: 'In tài liệu' },
+  { keys: 'Ctrl + =', action: 'Phóng to' },
+  { keys: 'Ctrl + -', action: 'Thu nhỏ' },
+  { keys: 'Ctrl + 0', action: 'Vừa chiều rộng khung' },
+  { keys: 'Alt + Home', action: 'Về trang đầu' },
+  { keys: 'Alt + End', action: 'Tới trang cuối' },
+  { keys: 'Esc', action: 'Thoát toàn màn hình' },
+];
+
+const PDF_TAB_GUIDE: { tab: string; text: string }[] = [
+  { tab: 'File', text: 'Mở, lưu, tải xuống, in, chia sẻ tệp; xem lịch sử phiên bản và sửa thuộc tính tài liệu.' },
+  { tab: 'Home', text: 'Chuyển trang, phóng to thu nhỏ, xoay hướng xem, sao chép chữ của trang đang xem.' },
+  { tab: '23 PDF', text: 'Ký, tách, ghép, cắt lề, nén, chuyển đổi và nhận dạng chữ OCR.' },
+  { tab: 'Insert', text: 'Chèn chữ ký, trang trống, ảnh thành trang mới, trang từ tệp PDF khác, số trang và ghi chú.' },
+  { tab: 'View', text: 'Chọn mức thu phóng, ẩn hiện bảng trang thu nhỏ và bảng ghi chú, trình chiếu hoặc xem toàn màn hình.' },
+  { tab: 'Tools', text: 'Xoay, xoá, trích trang và lưu thay đổi vào tệp; nén, cắt lề, chuyển đổi tệp.' },
+];
+
+const ZOOM_MIN = 50;
+const ZOOM_MAX = 200;
+const ZOOM_STEP = 10;
 
 const RASTER_DPI_OPTIONS = [96, 150, 300];
 const IMAGE_ONLY_DPI = 150;
@@ -202,6 +251,19 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
   const [showShareModal, setShowShareModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showComments, setShowComments] = useState(false);
+  const [showThumbs, setShowThumbs] = useState(true);
+  const [pageOp, setPageOp] = useState<'rotate' | 'delete' | null>(null);
+  const [pageOpRange, setPageOpRange] = useState('');
+  const [pageOpAngle, setPageOpAngle] = useState(90);
+  const [showPageNumberModal, setShowPageNumberModal] = useState(false);
+  const [pageNumberPosition, setPageNumberPosition] = useState<PageNumberPosition>('bottom-center');
+  const [pageNumberFormat, setPageNumberFormat] = useState<PageNumberFormat>('of-total');
+  const [properties, setProperties] = useState<PdfProperties | null>(null);
+  const [helpModal, setHelpModal] = useState<'shortcuts' | 'guide' | null>(null);
+  const [pageInput, setPageInput] = useState('');
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const editorRootRef = useRef<HTMLDivElement>(null);
+  const commentInputRef = useRef<HTMLTextAreaElement>(null);
 
   const [comments, setComments] = useState<CommentItem[]>(content.comments || []);
   const [newCommentText, setNewCommentText] = useState('');
@@ -593,6 +655,191 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
     });
   };
 
+  const zoomIn = () => setZoom((z) => Math.min(ZOOM_MAX, z + ZOOM_STEP));
+  const zoomOut = () => setZoom((z) => Math.max(Math.min(ZOOM_MIN, z), z - ZOOM_STEP));
+  const fitWidth = () => setZoomSetting(null);
+  const actualSize = () => setZoomSetting(100);
+
+  const handlePageJump = () => {
+    const page = Number.parseInt(pageInput, 10);
+    setPageInput('');
+    if (!Number.isFinite(page) || page < 1 || page > totalPages) {
+      ui.toast(`Nhập số trang từ 1 đến ${totalPages}`, true);
+      return;
+    }
+    goToPage(page);
+  };
+
+  const handleCopyPageText = async () => {
+    if (!hasRealPdf) {
+      ui.toast(NO_PDF_MESSAGE, true);
+      return;
+    }
+    if (realPageText === null) {
+      ui.toast('Đang đọc chữ của trang, thử lại sau giây lát', true);
+      return;
+    }
+    const text = realPageText.trim();
+    if (!text) {
+      ui.toast(`Trang ${currentPage} không có lớp chữ để sao chép (có thể là bản quét). Dùng OCR PDF để nhận dạng chữ.`, true);
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      ui.toast(`Đã sao chép chữ của trang ${currentPage}`);
+    } catch {
+      ui.toast('Chưa sao chép được vào bộ nhớ tạm. Hãy bấm vào trang rồi thử lại.', true);
+    }
+  };
+
+  const handleInsertBlankPage = () => {
+    const bytes = requireBytes();
+    if (!bytes) return;
+    void runPdfTool('Đang chèn trang trống…', async () => {
+      const tools = await loadPdfTools();
+      const result = await tools.insertBlankPage(bytes, currentPage - 1, { keepAttributes });
+      await applyPdfBytes(result.bytes);
+      ui.toast(`Đã chèn trang trống thành trang ${result.pageNumber}. Tài liệu có ${result.pageCount} trang.`);
+    });
+  };
+
+  const readImageFile = async (file: File): Promise<ImagePageInput> => {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return { bytes, format: 'png' };
+    if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return { bytes, format: 'jpeg' };
+    const bitmap = await createImageBitmap(file);
+    const canvas = document.createElement('canvas');
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    canvas.getContext('2d')?.drawImage(bitmap, 0, 0);
+    bitmap.close();
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+    if (!blob) throw new Error('image');
+    return { bytes: new Uint8Array(await blob.arrayBuffer()), format: 'png' };
+  };
+
+  const handleInsertImagePage = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = '';
+    if (!file) return;
+    const bytes = requireBytes();
+    if (!bytes) return;
+    void runPdfTool('Đang chèn ảnh thành trang mới…', async () => {
+      const tools = await loadPdfTools();
+      let image: ImagePageInput;
+      try {
+        image = await readImageFile(file);
+      } catch {
+        throw new tools.PdfToolError(`Không đọc được ảnh "${file.name}". Chọn ảnh PNG, JPG hoặc WebP.`);
+      }
+      const result = await tools.insertImagePage(bytes, image, currentPage - 1, { keepAttributes });
+      await applyPdfBytes(result.bytes);
+      ui.toast(`Đã chèn ảnh thành trang ${result.pageNumber}. Tài liệu có ${result.pageCount} trang.`);
+    });
+  };
+
+  const handleAddPageNumbers = () => {
+    const bytes = requireBytes();
+    if (!bytes) return;
+    void runPdfTool('Đang đánh số trang…', async () => {
+      const tools = await loadPdfTools();
+      const result = await tools.addPageNumbers(bytes, pageNumberPosition, pageNumberFormat, { keepAttributes });
+      await applyPdfBytes(result.bytes);
+      setShowPageNumberModal(false);
+      ui.toast(`Đã đánh số ${result.pageCount} trang`);
+    });
+  };
+
+  const openCommentComposer = () => {
+    setShowComments(true);
+    window.setTimeout(() => commentInputRef.current?.focus(), 0);
+  };
+
+  const openPageOp = (kind: 'rotate' | 'delete') => {
+    if (!requireBytes()) return;
+    setPageOpRange(String(currentPage));
+    setPageOpAngle(90);
+    setPageOp(kind);
+  };
+
+  const openExtractPages = () => {
+    if (!requireBytes()) return;
+    setSplitInput(String(currentPage));
+    setShowSplitModal(true);
+  };
+
+  const handlePageOp = async () => {
+    const bytes = requireBytes();
+    if (!bytes || !pageOp) return;
+    const kind = pageOp;
+    const tools = await loadPdfTools();
+    let indexes: number[];
+    try {
+      indexes = [...new Set(tools.parsePageRanges(pageOpRange, totalPages).flatMap((range) => range.pages))].sort((a, b) => a - b);
+    } catch (error) {
+      ui.toast(tools.isPdfToolError(error) ? error.message : 'Dải trang chưa hợp lệ', true);
+      return;
+    }
+    if (kind === 'delete' && !(await ui.confirm(`Xoá ${indexes.length} trang khỏi tệp PDF?`, 'Các trang này sẽ bị bỏ khỏi tệp PDF đang mở.', true))) return;
+    void runPdfTool(kind === 'rotate' ? 'Đang xoay trang…' : 'Đang xoá trang…', async () => {
+      if (kind === 'rotate') {
+        const result = await tools.rotatePages(bytes, pageOpAngle, indexes, { keepAttributes });
+        await applyPdfBytes(result.bytes);
+        setPageOp(null);
+        ui.toast(`Đã xoay ${result.pageCount} trang và lưu vào tệp`);
+        return;
+      }
+      const result = await tools.deletePages(bytes, indexes, { keepAttributes });
+      await applyPdfBytes(result.bytes);
+      setPageOp(null);
+      ui.toast(`Đã xoá ${result.removed} trang. Tài liệu còn ${result.pageCount} trang.`);
+    });
+  };
+
+  const openProperties = () => {
+    const bytes = requireBytes();
+    if (!bytes) return;
+    void runPdfTool('Đang đọc thuộc tính tệp…', async () => {
+      const tools = await loadPdfTools();
+      setProperties(await tools.readProperties(bytes));
+    });
+  };
+
+  const handleSaveProperties = () => {
+    const bytes = requireBytes();
+    if (!bytes || !properties) return;
+    const next = properties;
+    void runPdfTool('Đang lưu thuộc tính tài liệu…', async () => {
+      const tools = await loadPdfTools();
+      await applyPdfBytes(await tools.writeProperties(bytes, next));
+      setProperties(null);
+      ui.toast('Đã lưu thuộc tính vào tệp PDF');
+    });
+  };
+
+  useEffect(() => {
+    const sync = () => setIsFullscreen(Boolean(document.fullscreenElement) && document.fullscreenElement === editorRootRef.current);
+    document.addEventListener('fullscreenchange', sync);
+    return () => document.removeEventListener('fullscreenchange', sync);
+  }, []);
+
+  const toggleFullscreen = async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await editorRootRef.current?.requestFullscreen();
+    } catch {
+      ui.toast('Thiết bị này chưa cho phép xem toàn màn hình', true);
+    }
+  };
+
+  const closeDocument = () => void persistPdf(false).then((saved) => { if (saved) onBack(); });
+
+  const shortcutActions = { save: handleSaveNow, zoomIn, zoomOut, fitWidth, first: () => goToPage(1), last: () => goToPage(totalPages) };
+  const shortcutRef = useRef(shortcutActions);
+  useEffect(() => {
+    shortcutRef.current = shortcutActions;
+  });
+
   const shareFile = useMemo(() => {
     if (!showShareModal || !pdfDataUrl) return null;
     return new File([pdfDataUrlToBytes(pdfDataUrl) as BlobPart], `${baseName}.pdf`, { type: 'application/pdf' });
@@ -627,17 +874,26 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === 'p') {
-        event.preventDefault();
-        openPrint();
-      }
+      const mod = event.ctrlKey || event.metaKey;
+      const key = event.key.toLowerCase();
+      const actions = shortcutRef.current;
+      let handled = true;
+      if (mod && !event.shiftKey && !event.altKey && key === 'p') openPrint();
+      else if (mod && !event.shiftKey && !event.altKey && key === 's') void actions.save();
+      else if (mod && !event.altKey && (event.key === '=' || event.key === '+')) actions.zoomIn();
+      else if (mod && !event.altKey && event.key === '-') actions.zoomOut();
+      else if (mod && !event.altKey && event.key === '0') actions.fitWidth();
+      else if (!mod && event.altKey && event.key === 'Home') actions.first();
+      else if (!mod && event.altKey && event.key === 'End') actions.last();
+      else handled = false;
+      if (handled) event.preventDefault();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [openPrint]);
 
   return (
-    <div className="editor-shell pdf-editor">
+    <div className="editor-shell pdf-editor" ref={editorRootRef}>
       {printOpen && pdfState.status === 'ready' && (
         <PdfPrintDialog doc={pdfState.doc} sizes={pdfState.sizes} rotation={rotation} title={title.replace(/\.pdf$/i, '')} currentPage={currentPage} onClose={() => setPrintOpen(false)} />
       )}
@@ -922,21 +1178,360 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
             </>
           )}
 
-          {/* Fallback for other tabs */}
-          {activeTab !== 'minh_pdf' && (
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '6px 12px' }}>
-              <button className="btn" onClick={() => setActiveTab('minh_pdf')}>
-                <span>Quay lại tab 23 PDF</span>
-              </button>
-              <button className="btn" onClick={handleExportPdf}>
-                <Download size={14} />
-                <span>Tải tệp PDF</span>
-              </button>
-              <button className="btn" onClick={openSignModal}>
-                <FileSignature size={14} />
-                <span>Chèn chữ ký</span>
-              </button>
-            </div>
+          {activeTab === 'file' && (
+            <>
+              <div className="ribbon-section">
+                <div className="ribbon-controls">
+                  <label className="ribbon-btn-large" title="Mở một tệp PDF từ máy vào tài liệu này">
+                    <FolderOpen size={20} color="#d97706" />
+                    <span className="pdf-ribbon-label">Mở tệp PDF</span>
+                    <input type="file" accept=".pdf,application/pdf" hidden onChange={(e) => void handleUploadLocalPdf(e)} />
+                  </label>
+                  <button className="ribbon-btn-large" onClick={handleSaveNow} title="Lưu tài liệu (Ctrl+S)">
+                    <Save size={20} color="#2563eb" />
+                    <span className="pdf-ribbon-label">Lưu</span>
+                  </button>
+                  <button className="ribbon-btn-large" onClick={handleExportPdf} title="Tải tệp PDF về máy">
+                    <Download size={20} color="#dc2626" />
+                    <span className="pdf-ribbon-label">Tải xuống</span>
+                  </button>
+                  <button className="ribbon-btn-large" onClick={openPrint} title="In tài liệu (Ctrl+P)">
+                    <Printer size={20} color="#475569" />
+                    <span className="pdf-ribbon-label">In</span>
+                  </button>
+                  <button className="ribbon-btn-large" onClick={() => setShowShareModal(true)} title="Gửi tệp PDF qua bảng chia sẻ của hệ thống">
+                    <Share2 size={20} color="#0284c7" />
+                    <span className="pdf-ribbon-label">Chia sẻ</span>
+                  </button>
+                </div>
+                <div className="ribbon-group-label">Tệp</div>
+              </div>
+
+              <div className="ribbon-section">
+                <div className="ribbon-controls">
+                  <button className="ribbon-btn-large" onClick={handleOpenHistory} title="Xem và xoá các phiên bản đã lưu">
+                    <History size={20} color="#7c3aed" />
+                    <span className="pdf-ribbon-label">Lịch sử phiên bản</span>
+                  </button>
+                  <button className="ribbon-btn-large" onClick={handleCreateSnapshot} title="Lưu một bản chụp của tài liệu vào lịch sử">
+                    <Camera size={20} color="#059669" />
+                    <span className="pdf-ribbon-label">Lưu bản chụp</span>
+                  </button>
+                  <button className="ribbon-btn-large" onClick={openProperties} title="Sửa tiêu đề, tác giả, chủ đề và từ khoá lưu trong tệp PDF">
+                    <Info size={20} color="#0f766e" />
+                    <span className="pdf-ribbon-label">Thuộc tính</span>
+                  </button>
+                </div>
+                <div className="ribbon-group-label">Thông tin</div>
+              </div>
+
+              <div className="ribbon-section">
+                <div className="ribbon-controls">
+                  <button className="ribbon-btn-large" onClick={closeDocument} title="Lưu và quay lại danh sách tệp">
+                    <X size={20} color="#64748b" />
+                    <span className="pdf-ribbon-label">Đóng</span>
+                  </button>
+                </div>
+                <div className="ribbon-group-label">Đóng</div>
+              </div>
+            </>
+          )}
+
+          {activeTab === 'home' && (
+            <>
+              <div className="ribbon-section">
+                <div className="ribbon-controls">
+                  <button className="ribbon-btn-large" onClick={handleSaveNow} title="Lưu tài liệu (Ctrl+S)">
+                    <Save size={20} color="#2563eb" />
+                    <span className="pdf-ribbon-label">Lưu</span>
+                  </button>
+                  <button className="ribbon-btn-large" onClick={openPrint} title="In tài liệu (Ctrl+P)">
+                    <Printer size={20} color="#475569" />
+                    <span className="pdf-ribbon-label">In</span>
+                  </button>
+                  <button className="ribbon-btn-large" onClick={() => void handleCopyPageText()} title="Sao chép toàn bộ chữ của trang đang xem vào bộ nhớ tạm">
+                    <Copy size={20} color="#0284c7" />
+                    <span className="pdf-ribbon-label">Sao chép chữ trang</span>
+                  </button>
+                </div>
+                <div className="ribbon-group-label">Tài liệu</div>
+              </div>
+
+              <div className="ribbon-section">
+                <div className="ribbon-controls">
+                  <div className="ribbon-two-rows">
+                    <div className="ribbon-row">
+                      <button className="ribbon-btn-small" disabled={currentPage <= 1} onClick={() => goToPage(1)} title="Trang đầu (Alt+Home)">
+                        <ChevronsLeft size={15} />
+                      </button>
+                      <button className="ribbon-btn-small" disabled={currentPage <= 1} onClick={() => goToPage(currentPage - 1)} title="Trang trước">
+                        <ChevronLeft size={15} />
+                      </button>
+                      <span style={{ fontSize: 11.5, fontWeight: 600, minWidth: 52, textAlign: 'center' }}>{currentPage} / {totalPages}</span>
+                      <button className="ribbon-btn-small" disabled={currentPage >= totalPages} onClick={() => goToPage(currentPage + 1)} title="Trang sau">
+                        <ChevronRight size={15} />
+                      </button>
+                      <button className="ribbon-btn-small" disabled={currentPage >= totalPages} onClick={() => goToPage(totalPages)} title="Trang cuối (Alt+End)">
+                        <ChevronsRight size={15} />
+                      </button>
+                    </div>
+                    <div className="ribbon-row">
+                      <input
+                        className="ribbon-select"
+                        style={{ width: 72, cursor: 'text' }}
+                        inputMode="numeric"
+                        placeholder="Đến trang"
+                        aria-label="Đến trang"
+                        value={pageInput}
+                        onChange={(e) => setPageInput(e.target.value.replace(/[^0-9]/g, ''))}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handlePageJump(); }}
+                      />
+                      <button className="btn" style={{ height: 24, padding: '0 8px', fontSize: 11.5 }} disabled={!pageInput} onClick={handlePageJump}>
+                        Đi
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div className="ribbon-group-label">Trang</div>
+              </div>
+
+              <div className="ribbon-section">
+                <div className="ribbon-controls">
+                  <div className="ribbon-two-rows">
+                    <div className="ribbon-row">
+                      <button className="ribbon-btn-small" onClick={zoomOut} title="Thu nhỏ (Ctrl+-)">
+                        <ZoomOut size={15} />
+                      </button>
+                      <span style={{ fontSize: 11.5, fontWeight: 600, minWidth: 40, textAlign: 'center' }}>{zoom}%</span>
+                      <button className="ribbon-btn-small" onClick={zoomIn} title="Phóng to (Ctrl+=)">
+                        <ZoomIn size={15} />
+                      </button>
+                    </div>
+                    <div className="ribbon-row">
+                      <button className={`ribbon-btn-small ${zoomSetting === null ? 'active' : ''}`} onClick={fitWidth} title="Vừa chiều rộng khung (Ctrl+0)">
+                        <MoveHorizontal size={15} />
+                      </button>
+                      <button className={`ribbon-btn-small ${zoomSetting === 100 ? 'active' : ''}`} onClick={actualSize} title="Kích thước thật 100%">
+                        <RectangleHorizontal size={15} />
+                      </button>
+                      <button className="ribbon-btn-small" onClick={() => setRotation((r) => (r + 270) % 360)} title="Xoay hướng xem sang trái">
+                        <RotateCcw size={15} />
+                      </button>
+                      <button className="ribbon-btn-small" onClick={() => setRotation((r) => (r + 90) % 360)} title="Xoay hướng xem sang phải">
+                        <RotateCw size={15} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div className="ribbon-group-label">Thu phóng</div>
+              </div>
+            </>
+          )}
+
+          {activeTab === 'insert' && (
+            <>
+              <div className="ribbon-section">
+                <div className="ribbon-controls">
+                  <button className="ribbon-btn-large" onClick={openSignModal} title="Ký tay rồi chèn chữ ký vào trang PDF">
+                    <FileSignature size={20} color="#475569" />
+                    <span className="pdf-ribbon-label">Chữ ký</span>
+                  </button>
+                  <button className="ribbon-btn-large" onClick={handleInsertBlankPage} title="Chèn một trang trống ngay sau trang đang xem">
+                    <FilePlus size={20} color="#2563eb" />
+                    <span className="pdf-ribbon-label">Trang trống</span>
+                  </button>
+                  <label className="ribbon-btn-large" title="Chèn ảnh PNG, JPG hoặc WebP thành một trang mới sau trang đang xem">
+                    <ImagePlus size={20} color="#059669" />
+                    <span className="pdf-ribbon-label">Ảnh thành trang</span>
+                    <input type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={handleInsertImagePage} />
+                  </label>
+                  <button className="ribbon-btn-large" onClick={() => setShowMergeModal(true)} title="Thêm các trang từ tệp PDF khác vào cuối tài liệu">
+                    <Layers size={20} color="#7c3aed" />
+                    <span className="pdf-ribbon-label">Trang từ tệp PDF</span>
+                  </button>
+                </div>
+                <div className="ribbon-group-label">Trang</div>
+              </div>
+
+              <div className="ribbon-section">
+                <div className="ribbon-controls">
+                  <button className="ribbon-btn-large" onClick={() => { if (requireBytes()) setShowPageNumberModal(true); }} title="Đánh số lên mọi trang của tệp PDF">
+                    <Hash size={20} color="#d97706" />
+                    <span className="pdf-ribbon-label">Số trang</span>
+                  </button>
+                  <button className="ribbon-btn-large" onClick={openCommentComposer} title="Thêm ghi chú cho tài liệu">
+                    <StickyNote size={20} color="#ca8a04" />
+                    <span className="pdf-ribbon-label">Ghi chú</span>
+                  </button>
+                </div>
+                <div className="ribbon-group-label">Đánh dấu</div>
+              </div>
+            </>
+          )}
+
+          {activeTab === 'view' && (
+            <>
+              <div className="ribbon-section">
+                <div className="ribbon-controls">
+                  <button className={`ribbon-btn-large ${zoomSetting === null ? 'active' : ''}`} onClick={fitWidth} title="Vừa chiều rộng khung (Ctrl+0)">
+                    <MoveHorizontal size={20} color="#2563eb" />
+                    <span className="pdf-ribbon-label">Vừa chiều rộng</span>
+                  </button>
+                  <button className={`ribbon-btn-large ${zoomSetting === 100 ? 'active' : ''}`} onClick={actualSize} title="Kích thước thật 100%">
+                    <RectangleHorizontal size={20} color="#475569" />
+                    <span className="pdf-ribbon-label">Kích thước thật</span>
+                  </button>
+                  <div className="ribbon-two-rows">
+                    <div className="ribbon-row">
+                      <button className="ribbon-btn-small" onClick={zoomOut} title="Thu nhỏ (Ctrl+-)">
+                        <ZoomOut size={15} />
+                      </button>
+                      <span style={{ fontSize: 11.5, fontWeight: 600, minWidth: 40, textAlign: 'center' }}>{zoom}%</span>
+                      <button className="ribbon-btn-small" onClick={zoomIn} title="Phóng to (Ctrl+=)">
+                        <ZoomIn size={15} />
+                      </button>
+                    </div>
+                    <div className="ribbon-row">
+                      <select
+                        className="ribbon-select"
+                        aria-label="Mức thu phóng"
+                        value={zoomSetting === null ? 'fit' : String(zoomSetting)}
+                        onChange={(e) => (e.target.value === 'fit' ? fitWidth() : setZoomSetting(Number(e.target.value)))}
+                      >
+                        <option value="fit">Vừa khung</option>
+                        {[50, 75, 100, 125, 150, 200].map((value) => (
+                          <option key={value} value={value}>{value}%</option>
+                        ))}
+                        {zoomSetting !== null && ![50, 75, 100, 125, 150, 200].includes(zoomSetting) && <option value={zoomSetting}>{zoomSetting}%</option>}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <div className="ribbon-group-label">Thu phóng</div>
+              </div>
+
+              <div className="ribbon-section">
+                <div className="ribbon-controls">
+                  <button className="ribbon-btn-large" onClick={() => setRotation((r) => (r + 270) % 360)} title="Xoay hướng xem sang trái, không đổi tệp">
+                    <RotateCcw size={20} color="#475569" />
+                    <span className="pdf-ribbon-label">Xoay trái</span>
+                  </button>
+                  <button className="ribbon-btn-large" onClick={() => setRotation((r) => (r + 90) % 360)} title="Xoay hướng xem sang phải, không đổi tệp">
+                    <RotateCw size={20} color="#475569" />
+                    <span className="pdf-ribbon-label">Xoay phải</span>
+                  </button>
+                </div>
+                <div className="ribbon-group-label">Hướng xem</div>
+              </div>
+
+              <div className="ribbon-section">
+                <div className="ribbon-controls">
+                  <button className={`ribbon-btn-large ${showThumbs ? 'active' : ''}`} onClick={() => setShowThumbs((value) => !value)} title="Ẩn hoặc hiện bảng trang thu nhỏ bên trái">
+                    <PanelLeft size={20} color="#0284c7" />
+                    <span className="pdf-ribbon-label">Trang thu nhỏ</span>
+                  </button>
+                  <button className={`ribbon-btn-large ${showComments ? 'active' : ''}`} onClick={() => setShowComments((value) => !value)} title="Ẩn hoặc hiện bảng ghi chú bên phải">
+                    <MessageSquare size={20} color="#ca8a04" />
+                    <span className="pdf-ribbon-label">Bảng ghi chú</span>
+                  </button>
+                </div>
+                <div className="ribbon-group-label">Hiển thị</div>
+              </div>
+
+              <div className="ribbon-section">
+                <div className="ribbon-controls">
+                  <button className="ribbon-btn-large" onClick={() => setShowPlayModal(true)} title="Trình chiếu từng trang toàn màn hình">
+                    <Play size={20} color="#dc2626" />
+                    <span className="pdf-ribbon-label">Trình chiếu</span>
+                  </button>
+                  <button className={`ribbon-btn-large ${isFullscreen ? 'active' : ''}`} onClick={() => void toggleFullscreen()} title="Xem trình soạn PDF toàn màn hình (Esc để thoát)">
+                    <Maximize size={20} color="#475569" />
+                    <span className="pdf-ribbon-label">{isFullscreen ? 'Thoát toàn màn hình' : 'Toàn màn hình'}</span>
+                  </button>
+                </div>
+                <div className="ribbon-group-label">Chế độ xem</div>
+              </div>
+            </>
+          )}
+
+          {activeTab === 'tools' && (
+            <>
+              <div className="ribbon-section">
+                <div className="ribbon-controls">
+                  <button className="ribbon-btn-large" onClick={() => openPageOp('rotate')} title="Xoay trang và lưu hướng mới vào tệp PDF">
+                    <RotateCw size={20} color="#2563eb" />
+                    <span className="pdf-ribbon-label">Xoay trang</span>
+                  </button>
+                  <button className="ribbon-btn-large" onClick={() => openPageOp('delete')} title="Xoá các trang khỏi tệp PDF">
+                    <FileMinus size={20} color="#dc2626" />
+                    <span className="pdf-ribbon-label">Xoá trang</span>
+                  </button>
+                  <button className="ribbon-btn-large" onClick={openExtractPages} title="Trích các trang ra tệp PDF riêng">
+                    <FileOutput size={20} color="#059669" />
+                    <span className="pdf-ribbon-label">Trích trang</span>
+                  </button>
+                  <button className="ribbon-btn-large" onClick={handleInsertBlankPage} title="Chèn một trang trống ngay sau trang đang xem">
+                    <FilePlus size={20} color="#7c3aed" />
+                    <span className="pdf-ribbon-label">Trang trống</span>
+                  </button>
+                </div>
+                <div className="ribbon-group-label">Sắp xếp trang</div>
+              </div>
+
+              <div className="ribbon-section">
+                <div className="ribbon-controls">
+                  <button className="ribbon-btn-large" onClick={() => setShowMergeModal(true)} title="Ghép nhiều tệp PDF vào tài liệu này">
+                    <Layers size={20} color="#2563eb" />
+                    <span className="pdf-ribbon-label">Ghép tệp</span>
+                  </button>
+                  <button className="ribbon-btn-large" onClick={() => setShowCropModal(true)} title="Cắt lề trang PDF">
+                    <Crop size={20} color="#059669" />
+                    <span className="pdf-ribbon-label">Cắt lề</span>
+                  </button>
+                  <button className="ribbon-btn-large" onClick={() => setShowCompressModal(true)} title="Nén giảm dung lượng tệp PDF">
+                    <Minimize2 size={20} color="#d97706" />
+                    <span className="pdf-ribbon-label">Nén tệp</span>
+                  </button>
+                </div>
+                <div className="ribbon-group-label">Xử lý tệp</div>
+              </div>
+
+              <div className="ribbon-section">
+                <div className="ribbon-controls">
+                  <button className="ribbon-btn-large" onClick={() => setShowOcrModal(true)} title="Nhận dạng chữ từ tài liệu scan">
+                    <ScanText size={20} color="#7c3aed" />
+                    <span className="pdf-ribbon-label">OCR</span>
+                  </button>
+                  <button className="ribbon-btn-large" onClick={() => setShowConvertModal('text')} title="Trích chữ của tệp PDF ra tệp .txt">
+                    <FileText size={20} color="#dc2626" />
+                    <span className="pdf-ribbon-label">Ra văn bản</span>
+                  </button>
+                  <button className="ribbon-btn-large" onClick={() => setShowConvertModal('image')} title="Xuất từng trang thành ảnh PNG hoặc JPG">
+                    <ImageIcon size={20} color="#059669" />
+                    <span className="pdf-ribbon-label">Ra ảnh</span>
+                  </button>
+                </div>
+                <div className="ribbon-group-label">Chuyển đổi</div>
+              </div>
+            </>
+          )}
+
+          {activeTab === 'help' && (
+            <>
+              <div className="ribbon-section">
+                <div className="ribbon-controls">
+                  <button className="ribbon-btn-large" onClick={() => setHelpModal('shortcuts')} title="Xem các phím tắt của trình soạn PDF">
+                    <Keyboard size={20} color="#2563eb" />
+                    <span className="pdf-ribbon-label">Phím tắt</span>
+                  </button>
+                  <button className="ribbon-btn-large" onClick={() => setHelpModal('guide')} title="Xem mỗi tab dùng để làm gì">
+                    <BookOpen size={20} color="#059669" />
+                    <span className="pdf-ribbon-label">Hướng dẫn</span>
+                  </button>
+                </div>
+                <div className="ribbon-group-label">Trợ giúp</div>
+              </div>
+            </>
           )}
         </div>
       </div>
@@ -944,46 +1539,48 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
       {/* Main Workspace: PDF Canvas Viewer */}
       <div className="pdf-workspace">
         {/* Left Thumbnails Strip */}
-        <div className="pdf-thumbs" ref={setThumbStrip}>
-          {pdfState.status === 'ready' ? pdfState.sizes.map((_, idx) => (
-            <PdfThumb
-              key={idx}
-              doc={pdfState.doc}
-              pageNumber={idx + 1}
-              rotation={rotation}
-              root={thumbStrip}
-              active={currentPage === idx + 1}
-              cache={thumbCache}
-              onSelect={goToPage}
-            />
-          )) : !hasRealPdf && Array.from({ length: totalPages }).map((_, idx) => (
-            <div
-              key={idx}
-              style={{
-                width: 100,
-                height: 140,
-                background: '#fafbfc',
-                border: currentPage === idx + 1 ? '2px solid #dc2626' : '1px solid #cbd5e1',
-                borderRadius: 4,
-                boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
-                cursor: 'pointer',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: 6,
-                transition: 'all 0.15s ease',
-              }}
-              onClick={() => goToPage(idx + 1)}
-            >
-              <>
-                <div style={{ width: '100%', height: 4, background: '#e2e8f0', borderRadius: 2 }} />
-                <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>Trang {idx + 1}</div>
-                <div style={{ width: '80%', height: 4, background: '#e2e8f0', borderRadius: 2 }} />
-              </>
-            </div>
-          ))}
-        </div>
+        {showThumbs && (
+          <div className="pdf-thumbs" ref={setThumbStrip}>
+            {pdfState.status === 'ready' ? pdfState.sizes.map((_, idx) => (
+              <PdfThumb
+                key={idx}
+                doc={pdfState.doc}
+                pageNumber={idx + 1}
+                rotation={rotation}
+                root={thumbStrip}
+                active={currentPage === idx + 1}
+                cache={thumbCache}
+                onSelect={goToPage}
+              />
+            )) : !hasRealPdf && Array.from({ length: totalPages }).map((_, idx) => (
+              <div
+                key={idx}
+                style={{
+                  width: 100,
+                  height: 140,
+                  background: '#fafbfc',
+                  border: currentPage === idx + 1 ? '2px solid #dc2626' : '1px solid #cbd5e1',
+                  borderRadius: 4,
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: 6,
+                  transition: 'all 0.15s ease',
+                }}
+                onClick={() => goToPage(idx + 1)}
+              >
+                <>
+                  <div style={{ width: '100%', height: 4, background: '#e2e8f0', borderRadius: 2 }} />
+                  <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>Trang {idx + 1}</div>
+                  <div style={{ width: '80%', height: 4, background: '#e2e8f0', borderRadius: 2 }} />
+                </>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Center Canvas */}
         <div className="pdf-canvas" ref={setPdfCanvas}>
@@ -1125,11 +1722,11 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
 
           <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.2)' }} />
 
-          <button className="icon-btn" style={{ color: '#fff' }} onClick={() => setZoom((z) => Math.max(50, z - 10))} title="Thu nhỏ">
+          <button className="icon-btn" style={{ color: '#fff' }} onClick={zoomOut} title="Thu nhỏ (Ctrl+-)">
             <ZoomOut size={15} />
           </button>
           <span style={{ fontSize: 11 }}>{zoom}%</span>
-          <button className="icon-btn" style={{ color: '#fff' }} onClick={() => setZoom((z) => Math.min(200, z + 10))} title="Phóng to">
+          <button className="icon-btn" style={{ color: '#fff' }} onClick={zoomIn} title="Phóng to (Ctrl+=)">
             <ZoomIn size={15} />
           </button>
 
@@ -1153,6 +1750,7 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
 
             <div style={{ padding: 12, borderBottom: '1px solid var(--line)' }}>
               <textarea
+                ref={commentInputRef}
                 className="text-field"
                 rows={2}
                 placeholder="Nhập ghi chú cho trang PDF này…"
@@ -1636,6 +2234,162 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
               <button className="btn" onClick={() => setShowHistoryModal(false)}>
                 Đóng
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {pageOp && (
+        <div className="dialog-backdrop" onClick={() => setPageOp(null)}>
+          <div className="dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 460 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h2>{pageOp === 'rotate' ? 'Xoay trang PDF' : 'Xoá trang PDF'}</h2>
+              <button className="icon-btn" onClick={() => setPageOp(null)}>
+                <X size={18} />
+              </button>
+            </div>
+            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>
+              {`Nhập trang hoặc dải trang (tệp có ${totalPages} trang), ví dụ: 1, 3-5.`}
+            </p>
+            <input
+              className="text-field"
+              value={pageOpRange}
+              onChange={(e) => setPageOpRange(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') void handlePageOp(); }}
+              style={{ marginBottom: 10 }}
+            />
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+              <button className="btn" onClick={() => setPageOpRange(String(currentPage))}>Trang đang xem</button>
+              <button className="btn" onClick={() => setPageOpRange(totalPages > 1 ? `1-${totalPages}` : '1')}>Tất cả trang</button>
+            </div>
+            {pageOp === 'rotate' && (
+              <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+                {[{ value: 270, label: 'Trái 90°' }, { value: 90, label: 'Phải 90°' }, { value: 180, label: '180°' }].map((option) => (
+                  <button
+                    key={option.value}
+                    className="btn"
+                    style={pageOpAngle === option.value ? { background: '#dc2626', color: '#fff', borderColor: '#b91c1c' } : undefined}
+                    onClick={() => setPageOpAngle(option.value)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button className="btn" onClick={() => setPageOp(null)}>Huỷ</button>
+              <button className="btn" style={{ background: '#dc2626', color: '#fff' }} disabled={!pageOpRange.trim()} onClick={() => void handlePageOp()}>
+                {pageOp === 'rotate' ? 'Xoay trang' : 'Xoá trang'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPageNumberModal && (
+        <div className="dialog-backdrop" onClick={() => setShowPageNumberModal(false)}>
+          <div className="dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 440 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h2>Đánh số trang</h2>
+              <button className="icon-btn" onClick={() => setShowPageNumberModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+            <label style={{ display: 'block', fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}>Vị trí</label>
+            <select className="text-field" value={pageNumberPosition} onChange={(e) => setPageNumberPosition(e.target.value as PageNumberPosition)} style={{ marginBottom: 12 }}>
+              {PAGE_NUMBER_POSITIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+            <label style={{ display: 'block', fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}>Kiểu số</label>
+            <select className="text-field" value={pageNumberFormat} onChange={(e) => setPageNumberFormat(e.target.value as PageNumberFormat)} style={{ marginBottom: 16 }}>
+              <option value="of-total">1 / {totalPages}</option>
+              <option value="number">1</option>
+            </select>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button className="btn" onClick={() => setShowPageNumberModal(false)}>Huỷ</button>
+              <button className="btn" style={{ background: '#dc2626', color: '#fff' }} onClick={handleAddPageNumbers}>{`Đánh số ${totalPages} trang`}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {properties && (
+        <div className="dialog-backdrop" onClick={() => setProperties(null)}>
+          <div className="dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h2>Thuộc tính tài liệu</h2>
+              <button className="icon-btn" onClick={() => setProperties(null)}>
+                <X size={18} />
+              </button>
+            </div>
+            <div style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 14, display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px' }}>
+              <span>Số trang</span><strong>{totalPages}</strong>
+              {currentPdfSize !== null && (<><span>Dung lượng</span><strong>{formatBytes(currentPdfSize)}</strong></>)}
+              {pdfState.status === 'ready' && pdfState.sizes[currentPage - 1] && (
+                <>
+                  <span>{`Khổ trang ${currentPage}`}</span>
+                  <strong>{Math.round((pdfState.sizes[currentPage - 1].width * 25.4) / 72)} × {Math.round((pdfState.sizes[currentPage - 1].height * 25.4) / 72)} mm</strong>
+                </>
+              )}
+            </div>
+            {([
+              { key: 'title', label: 'Tiêu đề' },
+              { key: 'author', label: 'Tác giả' },
+              { key: 'subject', label: 'Chủ đề' },
+              { key: 'keywords', label: 'Từ khoá (cách nhau bằng dấu phẩy)' },
+            ] as const).map((field) => (
+              <div key={field.key} style={{ marginBottom: 10 }}>
+                <label style={{ display: 'block', fontSize: 12.5, fontWeight: 600, marginBottom: 4 }}>{field.label}</label>
+                <input
+                  className="text-field"
+                  value={properties[field.key]}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setProperties((prev) => (prev ? { ...prev, [field.key]: value } : prev));
+                  }}
+                />
+              </div>
+            ))}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
+              <button className="btn" onClick={() => setProperties(null)}>Huỷ</button>
+              <button className="btn" style={{ background: '#dc2626', color: '#fff' }} onClick={handleSaveProperties}>Lưu thuộc tính</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {helpModal && (
+        <div className="dialog-backdrop" onClick={() => setHelpModal(null)}>
+          <div className="dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h2>{helpModal === 'shortcuts' ? 'Phím tắt trình soạn PDF' : 'Hướng dẫn các tab'}</h2>
+              <button className="icon-btn" onClick={() => setHelpModal(null)}>
+                <X size={18} />
+              </button>
+            </div>
+            {helpModal === 'shortcuts' ? (
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <tbody>
+                  {PDF_SHORTCUTS.map((item) => (
+                    <tr key={item.keys} style={{ borderBottom: '1px solid var(--line)' }}>
+                      <td style={{ padding: '7px 0', width: 130 }}><kbd>{item.keys}</kbd></td>
+                      <td style={{ padding: '7px 0' }}>{item.action}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {PDF_TAB_GUIDE.map((item) => (
+                  <div key={item.tab} style={{ fontSize: 13 }}>
+                    <strong>{item.tab}</strong>
+                    <div style={{ color: 'var(--muted)', marginTop: 2 }}>{item.text}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+              <button className="btn" onClick={() => setHelpModal(null)}>Đóng</button>
             </div>
           </div>
         </div>

@@ -159,3 +159,10 @@
   font-weight: 600;
   color: var(--muted);
 }
+
+.pdf-editor .pdf-ribbon-label {
+  white-space: normal;
+  max-width: 64px;
+  line-height: 1.15;
+  text-align: center;
+}
