@@ -1,5 +1,7 @@
 # Office 23
 
+<p align="center"><a href="https://www.npmjs.com/package/@minhspark/minh-spark-office"><img src="https://img.shields.io/npm/v/@minhspark/minh-spark-office?logo=npm&amp;color=CB3837" height="20" alt="npm" /></a></p>
+
 Browser-based documents, spreadsheets and PDF workspace with Google sign-in through Firebase Authentication.
 
 ## Development
