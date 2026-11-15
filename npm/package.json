@@ -1,0 +1,42 @@
+{
+  "name": "@minhspark/minh-spark-office",
+  "version": "0.1.0",
+  "description": "Install Minh Spark Office, the free Docs, Sheets, Slides and PDF office suite, on Windows, Linux or macOS",
+  "type": "module",
+  "bin": {
+    "minh-spark-office": "cli.mjs"
+  },
+  "files": [
+    "cli.mjs",
+    "lib.mjs",
+    "installer.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test lib.test.mjs"
+  },
+  "engines": {
+    "node": ">=18.17"
+  },
+  "keywords": [
+    "office",
+    "docs",
+    "sheets",
+    "slides",
+    "pdf",
+    "free",
+    "installer"
+  ],
+  "author": "Bui Dang Minh",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/buidangminh23/Minh-Spark-Office.git",
+    "directory": "npm"
+  },
+  "homepage": "https://office.minhspark.com",
+  "bugs": {
+    "url": "https://github.com/buidangminh23/Minh-Spark-Office/issues"
+  }
+}

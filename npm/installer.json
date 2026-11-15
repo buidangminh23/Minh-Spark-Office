@@ -1,0 +1,20 @@
+{
+  "product": "Minh Spark Office",
+  "releasesPage": "https://office.minhspark.com/tai-ung-dung.html",
+  "baseUrl": "https://office.minhspark.com/downloads",
+  "checksums": "SHA256SUMS.txt",
+  "macScript": "https://office.minhspark.com/install-macos.sh",
+  "appImageName": "minh-spark-office.AppImage",
+  "assets": {
+    "win32-x64": "^MinhSparkOffice-[0-9][^-]*-windows-x64-vi-Setup[.]exe$",
+    "linux-x64-deb": "^MinhSparkOffice-[0-9][^-]*-linux-x64[.]deb$",
+    "linux-x64-appimage": "^MinhSparkOffice-[0-9][^-]*-linux-x64[.]AppImage$",
+    "darwin-arm64": "^MinhSparkOffice-[0-9][^-]*-macos-arm64[.]dmg$"
+  },
+  "samples": {
+    "win32-x64": "MinhSparkOffice-0.2.86-windows-x64-vi-Setup.exe",
+    "linux-x64-deb": "MinhSparkOffice-0.2.86-linux-x64.deb",
+    "linux-x64-appimage": "MinhSparkOffice-0.2.86-linux-x64.AppImage",
+    "darwin-arm64": "MinhSparkOffice-0.2.86-macos-arm64.dmg"
+  }
+}
