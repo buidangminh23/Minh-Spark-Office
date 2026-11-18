@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "postinstall": "node scripts/patch-sheet-line-gap.mjs",
+    "pretest": "node scripts/patch-sheet-line-gap.mjs",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",

@@ -24,7 +24,8 @@ function patchModule(file) {
       throw new Error(`Review Univer sheet spacing compatibility for ${signature} in ${file}`);
     }
     if (body.split(replacement).length === expected + 1) continue;
-    result = result.slice(0, start) + body.replaceAll(original, replacement) + result.slice(end);
+    const updated = body.replaceAll(replacement, original).replaceAll(original, replacement);
+    result = result.slice(0, start) + updated + result.slice(end);
   }
   if (result !== source) writeFileSync(file, result);
 }
