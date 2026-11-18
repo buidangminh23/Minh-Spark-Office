@@ -31,7 +31,9 @@
 }
 
 .download-menu-options a {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 11px 12px;
   border-radius: 6px;
   color: #182943;
