@@ -2,7 +2,11 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { Download } from 'lucide-react';
 import './downloadMenu.css';
 
-const platforms = [{ label: 'Windows', anchor: 'windows' }, { label: 'macOS', anchor: 'macos' }];
+const platforms = [
+  { label: 'Windows', anchor: 'windows', icon: '/platforms/windows.svg' },
+  { label: 'macOS', anchor: 'macos', icon: '/platforms/apple-glyph.svg' },
+  { label: 'Linux', anchor: 'linux', icon: '/platforms/linux.svg' },
+];
 
 export function DownloadMenu() {
   const [open, setOpen] = useState(false);
@@ -57,6 +61,7 @@ export function DownloadMenu() {
     {open && <div className="download-menu-options" role="menu" id={id} aria-labelledby={`${id}-trigger`}>
       {platforms.map((platform, index) => <a key={platform.anchor} role="menuitem" tabIndex={-1} ref={(element) => { links.current[index] = element; }}
         href={`https://office.minhspark.com/tai-ung-dung.html#${platform.anchor}`} target="_blank" rel="noopener noreferrer" onClick={() => { setOpen(false); trigger.current?.focus(); }}>
+        <img src={platform.icon} alt="" width={20} height={20} />
         {platform.label}
       </a>)}
     </div>}
