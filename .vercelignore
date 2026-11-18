@@ -5,7 +5,8 @@ node_modules
 .vercel
 !public/downloads/**
 src-tauri
-scripts
+scripts/*
+!scripts/patch-sheet-line-gap.mjs
 tests
 release
 firebase.json
