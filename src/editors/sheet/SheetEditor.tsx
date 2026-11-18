@@ -33,11 +33,13 @@ import {
   ClearSelectionContentCommand,
   IShortcutService,
   KeyCode,
+  SetWorksheetRowHeightMutation,
+  type ISetWorksheetRowHeightMutationParams,
   SheetsSelectionsService,
   whenSheetEditorFocused,
 } from '@univerjs/preset-sheets-core';
 import { EXTRA_FUNCTION_DESCRIPTIONS, EXTRA_FUNCTIONS } from './extraFunctions';
-import { fitWrappedRows, registerWrappedCellSpacing, WRAPPED_LINE_GAP } from './fitWrappedRows';
+import { fitWrappedRows, forgetDisplayHeight, registerWrappedCellSpacing, restoreAuthoredRowHeights, WRAPPED_LINE_GAP } from './fitWrappedRows';
 import {
   EXCEL_NUMBER_FORMATS,
   PAGE_COLUMN_STEP,
@@ -1177,6 +1179,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
     for (const fSheet of fWorkbook.getSheets()) {
       const sid = fSheet.getSheetId();
       const targetSheet = rawSnapshot.sheets[sid];
+      if (targetSheet) restoreAuthoredRowHeights(targetSheet);
       if (!targetSheet?.cellData) continue;
       let maxR = -1;
       let maxC = -1;
@@ -1305,6 +1308,17 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
         });
         const commandSub = fWb.onCommandExecuted((cmd) => {
           const id = cmd.id || '';
+          if (id === SetWorksheetRowHeightMutation.id) {
+            const { subUnitId, rowHeight, ranges } = cmd.params as ISetWorksheetRowHeightMutationParams;
+            const manager = fWb.getSheetBySheetId(subUnitId)?.getSheet().getRowManager();
+            if (manager) {
+              for (const { startRow, endRow } of ranges) {
+                for (let row = startRow; row <= endRow; row++) {
+                  if (typeof rowHeight === 'number' || rowHeight[row] != null) forgetDisplayHeight(manager.getRow(row));
+                }
+              }
+            }
+          }
           const isSheetSwitch = id.includes('set-worksheet-activ');
           if (
             !isSheetSwitch &&
@@ -1464,6 +1478,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
               functionScreenTips: startup.sheetFormulaAutoComplete,
             },
             sheets: {
+              autoHeightForMergedCells: true,
               textLineGap: WRAPPED_LINE_GAP,
               scrollConfig: { ...SHEET_SCROLLBAR_STYLE, enableHorizontal: startup.sheetShowHScroll, enableVertical: startup.sheetShowVScroll },
             },

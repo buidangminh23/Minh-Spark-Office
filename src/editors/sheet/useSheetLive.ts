@@ -8,6 +8,7 @@ import type { SheetContent } from '../../lib/storage';
 import { parseJson, readFlat, writeFlat } from '../../lib/live/flatSync';
 import { flattenWorkbook, onlyCellChanges, SHEET_MAP, unflattenWorkbook, type CellChange } from '../../lib/live/sheetSync';
 import { readRemotePresence, useLocalUser, type LiveUser } from '../../lib/live/presence';
+import { restoreAuthoredRowHeights } from './fitWrappedRows';
 
 type UniverApi = ReturnType<typeof createUniver>['univerAPI'];
 type Disposable = { dispose: () => void };
@@ -90,7 +91,9 @@ export function useSheetLive(options: {
     if (!workbook) return;
     const map = ydoc.getMap(SHEET_MAP);
     const extras = parseJson<Omit<SheetContent, 'kind' | 'workbook'>>(map.get('x') as string | undefined) ?? {};
-    writeFlat(map, flattenWorkbook(workbook.save() as unknown as WorkbookData, extras), LOCAL_ORIGIN);
+    const snapshot = workbook.save() as unknown as WorkbookData;
+    Object.values(snapshot.sheets).forEach(restoreAuthoredRowHeights);
+    writeFlat(map, flattenWorkbook(snapshot, extras), LOCAL_ORIGIN);
   }, [ydoc, readOnly, apiRef]);
 
   useLocalUser(awareness ?? null, live?.user ?? null);
