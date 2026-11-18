@@ -25,7 +25,6 @@ import {
 import { useAccount } from './Authentication';
 import { SuiteLogo } from './SuiteLogo';
 import { DownloadMenu } from './DownloadMenu';
-import { isDesktop } from '../lib/desktop';
 import { ConversionDialog } from './ConversionDialog';
 import { ConversionMenu } from './ConversionPicker';
 import { ConvertLogo } from './ConvertLogo';
@@ -367,12 +366,8 @@ export default function Home(props: HomeProps) {
           </label>
           <div className="ws-top-actions">
             <SyncButton />
-            {!isDesktop() && (
-              <>
-                <span className="ws-divider" aria-hidden="true" />
-                <DownloadMenu />
-              </>
-            )}
+            <span className="ws-divider" aria-hidden="true" />
+            <DownloadMenu />
             <span className="ws-divider" aria-hidden="true" />
             <AccountMenu />
           </div>
