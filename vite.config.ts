@@ -1,4 +1,5 @@
 import react from '@vitejs/plugin-react'
+import './scripts/patch-sheet-line-gap.mjs'
 import { readFileSync } from 'node:fs'
 import { defaultClientConditions, defineConfig, type Plugin } from 'vite'
 

@@ -14,7 +14,12 @@ export function registerWrappedCellSpacing(univer: SheetRuntime['univer']) {
     handler: (cell, { worksheet, workbook, row, col }, next) => {
       if (!cell || (typeof cell.v !== 'string' && !cell.p)) return next(cell);
       const style = worksheet.getComposedCellStyleByCellData(row, col, cell);
-      if (style.tb !== WrapStrategy.WRAP || style.pd || hasFixedHeight(worksheet.getConfig().rowData[row])) return next(cell);
+      if (style.tb !== WrapStrategy.WRAP) return next(cell);
+      if (hasFixedHeight(worksheet.getConfig().rowData[row])) {
+        const fontRenderExtension = { ...cell.fontRenderExtension, lineGap: 0 };
+        return next({ ...cell, fontRenderExtension });
+      }
+      if (style.pd) return next(cell);
       return next({ ...cell, s: { ...workbook.getStyles().getStyleByCell(cell), pd: WRAPPED_CELL_PADDING } });
     },
   });

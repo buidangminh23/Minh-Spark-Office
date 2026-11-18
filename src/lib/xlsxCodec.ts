@@ -4,7 +4,7 @@ import * as XLSX from 'xlsx';
 import { buildVbaProject, fromBase64, readVbaProject, updateVbaProject } from './vbaProject';
 import { RECORDED_VBA_MODULE, addMinhBundle, addVbaProject, readCodeNames, readMinhBundle, worksheetPaths } from './xlsmPackage';
 import { readSheetObjects } from './formButtons';
-import { attachWorkbookExtras } from './xlsxExtras';
+import { attachWorkbookExtras, excelColumnPixels, excelDigitWidth, excelFontName, readWorkbookFonts, type WorkbookFonts } from './xlsxExtras';
 import type { CellStyle, CellValue, ImportTruncation, WorkbookData } from './sheetTypes';
 import { emptySheet, emptyWorkbook, uid } from './workbookBasics';
 import { EXCEL_EPOCH, MAX_IMPORT_COLS, MAX_IMPORT_ROWS, importedFontFamily, inferDelimitedValue, normalizeHexColor, resolveCellStyle, toNfc } from './xlsxShared';
@@ -65,14 +65,15 @@ const toArgb = (rgb?: string) => {
 
 const dateToSerial = (date: Date) => (date.getTime() - EXCEL_EPOCH) / 86400000;
 
-function styleFromExcel(cell: ExcelJS.Cell): CellStyle | undefined {
+function styleFromExcel(cell: ExcelJS.Cell, { families, normal }: WorkbookFonts): CellStyle | undefined {
   const style: CellStyle = {};
   const font = cell.font;
   if (font) {
-    if (font.name) style.ff = importedFontFamily(font.name);
+    const family = excelFontName(font, families);
+    if (family) style.ff = importedFontFamily(family);
     if (font.size) style.fs = font.size;
-    if (font.bold) style.bl = 1;
-    if (font.italic) style.it = 1;
+    if (font.bold || normal.bold) style.bl = font.bold ? 1 : 0;
+    if (font.italic || normal.italic) style.it = font.italic ? 1 : 0;
     if (font.underline) style.ul = { s: 1 };
     if (font.strike) style.st = { s: 1 };
     if (font.vertAlign === 'superscript') style.va = 3;
@@ -150,10 +151,13 @@ const sheetJsContentExtent =(worksheet: XLSX.WorkSheet) => {
   return { rows, columns };
 };
 
-async function excelJsToWorkbook(buffer: ArrayBuffer, name: string): Promise<WorkbookData> {
+async function excelJsToWorkbook(buffer: ArrayBuffer, name: string, zip: JSZip): Promise<WorkbookData> {
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(buffer);
   const data: WorkbookData = { id: uid('wb'), name, appVersion: '0.1.0', locale: 'viVN', styles: {}, sheetOrder: [], sheets: {} };
+  const [fonts] = await Promise.all([readWorkbookFonts(zip, data.locale), workbook.xlsx.load(buffer)]);
+  const { normal } = fonts;
+  const digitWidth = excelDigitWidth(normal);
+  data.defaultStyle = { ff: importedFontFamily(normal.name), fs: normal.size, ...(normal.bold && { bl: 1 }), ...(normal.italic && { it: 1 }) };
   const styleIds = new Map<string, string>();
   const styleRef = (style?: CellStyle) => {
     if (!style) return undefined;
@@ -170,8 +174,10 @@ async function excelJsToWorkbook(buffer: ArrayBuffer, name: string): Promise<Wor
     const rowLimit = Math.min(Math.max(worksheet.rowCount, 1), MAX_IMPORT_ROWS);
     const colLimit = Math.min(Math.max(worksheet.columnCount, 1), MAX_IMPORT_COLS);
     const sheet = emptySheet(worksheet.name, Math.max(rowLimit + 50, 1000), Math.max(colLimit + 5, 26));
+    sheet.defaultStyle = data.defaultStyle;
     if (worksheet.properties.defaultRowHeight > 0) sheet.defaultRowHeight = worksheet.properties.defaultRowHeight * 4 / 3;
-    sheet.defaultColumnWidth = worksheet.properties.defaultColWidth ? Math.round(worksheet.properties.defaultColWidth * 7) : 64;
+    sheet.defaultColumnWidth = worksheet.properties.defaultColWidth ? excelColumnPixels(worksheet.properties.defaultColWidth, digitWidth)
+      : Math.ceil((8 * digitWidth + 5) / 8) * 8;
     if (worksheet.state && worksheet.state !== 'visible') sheet.hidden = 1;
     const tab = readColor(worksheet.properties?.tabColor as ExcelJS.Color | undefined);
     if (tab) sheet.tabColor = tab;
@@ -193,12 +199,12 @@ async function excelJsToWorkbook(buffer: ArrayBuffer, name: string): Promise<Wor
       row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
         if (colNumber > colLimit) return;
         if (cell.isMerged && cell.master.address !== cell.address) {
-          const style = styleRef(styleFromExcel(cell));
+          const style = styleRef(styleFromExcel(cell, fonts));
           if (style) (sheet.cellData[r] ??= {})[colNumber - 1] = { s: style };
           return;
         }
         const value = valueFromExcel(cell);
-        const style = styleRef(styleFromExcel(cell));
+        const style = styleRef(styleFromExcel(cell, fonts));
         if (!value && !style) return;
         const entry: CellValue = { ...(value ?? {}) };
         if (style) entry.s = style;
@@ -207,7 +213,7 @@ async function excelJsToWorkbook(buffer: ArrayBuffer, name: string): Promise<Wor
     });
     worksheet.columns?.forEach((column, index) => {
       if (index >= colLimit) return;
-      if (column.width) sheet.columnData[index] = { w: Math.round(column.width * 7) };
+      if (column.width) sheet.columnData[index] = { w: excelColumnPixels(column.width, digitWidth) };
       if (column.hidden) sheet.columnData[index] = { ...(sheet.columnData[index] ?? {}), hd: 1 };
     });
     const merges = (worksheet.model as { merges?: string[] }).merges ?? [];
@@ -300,26 +306,21 @@ export async function readSpreadsheet(buffer: ArrayBuffer, fileName: string): Pr
   const bytes = new Uint8Array(buffer);
   if (extension === 'csv' || extension === 'tsv' || extension === 'txt') return sheetJsToWorkbook(buffer, name, true);
   if (isZip(bytes) && (extension === 'xlsx' || extension === 'xlsm' || extension === '')) {
-    const archive = bytes.slice();
+    const zip = await JSZip.loadAsync(bytes).catch(() => undefined);
+    if (!zip) return sheetJsToWorkbook(buffer, name);
     let data: WorkbookData;
     try {
-      data = await excelJsToWorkbook(buffer, name);
+      data = await excelJsToWorkbook(buffer, name, zip);
     } catch {
       data = sheetJsToWorkbook(buffer, name);
     }
-    await attachAutomation(data, archive);
+    await attachAutomation(data, zip);
     return data;
   }
   return sheetJsToWorkbook(buffer, name);
 }
 
-async function attachAutomation(data: WorkbookData, archive: Uint8Array) {
-  let zip: JSZip;
-  try {
-    zip = await JSZip.loadAsync(archive);
-  } catch {
-    return;
-  }
+async function attachAutomation(data: WorkbookData, zip: JSZip) {
   const sheetNames = data.sheetOrder.map((id) => data.sheets[id]?.name ?? '');
   const vbaFile = zip.file('xl/vbaProject.bin');
   if (vbaFile) {
@@ -401,12 +402,16 @@ function sheetCodeNames(data: WorkbookData, reserved: Set<string>): string[] {
   return names;
 }
 
-async function finishPackage(data: WorkbookData, written: ArrayBuffer, macroEnabled: boolean): Promise<ArrayBuffer> {
+async function finishPackage(data: WorkbookData, written: ArrayBuffer, macroEnabled: boolean, normalFont: Pick<ExcelJS.Font, 'name' | 'size' | 'bold' | 'italic'>): Promise<ArrayBuffer> {
   const buttons = collectButtons(data);
   const hasBundle = !!data.automation?.macros?.length || buttons.length > 0;
   const project = data.vba;
-  if (!hasBundle && !macroEnabled) return written;
   const zip = await JSZip.loadAsync(written);
+  const styles = zip.file('xl/styles.xml')!;
+  const styleXml = await styles.async('string');
+  const name = normalFont.name.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const font = `<font>${normalFont.bold ? '<b/>' : ''}${normalFont.italic ? '<i/>' : ''}<sz val="${normalFont.size}"/><color theme="1"/><name val="${name}"/></font>`;
+  zip.file(styles.name, styleXml.replace(/(<fonts\b[^>]*>)<font>[\s\S]*?<\/font>/, (_, list: string) => list + font));
   if (hasBundle) await addMinhBundle(zip, { version: 1, macros: data.automation?.macros ?? [], buttons });
   if (macroEnabled) {
     const modules = project?.modules ?? [];
@@ -440,6 +445,14 @@ const toExcelValue = (cell: CellValue): ExcelJS.CellValue => {
 
 export async function writeWorkbookXlsx(data: WorkbookData, options: { macroEnabled?: boolean } = {}): Promise<ArrayBuffer> {
   const workbook = new ExcelJS.Workbook();
+  const normal = resolveStyle(data, data.defaultStyle);
+  const normalFont = {
+    name: normal?.ff || 'Arial',
+    size: normal?.fs && Number.isFinite(normal.fs) && normal.fs > 0 ? normal.fs : 11,
+    bold: normal?.bl === 1,
+    italic: normal?.it === 1,
+  };
+  const digitWidth = excelDigitWidth(normalFont);
   workbook.creator = 'Office 23';
   workbook.created = new Date();
   for (const sheetId of data.sheetOrder) {
@@ -452,14 +465,17 @@ export async function writeWorkbookXlsx(data: WorkbookData, options: { macroEnab
       views: freeze,
       properties: {
         ...(sheet.defaultRowHeight && { defaultRowHeight: sheet.defaultRowHeight * 0.75 }),
-        ...(sheet.defaultColumnWidth && { defaultColWidth: sheet.defaultColumnWidth / 7 }),
+        ...(sheet.defaultColumnWidth && { defaultColWidth: sheet.defaultColumnWidth / digitWidth }),
         ...(sheet.tabColor && { tabColor: { argb: toArgb(sheet.tabColor)! } }),
       },
       state: sheet.hidden ? 'hidden' : 'visible',
     });
     for (const [colKey, column] of Object.entries(sheet.columnData ?? {})) {
       const col = worksheet.getColumn(Number(colKey) + 1);
-      if (column?.w) col.width = column.w / 7;
+      if (column?.w) {
+        col.width = column.w / digitWidth;
+        if (col.width === 9) col.numFmt = 'General';
+      }
       if (column?.hd) col.hidden = true;
     }
     for (const [rowKey, row] of Object.entries(sheet.rowData ?? {})) {
@@ -517,5 +533,5 @@ export async function writeWorkbookXlsx(data: WorkbookData, options: { macroEnab
   if (!workbook.worksheets.length) workbook.addWorksheet('Sheet1');
   const written = await workbook.xlsx.writeBuffer() as ArrayBuffer | Uint8Array;
   const buffer = written instanceof ArrayBuffer ? written : (written.buffer.slice(written.byteOffset, written.byteOffset + written.byteLength) as ArrayBuffer);
-  return finishPackage(data, buffer, options.macroEnabled === true);
+  return finishPackage(data, buffer, options.macroEnabled === true, normalFont);
 }

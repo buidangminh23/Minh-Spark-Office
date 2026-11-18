@@ -1,5 +1,69 @@
 import type JSZip from 'jszip';
 import type { WorkbookData } from './sheetTypes';
+import { localName, parseXml, type XmlNode } from './miniXml';
+
+type WorkbookFont = { name?: string; size?: number; bold?: boolean; italic?: boolean; scheme?: string };
+type ThemeFamilies = { major?: string; minor?: string };
+export type WorkbookFonts = { families: ThemeFamilies; normal: Required<Pick<WorkbookFont, 'name' | 'size' | 'bold' | 'italic'>> };
+
+function xmlChildren(node: XmlNode | undefined, name: string) {
+  return node?.children.filter((entry) => localName(entry.name) === name) ?? [];
+}
+
+function xmlSection(xml: string, name: string) {
+  const prefix = '(?:[\\w.-]+:)?';
+  const section = new RegExp(`<${prefix}${name}\\b[^>]*>[\\s\\S]*?</${prefix}${name}>`).exec(xml)?.[0];
+  return section ? parseXml(section).children[0] : undefined;
+}
+
+export function excelFontName(font: WorkbookFont, families: ThemeFamilies) {
+  if (font.scheme === 'minor' || font.scheme === 'major') return families[font.scheme] || font.name;
+  return font.name;
+}
+
+export async function readWorkbookFonts(zip: JSZip, locale: string): Promise<WorkbookFonts> {
+  const rels = await zip.file('xl/_rels/workbook.xml.rels')?.async('string') ?? '';
+  const parts = xmlChildren(parseXml(rels).children[0], 'Relationship');
+  const readPart = (type: string, fallback: string) => {
+    const relationship = parts.find(({ attrs }) => attrs.Type?.endsWith('/' + type) && attrs.TargetMode !== 'External');
+    const target = relationship?.attrs.Target ?? fallback;
+    const name = target.startsWith('/') ? target.slice(1) : 'xl/' + target;
+    return zip.file(name)?.async('string');
+  };
+  const [styles = '', theme = ''] = await Promise.all([readPart('styles', 'styles.xml'), readPart('theme', 'theme/theme1.xml')]);
+  const families: ThemeFamilies = {};
+  const scheme = xmlSection(theme, 'fontScheme');
+  for (const kind of ['major', 'minor'] as const) {
+    const group = xmlChildren(scheme, `${kind}Font`)[0];
+    const local = /^vi/i.test(locale) && xmlChildren(group, 'font').find((entry) => entry.attrs.script === 'Viet');
+    families[kind] = (local && local.attrs.typeface) || xmlChildren(group, 'latin')[0]?.attrs.typeface;
+  }
+  const named = xmlChildren(xmlSection(styles, 'cellStyles'), 'cellStyle');
+  const normal = named.find(({ attrs }) => attrs.builtinId === '0') ?? named.find(({ attrs }) => attrs.name === 'Normal');
+  const xf = xmlChildren(xmlSection(styles, 'cellStyleXfs'), 'xf')[Number(normal?.attrs.xfId ?? 0)];
+  const font = xmlChildren(xmlSection(styles, 'fonts'), 'font')[Number(xf?.attrs.fontId ?? 0)];
+  const property = (name: string) => xmlChildren(font, name)[0]?.attrs;
+  const enabled = (name: string) => !!property(name) && !['0', 'false'].includes(property(name)?.val ?? '1');
+  const name = excelFontName({ name: property('name')?.val, scheme: property('scheme')?.val }, families);
+  return { families, normal: { name: name || 'Calibri', size: Number(property('sz')?.val) || 11, bold: enabled('b'), italic: enabled('i') } };
+}
+
+export function excelDigitWidth(font: WorkbookFont) {
+  const size = font.size && font.size > 0 ? font.size : 11;
+  const name = font.name || 'Calibri';
+  const context = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(1, 1).getContext('2d')
+    : typeof document !== 'undefined' ? document.createElement('canvas').getContext('2d') : null;
+  if (context) {
+    context.font = `${font.italic ? 'italic ' : ''}${font.bold ? 'bold ' : ''}${size}pt "${name.replace(/["\\]/g, '')}"`;
+    const width = Math.max(...Array.from('0123456789', (digit) => context.measureText(digit).width));
+    if (width > 0) return Math.max(1, Math.round(width));
+  }
+  const digitEm = /^(arial|arial unicode ms|helvetica)$/i.test(name) ? 0.556 : /^(courier new|consolas)$/i.test(name) ? 0.6 : 0.5;
+  return Math.max(1, Math.round(size * 4 / 3 * digitEm));
+}
+
+export const excelColumnPixels = (width: number, digitWidth: number) =>
+  Math.floor((width + Math.floor(128 / digitWidth) / 256) * digitWidth);
 
 type Resource = { name: string; data: string };
 type GridRange = { startRow: number; endRow: number; startColumn: number; endColumn: number };

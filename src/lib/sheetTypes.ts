@@ -34,6 +34,7 @@ export type CellValue = {
 export type SheetData = {
   id: string;
   name: string;
+  defaultStyle?: CellStyle | string;
   rowCount: number;
   columnCount: number;
   defaultColumnWidth?: number;
@@ -56,6 +57,7 @@ export type WorkbookData = {
   name: string;
   appVersion: string;
   locale: string;
+  defaultStyle?: CellStyle | string;
   styles: Record<string, CellStyle>;
   sheetOrder: string[];
   sheets: Record<string, SheetData>;

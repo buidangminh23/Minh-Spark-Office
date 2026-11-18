@@ -94,6 +94,27 @@ test('importSpreadsheet types CSV numbers so formulas can sum them', async () =>
   assert.equal(wb.importTruncation, undefined);
 });
 
+test('xlsx uses the Normal font and its localized theme for column geometry', async () => {
+  const source = new ExcelJS.Workbook();
+  const original = source.addWorksheet('Geometry');
+  original.getCell('A1').value = 'Wrapped text';
+  original.getCell('A1').font = { name: 'Calibri', scheme: 'minor', size: 11 };
+  original.getCell('B1').value = 4000000;
+  original.getCell('B1').font = { name: 'Times New Roman', size: 11 };
+  original.getColumn(1).width = 40;
+  original.getColumn(2).width = 10;
+  const buffer = await source.xlsx.writeBuffer();
+  const data = await importSpreadsheet(buffer as ArrayBuffer, 'geometry.xlsx');
+  const sheet = data.sheets[data.sheetOrder[0]];
+  assert.deepEqual(data.defaultStyle, { ff: 'Arial', fs: 11 });
+  assert.deepEqual(sheet.defaultStyle, data.defaultStyle);
+  assert.equal(sheet.defaultColumnWidth, 72);
+  assert.deepEqual([sheet.columnData[0].w, sheet.columnData[1].w], [320, 80]);
+  assert.equal(data.styles[sheet.cellData[0][0].s as string].ff, 'Arial');
+  assert.equal(data.styles[sheet.cellData[0][1].s as string].ff, 'Times New Roman');
+  assert.equal(sheet.cellData[0][1].v, 4000000);
+});
+
 test('xlsx import distinguishes cached and fixed wrapped row heights and preserves them on export', async () => {
   const source = new ExcelJS.Workbook();
   const original = source.addWorksheet('Stock', { properties: { defaultRowHeight: 15 } });
@@ -108,6 +129,9 @@ test('xlsx import distinguishes cached and fixed wrapped row heights and preserv
   original.getRow(2).hidden = true;
   const path = 'xl/worksheets/sheet1.xml';
   const zip = await JSZip.loadAsync(await source.xlsx.writeBuffer());
+  const stylesPath = 'xl/styles.xml';
+  const stylesXml = await zip.file(stylesPath)!.async('string');
+  zip.file(stylesPath, stylesXml.replace(/<font>[\s\S]*?<\/font>/, '<font><sz val="11"/><name val="Times New Roman"/></font>'));
   const xml = await zip.file(path)!.async('string');
   zip.file(path, xml.replace(/<row r="1"[^>]*>/, (tag) => tag.replace(' customHeight="1"', '')));
   const data = await importSpreadsheet(await zip.generateAsync({ type: 'arraybuffer' }), 'stock.xlsx');
@@ -128,6 +152,31 @@ test('xlsx import distinguishes cached and fixed wrapped row heights and preserv
   assert.equal(result.getColumn(3).width, 274 / 7);
   assert.equal(result.properties.defaultRowHeight, 15);
   assert.equal(result.getCell('C1').alignment.wrapText, true);
+});
+
+test('xlsx exports its Normal font and preserves fractional character widths independent of locale', async () => {
+  const data = workbookWith({ normal: { ff: 'Arial', fs: 11 } }, { 0: { 0: { v: 'A' }, 1: { v: 'B' } } });
+  data.defaultStyle = 'normal';
+  const sheet = data.sheets[data.sheetOrder[0]];
+  sheet.defaultColumnWidth = 97;
+  sheet.columnData = { 0: { w: 52 }, 1: { w: 72 } };
+  const bytes = await (await exportWorkbookToXlsx(data)).arrayBuffer();
+  const source = new ExcelJS.Workbook();
+  await source.xlsx.load(bytes);
+  const written = source.worksheets[0];
+  assert.equal(written.properties.defaultColWidth, 12.125);
+  assert.equal(written.getColumn(1).width, 6.5);
+  assert.equal(written.getColumn(2).width, 9);
+  const zip = await JSZip.loadAsync(bytes);
+  const xml = await zip.file('xl/styles.xml')!.async('string');
+  const firstFont = xml.match(/<font>[\s\S]*?<\/font>/)?.[0] ?? '';
+  assert.match(firstFont, /<name val="Arial"/);
+  assert.doesNotMatch(firstFont, /<scheme/);
+  const reopened = await importSpreadsheet(bytes, 'normal.xlsx');
+  assert.deepEqual(reopened.defaultStyle, { ff: 'Arial', fs: 11 });
+  const again = reopened.sheets[reopened.sheetOrder[0]];
+  assert.equal(again.defaultColumnWidth, 97);
+  assert.deepEqual(again.columnData, sheet.columnData);
 });
 
 test('importSpreadsheet reports rows dropped beyond the import limit', async () => {

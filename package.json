@@ -4,6 +4,7 @@
   "version": "0.2.87",
   "type": "module",
   "scripts": {
+    "postinstall": "node scripts/patch-sheet-line-gap.mjs",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
