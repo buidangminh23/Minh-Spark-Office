@@ -12,7 +12,7 @@ const targets: Record<string, ConversionTarget> = {
   md: { id: 'md', label: 'Markdown (.md)', description: 'Tiêu đề, danh sách và nội dung văn bản.' },
   html: { id: 'html', label: 'Trang web (.html)', description: 'Tệp HTML độc lập, giữ ảnh nhúng được hỗ trợ.' },
   epub: { id: 'epub', label: 'Sách điện tử (.epub)', description: 'Nội dung co giãn theo màn hình máy đọc sách.' },
-  xlsx: { id: 'xlsx', label: 'Excel (.xlsx)', description: 'Giữ các trang tính; với tài liệu chỉ trích các bảng.' },
+  xlsx: { id: 'xlsx', label: 'Excel (.xlsx)', description: 'Giữ các trang tính. Với tài liệu, xuất chữ, bảng, ô gộp và ảnh nhúng theo thứ tự gốc.' },
   ods: { id: 'ods', label: 'Bảng tính OpenDocument (.ods)', description: 'Bảng tính cho LibreOffice; định dạng nâng cao có thể thay đổi.' },
   csv: { id: 'csv', label: 'Dữ liệu CSV (.csv)', description: 'Mỗi bảng một tệp; lưu giá trị, không giữ công thức và kiểu ô.' },
   tsv: { id: 'tsv', label: 'Dữ liệu TSV (.tsv)', description: 'Mỗi bảng một tệp, các cột cách nhau bằng tab.' },

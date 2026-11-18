@@ -71,7 +71,7 @@ export const CONVERSION_PRESET_GROUPS: ConversionPresetGroup[] = [
     presets: [
       preset('doc', 'slide', 'pptx', 'Word sang PowerPoint', '.docx → .pptx'),
       preset('slide', 'doc', 'docx', 'PowerPoint sang Word', '.pptx → .docx'),
-      preset('doc', 'sheet', 'xlsx', 'Word sang Excel', 'Trích bảng → .xlsx'),
+      preset('doc', 'sheet', 'xlsx', 'Word sang Excel', '.docx → .xlsx'),
       preset('sheet', 'doc', 'docx', 'Excel sang Word', '.xlsx → .docx'),
       preset('sheet', 'slide', 'pptx', 'Excel sang PowerPoint', '.xlsx → .pptx'),
     ],
@@ -113,6 +113,31 @@ export const CONVERSION_PRESET_GROUPS: ConversionPresetGroup[] = [
 ];
 
 export const CONVERSION_PRESETS = CONVERSION_PRESET_GROUPS.flatMap((group) => group.presets);
+
+function searchable(text: string) {
+  return text.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replaceAll('đ', 'd');
+}
+
+export function filterConversionPresets(query: string): ConversionPresetGroup[] {
+  const terms = searchable(query).split(/[^a-z0-9]+/).filter((word) => word && word !== 'to' && word !== 'sang');
+  if (!terms.length) return CONVERSION_PRESET_GROUPS;
+  return CONVERSION_PRESET_GROUPS.map((group) => ({
+    ...group,
+    presets: group.presets.filter((item) => {
+      const candidates = [item.title, item.note, ...presetSources(item).map((ext) => `${ext} ${item.target}`)];
+      return candidates.some((candidate) => {
+        const phrase = searchable(candidate);
+        let start = 0;
+        for (const term of terms) {
+          const index = phrase.indexOf(term, start);
+          if (index === -1) return false;
+          start = index + term.length;
+        }
+        return true;
+      });
+    }),
+  })).filter((group) => group.presets.length > 0);
+}
 
 const presetSources = (value: ConversionPreset) => value.sources ?? SOURCE_EXTENSIONS[value.from];
 

@@ -4,10 +4,10 @@ const IMAGE_EXTENSIONS = /\.(png|jpe?g|jfif|jpe|webp|gif|svg|bmp|ico|avif|tiff?|
 const TARGETS: Record<string, ConversionTarget> = {
   pdf: { id: 'pdf', label: 'PDF (.pdf)', description: 'Giữ nền và bố cục; OCR tạo chữ PDF chỉnh sửa được khi được bật.' },
   docx: { id: 'docx', label: 'Word (.docx)', description: 'Giữ bố cục bằng ảnh trang, hoặc lấy chữ/OCR để chỉnh sửa.' },
-  xlsx: { id: 'xlsx', label: 'Excel (.xlsx)', description: 'Nhận dạng chữ và vị trí cột; cần đối chiếu bảng, số liệu sau chuyển đổi.' },
+  xlsx: { id: 'xlsx', label: 'Excel (.xlsx)', description: 'Giữ ảnh từng trang và tách giá trị vào các trang tính có thể sửa, hoặc chỉ xuất dữ liệu.' },
   pptx: { id: 'pptx', label: 'PowerPoint (.pptx)', description: 'Giữ bố cục: mỗi trang thành ảnh slide. Chỉnh sửa: giữ nền trang, chữ đặt đúng chỗ và sửa được.' },
   txt: { id: 'txt', label: 'Văn bản (.txt)', description: 'Trích chữ có sẵn hoặc OCR; không giữ định dạng.' },
-  html: { id: 'html', label: 'Trang web (.html)', description: 'Chữ theo trang; không giữ hình và kiểu chữ gốc.' },
+  html: { id: 'html', label: 'Trang web (.html)', description: 'Giữ ảnh từng trang kèm lớp chữ tìm kiếm, hoặc xuất văn bản theo thứ tự đọc.' },
   png: { id: 'png', label: 'Ảnh PNG (.png)', description: 'Mỗi trang thành ảnh PNG; ảnh động lấy một khung hình.' },
   jpg: { id: 'jpg', label: 'Ảnh JPEG (.jpg)', description: 'Mỗi trang thành ảnh JPEG nền trắng.' },
   webp: { id: 'webp', label: 'Ảnh WebP (.webp)', description: 'Mỗi trang thành ảnh WebP; kiểm tra hỗ trợ trình duyệt.' },

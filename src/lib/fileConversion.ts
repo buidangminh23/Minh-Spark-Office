@@ -1,6 +1,7 @@
 import { officeConversionTargets } from './officeConversionFormats';
 import { mediaConversionTargets } from './mediaConversionFormats';
-import { checkConversionAbort, type ConversionFile, type ConversionOptions, type ConversionResult } from './conversionTypes';
+import { supportsOfficeLayout } from './officeLayoutRoutes';
+import { checkConversionAbort, conversionBaseName, type ConversionFile, type ConversionOptions, type ConversionResult } from './conversionTypes';
 
 export const CONVERSION_ACCEPT = '.docx,.dotx,.txt,.md,.html,.htm,.xlsx,.xls,.xlsm,.xlsb,.ods,.csv,.tsv,.pptx,.ppsx,.potx,.pdf,.png,.jpg,.jpeg,.jfif,.jpe,.webp,.gif,.svg,.bmp,.ico,.avif,.tif,.tiff,.heic,.heif';
 export const MAX_CONVERSION_BYTES = 100 * 1024 * 1024;
@@ -19,9 +20,26 @@ export async function convertFile(file: File, target: string, options: Conversio
   if (!conversionTargets(file.name).some((format) => format.id === target)) throw new Error('Định dạng chuyển đổi này chưa được hỗ trợ cho tệp đã chọn.');
   let result: ConversionResult;
   try {
-    result = mediaConversionTargets(file.name).length
-      ? await (await import('./mediaConversion')).convertMediaFile(file, target, options)
-      : await (await import('./officeConversion')).convertOfficeFile(file, target, options);
+    if (options.fidelity !== 'editable' && supportsOfficeLayout(file.name, target)) {
+      if (file.size > 50 * 1024 * 1024) throw new Error('Tệp Office vượt giới hạn 50 MB. Hãy chia nhỏ tệp trước khi chuyển đổi.');
+      if (/\.(?:docx|dotx|xlsx|xlsm|xlsb|ods|pptx|ppsx|potx)$/i.test(file.name)) {
+        await (await import('./openOfficeZip')).openOfficeZip(await file.arrayBuffer());
+      }
+      checkConversionAbort(options);
+      const session = options.layoutSession ?? (await import('./officeLayoutSession')).openOfficeLayoutSession();
+      try {
+        const pdf = await session.render(file, options);
+        const name = `${conversionBaseName(file.name)}.pdf`;
+        result = target === 'pdf' ? { files: [{ name, blob: pdf }], warnings: [] } :
+          await (await import('./mediaConversion')).convertMediaFile(new File([pdf], name, { type: 'application/pdf' }), target, { ...options, fidelity: 'layout', ocr: false });
+      } finally {
+        if (!options.layoutSession) session.close();
+      }
+    } else if (mediaConversionTargets(file.name).length) {
+      result = await (await import('./mediaConversion')).convertMediaFile(file, target, options);
+    } else {
+      result = await (await import('./officeConversion')).convertOfficeFile(file, target, options);
+    }
   } catch (error) {
     if (error instanceof Error) {
       if (error.name === 'PasswordException') throw new Error('PDF được bảo vệ bằng mật khẩu. Hãy mở khóa bản sao rồi chuyển đổi.');

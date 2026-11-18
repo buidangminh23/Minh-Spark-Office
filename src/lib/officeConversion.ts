@@ -1,10 +1,11 @@
 import { openOfficeZip } from './openOfficeZip';
 import type { JSONContent } from '@tiptap/react';
 import type { WorkBook, WorkSheet } from 'xlsx';
+import type { FormButton, FormImageMap } from './formButtons';
 import { checkConversionAbort, conversionBaseName, type ConversionOptions, type ConversionResult } from './conversionTypes';
 import { officeConversionTargets, officeFileKind } from './officeConversionFormats';
 import { conversionDocumentHtml, conversionNodeText, htmlConversionDocument, textConversionDocument } from './officeConversionDocument';
-import { conversionTables, spreadsheetDocumentTable } from './officeConversionTables';
+import { spreadsheetDocumentTable } from './officeConversionTables';
 
 export { officeConversionTargets } from './officeConversionFormats';
 
@@ -59,7 +60,7 @@ export async function convertOfficeFile(file: File, target: string, options: Con
       const parsed = htmlConversionDocument(html);
       json = parsed.json;
       warnings.push(...parsed.warnings);
-      if (ext === 'html' || ext === 'htm') warnings.push('Chuyển nội dung HTML an toàn; CSS, mã chạy, biểu mẫu và tài nguyên ngoài tệp không đi theo.');
+      if (ext === 'html' || ext === 'htm') warnings.push('Văn bản, bảng và ảnh nhúng được lấy từ HTML. CSS và tài nguyên ngoài tệp có thể làm thay đổi bố cục.');
       if (ext === 'md') warnings.push('Hỗ trợ tiêu đề, danh sách, bảng và định dạng Markdown cơ bản. Cú pháp mở rộng có thể hiển thị dưới dạng chữ.');
     }
   }
@@ -173,7 +174,7 @@ function delimitedBook(XLSX: typeof import('xlsx'), rows: string[][]): WorkBook 
 
 async function convertSpreadsheet(buffer: ArrayBuffer, ext: string, base: string, target: string, options: ConversionOptions): Promise<ConversionResult> {
   const XLSX = await import('xlsx');
-  if (['xlsx', 'xlsm', 'xlsb', 'ods'].includes(ext)) await openOfficeZip(buffer);
+  const zip = ['xlsx', 'xlsm', 'xlsb', 'ods'].includes(ext) ? await openOfficeZip(buffer) : null;
   const delimited = ext === 'csv' || ext === 'tsv' ? (await import('./delimitedTable')).readDelimitedTable(buffer, ext) : null;
   if (delimited) {
     if (delimited.rows.length > 50_000 || delimited.columns > 512 || delimited.rows.length * delimited.columns > MAX_CELLS) throw new Error('Bảng tính quá lớn: tối đa 50.000 hàng, 512 cột và 250.000 ô trong vùng dữ liệu. Hãy chia nhỏ tệp.');
@@ -219,15 +220,47 @@ async function convertSpreadsheet(buffer: ArrayBuffer, ext: string, base: string
     return { files, warnings };
   }
   const content: JSONContent[] = [];
+  const richTarget = target === 'docx' || target === 'html';
+  let styles: import('exceljs').Workbook | undefined;
+  let drawings: Awaited<ReturnType<typeof import('./formButtons').readSheetObjects>> | undefined;
+  if (zip?.file('xl/workbook.xml')) {
+    const { worksheetPaths } = await import('./xlsmPackage');
+    drawings = await (await import('./formButtons')).readSheetObjects(zip, await worksheetPaths(zip));
+    if (richTarget) {
+      const { default: ExcelJS } = await import('exceljs');
+      try { styles = await new ExcelJS.Workbook().xlsx.load(buffer); }
+      catch { warnings.push('Một số kiểu chữ và kiểu ô Excel chưa đọc được. Bản chuyển dùng giá trị hiển thị của các ô.'); }
+    }
+  }
   for (const [index, { name, sheet }] of sheets.entries()) {
     checkConversionAbort(options);
     if (index) content.push({ type: 'pageBreak' });
     content.push({ type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: name }] });
     const bounds = sheetBounds(sheet);
-    if (bounds.rows) content.push(spreadsheetDocumentTable(sheet, bounds.rows, bounds.columns, XLSX.utils.encode_cell, XLSX.utils.format_cell));
+    const attachments = new Map<string, JSONContent[]>();
+    const extra: JSONContent[] = [];
+    for (const shape of drawings?.objects[index] ?? []) {
+      const node = spreadsheetDrawing(shape, drawings!.images);
+      if (!node) continue;
+      const { row: r, column: c } = shape.from;
+      if (!richTarget || shape.at || r >= bounds.rows || c >= bounds.columns) { extra.push(node); continue; }
+      const merged = sheet['!merges']?.find(({ s, e }) => s.r <= r && s.c <= c && e.r >= r && e.c >= c);
+      const address = XLSX.utils.encode_cell(merged?.s ?? { r, c });
+      const nodes = attachments.get(address) ?? [];
+      nodes.push(node);
+      attachments.set(address, nodes);
+    }
+    if (bounds.rows) content.push(spreadsheetDocumentTable(sheet, bounds.rows, bounds.columns, XLSX.utils.encode_cell, XLSX.utils.format_cell, styles?.getWorksheet(name), attachments));
+    content.push(...extra);
   }
   warnings.push('Bản Word/HTML giữ ô gộp và độ rộng cột được hỗ trợ. PDF/ảnh dàn lại bảng theo trang; kiểu ô và vùng in có thể thay đổi. Công thức chưa có giá trị đã lưu được hiển thị dưới dạng công thức.');
   return exportConversionDocument({ type: 'doc', content }, base, target, warnings, options);
+}
+
+function spreadsheetDrawing(shape: FormButton, images: FormImageMap): JSONContent | undefined {
+  if (shape.hidden) return;
+  if (shape.image && images[shape.image]) return { type: 'image', attrs: { src: images[shape.image], alt: shape.name || '', ...shape.size } };
+  if (shape.label) return { type: 'paragraph', content: [{ type: 'text', text: shape.label }] };
 }
 
 export async function exportConversionDocument(json: JSONContent, base: string, target: string, warnings: string[], options: ConversionOptions): Promise<ConversionResult> {
@@ -246,30 +279,7 @@ export async function exportConversionDocument(json: JSONContent, base: string, 
   if (target === 'odt') return one(await (await import('./docExports')).exportOdt(json, page, base));
   if (target === 'epub') return one(await (await import('./docExports')).exportEpub(json, page, base));
   if (target === 'pptx') return one(await (await import('./docOtherFormats')).exportPptx(json, page, base));
-  if (['xlsx', 'csv', 'tsv'].includes(target)) {
-    let tables = conversionTables(json);
-    if (tables.length) warnings.push('Chỉ xuất các bảng; văn bản ngoài bảng và hình ảnh không nằm trong kết quả.');
-    else {
-      const lines = (json.content ?? []).map((node) => conversionNodeText(node).trim()).filter(Boolean);
-      if (!lines.length) throw new Error('Tài liệu không có nội dung chữ để chuyển sang bảng tính.');
-      tables = [{ rows: [['Nội dung'], ...lines.map((line) => [line])], merges: [] }];
-      warnings.push('Tài liệu không có bảng nên mỗi đoạn văn được đưa vào một dòng của cột Nội dung.');
-    }
-    if (target === 'xlsx') {
-      const XLSX = await import('xlsx');
-      const workbook = XLSX.utils.book_new();
-      for (const [index, table] of tables.entries()) {
-        const sheet = XLSX.utils.aoa_to_sheet(table.rows);
-        sheet['!merges'] = table.merges;
-        XLSX.utils.book_append_sheet(workbook, sheet, `Bảng ${index + 1}`);
-      }
-      warnings.push('Giá trị bảng được lưu dưới dạng chữ để giữ nguyên mã có số 0 đầu và số dài.');
-      return one(new Blob([XLSX.write(workbook, { type: 'array', bookType: 'xlsx' })], { type: mimeTypes.xlsx }));
-    }
-    const separator = target === 'csv' ? ',' : '\t';
-    const cell = (value: string) => /["\r\n\t,]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
-    return { files: tables.map((table, index) => ({ name: `${base}${tables.length > 1 ? ` - bang ${index + 1}` : ''}.${target}`, blob: textBlob(`\uFEFF${table.rows.map((row) => row.map(cell).join(separator)).join('\r\n')}\r\n`, target === 'csv' ? 'text/csv' : 'text/tab-separated-values') })), warnings };
-  }
+  if (['xlsx', 'csv', 'tsv'].includes(target)) return (await import('./documentSpreadsheet')).exportDocumentSpreadsheet(json, base, target, warnings, options);
   throw new Error('Định dạng đầu ra chưa được hỗ trợ.');
 }
 

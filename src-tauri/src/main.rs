@@ -32,7 +32,20 @@ fn correct_asset_content_type(
     let Ok(url) = Url::parse(&request.uri().to_string()) else {
         return;
     };
-    if !is_app_url(&url) || !url.path().starts_with("/assets/") || !response.status().is_success() {
+    if !is_app_url(&url) || !response.status().is_success() {
+        return;
+    }
+    if url.path() == "/office-layout.html" || url.path().starts_with("/layout-engine/") {
+        let headers = response.headers_mut();
+        headers.insert("cross-origin-opener-policy", tauri::http::HeaderValue::from_static("same-origin"));
+        headers.insert("cross-origin-embedder-policy", tauri::http::HeaderValue::from_static("require-corp"));
+        if url.path().starts_with("/layout-engine/") && url.path().ends_with(".js") {
+            headers.insert("content-security-policy", tauri::http::HeaderValue::from_static(
+                "default-src 'none'; script-src 'self' blob: 'unsafe-eval'; worker-src 'self' blob:; connect-src 'self' blob:"
+            ));
+        }
+    }
+    if !url.path().starts_with("/assets/") && !url.path().starts_with("/layout-engine/") {
         return;
     }
     let content_type = match url.path().rsplit('.').next() {

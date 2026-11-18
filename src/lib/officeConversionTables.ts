@@ -1,10 +1,12 @@
 import type { JSONContent } from '@tiptap/react';
 import type { CellObject, Range, WorkSheet } from 'xlsx';
+import type { Font, Worksheet } from 'exceljs';
+import { normalizeHexColor } from './xlsxShared';
 import { conversionNodeText } from './officeConversionDocument';
 
 export type ConversionTable = { rows: string[][]; merges: Range[] };
 
-export function conversionTableGrid(table: JSONContent): ConversionTable {
+export function conversionTableGrid(table: JSONContent, visitCell?: (node: JSONContent, row: number, column: number) => void): ConversionTable {
   const rows: string[][] = [];
   const merges: Range[] = [];
   const occupied = new Set<string>();
@@ -27,20 +29,29 @@ export function conversionTableGrid(table: JSONContent): ConversionTable {
         }
       }
       rows[r][c] = conversionNodeText(cell).trim();
+      visitCell?.(cell, r, c);
       if (width > 1 || height > 1) merges.push({ s: { r, c }, e: { r: r + height - 1, c: c + width - 1 } });
       c += width;
     }
   }
   const width = Math.max(0, ...rows.map((row) => row.length));
+  if (rows.length * width > 250_000) throw new Error('Bảng quá lớn để chuyển đổi an toàn.');
   return { rows: rows.map((row) => Array.from({ length: width }, (_, c) => row[c] ?? '')), merges };
 }
 
-export function conversionTables(json: JSONContent): ConversionTable[] {
-  if (json.type === 'table') return [conversionTableGrid(json)];
-  return (json.content ?? []).flatMap(conversionTables);
+function excelMarks(font: Partial<Font> | undefined, href?: string): NonNullable<JSONContent['marks']> {
+  const marks: NonNullable<JSONContent['marks']> = [];
+  if (font) {
+    for (const type of ['bold', 'italic', 'strike', 'underline'] as const) if (font[type] && font[type] !== 'none') marks.push({ type });
+    if (font.vertAlign) marks.push({ type: font.vertAlign });
+    const color = normalizeHexColor(font.color?.argb);
+    if (color || font.name || font.size) marks.push({ type: 'textStyle', attrs: { color, fontFamily: font.name, fontSize: font.size ? `${font.size}pt` : undefined } });
+  }
+  if (href && /^(https?:|mailto:|#)/i.test(href)) marks.push({ type: 'link', attrs: { href } });
+  return marks;
 }
 
-export function spreadsheetDocumentTable(sheet: WorkSheet, rows: number, columns: number, encode: (cell: { r: number; c: number }) => string, display: (cell: CellObject) => string): JSONContent {
+export function spreadsheetDocumentTable(sheet: WorkSheet, rows: number, columns: number, encode: (cell: { r: number; c: number }) => string, display: (cell: CellObject) => string, styles?: Worksheet, attachments?: Map<string, JSONContent[]>): JSONContent {
   const anchors = new Map<string, Range>();
   const covered = new Set<string>();
   for (const merge of sheet['!merges'] ?? []) {
@@ -62,7 +73,16 @@ export function spreadsheetDocumentTable(sheet: WorkSheet, rows: number, columns
         return Math.max(16, Math.min(2000, column?.wpx ?? (column?.wch === undefined ? 96 : column.wch * 7 + 5)));
       });
       const value = cell ? cell.f && cell.v == null ? `=${cell.f}` : display(cell) : '';
-      return { type: 'tableCell', attrs: { colspan, rowspan, colwidth: widths }, content: [{ type: 'paragraph', content: value ? [{ type: 'text', text: value }] : [] }] };
+      const source = styles?.findRow(r + 1)?.findCell(c + 1);
+      const rich = source?.value;
+      const href = cell?.l?.Target;
+      const runs = rich && typeof rich === 'object' && 'richText' in rich
+        ? rich.richText.map((part) => ({ type: 'text', text: part.text, marks: excelMarks({ ...source?.font, ...part.font }, href) }))
+        : value ? [{ type: 'text', text: value, marks: excelMarks(source?.font, href) }] : [];
+      const fill = source?.fill;
+      const backgroundColor = normalizeHexColor(fill?.type === 'pattern' && fill.pattern === 'solid' ? fill.fgColor?.argb : cell?.s?.fgColor?.rgb);
+      const paragraph = { type: 'paragraph', attrs: { textAlign: source?.alignment?.horizontal }, content: runs };
+      return { type: 'tableCell', attrs: { colspan, rowspan, colwidth: widths, backgroundColor, vAlign: source?.alignment?.vertical }, content: [paragraph, ...(attachments?.get(address) ?? [])] };
     }).filter((cell): cell is JSONContent => cell !== null),
   })) };
 }

@@ -45,6 +45,19 @@ const inlineScripts = (html: string) => [...html.matchAll(/<script(\s[^>]*)?>([\
 
 const externalScripts = (html: string) => [...html.matchAll(/<script\s[^>]*src="([^"]+)"/g)].map((match) => match[1]);
 
+test('the bundled layout engine runs isolated while the app keeps its sign-in popup policy', () => {
+  const helper = '/office-layout.html';
+  const worker = '/layout-engine/2.3.1/browser.worker.global.js';
+  for (const path of [helper, worker]) {
+    assert.deepEqual(headersFor(path, 'Cross-Origin-Opener-Policy'), ['same-origin']);
+    assert.deepEqual(headersFor(path, 'Cross-Origin-Embedder-Policy'), ['require-corp']);
+  }
+  assert.deepEqual(headersFor('/', 'Cross-Origin-Opener-Policy'), []);
+  assert.ok(!policyFor(helper)['script-src'].includes("'unsafe-eval'"));
+  assert.ok(policyFor(worker)['script-src'].includes("'unsafe-eval'"));
+  assert.deepEqual(policyFor(worker)['connect-src'], ["'self'", 'blob:']);
+});
+
 test('the app and its static pages each get exactly one policy', () => {
   for (const path of ['/', '/index.html', '/assets/index-abc.js', '/assets/pyodideWorker-abc.js', '/api/download', '/updates/latest.json']) policyFor(path);
   for (const page of STATIC_PAGES) policyFor(page.replace(/^public/, ''));

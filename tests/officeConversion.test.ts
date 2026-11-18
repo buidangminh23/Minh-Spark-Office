@@ -195,3 +195,60 @@ test('Word without tables converts to Excel with one paragraph per row', async (
   assert.equal(sheet.A3.v, 'Khách hàng Nguyễn Văn A');
   assert.match(result.warnings.join(' '), /mỗi đoạn văn/);
 });
+
+test('document spreadsheet keeps paragraphs, inline images and merged table cells in source order', async () => {
+  const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aV1kAAAAASUVORK5CYII=';
+  const paragraph = (text: string): JSONContent => ({ type: 'paragraph', content: [{ type: 'text', text }] });
+  const image = { type: 'image', attrs: { src: `data:image/png;base64,${png}`, width: 1, height: 1, alt: 'Chữ ký' } };
+  const json = { type: 'doc', content: [
+    { type: 'heading', content: [{ type: 'text', text: 'Biên bản' }] },
+    { type: 'table', content: [{ type: 'tableRow', content: [{ type: 'tableCell', attrs: { colspan: 2 }, content: [paragraph('00123'), image] }] }] },
+    paragraph('Người duyệt'), image, { type: 'pageBreak' }, paragraph('Phụ lục'),
+  ] };
+  const result = await exportConversionDocument(json, 'Form', 'xlsx', [], {});
+  const buffer = await result.files[0].blob.arrayBuffer();
+  const book = XLSX.read(buffer, { type: 'array' });
+  assert.deepEqual(book.SheetNames, ['Trang 1', 'Trang 2']);
+  const sheet = book.Sheets['Trang 1'];
+  assert.deepEqual([sheet.A1.v, sheet.A2.v, sheet.A3.v], ['Biên bản', '00123', 'Người duyệt']);
+  assert.deepEqual(sheet['!merges'], [XLSX.utils.decode_range('A2:B2')]);
+  assert.equal(book.Sheets['Trang 2'].A1.v, 'Phụ lục');
+  const pkg = await JSZip.loadAsync(buffer);
+  const drawing = await pkg.file('xl/drawings/drawing1.xml')!.async('string');
+  assert.deepEqual([...drawing.matchAll(/<xdr:row>(\d+)<\/xdr:row>/g)].map((match) => match[1]), ['1', '3']);
+  assert.equal(await pkg.file('xl/media/image1.png')!.async('base64'), png);
+  const csv = await exportConversionDocument(json, 'Form', 'csv', [], {});
+  assert.equal(csv.files.length, 2);
+  assert.match(await csv.files[0].blob.text(), /Biên bản\r\n00123 \[Chữ ký\],\r\nNgười duyệt\r\n\[Chữ ký\]/);
+});
+
+test('Excel exports embedded drawings, links, formatting and values together into editable Word and HTML', async () => {
+  const { default: ExcelJS } = await import('exceljs');
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('Form');
+  const cell = sheet.getCell('B2');
+  cell.value = { text: 'Giấy phép', hyperlink: 'https://example.org/form' };
+  cell.font = { bold: true, color: { argb: 'FF123456' } };
+  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEDCB98' } };
+  cell.alignment = { horizontal: 'center' };
+  const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aV1kAAAAASUVORK5CYII=';
+  const id = workbook.addImage({ base64: png, extension: 'png' });
+  sheet.addImage(id, { tl: { col: 1, row: 1 }, ext: { width: 48, height: 32 } });
+  const file = new File([await workbook.xlsx.writeBuffer()], 'Form.xlsx');
+  const html = await (await convertOfficeFile(file, 'html')).files[0].blob.text();
+  assert.ok(html.includes('data:image/png;base64,' + png));
+  assert.match(html, /<a href="https:\/\/example.org\/form">/);
+  assert.match(html, /<strong>Giấy phép<\/strong>/);
+  assert.match(html, /background-color:#EDCB98/);
+  assert.match(html, /color:#123456/);
+  assert.match(html, /text-align:center/);
+  const out = await convertOfficeFile(file, 'docx');
+  const pkg = await JSZip.loadAsync(await out.files[0].blob.arrayBuffer());
+  const xml = await pkg.file('word/document.xml')!.async('string');
+  assert.match(xml, /w:fill="EDCB98"/);
+  assert.match(xml, /w:color w:val="123456"/);
+  assert.match(xml, /<w:drawing>/);
+  const picture = Object.keys(pkg.files).find((name) => name.startsWith('word/media/') && name.endsWith('.png'));
+  assert.ok(picture);
+  assert.equal(await pkg.file(picture)!.async('base64'), png);
+});

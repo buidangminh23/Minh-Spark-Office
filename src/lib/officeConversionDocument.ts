@@ -1,4 +1,5 @@
 import type { JSONContent } from '@tiptap/react';
+import { safeCssColor } from './xlsxShared';
 
 export function escapeConversionHtml(value: string): string {
   return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!);
@@ -18,7 +19,7 @@ export function htmlConversionDocument(html: string): { json: JSONContent; warni
   const template = document.createElement('template');
   template.innerHTML = html;
   const parsed = template.content;
-  parsed.querySelectorAll('script,style,iframe,object,embed,link,meta,form,input,button,textarea,select,svg,math').forEach((element) => element.remove());
+  parsed.querySelectorAll('script,style,iframe,object,embed,link,meta,button,svg,math').forEach((element) => element.remove());
   const warnings = new Set<string>();
   let visited = 0;
   const parse = (node: Node, marks: NonNullable<JSONContent['marks']> = [], depth = 0): JSONContent[] => {
@@ -28,6 +29,21 @@ export function htmlConversionDocument(html: string): { json: JSONContent; warni
     if (node.nodeType !== 1) return [];
     const element = node as HTMLElement;
     const tag = element.tagName.toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') {
+      const type = (element.getAttribute('type') || 'text').toLowerCase();
+      if (tag === 'input' && ['hidden', 'password', 'file', 'button', 'reset', 'submit', 'image'].includes(type)) return [];
+      let value: string;
+      if (tag === 'select') {
+        const options = [...element.querySelectorAll('option')];
+        const selected = options.filter((option) => option.hasAttribute('selected'));
+        const displayed = selected.length || element.hasAttribute('multiple') ? selected : options.slice(0, 1);
+        value = displayed.map((option) => option.textContent?.trim() || option.getAttribute('value') || '').join(', ');
+      } else if (tag === 'textarea') value = element.textContent ?? '';
+      else if (type === 'checkbox' || type === 'radio') value = element.hasAttribute('checked') ? '☑' : '☐';
+      else value = element.getAttribute('value') ?? '';
+      warnings.add('Các trường biểu mẫu được chuyển thành chữ với giá trị và trạng thái đang hiển thị.');
+      return [{ type: 'text', text: value || element.getAttribute('placeholder') || '________', ...(marks.length ? { marks } : {}) }];
+    }
     const markTypes: Record<string, string> = { strong: 'bold', b: 'bold', em: 'italic', i: 'italic', u: 'underline', s: 'strike', del: 'strike', sub: 'subscript', sup: 'superscript', code: 'code' };
     const nextMarks = [...marks];
     if (markTypes[tag]) nextMarks.push({ type: markTypes[tag] });
@@ -89,10 +105,21 @@ export function conversionDocumentHtml(json: JSONContent, title: string): string
         const tag = tags[mark.type];
         if (tag) text = `<${tag}>${text}</${tag}>`;
         else if (mark.type === 'link' && /^(https?:|mailto:|#)/i.test(String(mark.attrs?.href ?? ''))) text = `<a href="${escapeConversionHtml(String(mark.attrs!.href))}">${text}</a>`;
+        else if (mark.type === 'textStyle') {
+          const color = safeCssColor(mark.attrs?.color);
+          const font = String(mark.attrs?.fontFamily ?? '');
+          const size = String(mark.attrs?.fontSize ?? '');
+          const style = [color && `color:${color}`, /^[\p{L}\d ._-]{1,100}$/u.test(font) && `font-family:${font}`, /^\d+(?:\.\d+)?(?:pt|px)$/.test(size) && `font-size:${size}`].filter(Boolean).join(';');
+          if (style) text = `<span style="${escapeConversionHtml(style)}">${text}</span>`;
+        }
       }
       return text;
     }
-    if (node.type === 'image') return `<img src="${escapeConversionHtml(String(node.attrs?.src ?? ''))}" alt="${escapeConversionHtml(String(node.attrs?.alt ?? ''))}">`;
+    if (node.type === 'image') {
+      const width = Number(node.attrs?.width);
+      const height = Number(node.attrs?.height);
+      return `<img src="${escapeConversionHtml(String(node.attrs?.src ?? ''))}" alt="${escapeConversionHtml(String(node.attrs?.alt ?? ''))}"${width > 0 && Number.isFinite(width) ? ` width="${Math.round(width)}"` : ''}${height > 0 && Number.isFinite(height) ? ` height="${Math.round(height)}"` : ''}>`;
+    }
     if (node.type === 'hardBreak') return '<br>';
     if (node.type === 'horizontalRule' || node.type === 'pageBreak') return '<hr>';
     if (node.type === 'heading') { const level = Math.min(6, Math.max(1, Number(node.attrs?.level) || 1)); return `<h${level}>${content()}</h${level}>`; }
@@ -100,8 +127,11 @@ export function conversionDocumentHtml(json: JSONContent, title: string): string
       const tag = node.type === 'tableCell' ? 'td' : 'th';
       const widths = node.attrs?.colwidth as number[] | undefined;
       const width = widths?.reduce((sum, value) => sum + value, 0);
-      return `<${tag} colspan="${Number(node.attrs?.colspan) || 1}" rowspan="${Number(node.attrs?.rowspan) || 1}"${width && Number.isFinite(width) ? ` style="width:${Math.round(width)}px"` : ''}>${content()}</${tag}>`;
+      const color = safeCssColor(node.attrs?.backgroundColor);
+      const style = [width && Number.isFinite(width) && `width:${Math.round(width)}px`, color && `background-color:${color}`].filter(Boolean).join(';');
+      return `<${tag} colspan="${Number(node.attrs?.colspan) || 1}" rowspan="${Number(node.attrs?.rowspan) || 1}"${style ? ` style="${style}"` : ''}>${content()}</${tag}>`;
     }
+    if (node.type === 'paragraph' && ['left', 'center', 'right', 'justify'].includes(node.attrs?.textAlign)) return `<p style="text-align:${node.attrs!.textAlign}">${content()}</p>`;
     const tags: Record<string, string> = { paragraph: 'p', bulletList: 'ul', orderedList: 'ol', listItem: 'li', table: 'table', tableRow: 'tr', codeBlock: 'pre', blockquote: 'blockquote' };
     const tag = tags[node.type ?? ''];
     return tag ? `<${tag}>${content()}</${tag}>` : content();

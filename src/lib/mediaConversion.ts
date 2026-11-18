@@ -4,9 +4,10 @@ import { checkConversionAbort, conversionBaseName } from './conversionTypes';
 import type { OcrPage } from './conversionOcr';
 import type { EditableSlide } from './editableSlidesDeck';
 import type { TextSegment } from './slideTextPaint';
+import { includeWidgetValues, pdfFormFields, wordPageSize, type PdfFormField } from './mediaPageLayout';
 
-export type MediaTextLine = { text: string; x: number; y: number; width: number; height: number };
-export type MediaPage = { width: number; height: number; lines: MediaTextLine[]; image?: Blob; transform?: number[] };
+export type MediaTextLine = { text: string; x: number; y: number; width: number; height: number; rotated?: boolean };
+export type MediaPage = { width: number; height: number; lines: MediaTextLine[]; image?: Blob; transform?: number[]; fields?: PdfFormField[]; hasAnnotations?: boolean };
 
 const MAX_PIXELS = 16_000_000;
 const MAX_PAGES = 200;
@@ -83,7 +84,9 @@ export async function buildMediaTextResult(pages: MediaPage[], target: string, t
       const children = tabular
         ? [new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: rows.map((row) => new TableRow({ children: row.map((text) => new TableCell({ children: [new Paragraph({ children: [new TextRun(text)] })] })) })) })]
         : pageText(page).split('\n').map((line) => new Paragraph({ children: [new TextRun(line)] }));
-      return { children };
+      const { width, height, size } = wordPageSize(page);
+      const margin = Math.round(Math.min(36, Math.min(width, height) / 12) * 20);
+      return { properties: { page: { size, margin: { top: margin, bottom: margin, left: margin, right: margin } } }, children };
     }) }));
   } else throw new Error('Định dạng trích chữ chưa được hỗ trợ.');
   return { files: [{ name: `${title}.${target}`, blob }], warnings };
@@ -132,18 +135,27 @@ export async function renderPdfPage(doc: PDFDocumentProxy, number: number, targe
   }
 }
 
-export async function readPdfLines(doc: PDFDocumentProxy, number: number): Promise<MediaPage> {
+export async function readPdfLines(doc: PDFDocumentProxy, number: number, includeAnnotations = false): Promise<MediaPage> {
   const page = await doc.getPage(number);
   const viewport = page.getViewport({ scale: 1 });
   try {
-    const content = await page.getTextContent();
+    const [content, annotations] = await Promise.all([page.getTextContent(), includeAnnotations ? page.getAnnotations({ intent: 'any' }) : Promise.resolve([])]);
     const lines = content.items.flatMap((item): MediaTextLine[] => {
       if (!('str' in item) || !item.str.trim()) return [];
-      const [x, y] = viewport.convertToViewportPoint(item.transform[4], item.transform[5]);
-      const height = Math.max(1, item.height || Math.hypot(item.transform[2], item.transform[3]));
-      return [{ text: item.str, x, y: y - height, width: item.width, height }];
+      const [a, b, c, d, e, f] = item.transform;
+      const advance = item.width / (Math.hypot(a, b) || 1);
+      const rise = (item.height || Math.hypot(c, d)) / (Math.hypot(c, d) || 1);
+      const start = viewport.convertToViewportPoint(e, f);
+      const end = viewport.convertToViewportPoint(e + a * advance, f + b * advance);
+      const top = viewport.convertToViewportPoint(e + c * rise, f + d * rise);
+      const far = [end[0] + top[0] - start[0], end[1] + top[1] - start[1]];
+      const xs = [start[0], end[0], top[0], far[0]];
+      const ys = [start[1], end[1], top[1], far[1]];
+      const x = Math.min(...xs);
+      const y = Math.min(...ys);
+      return [{ text: item.str, x, y, width: Math.max(1, Math.max(...xs) - x), height: Math.max(1, Math.max(...ys) - y), rotated: end[0] <= start[0] || Math.abs(end[1] - start[1]) > Math.abs(end[0] - start[0]) * 0.05 }];
     });
-    return { width: viewport.width, height: viewport.height, lines, transform: viewport.transform };
+    return { width: viewport.width, height: viewport.height, lines, transform: viewport.transform, fields: pdfFormFields(annotations, (x, y) => viewport.convertToViewportPoint(x, y)), hasAnnotations: annotations.length > 0 };
   } finally { page.cleanup(); }
 }
 
@@ -186,17 +198,15 @@ async function loadImageCanvas(file: File, options: ConversionOptions, flatten: 
   }
 }
 
-export async function buildMediaLayoutResult(pages: MediaPage[], target: string, title: string): Promise<ConversionResult> {
+export async function buildMediaLayoutResult(pages: MediaPage[], target: string, title: string, options: ConversionOptions = {}): Promise<ConversionResult> {
   if (!pages.length || pages.some((page) => !page.image)) throw new Error('Thiếu ảnh trang để giữ bố cục.');
   let blob: Blob;
   if (target === 'docx') {
     const { Document, Packer, Paragraph, ImageRun, SectionType, VerticalPositionRelativeFrom, HorizontalPositionRelativeFrom } = await import('docx');
     blob = await Packer.toBlob(new Document({ title, sections: await Promise.all(pages.map(async (page) => {
-      const scale = Math.min(1, 1584 / page.width, 1584 / page.height);
-      const width = page.width * scale;
-      const height = page.height * scale;
+      const { width, height, size } = wordPageSize(page);
       return {
-        properties: { type: SectionType.NEXT_PAGE, page: { size: { width: Math.round(width * 20), height: Math.round(height * 20) }, margin: { top: 0, right: 0, bottom: 0, left: 0 } } },
+        properties: { type: SectionType.NEXT_PAGE, page: { size, margin: { top: 0, right: 0, bottom: 0, left: 0 } } },
         children: [new Paragraph({ spacing: { before: 0, after: 0 }, children: [new ImageRun({ type: 'png', data: new Uint8Array(await page.image!.arrayBuffer()), transformation: { width: width * 4 / 3, height: height * 4 / 3 }, floating: { horizontalPosition: { relative: HorizontalPositionRelativeFrom.PAGE, offset: 0 }, verticalPosition: { relative: VerticalPositionRelativeFrom.PAGE, offset: 0 }, behindDocument: true, allowOverlap: true } })] })],
       };
     })) }));
@@ -217,6 +227,8 @@ export async function buildMediaLayoutResult(pages: MediaPage[], target: string,
       deck.addSlide().addImage({ data, x: (width - w) / 2, y: (height - h) / 2, w, h });
     }
     blob = await deck.write({ outputType: 'blob' }) as Blob;
+  } else if (target === 'html' || target === 'xlsx') {
+    return buildPageReference(pages, target, title, options);
   } else throw new Error('Định dạng giữ bố cục chưa được hỗ trợ.');
   return { files: [{ name: `${title}.${target}`, blob }], warnings: ['Mỗi trang được giữ dưới dạng ảnh. Chữ, ô bảng và đối tượng trong trang không chỉnh sửa riêng được.', ...(target === 'pptx' && pages.some((page) => Math.abs(page.width / page.height - pages[0].width / pages[0].height) > 0.01) ? ['Các trang khác tỷ lệ được đặt vừa slide với khoảng trắng xung quanh.'] : [])] };
 }
@@ -226,6 +238,66 @@ async function blobDataUrl(blob: Blob): Promise<string> {
   const parts: string[] = [];
   for (let offset = 0; offset < bytes.length; offset += 24_576) parts.push(btoa(String.fromCharCode(...bytes.subarray(offset, offset + 24_576))));
   return `data:${blob.type};base64,${parts.join('')}`;
+}
+
+function htmlFormField(field: PdfFormField, page: MediaPage) {
+  const { x, y, width, height } = field.line;
+  const attributes = `class="field" aria-label="${escapeHtml(field.label)}" name="pdf-${escapeHtml(field.name)}" style="left:${100*x/page.width}%;top:${100*y/page.height}%;width:${100*width/page.width}%;height:${100*height/page.height}%;font-size:${Math.min(13, height * 0.75) / page.width * 100}cqw"${field.readOnly ? ' disabled' : ''}`;
+  const value = escapeHtml(field.values.join('\n'));
+  if (field.kind === 'textarea') return `<textarea ${attributes}>${value}</textarea>`;
+  if (field.kind === 'select') {
+    const choices = [...field.choices];
+    for (const entry of field.values) if (!choices.some((choice) => choice.exportValue === entry)) choices.push({ displayValue: entry, exportValue: entry });
+    const empty = field.values.length || field.multiple ? '' : '<option selected value=""></option>';
+    const items = choices.map((choice) => `<option value="${escapeHtml(choice.exportValue)}"${field.values.includes(choice.exportValue) ? ' selected' : ''}>${escapeHtml(choice.displayValue)}</option>`).join('');
+    return `<select ${attributes}${field.multiple ? ' multiple' : ''}>${empty}${items}</select>`;
+  }
+  return `<input ${attributes} type="${field.kind}" value="${value}"${field.checked ? ' checked' : ''}>`;
+}
+
+async function buildPageReference(pages: MediaPage[], target: 'xlsx' | 'html', title: string, options: ConversionOptions): Promise<ConversionResult> {
+  if (target === 'html') {
+    const parts = ['<!doctype html><html lang="vi"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>', escapeHtml(title), '</title><style>*{box-sizing:border-box}body{margin:0;background:#eee}section{position:relative;container-type:inline-size;margin:auto auto 16px;background:white;break-after:page}section:last-child{break-after:auto}img{display:block;width:100%;height:100%}span{position:absolute;white-space:pre;color:transparent;font-family:Arial,sans-serif;line-height:1}::selection{background:#77aaff99}@media print{body{background:white}section{margin:0;max-width:100%}}</style><body>'];
+    if (pages.some((page) => page.fields?.length)) {
+      parts.push('<style>.field{display:none;position:absolute;box-sizing:border-box;margin:0;padding:0 2px;font-family:Arial,sans-serif;color:#111;background:white;border:1px solid #778;resize:none}.field:disabled{opacity:1}#edit-fields:checked~section .field{display:block}#edit-fields+label{font:14px system-ui;display:inline-block;margin:8px 4px}@media print{#edit-fields,#edit-fields+label{display:none}}</style><input id="edit-fields" type="checkbox"><label for="edit-fields">Điền biểu mẫu</label>');
+    }
+    for (const [index, page] of pages.entries()) {
+      checkConversionAbort(options);
+      parts.push(`<section aria-label="Trang ${index + 1}" style="width:min(100%,${page.width}pt);aspect-ratio:${page.width}/${page.height}"><img alt="Trang ${index + 1}" src="${await blobDataUrl(page.image!)}">`);
+      for (const line of page.lines) parts.push(`<span style="left:${line.x / page.width * 100}%;top:${line.y / page.height * 100}%;font-size:${line.height / page.width * 100}cqw">${escapeHtml(line.text)}</span>`);
+      for (const field of page.fields ?? []) parts.push(htmlFormField(field, page));
+      parts.push('</section>');
+    }
+    parts.push('</body></html>');
+    return { files: [{ name: `${title}.html`, blob: new Blob(parts, { type: 'text/html;charset=utf-8' }) }], warnings: ['Ảnh từng trang được nhúng trong HTML. Có thể tìm và sao chép những phần có lớp chữ.'] };
+  }
+  const { default: ExcelJS } = await import('exceljs');
+  const book = new ExcelJS.Workbook();
+  book.title = title;
+  let hasData = false;
+  for (const [index, page] of pages.entries()) {
+    checkConversionAbort(options);
+    const sheet = book.addWorksheet(`Mẫu ${index + 1}`, { views: [{ showGridLines: false }], pageSetup: { orientation: page.width > page.height ? 'landscape' : 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 1 } });
+    const id = book.addImage({ extension: 'png', base64: await blobDataUrl(page.image!) });
+    const width = page.width / IMAGE_POINTS_PER_PIXEL;
+    const height = page.height / IMAGE_POINTS_PER_PIXEL;
+    sheet.addImage(id, { tl: { col: 0, row: 0 }, ext: { width, height } });
+    const rows = mediaTextTable(page.lines);
+    if (rows.length) {
+      hasData = true;
+      const data = book.addWorksheet(`Dữ liệu ${index + 1}`);
+      data.addRows(rows);
+      data.columns.forEach((column) => {
+        let widest = 0;
+        column.eachCell?.((cell) => { widest = Math.max(widest, cell.text.length); });
+        column.width = Math.max(12, Math.min(70, widest + 2));
+        column.alignment = { wrapText: true, vertical: 'top' };
+      });
+    }
+  }
+  checkConversionAbort(options);
+  const blob = new Blob([await book.xlsx.writeBuffer()], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  return { files: [{ name: `${title}.xlsx`, blob }], warnings: [hasData ? 'Trang tính Mẫu giữ ảnh gốc. Trang tính Dữ liệu chứa chữ và giá trị có thể chỉnh sửa theo cột nhận dạng.' : 'Các trang tính Mẫu giữ ảnh gốc. Chưa có chữ để tạo trang tính Dữ liệu.'] };
 }
 
 export async function convertMediaFile(file: File, target: string, options: ConversionOptions = {}): Promise<ConversionResult> {
@@ -239,8 +311,9 @@ export async function convertMediaFile(file: File, target: string, options: Conv
   const warnings: string[] = [];
   const imageTarget = ['png', 'jpg', 'webp'].includes(target);
   const editableSlides = target === 'pptx' && options.fidelity === 'editable';
-  const layout = (target === 'pptx' || target === 'docx') && options.fidelity !== 'editable';
-  const textNeeded = !imageTarget && !layout && !editableSlides;
+  const pageReference = (target === 'html' || target === 'xlsx') && options.fidelity !== 'editable';
+  const layout = ((target === 'pptx' || target === 'docx') && options.fidelity !== 'editable') || pageReference;
+  const textNeeded = !imageTarget && (!layout || pageReference) && !editableSlides;
   const slides: EditableSlide[] = [];
   if (/\.pdf$/i.test(file.name)) {
     await import('../editors/pdf/pdfRender');
@@ -251,12 +324,24 @@ export async function convertMediaFile(file: File, target: string, options: Conv
     options.signal?.addEventListener('abort', cancel, { once: true });
     try {
       const doc = await task.promise;
+      if (target === 'pdf') {
+        const { info } = await doc.getMetadata() as { info: { IsAcroFormPresent?: boolean; IsXFAPresent?: boolean; IsSignaturesPresent?: boolean } };
+        if (options.ocr === false || info.IsAcroFormPresent || info.IsXFAPresent || info.IsSignaturesPresent) {
+          checkConversionAbort(options);
+          return { files: [{ name: `${title}.pdf`, blob: file }], warnings: options.ocr !== false ? ['PDF có biểu mẫu hoặc chữ ký. Đã giữ nguyên tệp gốc cùng các trường, giá trị và chữ ký hiện có.'] : [] };
+        }
+      }
       if (doc.numPages > MAX_PAGES) throw new Error(`Tệp có ${doc.numPages} trang. Hãy tách thành phần tối đa ${MAX_PAGES} trang trước khi chuyển đổi.`);
       let totalBytes = 0;
       for (let index = 1; index <= doc.numPages; index++) {
         checkConversionAbort(options);
         options.onProgress?.(`Đang chuyển trang ${index}/${doc.numPages}…`);
-        const page = await readPdfLines(doc, index);
+        const page = await readPdfLines(doc, index, textNeeded);
+        if (target === 'pdf' && page.hasAnnotations && !page.lines.length) {
+          warnings.push(`Trang ${index} có chú thích hoặc liên kết. Đã giữ nguyên trang gốc khi tạo PDF.`);
+          pages.push(page);
+          continue;
+        }
         if (editableSlides) {
           const slide = await editablePdfSlide(doc, index, page, options, warnings);
           totalBytes += slide.background.length * BASE64_BYTES_PER_CHAR;
@@ -270,9 +355,10 @@ export async function convertMediaFile(file: File, target: string, options: Conv
           if (totalBytes > 200 * 1024 * 1024) throw new Error('Kết quả vượt 200 MB. Hãy tách tệp thành nhiều phần nhỏ.');
         }
         if (textNeeded && !page.lines.length && options.ocr !== false && page.image) {
-          await applyOcr(page, options, warnings);
+          await mediaExportOcr(page, options, warnings, pageReference);
           ocrPages.add(index - 1);
         }
+        if (page.fields?.length) page.lines = includeWidgetValues(page.lines, page.fields.map((field) => field.line));
         pages.push(page);
       }
     } finally {
@@ -281,6 +367,10 @@ export async function convertMediaFile(file: File, target: string, options: Conv
     }
   } else {
     options.onProgress?.('Đang đọc ảnh…');
+    if (imageTarget && await isOriginalImageFormat(file, target)) {
+      checkConversionAbort(options);
+      return { files: [{ name: `${title}.${target}`, blob: file.slice(0, file.size, target === 'jpg' ? 'image/jpeg' : `image/${target}`) }], warnings: [] };
+    }
     const canvas = await loadImageCanvas(file, options, target === 'jpg' || editableSlides);
     if (editableSlides) {
       try {
@@ -290,18 +380,36 @@ export async function convertMediaFile(file: File, target: string, options: Conv
     } else try {
       pages.push({ width: canvas.width * 0.75, height: canvas.height * 0.75, lines: [], image: await canvasBlob(canvas, imageTarget ? target : 'png') });
     } finally { canvas.width = canvas.height = 0; }
-    if (textNeeded && options.ocr !== false) await applyOcr(pages[0], options, warnings);
+    if (textNeeded && options.ocr !== false) await mediaExportOcr(pages[0], options, warnings, pageReference);
     if (/\.(gif|webp|avif)$/i.test(file.name)) warnings.push('Ảnh động chỉ chuyển một khung hình tĩnh.');
   }
   checkConversionAbort(options);
   let result: ConversionResult;
   if (editableSlides) result = await buildEditableSlidesResult(slides, title);
   else if (imageTarget) result = { files: pages.map((page, index) => ({ name: `${title}${pages.length > 1 ? ` - trang ${String(index + 1).padStart(3, '0')}` : ''}.${target}`, blob: page.image! })), warnings: [] };
-  else if (layout) result = await buildMediaLayoutResult(pages, target, title);
+  else if (layout) result = await buildMediaLayoutResult(pages, target, title, options);
   else if (target === 'pdf') result = await buildEditableMediaPdf(pages, title, originalPdf, ocrPages, options);
   else result = await buildMediaTextResult(pages, target, title);
   checkConversionAbort(options);
   return { ...result, warnings: [...new Set([...warnings, ...result.warnings])] };
+}
+
+async function isOriginalImageFormat(file: File, target: string) {
+  const ext = file.name.split('.').pop()?.toLowerCase();
+  if ((target === 'jpg' ? !['jpe', 'jfif', 'jpg', 'jpeg'].includes(ext ?? '') : ext !== target)) return false;
+  const bytes = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+  if (target === 'png') return [137, 80, 78, 71, 13, 10, 26, 10].every((byte, index) => bytes[index] === byte);
+  if (target === 'jpg') return bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255;
+  return String.fromCharCode(...bytes.subarray(0, 4)) === 'RIFF' && String.fromCharCode(...bytes.subarray(8, 12)) === 'WEBP';
+}
+
+async function mediaExportOcr(page: MediaPage, options: ConversionOptions, warnings: string[], keepImage: boolean) {
+  try { await applyOcr(page, options, warnings); }
+  catch (error) {
+    checkConversionAbort(options);
+    if (!keepImage || (error instanceof Error && error.name === 'AbortError')) throw error;
+    warnings.push('Chưa nhận dạng được chữ trên một số trang. Ảnh gốc của các trang này vẫn có trong kết quả.');
+  }
 }
 
 export async function extractPdfPageText(doc: PDFDocumentProxy, number: number, options: ConversionOptions & { forceOcr?: boolean } = {}): Promise<{ text: string; warnings: string[]; usedOcr: boolean }> {
@@ -370,7 +478,7 @@ async function editablePdfSlide(doc: PDFDocumentProxy, number: number, page: Med
   const { canvas, scale } = await renderPdfCanvas(doc, number, OCR_MAX_EDGE, options);
   try {
     let segments: TextSegment[] = [];
-    if (page.lines.length) segments = (await import('./slideTextPaint')).segmentsFromTextItems(page.lines, scale);
+    if (page.lines.length) segments = (await import('./slideTextPaint')).segmentsFromTextItems(page.lines.filter((line) => !line.rotated), scale);
     else if (options.ocr !== false) {
       options.onProgress?.(`Đang nhận dạng chữ trang ${number}…`);
       segments = await ocrSegments(await canvasBlob(canvas, 'png'), canvas, options, warnings);

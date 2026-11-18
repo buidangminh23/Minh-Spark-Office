@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Giữ bố cục · Office 23</title>
+    <style>
+      :root { color-scheme: light dark; font: 16px/1.5 "Segoe UI", sans-serif; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; }
+      main { width: min(85%, 27rem); }
+      h1 { font-size: 1.5rem; margin: .6rem 0; }
+      p { margin: .4rem 0; overflow-wrap: anywhere; }
+      progress { width: 100%; accent-color: #6164ce; }
+      small { opacity: .75; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Giữ bố cục trang</h1>
+      <p id="filename"></p>
+      <progress aria-label="Tiến độ chuyển đổi"></progress>
+      <p id="status" role="status">Đang kết nối với Office 23…</p>
+      <small>LibreOffice xử lý tệp ngay trên thiết bị. Cửa sổ tự đóng khi hoàn tất.</small>
+    </main>
+    <script type="module" src="/src/lib/officeLayoutWindow.ts"></script>
+  </body>
+</html>

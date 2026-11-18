@@ -2,6 +2,28 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import JSZip from 'jszip';
 import { conversionTargets, conversionZip, convertFile, uniqueConversionNames } from '../src/lib/fileConversion.ts';
+import { supportsOfficeLayout } from '../src/lib/officeLayoutRoutes.ts';
+
+test('print layout uses the bundled renderer and preserves PDF bytes without reflow', async () => {
+  const archive = new JSZip();
+  archive.file('word/document.xml', '<w:document/>');
+  const source = new File([await archive.generateAsync({ type: 'uint8array' })], 'Mẫu.docx');
+  const pdf = new Blob(['%PDF-1.7\nlayout'], { type: 'application/pdf' });
+  let calls = 0;
+  const layoutSession = { close: () => assert.fail('the caller owns the batch session'), render: async (file: File) => {
+    assert.equal(file, source);
+    calls++;
+    return pdf;
+  } };
+  const result = await convertFile(source, 'pdf', { layoutSession });
+  assert.equal(calls, 1);
+  assert.equal(result.files[0].name, 'Mẫu.pdf');
+  assert.equal(result.files[0].blob, pdf);
+  for (const ext of ['xlsm', 'PPTX', 'ods', 'dotx']) assert.ok(supportsOfficeLayout('sample.' + ext, 'png'));
+  for (const ext of ['csv', 'txt', 'png', 'pdf']) assert.equal(supportsOfficeLayout('sample.' + ext, 'pdf'), false);
+  assert.equal(supportsOfficeLayout('sample.pptx', 'pptx'), false);
+  assert.equal(supportsOfficeLayout('sample.xlsx', 'docx'), true);
+});
 
 test('conversion matrix exposes real routes for every product and rejects legacy unknown files', () => {
   for (const source of ['sample.docx', 'sample.xlsx', 'sample.pptx', 'sample.pdf', 'sample.png']) {

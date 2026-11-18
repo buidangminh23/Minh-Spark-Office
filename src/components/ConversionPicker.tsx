@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowRight, ChevronRight } from 'lucide-react';
-import { CONVERSION_PRESET_GROUPS, type ConversionPreset } from '../lib/conversionPresets';
+import { ArrowRight, ChevronRight, Search } from 'lucide-react';
+import { filterConversionPresets, type ConversionPreset } from '../lib/conversionPresets';
 import { FormatLogo } from './FormatLogo';
 import { SuiteLogo } from './SuiteLogo';
 import './conversion.css';
@@ -31,6 +31,9 @@ function menuPosition(anchor: DOMRect, edge: number, menu: DOMRect): CSSProperti
 
 export function ConversionMenu({ anchor, onPick, onAll, onClose }: { anchor: HTMLElement; onPick: (preset: ConversionPreset) => void; onAll: () => void; onClose: () => void }) {
   const menu = useRef<HTMLDivElement>(null);
+  const search = useRef<HTMLInputElement>(null);
+  const [query, setQuery] = useState('');
+  const groups = filterConversionPresets(query);
   const [position, setPosition] = useState<CSSProperties>({ left: -9999, top: 0 });
   const close = useRef(onClose);
 
@@ -46,10 +49,11 @@ export function ConversionMenu({ anchor, onPick, onAll, onClose }: { anchor: HTM
     place();
     window.addEventListener('resize', place);
     return () => window.removeEventListener('resize', place);
-  }, [anchor]);
+  }, [anchor, query]);
 
   useEffect(() => {
-    menu.current?.querySelector<HTMLButtonElement>('button')?.focus();
+    if (window.innerWidth > STACKED_LAYOUT_MAX_WIDTH) search.current?.focus();
+    else menu.current?.querySelector<HTMLButtonElement>('button')?.focus();
     const dismiss = (event: PointerEvent) => {
       const target = event.target as Node;
       if (!menu.current?.contains(target) && !anchor.contains(target)) close.current();
@@ -57,10 +61,12 @@ export function ConversionMenu({ anchor, onPick, onAll, onClose }: { anchor: HTM
     const keys = (event: KeyboardEvent) => {
       if (event.key === 'Escape') { event.preventDefault(); close.current(); anchor.focus(); return; }
       if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+      if (!menu.current?.contains(document.activeElement)) return;
       const items = Array.from(menu.current?.querySelectorAll<HTMLButtonElement>('button') ?? []);
       const index = items.indexOf(document.activeElement as HTMLButtonElement);
       event.preventDefault();
-      items[(index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus();
+      const next = index < 0 ? (event.key === 'ArrowDown' ? 0 : items.length - 1) : (index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+      items[next]?.focus();
     };
     document.addEventListener('pointerdown', dismiss);
     document.addEventListener('keydown', keys);
@@ -68,8 +74,13 @@ export function ConversionMenu({ anchor, onPick, onAll, onClose }: { anchor: HTM
   }, [anchor]);
 
   return createPortal(
-    <div ref={menu} className="conversion-menu" role="menu" aria-label="Chuyển định dạng" style={position}>
-      {CONVERSION_PRESET_GROUPS.map((group) => (
+    <div ref={menu} className="conversion-menu" style={position}>
+      <label className="conversion-search">
+        <Search size={17} aria-hidden="true" />
+        <input type="search" ref={search} aria-label="Tìm cách chuyển đổi" placeholder="Tìm cách chuyển đổi, ví dụ PDF sang Word" value={query} onChange={(event) => setQuery(event.target.value)} />
+      </label>
+      <div className="conversion-menu-results" role="menu" aria-label="Chuyển định dạng">
+      {groups.map((group) => (
         <div key={group.title} className="conversion-menu-group" role="group" aria-label={group.title}>
           <div className="conversion-menu-heading" aria-hidden="true">{group.title}</div>
           <div className="conversion-menu-grid">
@@ -82,10 +93,12 @@ export function ConversionMenu({ anchor, onPick, onAll, onClose }: { anchor: HTM
           </div>
         </div>
       ))}
+      {!groups.length && <p className="conversion-no-matches" role="status">Chưa tìm thấy cặp định dạng phù hợp.</p>}
       <button role="menuitem" className="conversion-menu-item conversion-menu-more" onClick={onAll}>
         <span className="conversion-menu-text"><strong>Nhiều loại tệp cùng lúc</strong><span>Chọn định dạng riêng cho từng tệp</span></span>
         <ChevronRight size={18} aria-hidden="true" />
       </button>
+      </div>
     </div>,
     document.body,
   );

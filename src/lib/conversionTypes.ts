@@ -1,6 +1,6 @@
 export type ConversionFile = { name: string; blob: Blob };
 export type ConversionResult = { files: ConversionFile[]; warnings: string[] };
-export type ConversionOptions = { signal?: AbortSignal; onProgress?: (message: string) => void; fidelity?: 'layout' | 'editable'; ocr?: boolean };
+export type ConversionOptions = { signal?: AbortSignal; onProgress?: (message: string) => void; fidelity?: 'layout' | 'editable'; ocr?: boolean; layoutSession?: import('./officeLayoutSession').OfficeLayoutSession };
 export type ConversionTarget = { id: string; label: string; description: string };
 
 export function checkConversionAbort(options: ConversionOptions = {}) {

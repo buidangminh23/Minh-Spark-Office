@@ -2,7 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import JSZip from 'jszip';
 import * as XLSX from 'xlsx';
-import { buildMediaLayoutResult, buildMediaTextResult, convertMediaFile, mediaConversionTargets, mediaTextRows, mediaTextTable, type MediaPage } from '../src/lib/mediaConversion';
+import { PDFDocument } from 'pdf-lib';
+import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
+import { buildMediaLayoutResult, buildMediaTextResult, convertMediaFile, mediaConversionTargets, mediaTextRows, mediaTextTable, readPdfLines, type MediaPage } from '../src/lib/mediaConversion';
+import { includeWidgetValues } from '../src/lib/mediaPageLayout';
 
 const line = (text: string, x: number, y: number, width = 40) => ({ text, x, y, width, height: 12 });
 const sample: MediaPage = { width: 595, height: 842, lines: [line('Họ tên', 20, 20), line('Số tiền', 200, 20), line('Nguyễn Văn A', 20, 40, 90), line('1.234.567', 200, 40, 80)] };
@@ -83,4 +86,67 @@ test('text conversion rejects empty scanned pages and respects cancellation befo
 
 test('text-only builders no longer produce PowerPoint', async () => {
   await assert.rejects(buildMediaTextResult([sample], 'pptx', 'Slides'), /chưa được hỗ trợ/);
+});
+
+test('filled PDF form widgets expose displayed values and checkbox states in reading order', async () => {
+  const pdf = await PDFDocument.create();
+  const page = pdf.addPage([420, 300]);
+  const form = pdf.getForm();
+  const code = form.createTextField('Job');
+  code.addToPage(page, { x: 30, y: 240, width: 180, height: 16 });
+  code.setText('001-XY');
+  const choice = form.createDropdown('Status');
+  choice.addOptions(['Open', 'Closed']);
+  choice.select('Open');
+  choice.addToPage(page, { x: 30, y: 180, width: 100, height: 16 });
+  const approved = form.createCheckBox('Approved');
+  approved.addToPage(page, { x: 30, y: 130, width: 12, height: 12 });
+  approved.check();
+  const password = form.createTextField('Password');
+  password.enablePassword();
+  password.setText('private');
+  password.addToPage(page, { x: 30, y: 80, width: 50, height: 15 });
+  const task = getDocument({ data: await pdf.save(), useSystemFonts: false });
+  try {
+    const loaded = await readPdfLines(await task.promise, 1, true);
+    assert.ok(loaded.hasAnnotations);
+    assert.deepEqual(mediaTextRows(includeWidgetValues(loaded.lines, loaded.fields!.map((field) => field.line))), [['001-XY'], ['Open'], ['☑']]);
+    const result = await buildMediaLayoutResult([{ ...loaded, image: png }], 'html', 'Form');
+    const html = await result.files[0].blob.text();
+    assert.match(html, /type="text" value="001-XY"/);
+    assert.match(html, /<option value="Open" selected>Open<\/option>/);
+    assert.match(html, /type="checkbox" value="Yes" checked/);
+    assert.doesNotMatch(html, /private|Password/);
+  } finally { await task.destroy(); }
+});
+
+test('layout Excel keeps blank and filled page images together with editable data', async () => {
+  const pages = [{ ...sample, image: png }, { width: 842, height: 595, image: png, lines: [] }];
+  const result = await buildMediaLayoutResult(pages, 'xlsx', 'Pages');
+  const bytes = await result.files[0].blob.arrayBuffer();
+  const workbook = XLSX.read(bytes, { type: 'array' });
+  assert.deepEqual(workbook.SheetNames, ['Mẫu 1', 'Dữ liệu 1', 'Mẫu 2']);
+  assert.equal(workbook.Sheets['Dữ liệu 1'].A2.v, 'Nguyễn Văn A');
+  const zip = await JSZip.loadAsync(bytes);
+  for (const index of [1, 2]) {
+    assert.ok(zip.file(`xl/drawings/drawing${index}.xml`));
+    assert.ok(zip.file(`xl/media/image${index}.png`));
+  }
+});
+
+test('layout HTML embeds every page, escapes extracted text and positions selectable lines', async () => {
+  const result = await buildMediaLayoutResult([{ ...sample, image: png }, { ...sample, image: png, lines: [line('<script>', 20, 20)] }], 'html', 'A&B');
+  const html = await result.files[0].blob.text();
+  assert.equal((html.match(/src="data:image\/png;base64,/g) ?? []).length, 2);
+  assert.match(html, /<title>A&amp;B<\/title>/);
+  assert.match(html, /<span style="left:[^"]+">Nguyễn Văn A<\/span>/);
+  assert.match(html, /&lt;script&gt;/);
+  assert.doesNotMatch(html, /<script>/);
+});
+
+test('same image format retains original bytes and MIME type', async () => {
+  const source = new File([png], 'logo.PNG');
+  const result = await convertMediaFile(source, 'png');
+  assert.deepEqual(await result.files[0].blob.arrayBuffer(), await source.arrayBuffer());
+  assert.equal(result.files[0].blob.type, 'image/png');
 });
