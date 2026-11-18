@@ -9,7 +9,12 @@ function officeLayoutEngine(): Plugin {
   const prefix = '/layout-engine/2.3.1/';
   const assets = ['browser.worker.global.js', 'soffice.js', 'soffice.worker.js', 'soffice.wasm.gz', 'soffice.data.gz'];
   const source = (name: string) => new URL(`./node_modules/@bentopdf/libreoffice-wasm/assets/${name}`, import.meta.url);
-  const middleware: import('vite').Connect.NextHandleFunction = (req, res, next) => {
+  const workerName = 'browser.worker.global.js';
+  const original = readFileSync(source(workerName), 'utf8');
+  const mapStart = 'var U={pdf:"pdf",';
+  if (original.split(mapStart).length !== 2) throw new Error('Unexpected LibreOffice 2.3.1 worker format map');
+  const worker = original.replace(mapStart, mapStart + 'fodt:"fodt",fods:"fods",fodp:"fodp",pot:"pot",');
+  const middleware = (serveFromPackage: boolean): import('vite').Connect.NextHandleFunction => (req, res, next) => {
     const path = req.url?.split('?')[0] ?? '';
     if (path === '/office-layout.html' || path.startsWith(prefix)) {
       res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
@@ -18,15 +23,17 @@ function officeLayoutEngine(): Plugin {
     const name = path.slice(prefix.length);
     if (!path.startsWith(prefix) || !assets.includes(name)) return next();
     if (name.endsWith('.js')) res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self' 'unsafe-eval'; worker-src 'self'; connect-src 'self' blob:");
+    if (!serveFromPackage) return next();
     res.setHeader('Content-Type', name.endsWith('.js') ? 'text/javascript' : 'application/octet-stream');
+    if (name === workerName) { res.end(worker); return; }
     createReadStream(source(name)).on('error', next).pipe(res);
   };
   return {
     name: 'office-layout-engine',
-    configureServer(server) { server.middlewares.use(middleware); },
-    configurePreviewServer(server) { server.middlewares.use(middleware); },
+    configureServer(server) { server.middlewares.use(middleware(true)); },
+    configurePreviewServer(server) { server.middlewares.use(middleware(false)); },
     generateBundle() {
-      for (const name of assets) this.emitFile({ type: 'asset', fileName: prefix.slice(1) + name, source: readFileSync(source(name)) });
+      for (const name of assets) this.emitFile({ type: 'asset', fileName: prefix.slice(1) + name, source: name === workerName ? worker : readFileSync(source(name)) });
     },
   };
 }

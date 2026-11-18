@@ -1,11 +1,15 @@
 import { odfMime, odfTypes, officePackages, packageContentType, packageMime } from './conversionPackages';
 import { openOfficeZip } from './openOfficeZip';
 
+const legacyFamilies: Record<string, string> = { doc: 'doc', dot: 'doc', xls: 'xls', xlt: 'xls', ppt: 'ppt', pot: 'ppt', pps: 'ppt' };
+const flatOdf: Record<string, string> = { fodt: 'text', fods: 'spreadsheet', fodp: 'presentation' };
 const legacyMime: Record<string, string> = { doc: 'application/msword', xls: 'application/vnd.ms-excel', ppt: 'application/vnd.ms-powerpoint', rtf: 'application/rtf', pdf: 'application/pdf', epub: 'application/epub+zip' };
 export function nativeOutputMime(extension: string): string | undefined {
   if (Object.hasOwn(officePackages, extension)) return packageMime(extension as keyof typeof officePackages);
   if (Object.hasOwn(odfTypes, extension)) return odfMime(extension as keyof typeof odfTypes);
-  return Object.hasOwn(legacyMime, extension) ? legacyMime[extension] : undefined;
+  if (Object.hasOwn(flatOdf, extension)) return 'application/vnd.oasis.opendocument.' + flatOdf[extension] + '-flat-xml';
+  const key = Object.hasOwn(legacyFamilies, extension) ? legacyFamilies[extension] : extension;
+  return Object.hasOwn(legacyMime, key) ? legacyMime[key] : undefined;
 }
 
 export async function checkLegacySheetSize(file: File) {
@@ -26,13 +30,24 @@ export async function checkNativeFile(bytes: ArrayBuffer, ext: string) {
   if (ext === 'pdf') valid = text.startsWith('%PDF-');
   else if (['txt', 'md', 'htm', 'html'].includes(ext)) valid = !new Uint8Array(bytes).includes(0) || header[0] === 0xff && header[1] === 0xfe || header[0] === 0xfe && header[1] === 0xff;
   else if (ext === 'rtf') valid = text.trimStart().startsWith('{\\rtf');
-  else if (['doc', 'ppt', 'xls'].includes(ext)) {
+  else if (Object.hasOwn(flatOdf, ext)) {
+    const decoded = new TextDecoder(header[0] === 0xff && header[1] === 0xfe ? 'utf-16le' : header[0] === 0xfe && header[1] === 0xff ? 'utf-16be' : 'utf-8').decode(bytes);
+    if (!/<!DOCTYPE\s/i.test(decoded)) {
+      const ns = 'urn:oasis:names:tc:opendocument:xmlns:office:1.0';
+      const root = new DOMParser().parseFromString(decoded, 'application/xml').documentElement;
+      valid = root.namespaceURI === ns && root.localName === 'document' && root.getAttributeNS(ns, 'mimetype') === 'application/vnd.oasis.opendocument.' + flatOdf[ext]
+        && !!root.getElementsByTagNameNS(ns, 'body')[0]?.getElementsByTagNameNS(ns, flatOdf[ext]).length;
+    }
+  } else if (Object.hasOwn(legacyFamilies, ext)) {
     valid = [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1].every((byte, i) => header[i] === byte);
     if (valid) {
       const { read } = await import('cfb');
       const streams = read(new Uint8Array(bytes), { type: 'array' }).FileIndex;
-      const names = ext === 'doc' ? ['WordDocument'] : ext === 'xls' ? ['Book', 'Workbook'] : ['PowerPoint Document'];
-      valid = streams.some(stream => stream.type === 2 && names.includes(stream.name));
+      const names = legacyFamilies[ext] === 'doc' ? ['WordDocument'] : legacyFamilies[ext] === 'xls' ? ['Book', 'Workbook'] : ['PowerPoint Document'];
+      const main = streams.find(stream => stream.type === 2 && names.includes(stream.name));
+      valid = !!main;
+      if (main && ext === 'dot') valid = main.content.length >= 32 && main.content[0] === 0xec && main.content[1] === 0xa5 && !!(main.content[10] & 1);
+      if (main && ext === 'xlt') valid = (await import('./legacyOfficeTemplates')).hasWorkbookTemplateRecord(Uint8Array.from(main.content));
     }
   } else {
     const zip = await openOfficeZip(bytes);

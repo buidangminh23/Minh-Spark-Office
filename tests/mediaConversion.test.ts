@@ -59,6 +59,23 @@ test('TIFF packing preserves the dimensions, order and alpha bytes of every fram
   assert.deepEqual(frames.map((f) => [...f.data]), [[...first.data], [...last.data]]);
 });
 
+test('UTIF browser loader can inflate a TIFF created by the converter without CommonJS', async () => {
+  const { createRequire } = await import('node:module');
+  const { readFile } = await import('node:fs/promises');
+  const { runInNewContext } = await import('node:vm');
+  const { encodeTiff } = await import('../src/lib/mediaConversionRaster');
+  const { decodeImageFrames } = await import('../src/lib/mediaConversionFrames');
+  const image = { width: 32, height: 16, data: new Uint8ClampedArray(2048).fill(120) } as ImageData;
+  const buffer = await (await encodeTiff(image)).arrayBuffer();
+  await Array.fromAsync(decodeImageFrames(buffer, 'tiff'));
+  const self = { pako: Reflect.get(globalThis, 'pako') } as { pako: unknown; UTIF: typeof import('utif') };
+  const browserSource = await readFile(createRequire(import.meta.url).resolve('utif'), 'utf8');
+  runInNewContext(browserSource, { self, console });
+  const [page] = self.UTIF.decode(buffer);
+  self.UTIF.decodeImage(buffer, page);
+  assert.deepEqual(Array.from(self.UTIF.toRGBA8(page)), Array.from(image.data));
+});
+
 test('tabular page exports retain delimiters, blank pages and leading zeros', async () => {
   const pages = [{ ...sample, lines: [line('01,02', 20, 20), line('Nhóm "A"', 200, 20)] }, { ...sample, lines: [] }];
   const result = await buildMediaTextResult(pages, 'csv', 'Sổ');
@@ -71,8 +88,7 @@ test('tabular page exports retain delimiters, blank pages and leading zeros', as
 
 test('media target matrix includes OCR editable outputs and rejects unsupported sources', () => {
   for (const name of ['scan.PDF', 'image.png', 'image.heic', 'image.tif', 'image.svgz', 'image.dib']) {
-    const copyTarget = ['heic', 'svgz', 'dib'].find((suffix) => name.endsWith('.' + suffix));
-    assert.deepEqual(mediaConversionTargets(name).map((format) => format.id), ['pdf', 'docx', 'xlsx', 'pptx', 'txt', 'html', 'csv', 'tsv', 'json', 'png', 'jpg', 'webp', 'bmp', 'tiff', ...(copyTarget ? [copyTarget] : [])]);
+    assert.deepEqual(mediaConversionTargets(name).map((format) => format.id), ['pdf', 'docx', 'xlsx', 'pptx', 'txt', 'html', 'csv', 'tsv', 'json', 'png', 'jpg', 'jfif', 'webp', 'bmp', 'tiff', 'gif', 'ico', 'avif', 'svg', 'svgz', 'dib', 'heic', 'heif']);
   }
   assert.deepEqual(mediaConversionTargets('file.exe'), []);
 });
@@ -211,14 +227,33 @@ test('same image format retains original bytes and MIME type', async () => {
   assert.equal(result.files[0].blob.type, 'image/png');
 });
 
-test('copy-only image outputs preserve all original bytes and reject misleading extensions', async () => {
+test('the original image format keeps animation and rejects misleading extensions', async () => {
   const gif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
   const source = new File([gif], 'moving.gif');
   const copy = await convertMediaFile(source, 'gif');
   assert.deepEqual(await copy.files[0].blob.arrayBuffer(), await source.arrayBuffer());
   assert.equal(copy.files[0].blob.type, 'image/gif');
-  assert.ok(!mediaConversionTargets('logo.png').some((target) => target.id === 'gif'));
   await assert.rejects(convertMediaFile(new File([gif], 'logo.heic'), 'heic'), /không khớp/);
+});
+
+test('JFIF output contains a valid APP0 segment and retains an existing JFIF without rewriting', async () => {
+  const { jpegAsJfif, hasJfifHeader } = await import('../src/lib/mediaConversionOutput');
+  const jpeg = new Blob([new Uint8Array([255, 216, 255, 217])], { type: 'image/jpeg' });
+  const withHeader = await jpegAsJfif(jpeg);
+  assert.equal(await hasJfifHeader(withHeader), true);
+  assert.equal(await jpegAsJfif(withHeader), withHeader);
+  const source = new File([withHeader], 'original.jpg');
+  const result = await convertMediaFile(source, 'jfif');
+  assert.deepEqual(await result.files[0].blob.arrayBuffer(), await source.arrayBuffer());
+});
+
+test('SVGZ wraps original SVG bytes and reopens without rasterizing the XML', async () => {
+  const { compressedSvg } = await import('../src/lib/mediaConversionOutput');
+  const { svgzImage } = await import('../src/lib/mediaConversionImage');
+  const source = '<svg xmlns="http://www.w3.org/2000/svg"><path d="M 1 2 L 30 40"/><text>Kiểm tra</text></svg>';
+  const zipped = await compressedSvg(new Blob([source], { type: 'image/svg+xml' }));
+  assert.deepEqual(new Uint8Array(await zipped.slice(0, 2).arrayBuffer()), new Uint8Array([31, 139]));
+  assert.equal(await (await svgzImage(new File([zipped], 'diagram.svgz'), {})).text(), source);
 });
 
 test('invalid circular TIFF directories fail before decoding', async () => {

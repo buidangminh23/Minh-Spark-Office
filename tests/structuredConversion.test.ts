@@ -2,6 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import JSZip from 'jszip';
 import * as XLSX from 'xlsx';
+import { jsonToMarkdown } from '../src/lib/docxConvert.ts';
+import { renderMarkdown, extractTable } from '../src/addins/markdown.ts';
 import { convertOfficeFile, exportConversionDocument } from '../src/lib/officeConversion.ts';
 
 test('JSON records retain boolean and number types, large IDs, nested values and missing columns', async () => {
@@ -45,6 +47,20 @@ test('JSON exports uncached formulas and error cells alongside cached numbers', 
   assert.deepEqual(JSON.parse(await converted.files[0].blob.text()), [[5, 10, '=A1*3', '#DIV/0!']]);
 });
 
+test('Excel formulas with empty cached-value elements are preserved in CSV, TSV and JSON', async () => {
+  const book = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([[1, 2, 3]]), 'Data');
+  const zip = await JSZip.loadAsync(XLSX.write(book, { type: 'array', bookType: 'xlsx' }));
+  const path = 'xl/worksheets/sheet1.xml';
+  const xml = (await zip.file(path)!.async('string')).replace('<v>2</v>', '<f>SUM(A1,3)</f><v></v>').replace('<v>3</v>', '<f>A1-1</f><v>0</v>');
+  zip.file(path, xml);
+  const file = new File([await zip.generateAsync({ type: 'uint8array' })], 'Report.xlsx');
+  for (const [target, expected] of [['csv', '1,"=SUM(A1,3)",0'], ['tsv', '1\t=SUM(A1,3)\t0']]) {
+    assert.equal((await (await convertOfficeFile(file, target)).files[0].blob.text()).trim(), expected);
+  }
+  assert.deepEqual(JSON.parse(await (await convertOfficeFile(file, 'json')).files[0].blob.text()), [[1, '=SUM(A1,3)', 0]]);
+});
+
 test('PowerPoint extracts merged table cells in reading order and writes editable sheets and JSON rows', async () => {
   const zip = new JSZip();
   const paragraph = (s: string) => `<a:p><a:r><a:t>${s}</a:t></a:r></a:p>`;
@@ -62,6 +78,29 @@ test('PowerPoint extracts merged table cells in reading order and writes editabl
   assert.equal(book.SheetNames.length, 2);
   assert.deepEqual(book.Sheets[book.SheetNames[0]]['!merges'], [XLSX.utils.decode_range('A3:B3')]);
   assert.equal(book.Sheets[book.SheetNames[0]].A4.v, '001');
+});
+
+test('Markdown preserves merged header widths, escaped cell separators, line breaks and embedded images', () => {
+  const text = (value: string) => ({ type: 'text', text: value });
+  const paragraph = (value: string) => ({ type: 'paragraph', content: [text(value)] });
+  const cell = (value: string) => ({ type: 'tableCell', content: [paragraph(value)] });
+  const src = 'data:image/png;base64,aGVsbG8=';
+  const md = jsonToMarkdown({ type: 'doc', content: [
+    { type: 'heading', attrs: { level: 1 }, content: [text('Biểu mẫu')] },
+    { type: 'paragraph', content: [text('Nguyễn Văn A'), { type: 'hardBreak' }, text('Địa điểm')] },
+    { type: 'table', content: [
+      { type: 'tableRow', content: [{ ...cell('Vật tư'), attrs: { colspan: 3 } }] },
+      { type: 'tableRow', content: [cell('A|B'), cell('00123'), { type: 'tableCell', content: [paragraph('Dòng 1'), paragraph('Dòng 2')] }] },
+    ] },
+    { type: 'image', attrs: { src, alt: 'Dấu' } },
+  ] });
+  assert.deepEqual(extractTable(md), [['Vật tư', '', ''], ['A|B', '00123', 'Dòng 1<br>Dòng 2']]);
+  assert.ok(md.includes('Nguyễn Văn A  \nĐịa điểm'));
+  const html = renderMarkdown(md, 0);
+  assert.ok(html.includes('<h1>Biểu mẫu</h1>'));
+  assert.ok(html.includes('<td>Dòng 1<br>Dòng 2</td>'));
+  assert.ok(html.includes('<img alt="Dấu" src="' + src + '">'));
+  assert.ok(renderMarkdown('<script>bad</script>').includes('&lt;script&gt;'));
 });
 
 test('EPUB export includes standalone pictures and merged table geometry', async () => {
@@ -86,6 +125,13 @@ test('PowerPoint exports cached chart series without collapsing missing categori
   const file = new File([await zip.generateAsync({ type: 'uint8array' })], 'Chart.pptx');
   const converted = await convertOfficeFile(file, 'json');
   assert.deepEqual(JSON.parse(await converted.files[0].blob.text()), [['Trang chiếu 1'], ['Danh mục', 'Tổng'], ['Đợt 1', '30'], ['', ''], ['Đợt 3', '50']]);
+  const chart = zip.file('ppt/charts/chart.xml')!;
+  const flat = await chart.async('string');
+  const levels = '<c:multiLvlStrRef><c:multiLvlStrCache><c:ptCount val="3"/><c:lvl><c:pt idx="0"><c:v>Khảo sát</c:v></c:pt><c:pt idx="2"><c:v>Kiểm tra</c:v></c:pt></c:lvl><c:lvl><c:pt idx="0"><c:v>Quý I</c:v></c:pt><c:pt idx="2"><c:v>Quý II</c:v></c:pt></c:lvl></c:multiLvlStrCache></c:multiLvlStrRef>';
+  zip.file(chart.name, flat.replace(/<c:cat>.*?<\/c:cat>/, '<c:cat>' + levels + '</c:cat>'));
+  const grouped = new File([await zip.generateAsync({ type: 'uint8array' })], 'Grouped.pptx');
+  const rows = JSON.parse(await (await convertOfficeFile(grouped, 'json')).files[0].blob.text());
+  assert.deepEqual(rows.slice(2), [['Quý I / Khảo sát', '30'], ['Quý I', ''], ['Quý II / Kiểm tra', '50']]);
 });
 
 test('binary Excel exports every sheet with merged cells, types, existing notes and original formula expressions', async () => {

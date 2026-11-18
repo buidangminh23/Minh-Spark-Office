@@ -7,21 +7,22 @@ import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 import * as XLSX from 'xlsx';
 import { checkLegacySheetSize } from '../src/lib/officeNativeFormats.ts';
 import { CONVERSION_ACCEPT } from '../src/lib/conversionRegistry.ts';
+import { conversionAliases } from '../src/lib/conversionAliases.ts';
 import { mediaConversionTargets } from '../src/lib/mediaConversionFormats.ts';
 import { officeConversionTargets } from '../src/lib/officeConversionFormats.ts';
 
 Object.assign(globalThis, { DOMParser, XMLSerializer });
 
 test('every catalog route reaches the selected output through a supported engine path', () => {
-  const native = ['pdf', 'docx', 'doc', 'odt', 'rtf', 'xlsx', 'xls', 'ods', 'pptx', 'ppt', 'odp'];
+  const native = ['pdf', 'docx', 'doc', 'dot', 'odt', 'fodt', 'rtf', 'xlsx', 'xls', 'xlt', 'ods', 'fods', 'pptx', 'ppt', 'pot', 'pps', 'odp', 'fodp'];
   for (const suffix of CONVERSION_ACCEPT.split(',')) {
     const fileName = 'source' + suffix;
     const formats = conversionTargets(fileName).map(format => format.id);
     assert.equal(new Set(formats).size, formats.length);
     for (const format of formats) for (const fidelity of ['layout', 'editable'] as const) {
       const plan = conversionPlan(fileName, format, fidelity);
-      assert.equal(plan.at(-1)?.target, format, fileName + ' to ' + format);
-      let inputName = fileName;
+      assert.equal(plan.at(-1)?.target, conversionAliases[format] ?? format, fileName + ' to ' + format);
+      let inputName = 'source.' + (conversionAliases[suffix.slice(1)] ?? suffix.slice(1));
       for (const step of plan) {
         if (step.via === 'native') assert.ok(native.includes(step.target));
         if (step.via === 'media') assert.ok(mediaConversionTargets(inputName).some(item => item.id === step.target), inputName + ' to ' + step.target);

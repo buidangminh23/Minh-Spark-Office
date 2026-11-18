@@ -1,10 +1,23 @@
 import type { ConversionTarget } from './conversionTypes';
+import { DATA_EXCHANGE_EXTENSIONS, dataExchangeTargets } from './dataExchangeFormats';
 
-export const OFFICE_DOCUMENT_EXTENSIONS = ['docx', 'doc', 'dot', 'dotx', 'docm', 'dotm', 'odt', 'ott', 'rtf', 'txt', 'md', 'html', 'htm', 'epub'] as const;
-export const OFFICE_SHEET_EXTENSIONS = ['xlsx', 'xls', 'xlt', 'xltx', 'xlsm', 'xltm', 'xlsb', 'ods', 'ots', 'csv', 'tsv', 'json'] as const;
-export const OFFICE_SLIDE_EXTENSIONS = ['pptx', 'ppt', 'pps', 'pot', 'ppsx', 'potx', 'pptm', 'ppsm', 'potm', 'odp', 'otp'] as const;
+export const OFFICE_DOCUMENT_EXTENSIONS = ['docx', 'doc', 'dot', 'dotx', 'docm', 'dotm', 'odt', 'ott', 'fodt', 'rtf', 'txt', 'md', 'html', 'htm', 'xhtml', 'epub'] as const;
+export const OFFICE_SHEET_EXTENSIONS = ['xlsx', 'xls', 'xlt', 'xltx', 'xlsm', 'xltm', 'xlsb', 'ods', 'ots', 'fods', 'csv', 'tsv', 'json', ...DATA_EXCHANGE_EXTENSIONS] as const;
+export const OFFICE_SLIDE_EXTENSIONS = ['pptx', 'ppt', 'pps', 'pot', 'ppsx', 'potx', 'pptm', 'ppsm', 'potm', 'odp', 'otp', 'fodp'] as const;
 
 export const officeTargets: Record<string, ConversionTarget> = {
+  ...dataExchangeTargets,
+  dot: { id: 'dot', label: 'Mẫu Word 97–2003 (.dot)', description: 'Mẫu văn bản Word nhị phân cho phiên bản cũ.' },
+  xlt: { id: 'xlt', label: 'Mẫu Excel 97–2003 (.xlt)', description: 'Mẫu bảng tính Excel nhị phân cho phiên bản cũ.' },
+  pot: { id: 'pot', label: 'Mẫu PowerPoint 97–2003 (.pot)', description: 'Mẫu trình chiếu PowerPoint nhị phân cho phiên bản cũ.' },
+  pps: { id: 'pps', label: 'Trình chiếu PowerPoint 97–2003 (.pps)', description: 'Tệp PowerPoint nhị phân mở ở chế độ trình chiếu.' },
+  fodt: { id: 'fodt', label: 'Flat OpenDocument Text (.fodt)', description: 'Lưu văn bản OpenDocument trong một tệp XML.' },
+  fods: { id: 'fods', label: 'Flat OpenDocument Spreadsheet (.fods)', description: 'Lưu bảng tính OpenDocument trong một tệp XML.' },
+  fodp: { id: 'fodp', label: 'Flat OpenDocument Presentation (.fodp)', description: 'Lưu trình chiếu OpenDocument trong một tệp XML.' },
+  xhtml: { id: 'xhtml', label: 'XHTML (.xhtml)', description: 'Trang web theo cú pháp XML, giữ bảng, ảnh nhúng và trường biểu mẫu được hỗ trợ.' },
+  ...Object.fromEntries(['docm', 'dotm', 'xlsm', 'xltm', 'pptm', 'potm', 'ppsm'].map(id => [id, {
+    id, label: id.toUpperCase() + ' (.' + id + ')', description: 'Gói Office hỗ trợ macro. Chuyển giữa các biến thể macro cùng loại sẽ giữ dự án VBA gốc.',
+  }])),
   xlsb: { id: 'xlsb', label: 'Excel Binary (.xlsb)', description: 'Lưu giá trị trong từng ô. Biểu thức công thức và ghi chú được lưu ở trang tính riêng để đối chiếu.' },
   ott: { id: 'ott', label: 'Mẫu OpenDocument Text (.ott)', description: 'Mẫu văn bản OpenDocument.' },
   ots: { id: 'ots', label: 'Mẫu OpenDocument Spreadsheet (.ots)', description: 'Mẫu bảng tính OpenDocument.' },

@@ -1,4 +1,5 @@
 import { conversionTargets } from './conversionRegistry';
+import { conversionAliases, withConversionExtension } from './conversionAliases';
 import { conversionPlan } from './officeLayoutRoutes';
 import { changeOfficePackage } from './conversionPackages';
 import { checkLegacySheetSize, checkNativeFile } from './officeNativeFormats';
@@ -14,6 +15,13 @@ export async function convertFile(file: File, target: string, options: Conversio
   if (!file.size) throw new Error('Tệp trống, không có dữ liệu để chuyển đổi.');
   if (file.size > MAX_CONVERSION_BYTES) throw new Error('Tệp vượt quá 100 MB. Hãy chia nhỏ tệp trước khi chuyển đổi.');
   if (!conversionTargets(file.name).some((format) => format.id === target)) throw new Error('Định dạng chuyển đổi này chưa được hỗ trợ cho tệp đã chọn.');
+  const sourceAlias = conversionAliases[file.name.split('.').pop()!.toLowerCase()];
+  const targetAlias = conversionAliases[target];
+  if (sourceAlias || targetAlias) {
+    const input = sourceAlias ? new File([file], withConversionExtension(file.name, sourceAlias), { type: file.type, lastModified: file.lastModified }) : file;
+    const result = await convertFile(input, targetAlias ?? target, options);
+    return targetAlias ? { ...result, files: result.files.map(part => ({ ...part, name: withConversionExtension(part.name, target) })) } : result;
+  }
   const steps = conversionPlan(file.name, target, options.fidelity);
   const usesNative = steps.some(step => step.via === 'native');
   let result: ConversionResult = { files: [], warnings: [] };
@@ -40,16 +48,18 @@ export async function convertFile(file: File, target: string, options: Conversio
         result = await (await import('./mediaConversion')).convertMediaFile(input, step.target, step.editable ? { ...options, fidelity: 'editable' } : options);
       } else {
         let blob: Blob;
-        if (step.via === 'copy') {
+        if (step.via === 'xhtml') {
+          blob = await (await import('./xhtmlConversion')).convertXhtml(input, step.target);
+        } else if (step.via === 'copy') {
           await checkNativeFile(await input.arrayBuffer(), ext);
           blob = input;
         } else if (step.via === 'package') {
           blob = await changeOfficePackage(input, ext, step.target);
         } else {
           if (isOfficeArchive(input.name) && (index > 0 || options.layoutSession)) await (await import('./openOfficeZip')).openOfficeZip(await input.arrayBuffer());
-          if (step.target === 'xls') await checkLegacySheetSize(input);
+          if (['xls', 'xlt'].includes(step.target)) await checkLegacySheetSize(input);
           blob = await session!.render(input, options, step.target);
-          if (['doc', 'ppt', 'xls'].includes(step.target)) warnings.add('Định dạng Office 97–2003 có giới hạn với các tính năng và đối tượng mới.');
+          if (['doc', 'dot', 'ppt', 'pot', 'pps', 'xls', 'xlt'].includes(step.target)) warnings.add('Định dạng Office 97–2003 có giới hạn với các tính năng và đối tượng mới.');
         }
         result = { files: [{ name, blob }], warnings: [] };
       }

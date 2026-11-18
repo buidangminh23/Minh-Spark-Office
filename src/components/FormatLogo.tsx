@@ -10,7 +10,7 @@ export function FormatLogo({ badge, size = 28 }: { badge: FormatBadge; size?: nu
   const shine = `${id}-shine`;
   const fold = `${id}-fold`;
   const clip = `${id}-clip`;
-  const fontSize = badge.text.length >= 4 ? 13.5 : 17;
+  const fontSize = badge.text.length <= 3 ? 17 : Math.min(13.5, 62 / badge.text.length);
   return (
     <span className="format-logo" style={{ '--format-logo-size': `${size}px` } as CSSProperties} aria-hidden="true">
       <svg viewBox="0 0 64 64" width={size} height={size}>

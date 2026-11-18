@@ -1,17 +1,41 @@
 const escapeHtml = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-function inline(value: string) {
+function emphasis(value: string) {
   return escapeHtml(value)
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/(^|[^*])\*([^*\s][^*]*)\*/g, '$1<em>$2</em>');
 }
 
+function inline(value: string) {
+  const tokens = /`([^`]+)`|!\[([^\]\n]*)\]\((data:image\/(?:png|jpeg|gif|webp);base64,[a-z\d+/=]+)\)|\[([^\]\n]+)\]\(((?:https?:\/\/|mailto:|#)[^\s()]+)\)|<br\s*\/?>/gi;
+  let output = '';
+  let start = 0;
+  for (const match of value.matchAll(tokens)) {
+    output += emphasis(value.slice(start, match.index));
+    if (match[1]) output += '<code>' + escapeHtml(match[1]) + '</code>';
+    else if (match[3]) output += '<img alt="' + escapeHtml(match[2]) + '" src="' + match[3] + '">';
+    else if (match[5]) output += '<a href="' + escapeHtml(match[5]) + '">' + emphasis(match[4]) + '</a>';
+    else output += '<br>';
+    start = match.index + match[0].length;
+  }
+  return output + emphasis(value.slice(start));
+}
+
 const isTableRow = (line: string) => /^\s*\|.*\|\s*$/.test(line);
 const isSeparator = (line: string) => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(line);
-const splitRow = (line: string) => line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((cell) => cell.trim());
+function splitRow(line: string) {
+  const fields = [''];
+  const content = line.trim().slice(1, -1);
+  for (let i = 0; i < content.length; i++) {
+    const char = content[i];
+    if (char === '|') fields.push('');
+    else if (char === '\\' && ['\\', '|'].includes(content[i + 1])) fields[fields.length - 1] += content[++i];
+    else fields[fields.length - 1] += char;
+  }
+  return fields.map(field => field.trim());
+}
 
-export function renderMarkdown(text: string) {
+export function renderMarkdown(text: string, headingOffset = 1) {
   const lines = text.replace(/\r\n/g, '\n').split('\n');
   const out: string[] = [];
   let index = 0;
@@ -33,9 +57,9 @@ export function renderMarkdown(text: string) {
       out.push(`<table><thead><tr>${head.map((cell) => `<th>${inline(cell)}</th>`).join('')}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${inline(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table>`);
       continue;
     }
-    const heading = /^(#{1,4})\s+(.*)$/.exec(line);
+    const heading = /^(#{1,6})\s+(.*)$/.exec(line);
     if (heading) {
-      const level = Math.min(4, heading[1].length + 1);
+      const level = Math.min(6, heading[1].length + headingOffset);
       out.push(`<h${level}>${inline(heading[2])}</h${level}>`);
       index += 1;
       continue;
@@ -53,7 +77,7 @@ export function renderMarkdown(text: string) {
       continue;
     }
     const paragraph: string[] = [];
-    while (index < lines.length && lines[index].trim() && !/^\s*```/.test(lines[index]) && !/^#{1,4}\s/.test(lines[index]) && !/^\s*([-*+]|\d+[.)])\s+/.test(lines[index]) && !(isTableRow(lines[index]) && isSeparator(lines[index + 1] ?? ''))) paragraph.push(lines[index++]);
+    while (index < lines.length && lines[index].trim() && !/^\s*```/.test(lines[index]) && !/^#{1,6}\s/.test(lines[index]) && !/^\s*([-*+]|\d+[.)])\s+/.test(lines[index]) && !(isTableRow(lines[index]) && isSeparator(lines[index + 1] ?? ''))) paragraph.push(lines[index++]);
     out.push(`<p>${paragraph.map(inline).join('<br>')}</p>`);
   }
   return out.join('');

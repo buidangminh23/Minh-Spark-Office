@@ -6,7 +6,7 @@ import { conversionNodeText } from './officeConversionDocument';
 
 export type ConversionTable = { rows: string[][]; merges: Range[] };
 
-export function conversionTableGrid(table: JSONContent, visitCell?: (node: JSONContent, row: number, column: number) => void): ConversionTable {
+export function conversionTableGrid(table: JSONContent, visitCell?: (node: JSONContent, row: number, column: number) => void, cellText = conversionNodeText): ConversionTable {
   const rows: string[][] = [];
   const merges: Range[] = [];
   const occupied = new Set<string>();
@@ -28,7 +28,7 @@ export function conversionTableGrid(table: JSONContent, visitCell?: (node: JSONC
           rows[rr][cc] = '';
         }
       }
-      rows[r][c] = conversionNodeText(cell);
+      rows[r][c] = cellText(cell);
       visitCell?.(cell, r, c);
       if (width > 1 || height > 1) merges.push({ s: { r, c }, e: { r: r + height - 1, c: c + width - 1 } });
       c += width;

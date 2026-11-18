@@ -39,9 +39,9 @@ export function conversionGuide(fileName: string, target: string, fidelity: Conv
     description = 'Đặt chữ có thể sửa lên nền trang gốc trong PowerPoint. Phông chữ có thể thay đổi.';
   } else if (media && target === 'pdf' && !ocr && /\.pdf$/i.test(fileName)) {
     description = 'Giữ tệp PDF gốc cùng các trường biểu mẫu hiện có.';
-  } else if (raster && imageExtension === target) {
+  } else if (raster && imageExtension === mediaTarget) {
     description = 'Giữ dữ liệu ảnh gốc, gồm siêu dữ liệu và các khung hình động nếu có.';
-  } else if (media && raster) {
+  } else if (media && ['png', 'jpg', 'webp', 'bmp'].includes(target)) {
     description = 'Xuất ảnh tĩnh của từng trang. Chữ và ô biểu mẫu trở thành một phần của ảnh.';
   } else if (['docx', 'pptx', 'xlsx', 'ods'].includes(target) && fileName.toLowerCase().endsWith(`.${target}`)) {
     description = 'Sao chép nguyên tệp, gồm định dạng và các đối tượng nhúng.';

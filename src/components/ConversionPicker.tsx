@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowRight, ChevronRight, Search } from 'lucide-react';
-import { CONVERSION_SOURCE_GROUPS, filterConversionPresets, type ConversionPreset } from '../lib/conversionPresets';
+import { CONVERSION_SOURCE_GROUPS, OPEN_FORMAT_GROUP, conversionOutputGroups, filterConversionPresets, type ConversionPreset } from '../lib/conversionPresets';
 import { FormatLogo } from './FormatLogo';
 import { SuiteLogo } from './SuiteLogo';
 import './conversion.css';
@@ -34,7 +34,10 @@ export function ConversionMenu({ anchor, onPick, onAll, onClose }: { anchor: HTM
   const search = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
   const [source, setSource] = useState('');
-  const groups = filterConversionPresets(query, source);
+  const [target, setTarget] = useState('');
+  const [openFamily, setOpenFamily] = useState('');
+  const groups = filterConversionPresets(query, source, target);
+  const outputs = conversionOutputGroups(source);
   const [position, setPosition] = useState<CSSProperties>({ left: -9999, top: 0 });
   const close = useRef(onClose);
 
@@ -50,7 +53,7 @@ export function ConversionMenu({ anchor, onPick, onAll, onClose }: { anchor: HTM
     place();
     window.addEventListener('resize', place);
     return () => window.removeEventListener('resize', place);
-  }, [anchor, query, source]);
+  }, [anchor, query, source, target]);
 
   useEffect(() => {
     if (window.innerWidth > STACKED_LAYOUT_MAX_WIDTH) search.current?.focus();
@@ -79,13 +82,27 @@ export function ConversionMenu({ anchor, onPick, onAll, onClose }: { anchor: HTM
       <div className="conversion-menu-filters">
         <label className="conversion-source">
           <span>Định dạng nguồn</span>
-          <select value={source} onChange={(event) => { setSource(event.target.value); setQuery(''); }}>
+          <select aria-label="Định dạng nguồn" value={source} onChange={(event) => {
+            const next = event.target.value;
+            setSource(next);
+            if (target && !conversionOutputGroups(next).some(group => group.extensions.includes(target))) setTarget('');
+            setQuery('');
+          }}>
             <option value="">Tất cả định dạng</option>
             {CONVERSION_SOURCE_GROUPS.map((group) => (
               <optgroup key={group.kind} label={group.label}>
                 {group.extensions.map((extension) => <option key={extension} value={extension}>{extension.toUpperCase()}</option>)}
               </optgroup>
             ))}
+          </select>
+        </label>
+        <label className="conversion-source">
+          <span>Định dạng đích</span>
+          <select aria-label="Định dạng đích" value={target} onChange={event => { setTarget(event.target.value); setQuery(''); }}>
+            <option value="">Tất cả định dạng</option>
+            {outputs.map(group => <optgroup key={group.kind} label={group.label}>
+              {group.extensions.map(ext => <option key={ext} value={ext}>{ext.toUpperCase()}</option>)}
+            </optgroup>)}
           </select>
         </label>
         <label className="conversion-search">
@@ -98,8 +115,12 @@ export function ConversionMenu({ anchor, onPick, onAll, onClose }: { anchor: HTM
           {groups.map((group) => (
             <div key={group.title} className="conversion-menu-group" role="group" aria-label={group.title}>
               <div className="conversion-menu-heading" aria-hidden="true">{group.title}</div>
+              {group.title === OPEN_FORMAT_GROUP && !query && <div className="conversion-open-filters" role="group" aria-label={OPEN_FORMAT_GROUP}>
+                {Object.entries({ '': 'Tất cả', doc: 'Word', sheet: 'Excel', slide: 'PowerPoint' }).map(([kind, label]) =>
+                  <button key={kind} type="button" aria-pressed={openFamily === kind} onClick={() => setOpenFamily(kind)}>{label}</button>)}
+              </div>}
               <div className="conversion-menu-grid">
-                {group.presets.map((preset) => (
+                {group.presets.filter(preset => group.title !== OPEN_FORMAT_GROUP || query || !openFamily || preset.from === openFamily).map((preset) => (
                   <button key={preset.id} role="menuitem" className="conversion-menu-item" onClick={() => onPick(preset)}>
                     <ConversionPair preset={preset} size={26} />
                     <span className="conversion-menu-text"><strong>{preset.title}</strong><span>{preset.note}</span></span>

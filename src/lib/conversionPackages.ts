@@ -9,10 +9,9 @@ const macroTypes = {
   potm: ['pptm', 'ppt/presentation.xml', 'application/vnd.ms-powerpoint.template'],
   ppsm: ['pptm', 'ppt/presentation.xml', 'application/vnd.ms-powerpoint.slideshow'],
 } as const;
-export function macroVariants(ext: string) {
-  const group = macroTypes[ext as keyof typeof macroTypes]?.[0];
-  return Object.entries(macroTypes).filter(([, info]) => info[0] === group).map(([id]) => id);
-}
+export const macroOutputBase: Partial<Record<string, string>> = {
+  docm: 'docx', dotm: 'docx', xlsm: 'xlsx', xltm: 'xlsx', pptm: 'pptx', ppsm: 'pptx', potm: 'pptx',
+};
 
 export const officePackages = {
   docx: ['docx', 'word/document.xml', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
@@ -58,7 +57,7 @@ export async function changeOfficePackage(file: File, from: string, to: string):
   const source = officePackages[from as keyof typeof officePackages];
   const target = officePackages[to as keyof typeof officePackages];
   const types = await zip.file('[Content_Types].xml')?.async('string');
-  if (!source || !target || source[0] !== target[0] || !types || !zip.file(source[1])) throw new Error('Gói Office không đúng định dạng đã chọn.');
+  if (!source || !target || (source[0] !== target[0] && source[0] !== macroOutputBase[to]) || !types || !zip.file(source[1])) throw new Error('Gói Office không đúng định dạng đã chọn.');
   const xml = new DOMParser().parseFromString(types, 'application/xml');
   const part = Array.from(xml.getElementsByTagNameNS('*', 'Override')).find(el => el.getAttribute('PartName') === '/' + source[1]);
   if (part?.getAttribute('ContentType') !== packageContentType(from as keyof typeof officePackages)) throw new Error('Loại tài liệu bên trong không khớp phần mở rộng Office.');

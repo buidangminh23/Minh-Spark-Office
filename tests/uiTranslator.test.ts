@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createTranslator, translateMultiline } from '../src/lib/i18n/uiTranslator';
 import dictionary from '../src/lib/i18n/en.json';
+import { CONVERSION_PRESET_GROUPS, CONVERSION_SOURCE_GROUPS } from '../src/lib/conversionPresets';
+import { conversionTargets } from '../src/lib/conversionRegistry';
 
 const translate = createTranslator({
   'Chèn': 'Insert',
@@ -45,5 +47,28 @@ test('the shipped dictionary keeps every placeholder', () => {
     const wanted = [...vietnamese.matchAll(/\{(\d+)\}/g)].map((match) => match[1]).sort().join(',');
     const found = [...english.matchAll(/\{(\d+)\}/g)].map((match) => match[1]).sort().join(',');
     assert.equal(found, wanted, `placeholders differ for "${vietnamese}"`);
+  }
+});
+
+test('conversion presets, format descriptions and source groups have English labels', () => {
+  const translateLabel = createTranslator(dictionary);
+  const translated = (label: string) => translateLabel(label) ?? label;
+  const hasVietnamese = /[đĐ\u00c0-\u01b0\u1ea0-\u1ef9]|\bsang\b/u;
+  for (const group of CONVERSION_PRESET_GROUPS) {
+    assert.ok(translateLabel(group.title), group.title);
+    for (const preset of group.presets) {
+      assert.ok(translateLabel(preset.title), preset.title);
+      assert.doesNotMatch(translated(preset.title), hasVietnamese);
+      assert.doesNotMatch(translated(preset.note), hasVietnamese);
+    }
+  }
+  for (const group of CONVERSION_SOURCE_GROUPS) {
+    assert.doesNotMatch(translated(group.label), hasVietnamese);
+    for (const extension of group.extensions) {
+      for (const target of conversionTargets(`sample.${extension}`)) {
+        assert.doesNotMatch(translated(target.label), hasVietnamese);
+        assert.doesNotMatch(translated(target.description), hasVietnamese);
+      }
+    }
   }
 });

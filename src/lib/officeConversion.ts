@@ -6,6 +6,7 @@ import { checkConversionAbort, conversionBaseName, type ConversionOptions, type 
 import { officeConversionTargets, officeFileKind } from './officeConversionFormats';
 import { conversionDocumentHtml, conversionNodeText, htmlConversionDocument, textConversionDocument } from './officeConversionDocument';
 import { spreadsheetDocumentTable } from './officeConversionTables';
+import { isDataExchangeFormat } from './dataExchangeFormats';
 
 export { officeConversionTargets } from './officeConversionFormats';
 
@@ -59,14 +60,14 @@ export async function convertOfficeFile(file: File, target: string, options: Con
     if (target === 'docx') return { files: [{ name: `${base}.docx`, blob: await convertOfficePackage(zip, 'docx') }], warnings };
     const { importDocx } = await import('./docxConvert');
     const parsed = htmlConversionDocument(await importDocx(buffer));
-    json = parsed.json;
+    json = await (await import('./docxConversionRegions')).includeDocxConversionRegions(zip, parsed.json);
     warnings.push(...parsed.warnings, 'Giữ nội dung, bảng, danh sách và ảnh được hỗ trợ; kiểu trang, đầu/chân trang, chú thích, công thức và đối tượng Word nâng cao có thể thay đổi.');
   } else {
     const text = new TextDecoder('utf-8', { fatal: true }).decode(buffer);
     if (text.length > MAX_TEXT) throw new Error('Văn bản vượt giới hạn 2 triệu ký tự.');
     if (ext === 'txt') json = textConversionDocument(text);
     else {
-      const html = ext === 'md' ? (await import('../addins/markdown')).renderMarkdown(text) : text;
+      const html = ext === 'md' ? (await import('../addins/markdown')).renderMarkdown(text, 0) : text;
       const parsed = htmlConversionDocument(html);
       json = parsed.json;
       warnings.push(...parsed.warnings);
@@ -189,13 +190,27 @@ async function convertSpreadsheet(buffer: ArrayBuffer, ext: string, base: string
       return { files: [{ name: `${base}.xlsx`, blob }], warnings };
     }
   }
-  const book = ext === 'json' ? (await import('./jsonWorkbook')).readJsonWorkbook(buffer, XLSX)
+  const book = isDataExchangeFormat(ext) ? await (await import('./dataExchangeConversion')).readDataExchangeWorkbook(buffer, ext, XLSX)
+    : ext === 'json' ? (await import('./jsonWorkbook')).readJsonWorkbook(buffer, XLSX)
     : delimited ? delimitedBook(XLSX, delimited.rows) : XLSX.read(buffer, { type: 'array', cellStyles: true, cellNF: true, cellFormula: true });
   checkWorkbook(book);
   checkConversionAbort(options);
+  if (isDataExchangeFormat(ext) && target === ext) return { files: [{ name: `${base}.${ext}`, blob: new Blob([buffer]) }], warnings: [] };
   if (target === ext && ['xlsx', 'xlsb', 'ods', 'json', 'csv', 'tsv'].includes(ext)) return { files: [{ name: `${base}.${target}`, blob: new Blob([buffer], { type: mimeTypes[target] ?? (ext === 'csv' ? 'text/csv' : 'text/tab-separated-values') }) }], warnings: [] };
   for (const name of book.SheetNames) {
     const sheet = book.Sheets[name];
+    for (const address of Object.keys(sheet)) {
+      if (address.startsWith('!')) continue;
+      const cell = sheet[address];
+      if (!cell.f || (cell.t !== 'z' && cell.v != null)) continue;
+      if (target === 'csv' || target === 'tsv') {
+        sheet[address] = { t: 's', v: '=' + cell.f };
+      } else if (cell.t === 'z') {
+        cell.t = 'n';
+        delete cell.v;
+        delete cell.w;
+      }
+    }
     const range = XLSX.utils.decode_range(sheet['!ref'] || 'A1');
     for (const merge of sheet['!merges'] ?? []) {
       const anchor = XLSX.utils.encode_cell(merge.s);
@@ -208,6 +223,7 @@ async function convertSpreadsheet(buffer: ArrayBuffer, ext: string, base: string
     sheet['!ref'] = XLSX.utils.encode_range(range);
   }
   checkWorkbook(book);
+  if (isDataExchangeFormat(target)) return (await import('./dataExchangeConversion')).writeDataExchangeWorkbook(book, target, base, options, XLSX);
   const warnings = ['Chuyển đổi giữ dữ liệu ô và công thức được hỗ trợ. Macro, biểu đồ, ảnh, xác thực dữ liệu và định dạng nâng cao có thể không đi theo; công thức không được tính lại.'];
   if (target === 'xlsx' || target === 'ods' || target === 'xlsb') {
     const outputWarnings = target === 'xlsb' ? prepareBinaryWorkbook(book, XLSX) : warnings;

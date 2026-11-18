@@ -3,7 +3,7 @@ import { Check, Download, FilePlus2, Info, LayoutTemplate, TextCursorInput, Tras
 import { CONVERSION_ACCEPT, MAX_CONVERSION_BATCH_BYTES, MAX_CONVERSION_BYTES, MAX_CONVERSION_FILES, conversionTargets, conversionZip, convertFile } from '../lib/fileConversion';
 import type { ConversionOptions, ConversionResult } from '../lib/conversionTypes';
 import { downloadBlob, formatBytes } from '../lib/download';
-import { presetAccept, presetAcceptsFile, presetSampleName, presetSourceLabel, type ConversionPreset } from '../lib/conversionPresets';
+import { conversionOutputGroups, presetAccept, presetAcceptsFile, presetInitialFidelity, presetSampleName, presetSourceLabel, type ConversionPreset } from '../lib/conversionPresets';
 import { conversionGuide } from '../lib/conversionGuide';
 import { openOfficeLayoutSession } from '../lib/officeLayoutSession';
 import { mediaConversionTargets } from '../lib/mediaConversionFormats';
@@ -26,7 +26,7 @@ export function ConversionDialog({ preset, onClose }: { preset?: ConversionPrese
   const [progress, setProgress] = useState('');
   const [notice, setNotice] = useState('');
   const [dragging, setDragging] = useState(false);
-  const [fidelity, setFidelity] = useState<ConversionOptions['fidelity']>('layout');
+  const [fidelity, setFidelity] = useState<ConversionOptions['fidelity']>(() => presetInitialFidelity(preset));
   const [ocr, setOcr] = useState(true);
   const locked = running || packing;
   const presetName = preset && presetSampleName(preset);
@@ -166,10 +166,15 @@ export function ConversionDialog({ preset, onClose }: { preset?: ConversionPrese
       <ul className="conversion-queue" aria-label="Danh sách chuyển đổi">
         {queue.map((item) => {
           const targets = conversionTargets(item.file.name);
-          const selected = targets.find((target) => target.id === item.target);
+          const formats = new Map(targets.map(target => [target.id, target]));
+          const selected = formats.get(item.target);
           return <li key={item.id} className="conversion-item">
             <div className="conversion-file"><strong title={item.file.name}>{item.file.name}</strong><span>{formatBytes(item.file.size)} · {item.status === 'done' ? 'Hoàn thành' : item.status === 'running' ? 'Đang xử lý' : item.status === 'error' ? 'Chưa chuyển đổi được' : 'Sẵn sàng'}</span></div>
-            <label className="conversion-format"><span>Chuyển sang</span><select className="text-field" aria-label={`Định dạng đầu ra cho ${item.file.name}`} value={item.target} disabled={locked} onChange={(event) => { setProgress(''); update(item.id, { target: event.target.value, status: 'ready', result: undefined, message: undefined }); }}>{targets.map((target) => <option key={target.id} value={target.id}>{target.label}</option>)}</select></label>
+            <label className="conversion-format"><span>Chuyển sang</span><select className="text-field" aria-label={`Định dạng đầu ra cho ${item.file.name}`} value={item.target} disabled={locked} onChange={(event) => { setProgress(''); update(item.id, { target: event.target.value, status: 'ready', result: undefined, message: undefined }); }}>
+              {conversionOutputGroups(item.file.name.split('.').pop()!.toLowerCase()).map(group => <optgroup key={group.kind} label={group.label}>
+                {group.extensions.map(ext => <option key={ext} value={ext}>{formats.get(ext)?.label}</option>)}
+              </optgroup>)}
+            </select></label>
             <div className="conversion-item-actions">{item.result && <button className="btn" aria-label="Tải xuống" title="Tải xuống" disabled={locked} onClick={() => void download(item.result!, item.file.name)}><Download size={16} /><span>Tải xuống</span></button>}<button className="icon-btn" disabled={locked} aria-label={`Bỏ ${item.file.name}`} onClick={() => { setProgress(''); setQueue((items) => items.filter((entry) => entry.id !== item.id)); }}><Trash2 size={17} /></button></div>
             <p className="conversion-description">{conversionGuide(item.file.name, item.target, fidelity, ocr).description ?? selected?.description}</p>
             {item.message && <p className="conversion-error" role="alert">{item.message}</p>}

@@ -82,7 +82,7 @@ function start() {
       assetUrl('soffice.wasm.gz', 'application/wasm'), assetUrl('soffice.data.gz', 'application/octet-stream'),
       location.hostname === 'tauri.localhost' ? assetUrl('soffice.js', 'text/javascript') : url('soffice.js'),
     ]);
-    worker = new Worker(url('browser.worker.global.js'));
+    worker = new Worker(url('browser.worker.global.js?formats=2'));
     try {
       await request('init', { sofficeJs: script, sofficeWorkerJs: url('soffice.worker.js'), sofficeWasm: wasm, sofficeData: data }, 'ready');
     } catch (error) {
@@ -104,10 +104,12 @@ function start() {
       progress.removeAttribute('value');
       await initialize();
       const outputFormat = data.outputFormat;
-      if (!['pdf', 'docx', 'doc', 'odt', 'rtf', 'xlsx', 'xls', 'ods', 'pptx', 'ppt', 'odp'].includes(outputFormat)) throw new Error('Định dạng đầu ra chưa được hỗ trợ.');
+      if (!['pdf', 'docx', 'doc', 'dot', 'odt', 'fodt', 'rtf', 'xlsx', 'xls', 'xlt', 'ods', 'fods', 'pptx', 'ppt', 'pps', 'pot', 'odp', 'fodp'].includes(outputFormat)) throw new Error('Định dạng đầu ra chưa được hỗ trợ.');
       notify(outputFormat === 'pdf' ? 'Đang dàn trang theo bố cục in…' : 'Đang chuyển sang ' + outputFormat.toUpperCase() + '…');
-      const bytes = await request('convert', { inputData: new Uint8Array(await file.arrayBuffer()), inputExt: file.name.split('.').pop()?.toLowerCase(), outputFormat }, 'result');
+      const binaryFormat = ({ dot: 'doc', xlt: 'xls', pps: 'ppt' } as Record<string, string>)[outputFormat] ?? outputFormat;
+      let bytes = await request('convert', { inputData: new Uint8Array(await file.arrayBuffer()), inputExt: file.name.split('.').pop()?.toLowerCase(), outputFormat: binaryFormat }, 'result');
       if (!bytes?.byteLength || bytes.byteLength > 200 * 1024 * 1024) throw new Error('Bộ chuyển đổi chưa tạo được tệp trong giới hạn 200 MB.');
+      if (outputFormat === 'dot' || outputFormat === 'xlt') bytes = await (await import('./legacyOfficeTemplates')).createLegacyTemplate(bytes, outputFormat);
       const blob = new Blob([bytes], { type: nativeOutputMime(outputFormat) });
       await checkNativeFile(await blob.arrayBuffer(), outputFormat);
       channel.postMessage({ type: 'result', id: active, blob });

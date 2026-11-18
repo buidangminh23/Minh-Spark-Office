@@ -70,10 +70,7 @@ function table(node: XmlNode): JSONContent {
   return { type: 'table', content: rows };
 }
 
-function cachedValues(source: XmlNode | undefined): string[] {
-  if (!source) return [];
-  const ref = first(source, 'strRef') ?? first(source, 'numRef');
-  const cache = first(ref, 'strCache') ?? first(ref, 'numCache') ?? first(source, 'strLit') ?? first(source, 'numLit');
+function indexedValues(cache: XmlNode | undefined): string[] {
   const values: string[] = [];
   for (const point of children(cache, 'pt')) {
     const index = Number(point.attrs.idx);
@@ -81,6 +78,27 @@ function cachedValues(source: XmlNode | undefined): string[] {
     values[index] = first(point, 'v')?.text ?? '';
   }
   return values;
+}
+
+function cachedValues(source: XmlNode | undefined): string[] {
+  const hierarchy = first(first(source, 'multiLvlStrRef'), 'multiLvlStrCache');
+  if (hierarchy) {
+    const levels = children(hierarchy, 'lvl').map(indexedValues);
+    const declared = Number(first(hierarchy, 'ptCount')?.attrs.val ?? 0);
+    const length = levels.reduce((max, level) => Math.max(max, level.length), declared);
+    if (!Number.isSafeInteger(length) || length < 0 || length > 50_000 || length * levels.length > 250_000) {
+      throw new Error('Dữ liệu biểu đồ PowerPoint vượt giới hạn ô.');
+    }
+    const labels = levels.map(() => '');
+    return Array.from({ length }, (_, index) => {
+      for (let depth = 0; depth < levels.length; depth++) {
+        labels[depth] = levels[depth][index] ?? (depth === 0 ? '' : labels[depth]);
+      }
+      return labels.filter(Boolean).reverse().join(' / ');
+    });
+  }
+  const ref = first(source, 'strRef') ?? first(source, 'numRef');
+  return indexedValues(first(ref, 'strCache') ?? first(ref, 'numCache') ?? first(source, 'strLit') ?? first(source, 'numLit'));
 }
 
 function chartOutline(root: XmlNode): JSONContent[] {

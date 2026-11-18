@@ -18,6 +18,10 @@ function formatKind(extension: string): FileKind {
 const accepted = CONVERSION_ACCEPT.split(',').map((suffix) => suffix.slice(1));
 const targetsBySource = new Map(accepted.map((extension) => [extension, conversionTargets(`file.${extension}`)]));
 const targetIds = new Set([...targetsBySource.values()].flat().map((target) => target.id));
+export function conversionOutputGroups(source = '') {
+  const ids = source ? (targetsBySource.get(source) ?? []).map(format => format.id) : [...targetIds];
+  return FORMAT_GROUPS.map(group => ({ ...group, extensions: ids.filter(id => formatKind(id) === group.kind).sort() })).filter(group => group.extensions.length);
+}
 export const CONVERSION_SOURCE_GROUPS = FORMAT_GROUPS.map((group) => ({
   ...group,
   extensions: accepted.filter((extension) => formatKind(extension) === group.kind).sort(),
@@ -40,6 +44,38 @@ const CSV = badge('CSV', '#2fd36f', '#0b8a43');
 const TSV = badge('TSV', '#2dd4bf', '#0f8478');
 const JSON_DATA = badge('JSON', '#fbbf24', '#c96a04');
 const JPG = badge('JPG', '#fb7185', '#d3215c');
+const COLORS: Record<FileKind, [string, string]> = {
+  doc: ['#38bdf8', '#1d62d4'], sheet: ['#4ade80', '#15803d'], slide: ['#fb923c', '#c2410c'],
+  pdf: ['#fb7185', '#b91c1c'], image: ['#60a5fa', '#4338ca'],
+};
+const openBadges: Record<string, FormatBadge> = {
+  odt: ODT, ods: ODS, rtf: RTF, epub: EPUB, md: MD, html: HTML, txt: TXT, csv: CSV, tsv: TSV, json: JSON_DATA,
+};
+
+export const OPEN_FORMAT_GROUP = 'Định dạng mở, web và dữ liệu';
+const openFormatLabels: Record<string, string> = {
+  odt: 'ODT', ods: 'ODS', odp: 'ODP', ott: 'OTT', ots: 'OTS', otp: 'OTP',
+  fodt: 'FODT', fods: 'FODS', fodp: 'FODP', rtf: 'RTF', epub: 'EPUB', md: 'Markdown',
+  html: 'HTML', xhtml: 'XHTML', txt: 'văn bản', csv: 'CSV', tsv: 'TSV', json: 'JSON',
+  xml: 'Excel XML 2003', slk: 'SYLK', dif: 'DIF', dbf: 'dBASE', numbers: 'Apple Numbers',
+};
+const openSources = { doc: 'docx', sheet: 'xlsx', slide: 'pptx' } as const;
+
+function openFormatShortcuts(favorites: ConversionPreset[]) {
+  const items = [...favorites];
+  for (const from of Object.keys(openSources) as (keyof typeof openSources)[]) {
+    const ext = openSources[from];
+    const favoritesForSource = new Set(favorites.filter(item => item.from === from).map(item => item.target));
+    for (const [target, label] of Object.entries(openFormatLabels)) {
+      if (favoritesForSource.has(target) || !targetsBySource.get(ext)?.some(item => item.id === target)) continue;
+      const title = from === 'sheet' && target === 'csv' ? 'Excel sang CSV theo trang tính' : SOURCE_LABEL[from] + ' sang ' + label;
+      const icon = openBadges[target] ?? badge(target.toUpperCase(), ...COLORS[formatKind(target)]);
+      const item = preset(from, icon, target, title, '.' + ext + ' → .' + target);
+      items.push({ ...item, id: 'open-' + item.id });
+    }
+  }
+  return items;
+}
 
 const shortcuts: ConversionPresetGroup[] = [
   {
@@ -88,9 +124,10 @@ const shortcuts: ConversionPresetGroup[] = [
     presets: [
       preset('doc', 'slide', 'pptx', 'Word sang PowerPoint', '.docx → .pptx'),
       preset('slide', 'doc', 'docx', 'PowerPoint sang Word', '.pptx → .docx'),
-      preset('doc', 'sheet', 'xlsx', 'Word sang Excel', '.docx → .xlsx'),
+      preset('doc', 'sheet', 'xlsx', 'Word sang Excel', 'Trích bảng → .xlsx'),
       preset('sheet', 'doc', 'docx', 'Excel sang Word', '.xlsx → .docx'),
       preset('sheet', 'slide', 'pptx', 'Excel sang PowerPoint', '.xlsx → .pptx'),
+      preset('slide', 'sheet', 'xlsx', 'PowerPoint sang Excel', '.pptx → .xlsx'),
     ],
   },
   {
@@ -110,8 +147,8 @@ const shortcuts: ConversionPresetGroup[] = [
     ],
   },
   {
-    title: 'Định dạng mở, web và dữ liệu',
-    presets: [
+    title: OPEN_FORMAT_GROUP,
+    presets: openFormatShortcuts([
       preset('doc', ODT, 'odt', 'Word sang ODT', '.docx → .odt'),
       preset('doc', RTF, 'rtf', 'Word sang RTF', '.docx → .rtf'),
       preset('doc', EPUB, 'epub', 'Word sang EPUB', 'Sách điện tử .epub'),
@@ -125,7 +162,7 @@ const shortcuts: ConversionPresetGroup[] = [
       preset('slide', ODT, 'odt', 'PowerPoint sang ODT', '.pptx → .odt'),
       preset('slide', MD, 'md', 'PowerPoint sang Markdown', '.pptx → .md'),
       preset('slide', HTML, 'html', 'PowerPoint sang HTML', '.pptx → .html'),
-    ],
+    ]),
   },
 ];
 
@@ -140,10 +177,6 @@ export const CONVERSION_PRESET_GROUPS = shortcuts.map((group) => ({
 export const CONVERSION_PRESETS = CONVERSION_PRESET_GROUPS.flatMap((group) => group.presets);
 
 const PRIMARY: Partial<Record<FileKind, string>> = { doc: 'docx', sheet: 'xlsx', slide: 'pptx', pdf: 'pdf' };
-const COLORS: Record<FileKind, [string, string]> = {
-  doc: ['#38bdf8', '#1d62d4'], sheet: ['#4ade80', '#15803d'], slide: ['#fb923c', '#c2410c'],
-  pdf: ['#fb7185', '#b91c1c'], image: ['#60a5fa', '#4338ca'],
-};
 
 function exactPresets(source: string): ConversionPreset[] {
   const from = formatKind(source);
@@ -162,10 +195,19 @@ function searchable(text: string) {
   return text.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replaceAll('đ', 'd');
 }
 
-export function filterConversionPresets(query: string, selectedSource = ''): ConversionPresetGroup[] {
+export function filterConversionPresets(query: string, selectedSource = '', selectedTarget = ''): ConversionPresetGroup[] {
   const normalized = searchable(query).trim();
+  if (selectedTarget) {
+    const words = normalized.split(/[^a-z0-9]+/).filter(word => word && !['to', 'sang', 'qua'].includes(word));
+    return CONVERSION_SOURCE_GROUPS.map(group => ({
+      title: group.label,
+      presets: group.extensions.filter(ext => !selectedSource || ext === selectedSource).flatMap(ext =>
+        exactPresets(ext).filter(route => route.target === selectedTarget && words.every(word =>
+          searchable([ext, group.label, SOURCE_LABEL[group.kind], route.target, route.note].join(' ')).includes(word)))),
+    })).filter(group => group.presets.length);
+  }
   const direction = normalized.match(/^(.*?)\s*(?:→|->|\bto\b|\bsang\b|\bqua\b)\s*(.*?)$/);
-  const aliases: Record<string, string> = { word: 'docx', excel: 'xlsx', powerpoint: 'pptx', jpeg: 'jpg' };
+  const aliases: Record<string, string> = { word: 'docx', excel: 'xlsx', powerpoint: 'pptx' };
   const destination = direction?.[2].replace(/^\./, '') ?? '';
   const targetId = aliases[destination] ?? destination;
   if (!selectedSource && direction && targetIds.has(targetId)) {
@@ -213,6 +255,14 @@ export function filterConversionPresets(query: string, selectedSource = ''): Con
 }
 
 export const presetSourceLabel = (value: ConversionPreset) => value.sourceLabel ?? SOURCE_LABEL[value.from];
+
+export function presetInitialFidelity(value?: ConversionPreset) {
+  if (!value) return 'layout';
+  if (value.from === 'image' && value.target === 'docx') return 'editable';
+  if (['doc', 'slide'].includes(value.from) && ['xlsx', 'ods', 'fods', 'ots'].includes(value.target)) return 'editable';
+  if (['sheet', 'slide'].includes(value.from) && ['odt', 'fodt', 'ott', 'rtf'].includes(value.target)) return 'editable';
+  return 'layout';
+}
 
 export function presetAccept(value: ConversionPreset) {
   return presetSources(value).map((extension) => `.${extension}`).join(',');

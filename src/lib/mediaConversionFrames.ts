@@ -1,5 +1,5 @@
 import type { IFD } from 'utif';
-import utif from 'utif';
+import pako from 'pako';
 import createHeifModule from 'libheif-js/libheif-wasm/libheif-bundle.mjs';
 import decodeAvif from '@jsquash/avif/decode';
 import { MAX_IMAGE_PAGES, checkImageSize } from './mediaConversionRaster';
@@ -79,6 +79,8 @@ export async function* decodeImageFrames(buffer: ArrayBuffer, format: 'heif' | '
   }
   if (format === 'tiff') {
     checkDirectories(buffer);
+    globalThis.pako ??= pako;
+    const { default: utif } = await import('utif');
     const pages = utif.decode(buffer).filter((ifd) => !(value(ifd, 254) & 5) && value(ifd, 255) !== 2);
     if (!pages.length) throw new Error('Tệp TIFF thiếu trang ảnh.');
     for (const page of pages) {

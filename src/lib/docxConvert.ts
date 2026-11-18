@@ -40,6 +40,7 @@ import {
   type ParagraphChild,
 } from 'docx';
 import type { JSONContent } from '@tiptap/react';
+import { conversionTableGrid } from './officeConversionTables';
 import { PAGE_SIZES, type DocStyleDef, type PageSettings } from './storage';
 import { resolveStyles } from '../editors/doc/docStyles';
 import { latexToMath as docxLatexToMath } from 'docx/math';
@@ -690,53 +691,52 @@ export function jsonToMarkdown(node?: JSONContent): string {
     return text;
   }
 
-  const inner = (node.content || []).map(jsonToMarkdown).join('');
+  const inner = () => (node.content || []).map(jsonToMarkdown).join('');
 
   switch (node.type) {
     case 'doc':
       return (node.content || []).map(jsonToMarkdown).join('\n\n');
     case 'heading': {
       const hashes = '#'.repeat(Number(node.attrs?.level) || 1);
-      return `${hashes} ${inner}`;
+      return `${hashes} ${inner()}`;
     }
     case 'paragraph':
-      return inner;
+      return inner();
+    case 'hardBreak':
+      return '  \n';
     case 'blockquote':
-      return inner.split('\n').map((line) => `> ${line}`).join('\n');
+      return inner().split('\n').map((line) => `> ${line}`).join('\n');
     case 'codeBlock':
-      return `\`\`\`${node.attrs?.language || ''}\n${inner}\n\`\`\``;
+      return `\`\`\`${node.attrs?.language || ''}\n${inner()}\n\`\`\``;
     case 'bulletList':
       return (node.content || []).map((item) => `- ${jsonToMarkdown(item)}`).join('\n');
     case 'orderedList':
       return (node.content || []).map((item, idx) => `${idx + 1}. ${jsonToMarkdown(item)}`).join('\n');
     case 'listItem':
-      return inner;
+      return inner();
     case 'taskList':
       return (node.content || []).map(jsonToMarkdown).join('\n');
     case 'taskItem':
-      return `- [${node.attrs?.checked ? 'x' : ' '}] ${inner}`;
+      return `- [${node.attrs?.checked ? 'x' : ' '}] ${inner()}`;
     case 'horizontalRule':
     case 'pageBreak':
       return '\n---\n';
     case 'image':
       return `![${node.attrs?.alt || 'image'}](${node.attrs?.src || ''})`;
     case 'table': {
-      const rows = (node.content || []).map((row) =>
-        '| ' + (row.content || []).map((cell) => jsonToMarkdown(cell).replace(/\n/g, ' ')).join(' | ') + ' |'
-      );
-      if (rows.length > 0 && node.content?.[0]?.content?.length) {
-        const colCount = node.content[0].content.length;
-        const divider = '| ' + Array(colCount).fill('---').join(' | ') + ' |';
-        rows.splice(1, 0, divider);
-      }
-      return rows.join('\n');
+      const { rows } = conversionTableGrid(node, undefined, cell =>
+        jsonToMarkdown(cell).replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/ *\r?\n/g, '<br>'));
+      if (!rows[0]?.length) return '';
+      const lines = rows.map(row => '| ' + row.join(' | ') + ' |');
+      lines.splice(1, 0, '| ' + rows[0].map(() => '---').join(' | ') + ' |');
+      return lines.join('\n');
     }
     case 'tableRow':
-      return inner;
+      return inner();
     case 'tableCell':
     case 'tableHeader':
-      return inner;
+      return (node.content ?? []).map(jsonToMarkdown).join('\n');
     default:
-      return inner;
+      return inner();
   }
 }

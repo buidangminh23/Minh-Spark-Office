@@ -61,7 +61,7 @@ async function* decodedCanvases(file: File, format: string, options: ConversionO
   } finally { worker.terminate(); }
 }
 
-async function svgzImage(file: File, options: ConversionOptions) {
+export async function svgzImage(file: File, options: ConversionOptions) {
   const reader = file.stream().pipeThrough(new DecompressionStream('gzip')).getReader();
   const chunks: BlobPart[] = [];
   let size = 0;
@@ -152,7 +152,8 @@ async function animationData(file: File, ext: string) {
   return null;
 }
 
-export async function* imageCanvases(file: File, options: ConversionOptions, flatten: boolean, warnings: string[]): AsyncGenerator<HTMLCanvasElement> {
+export type FrameTiming = { index: number; count: number; delay: number; repeat: number };
+export async function* imageCanvases(file: File, options: ConversionOptions, flatten: boolean, warnings: string[], keepTiming?: (frame: FrameTiming) => void): AsyncGenerator<HTMLCanvasElement> {
   const ext = file.name.split('.').pop()!.toLowerCase();
   if (['heic', 'heif', 'tif', 'tiff'].includes(ext)) {
     yield* decodedCanvases(file, ext.startsWith('tif') ? 'tiff' : 'heif', options, flatten);
@@ -178,10 +179,12 @@ export async function* imageCanvases(file: File, options: ConversionOptions, fla
             try {
               if (flatten) { context.fillStyle = '#fff'; context.fillRect(0, 0, canvas.width, canvas.height); }
               context.drawImage(image, 0, 0);
+              const repeats = decoder.tracks.selectedTrack!.repetitionCount;
+              keepTiming?.({ index, count, delay: (image.duration ?? 100_000) / 1000, repeat: Number.isFinite(repeats) ? repeats || -1 : 0 });
             } finally { image.close(); }
             yield canvas;
           }
-          warnings.push('Mỗi khung hình động được xuất thành một trang hoặc ảnh tĩnh theo đúng thứ tự. Thời lượng phát không được lưu.');
+          if (!keepTiming) warnings.push('Mỗi khung hình động được xuất thành một trang hoặc ảnh tĩnh theo đúng thứ tự. Thời lượng phát không được lưu.');
           return;
         } finally { options.signal?.removeEventListener('abort', cancel); decoder.close(); }
       }

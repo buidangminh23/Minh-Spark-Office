@@ -19,8 +19,9 @@ const IMAGE_POINTS_PER_PIXEL = 0.75;
 const BASE64_BYTES_PER_CHAR = 0.75;
 export { mediaConversionTargets } from './mediaConversionFormats';
 import { imageSourceFormat, IMAGE_OUTPUT_EXTENSIONS, mediaConversionTargets } from './mediaConversionFormats';
-import { imageCanvases, validatedImageCopy } from './mediaConversionImage';
+import { imageCanvases, svgzImage, validatedImageCopy, type FrameTiming } from './mediaConversionImage';
 import { encodeBmp, encodeTiff, joinEncodedTiffPages } from './mediaConversionRaster';
+import { compressedSvg, encodeIcon, encodeImageInWorker, hasJfifHeader, jpegAsJfif, svgWithImage } from './mediaConversionOutput';
 import { pdfReadingSpans, type PdfTextSpan } from './mediaConversionPdfGlyphs';
 
 function positionedRows(lines: MediaTextLine[]): { text: string; x: number }[][] {
@@ -112,14 +113,22 @@ function mediaPageName(title: string, target: string, index: number, count: numb
   return `${title}${count > 1 ? ` - trang ${String(index + 1).padStart(3, '0')}` : ''}.${target}`;
 }
 
-async function canvasBlob(canvas: HTMLCanvasElement, target: string): Promise<Blob> {
+async function canvasBlob(canvas: HTMLCanvasElement, target: string, options: ConversionOptions = {}, frame?: FrameTiming): Promise<Blob> {
   const pixels = () => {
     const context = canvas.getContext('2d');
     if (!context) throw new Error('Không khởi tạo được bộ xử lý ảnh.');
     return context.getImageData(0, 0, canvas.width, canvas.height);
   };
   if (target === 'bmp') return encodeBmp(pixels());
+  if (target === 'dib') return encodeBmp(pixels()).slice(14, undefined, 'image/bmp');
   if (target === 'tiff') return encodeTiff(pixels());
+  if (target === 'ico') return encodeIcon(canvas);
+  if (target === 'jfif') return jpegAsJfif(await canvasBlob(canvas, 'jpg'));
+  if (['gif', 'avif', 'heic', 'heif'].includes(target)) return encodeImageInWorker(canvas, target, options, frame);
+  if (target === 'svg' || target === 'svgz') {
+    const svg = await svgWithImage(await canvasBlob(canvas, 'png'), canvas.width, canvas.height);
+    return target === 'svgz' ? compressedSvg(svg) : svg;
+  }
   const mime = target === 'jpg' ? 'image/jpeg' : `image/${target}`;
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, mime, 0.92));
   if (target === 'webp' && blob?.type !== mime) {
@@ -160,7 +169,7 @@ async function renderPdfCanvas(doc: PDFDocumentProxy, number: number, maxEdge: n
 export async function renderPdfPage(doc: PDFDocumentProxy, number: number, target: string, options: ConversionOptions, maxEdge = Infinity): Promise<Blob> {
   const { canvas } = await renderPdfCanvas(doc, number, maxEdge, options);
   try {
-    return await canvasBlob(canvas, target);
+    return await canvasBlob(canvas, target, options);
   } finally {
     canvas.width = canvas.height = 0;
   }
@@ -309,6 +318,7 @@ export async function convertMediaFile(file: File, target: string, options: Conv
   const layout = ((target === 'pptx' || target === 'docx') && options.fidelity !== 'editable') || pageReference;
   const textNeeded = !imageTarget && (!layout || pageReference) && !editableSlides;
   const slides: EditableSlide[] = [];
+  let timing: FrameTiming | undefined;
   if (/\.pdf$/i.test(file.name)) {
     await import('../editors/pdf/pdfRender');
     const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
@@ -361,13 +371,27 @@ export async function convertMediaFile(file: File, target: string, options: Conv
     }
   } else {
     options.onProgress?.('Đang đọc ảnh…');
-    if (imageSourceFormat(file.name) === target) {
+    const sourceFormat = imageSourceFormat(file.name);
+    if (sourceFormat === target) {
       const copy = await validatedImageCopy(file, target, options);
       checkConversionAbort(options);
       return { files: [{ name: `${title}.${target}`, blob: copy }], warnings: [] };
     }
+    if (['svg', 'svgz'].includes(sourceFormat) && ['svg', 'svgz'].includes(target)) {
+      const svg = sourceFormat === 'svgz' ? await svgzImage(file, options) : file;
+      const original = await validatedImageCopy(new File([svg], 'source.svg'), 'svg', options);
+      const blob = target === 'svgz' ? await compressedSvg(original) : original;
+      return { files: [{ name: `${title}.${target}`, blob }], warnings: [] };
+    }
+    if (sourceFormat === 'heic' && target === 'heif') {
+      const original = await validatedImageCopy(file, sourceFormat, options);
+      return { files: [{ name: `${title}.heif`, blob: original.slice(0, original.size, 'image/heif') }], warnings: [] };
+    }
+    if (sourceFormat === 'jpg' && target === 'jfif' && await hasJfifHeader(file)) {
+      return { files: [{ name: `${title}.jfif`, blob: file.slice(0, file.size, 'image/jpeg') }], warnings: [] };
+    }
     let totalBytes = 0;
-    for await (const canvas of imageCanvases(file, options, target === 'jpg' || editableSlides, warnings)) {
+    for await (const canvas of imageCanvases(file, options, target === 'jpg' || target === 'jfif' || editableSlides, warnings, target === 'gif' ? frame => { timing = frame; } : undefined)) {
       try {
         checkConversionAbort(options);
         options.onProgress?.(`Đang chuyển trang ${(editableSlides ? slides : pages).length + 1}…`);
@@ -377,7 +401,7 @@ export async function convertMediaFile(file: File, target: string, options: Conv
           totalBytes += slide.background.length * BASE64_BYTES_PER_CHAR;
           slides.push(slide);
         } else {
-          const image = await canvasBlob(canvas, imageTarget ? target : 'png');
+          const image = await canvasBlob(canvas, imageTarget ? target : 'png', options, timing);
           totalBytes += image.size;
           const page: MediaPage = { width: canvas.width * IMAGE_POINTS_PER_PIXEL, height: canvas.height * IMAGE_POINTS_PER_PIXEL, lines: [], image };
           if (textNeeded && options.ocr !== false) await mediaExportOcr(page, options, warnings, pageReference || target === 'pdf');
@@ -391,6 +415,7 @@ export async function convertMediaFile(file: File, target: string, options: Conv
   let result: ConversionResult;
   if (editableSlides) result = await buildEditableSlidesResult(slides, title);
   else if (target === 'tiff') result = { files: [{ name: `${title}.tiff`, blob: await joinEncodedTiffPages(pages.map((page) => page.image!), options) }], warnings: [] };
+  else if (target === 'gif' && timing) result = { files: [{ name: `${title}.gif`, blob: new Blob(pages.map(page => page.image!), { type: 'image/gif' }) }], warnings: [] };
   else if (imageTarget) result = { files: pages.map((page, index) => ({ name: mediaPageName(title, target, index, pages.length), blob: page.image! })), warnings: [] };
   else if (layout) result = await buildMediaLayoutResult(pages, target, title, options);
   else if (target === 'pdf') result = await buildEditableMediaPdf(pages, title, originalPdf, ocrPages, options);
