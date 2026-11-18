@@ -37,7 +37,7 @@ import {
   whenSheetEditorFocused,
 } from '@univerjs/preset-sheets-core';
 import { EXTRA_FUNCTION_DESCRIPTIONS, EXTRA_FUNCTIONS } from './extraFunctions';
-import { fitWrappedRows } from './fitWrappedRows';
+import { fitWrappedRows, registerWrappedCellSpacing, WRAPPED_LINE_GAP } from './fitWrappedRows';
 import {
   EXCEL_NUMBER_FORMATS,
   PAGE_COLUMN_STEP,
@@ -1464,6 +1464,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
               functionScreenTips: startup.sheetFormulaAutoComplete,
             },
             sheets: {
+              textLineGap: WRAPPED_LINE_GAP,
               scrollConfig: { ...SHEET_SCROLLBAR_STYLE, enableHorizontal: startup.sheetShowHScroll, enableVertical: startup.sheetShowVScroll },
             },
             footer: {
@@ -1500,6 +1501,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
       delete clonedWb.formButtons;
       delete clonedWb.formImages;
       univer.createUnit(UniverInstanceType.UNIVER_SHEET, clonedWb);
+      registerWrappedCellSpacing(univer);
       registerBackspaceClearsSelection(univer);
       recalculateAndBindWorkbook(univerAPI);
 

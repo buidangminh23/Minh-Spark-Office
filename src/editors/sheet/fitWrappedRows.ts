@@ -1,7 +1,24 @@
-import { WrapStrategy, type createUniver } from '@univerjs/presets';
-import { MAXIMUM_ROW_HEIGHT, SetWorksheetRowAutoHeightMutation, SheetSkeletonService, type SpreadsheetSkeleton } from '@univerjs/preset-sheets-core';
+import { InterceptorEffectEnum, WrapStrategy, type IRowData, type createUniver } from '@univerjs/presets';
+import { INTERCEPTOR_POINT, MAXIMUM_ROW_HEIGHT, SetWorksheetRowAutoHeightMutation, SheetInterceptorService, SheetSkeletonService, type SpreadsheetSkeleton } from '@univerjs/preset-sheets-core';
 
 type SheetRuntime = ReturnType<typeof createUniver>;
+
+export const WRAPPED_LINE_GAP = 4;
+const WRAPPED_CELL_PADDING = { t: 4, b: 4, l: 4, r: 4 };
+
+const hasFixedHeight = (row?: Partial<IRowData> | null) => row?.ia === 0 || (row?.h != null && row.ia !== 1 && row.ah == null);
+
+export function registerWrappedCellSpacing(univer: SheetRuntime['univer']) {
+  univer.__getInjector().get(SheetInterceptorService).intercept(INTERCEPTOR_POINT.CELL_CONTENT, {
+    effect: InterceptorEffectEnum.Style,
+    handler: (cell, { worksheet, workbook, row, col }, next) => {
+      if (!cell || (typeof cell.v !== 'string' && !cell.p)) return next(cell);
+      const style = worksheet.getComposedCellStyleByCellData(row, col, cell);
+      if (style.tb !== WrapStrategy.WRAP || style.pd || hasFixedHeight(worksheet.getConfig().rowData[row])) return next(cell);
+      return next({ ...cell, s: { ...workbook.getStyles().getStyleByCell(cell), pd: WRAPPED_CELL_PADDING } });
+    },
+  });
+}
 
 export function fitWrappedRows(univer: SheetRuntime['univer'], api: SheetRuntime['univerAPI']) {
   const workbook = api.getActiveWorkbook()?.getWorkbook();
@@ -15,7 +32,7 @@ export function fitWrappedRows(univer: SheetRuntime['univer'], api: SheetRuntime
     const rowsAutoHeightInfo: { row: number; autoHeight: number }[] = [];
     sheet.getCellMatrix().forEach((row, cells) => {
       const settings = rowData[row];
-      if (settings?.ia === 0 || (settings?.h != null && settings.ia !== 1) || settings?.ah != null) return;
+      if (hasFixedHeight(settings)) return;
       const height = sheet.getRowManager().getRowHeight(row);
       let required = height;
       for (const [column, cell] of Object.entries(cells)) {
