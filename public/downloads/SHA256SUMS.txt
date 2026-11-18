@@ -1,6 +1,6 @@
-964939a4d6a5c2ce49d69786baa33536907cd024f3ba20a4273b68c2633855c5  MinhSparkOffice-0.2.86-windows-x64-vi-Setup.exe
-478b62720e78771b78f0f91c50d07df9cf3b10ca23817685ce33b1eb59ffc804  MinhSparkOffice-0.2.86-windows-x64-en-US.msi
-12e5d72e2c88f6dcbf8fe356996148e7a16e1133d7b40bff324c760a1cf35d95  MinhSparkOffice-0.2.86-macos-arm64.dmg
-65f873ef4a4dca6bff5d31b53fb5b856cfabcae88dbcf1027448a40b019bb463  MinhSparkOffice-0.2.86-macos-arm64.app.tar.gz
-3c41a7a0327f1f275b83a88094858f30546c037df19218a90cd6b2b8764091da  MinhSparkOffice-0.2.86-linux-x64.deb
-b12902615a08d7de5910c7899964e43296b31908f6da579566e2bd5047040756  MinhSparkOffice-0.2.86-linux-x64.AppImage
+bc1bb1c06738539501b62e71eadecaf25c7d10da36325e02c76c11943d332f95  MinhSparkOffice-0.2.87-windows-x64-vi-Setup.exe
+df51c5e73858b020415a85beef3367008c2669e161196f0a8d55ef1ef611ba66  MinhSparkOffice-0.2.87-windows-x64-en-US.msi
+10924ba7c7aed7e3e79d2204a127fd208deaf2114e90b4de228aed995f89c553  MinhSparkOffice-0.2.87-macos-arm64.dmg
+7191dc6284b0a1fd4bd13df6f59b6ec18cadc05f302982cd4b6079704cf61e52  MinhSparkOffice-0.2.87-macos-arm64.app.tar.gz
+ae4729b1e02e80f9d307f0b42466c4c5376245a08b339bbe71066e7dcab509f8  MinhSparkOffice-0.2.87-linux-x64.deb
+27f3458d79a2bc98bb7c0fb9c2b1b1dcba3198dcdd2d2dde3574b3d6e4d46ea3  MinhSparkOffice-0.2.87-linux-x64.AppImage
