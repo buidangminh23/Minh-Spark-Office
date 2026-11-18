@@ -1,10 +1,22 @@
 import type { ConversionTarget } from './conversionTypes';
 
-export const OFFICE_DOCUMENT_EXTENSIONS = ['docx', 'dotx', 'txt', 'md', 'html', 'htm'] as const;
-export const OFFICE_SHEET_EXTENSIONS = ['xlsx', 'xls', 'xlsm', 'xlsb', 'ods', 'csv', 'tsv'] as const;
-export const OFFICE_SLIDE_EXTENSIONS = ['pptx', 'ppsx', 'potx'] as const;
+export const OFFICE_DOCUMENT_EXTENSIONS = ['docx', 'doc', 'dot', 'dotx', 'docm', 'dotm', 'odt', 'ott', 'rtf', 'txt', 'md', 'html', 'htm', 'epub'] as const;
+export const OFFICE_SHEET_EXTENSIONS = ['xlsx', 'xls', 'xlt', 'xltx', 'xlsm', 'xltm', 'xlsb', 'ods', 'ots', 'csv', 'tsv', 'json'] as const;
+export const OFFICE_SLIDE_EXTENSIONS = ['pptx', 'ppt', 'pps', 'pot', 'ppsx', 'potx', 'pptm', 'ppsm', 'potm', 'odp', 'otp'] as const;
 
-const targets: Record<string, ConversionTarget> = {
+export const officeTargets: Record<string, ConversionTarget> = {
+  xlsb: { id: 'xlsb', label: 'Excel Binary (.xlsb)', description: 'Lưu giá trị trong từng ô. Biểu thức công thức và ghi chú được lưu ở trang tính riêng để đối chiếu.' },
+  ott: { id: 'ott', label: 'Mẫu OpenDocument Text (.ott)', description: 'Mẫu văn bản OpenDocument.' },
+  ots: { id: 'ots', label: 'Mẫu OpenDocument Spreadsheet (.ots)', description: 'Mẫu bảng tính OpenDocument.' },
+  otp: { id: 'otp', label: 'Mẫu OpenDocument Presentation (.otp)', description: 'Mẫu trình chiếu OpenDocument.' },
+  doc: { id: 'doc', label: 'Word 97–2003 (.doc)', description: 'Tài liệu Word nhị phân cho phiên bản cũ.' },
+  xls: { id: 'xls', label: 'Excel 97–2003 (.xls)', description: 'Bảng tính Excel nhị phân cho phiên bản cũ.' },
+  ppt: { id: 'ppt', label: 'PowerPoint 97–2003 (.ppt)', description: 'Bài trình chiếu PowerPoint nhị phân cho phiên bản cũ.' },
+  odp: { id: 'odp', label: 'OpenDocument Presentation (.odp)', description: 'Bài trình chiếu OpenDocument có thể chỉnh sửa.' },
+  dotx: { id: 'dotx', label: 'Mẫu Word (.dotx)', description: 'Tạo mẫu để dùng lại bố cục và nội dung Word.' },
+  xltx: { id: 'xltx', label: 'Mẫu Excel (.xltx)', description: 'Tạo mẫu để dùng lại các trang tính và công thức.' },
+  potx: { id: 'potx', label: 'Mẫu PowerPoint (.potx)', description: 'Tạo mẫu PowerPoint từ các trang chiếu.' },
+  ppsx: { id: 'ppsx', label: 'Trình chiếu PowerPoint (.ppsx)', description: 'Mở trực tiếp ở chế độ trình chiếu PowerPoint.' },
   docx: { id: 'docx', label: 'Word (.docx)', description: 'Văn bản và bảng có thể chỉnh sửa; bố cục được dựng lại.' },
   odt: { id: 'odt', label: 'OpenDocument (.odt)', description: 'Văn bản cho LibreOffice và OpenOffice.' },
   rtf: { id: 'rtf', label: 'Rich Text (.rtf)', description: 'Văn bản có định dạng cơ bản.' },
@@ -36,13 +48,9 @@ export function officeFileKind(name: string): 'document' | 'sheet' | 'slide' | n
 
 export function officeConversionTargets(fileName: string): ConversionTarget[] {
   const kind = officeFileKind(fileName);
-  const ids = kind === 'document'
-    ? ['docx', 'odt', 'rtf', 'pdf', 'txt', 'md', 'html', 'epub', 'pptx', 'xlsx', 'csv', 'tsv', 'png', 'jpg', 'webp']
-    : kind === 'sheet'
-      ? ['xlsx', 'ods', 'csv', 'tsv', 'json', 'html', 'docx', 'pdf', 'pptx', 'png', 'jpg', 'webp']
-      : kind === 'slide'
-        ? ['pptx', 'docx', 'odt', 'rtf', 'txt', 'md', 'html', 'pdf', 'png', 'jpg', 'webp']
-        : [];
+  if (!kind) return [];
+  const primary = { document: 'docx', sheet: 'xlsx', slide: 'pptx' }[kind];
+  const ids = [primary, ...Object.keys(officeTargets).filter(id => id !== primary)];
   const delimited = /\.(csv|tsv)$/i.test(fileName);
-  return ids.map((id) => (delimited && id === 'xlsx' ? DELIMITED_XLSX_TARGET : targets[id]));
+  return ids.map((id) => (delimited && id === 'xlsx' ? DELIMITED_XLSX_TARGET : officeTargets[id]));
 }

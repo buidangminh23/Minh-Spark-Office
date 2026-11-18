@@ -34,7 +34,7 @@ export function ConversionDialog({ preset, onClose }: { preset?: ConversionPrese
     : preset && presetName ? [conversionGuide(presetName, preset.target, fidelity, ocr)] : [];
   const showMode = guides.some((guide) => guide.mode);
   const showOcr = guides.some((guide) => guide.usesOcr);
-  const officeWindow = fidelity === 'layout' && guides.some((guide) => guide.officeLayout);
+  const officeWindow = guides.some((guide) => guide.needsEngine);
   const visualOnly = guides.filter((guide) => guide.mode).every((guide) => guide.visual);
   const presetDescription = !queue.length && preset && presetName
     ? guides[0]?.description ?? conversionTargets(presetName).find((format) => format.id === preset.target)?.description : undefined;
@@ -53,6 +53,7 @@ export function ConversionDialog({ preset, onClose }: { preset?: ConversionPrese
     for (const file of files) {
       const targets = conversionTargets(file.name);
       if (preset && !presetAcceptsFile(preset, file.name)) { rejected.push(`${file.name}: không phải tệp ${presetSourceLabel(preset)}`); continue; }
+      if (preset && !targets.some(format => format.id === preset.target)) { rejected.push(`${file.name}: chưa hỗ trợ định dạng đầu ra đã chọn`); continue; }
       if (!targets.length) { rejected.push(`${file.name}: chưa hỗ trợ định dạng nguồn này`); continue; }
       const maxBytes = mediaConversionTargets(file.name).length ? MAX_CONVERSION_BYTES : 50 * 1024 * 1024;
       if (!file.size || file.size > maxBytes) { rejected.push(`${file.name}: tệp phải có nội dung và không vượt quá ${maxBytes / 1024 / 1024} MB`); continue; }
@@ -80,7 +81,7 @@ export function ConversionDialog({ preset, onClose }: { preset?: ConversionPrese
     let layoutFailure: Error | undefined;
     try {
       const pending = queue.filter((item) => item.status !== 'done');
-      if (fidelity === 'layout' && pending.some((item) => conversionGuide(item.file.name, item.target, fidelity, ocr).officeLayout)) {
+      if (pending.some((item) => conversionGuide(item.file.name, item.target, fidelity, ocr).needsEngine)) {
         try { layoutSession = openOfficeLayoutSession(); }
         catch (error) { layoutFailure = error instanceof Error ? error : new Error('Không mở được cửa sổ dàn trang.'); }
       }
@@ -90,7 +91,7 @@ export function ConversionDialog({ preset, onClose }: { preset?: ConversionPrese
         update(item.id, { status: 'running', message: undefined, result: undefined });
         setProgress(`Tệp ${index + 1}/${pending.length}: ${item.file.name}`);
         try {
-          if (layoutFailure && conversionGuide(item.file.name, item.target, fidelity, ocr).officeLayout) throw layoutFailure;
+          if (layoutFailure && conversionGuide(item.file.name, item.target, fidelity, ocr).needsEngine) throw layoutFailure;
           const result = await convertFile(item.file, item.target, { fidelity, ocr, layoutSession, signal: abort.signal, onProgress: (message) => { if (mounted.current) setProgress(`Tệp ${index + 1}/${pending.length} · ${message}`); } });
           const resultBytes = result.files.reduce((sum, file) => sum + file.blob.size, 0);
           if (outputBytes + resultBytes > MAX_CONVERSION_BATCH_BYTES) throw new Error('Tổng kết quả vượt 200 MB. Tải các tệp đã hoàn thành, bỏ chúng khỏi danh sách rồi chạy tiếp.');
@@ -169,7 +170,7 @@ export function ConversionDialog({ preset, onClose }: { preset?: ConversionPrese
           return <li key={item.id} className="conversion-item">
             <div className="conversion-file"><strong title={item.file.name}>{item.file.name}</strong><span>{formatBytes(item.file.size)} · {item.status === 'done' ? 'Hoàn thành' : item.status === 'running' ? 'Đang xử lý' : item.status === 'error' ? 'Chưa chuyển đổi được' : 'Sẵn sàng'}</span></div>
             <label className="conversion-format"><span>Chuyển sang</span><select className="text-field" aria-label={`Định dạng đầu ra cho ${item.file.name}`} value={item.target} disabled={locked} onChange={(event) => { setProgress(''); update(item.id, { target: event.target.value, status: 'ready', result: undefined, message: undefined }); }}>{targets.map((target) => <option key={target.id} value={target.id}>{target.label}</option>)}</select></label>
-            <div className="conversion-item-actions">{item.result && <button className="btn" disabled={locked} onClick={() => void download(item.result!, item.file.name)}><Download size={16} />Tải xuống</button>}<button className="icon-btn" disabled={locked} aria-label={`Bỏ ${item.file.name}`} onClick={() => { setProgress(''); setQueue((items) => items.filter((entry) => entry.id !== item.id)); }}><Trash2 size={17} /></button></div>
+            <div className="conversion-item-actions">{item.result && <button className="btn" aria-label="Tải xuống" title="Tải xuống" disabled={locked} onClick={() => void download(item.result!, item.file.name)}><Download size={16} /><span>Tải xuống</span></button>}<button className="icon-btn" disabled={locked} aria-label={`Bỏ ${item.file.name}`} onClick={() => { setProgress(''); setQueue((items) => items.filter((entry) => entry.id !== item.id)); }}><Trash2 size={17} /></button></div>
             <p className="conversion-description">{conversionGuide(item.file.name, item.target, fidelity, ocr).description ?? selected?.description}</p>
             {item.message && <p className="conversion-error" role="alert">{item.message}</p>}
             {item.result?.warnings.map((warning, index) => <p key={index} className="conversion-warning">{warning}</p>)}

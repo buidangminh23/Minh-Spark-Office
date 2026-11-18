@@ -18,7 +18,9 @@ const mimeTypes: Record<string, string> = {
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  xlsb: 'application/vnd.ms-excel.sheet.binary.macroEnabled.12',
   ods: 'application/vnd.oasis.opendocument.spreadsheet',
+  json: 'application/json',
 };
 
 export async function convertOfficeFile(file: File, target: string, options: ConversionOptions = {}): Promise<ConversionResult> {
@@ -40,8 +42,16 @@ export async function convertOfficeFile(file: File, target: string, options: Con
     if (!zip.file('ppt/presentation.xml')) throw new Error('Tệp không phải bài trình chiếu PowerPoint hợp lệ.');
     if (target === 'pptx' && ext === 'pptx') return { files: [{ name: `${base}.pptx`, blob: new Blob([buffer], { type: mimeTypes.pptx }) }], warnings };
     if (target === 'pptx') return { files: [{ name: `${base}.pptx`, blob: await convertOfficePackage(zip, 'pptx') }], warnings };
-    json = await readSlideOutline(zip, options);
-    warnings.push('Đã trích văn bản và ảnh nhúng theo thứ tự trang chiếu. Vị trí, hiệu ứng, biểu đồ, SmartArt, video và bố cục trang chiếu gốc không được giữ trong bản trích nội dung.');
+    json = await (await import('./slideConversionOutline')).readSlideOutline(zip, options);
+    warnings.push('Đã trích văn bản, bảng và ảnh nhúng theo thứ tự trang chiếu. Vị trí, hiệu ứng, biểu đồ, SmartArt và video có thể thay đổi hoặc bị lược bỏ.');
+  } else if (ext === 'epub') {
+    const zip = await openOfficeZip(buffer);
+    const { readEpubDocument, readEpubPublication } = await import('./epubConversion');
+    const publication = await readEpubPublication(zip);
+    if (target === 'epub') return { files: [{ name: `${base}.epub`, blob: new Blob([buffer], { type: 'application/epub+zip' }) }], warnings };
+    const parsed = await readEpubDocument(zip, publication, options);
+    json = parsed.json;
+    warnings.push(...parsed.warnings);
   } else if (ext === 'docx' || ext === 'dotx') {
     const zip = await openOfficeZip(buffer);
     if (!zip.file('word/document.xml')) throw new Error('Tệp không phải tài liệu Word hợp lệ.');
@@ -81,65 +91,6 @@ async function convertOfficePackage(zip: Awaited<ReturnType<typeof openOfficeZip
   return zip.generateAsync({ type: 'blob', mimeType: mimeTypes[target], compression: 'DEFLATE' });
 }
 
-function decodeXml(value: string): string {
-  return value.replace(/&#(x[0-9a-f]+|\d+);|&(lt|gt|amp|quot|apos);/gi, (_, numeric: string | undefined, named: string | undefined) => {
-    if (numeric) {
-      const number = numeric[0].toLowerCase() === 'x' ? parseInt(numeric.slice(1), 16) : parseInt(numeric, 10);
-      return number > 0 && number <= 0x10ffff ? String.fromCodePoint(number) : '\uFFFD';
-    }
-    return ({ lt: '<', gt: '>', amp: '&', quot: '"', apos: "'" })[named!.toLowerCase()] ?? '';
-  });
-}
-
-async function readSlideOutline(zip: Awaited<ReturnType<typeof openOfficeZip>>, options: ConversionOptions): Promise<JSONContent> {
-  const presentation = await zip.file('ppt/presentation.xml')!.async('string');
-  const relations = await zip.file('ppt/_rels/presentation.xml.rels')?.async('string') ?? '';
-  const relationshipMap = new Map<string, string>();
-  for (const relation of relations.matchAll(/<Relationship\b[^>]*>/g)) {
-    const id = /\bId=["']([^"']+)["']/.exec(relation[0])?.[1];
-    const target = /\bTarget=["']([^"']+)["']/.exec(relation[0])?.[1];
-    if (id && target && !/TargetMode=["']External/i.test(relation[0])) relationshipMap.set(id, target.startsWith('/') ? target.slice(1) : `ppt/${target}`);
-  }
-  const paths = [...presentation.matchAll(/<p:sldId\b[^>]*\br:id=["']([^"']+)["'][^>]*\/?\s*>/g)].map((match) => relationshipMap.get(match[1])).filter((path): path is string => Boolean(path));
-  if (!paths.length || paths.length > 500) throw new Error('Bài trình chiếu phải có từ 1 đến 500 trang chiếu hợp lệ.');
-  const content: JSONContent[] = [];
-  for (const [index, path] of paths.entries()) {
-    checkConversionAbort(options);
-    options.onProgress?.(`Đang đọc trang chiếu ${index + 1}/${paths.length}…`);
-    const source = zip.file(path);
-    if (!source) throw new Error(`Thiếu dữ liệu trang chiếu ${index + 1}.`);
-    const xml = await source.async('string');
-    if (index) content.push({ type: 'pageBreak' });
-    content.push({ type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: `Trang chiếu ${index + 1}` }] });
-    for (const paragraph of xml.matchAll(/<a:p(?:\s[^>]*)?>[\s\S]*?<\/a:p>/g)) {
-      const text = [...paragraph[0].matchAll(/<a:t(?:\s[^>]*)?>([\s\S]*?)<\/a:t>|<a:br\s*\/>/g)].map((match) => match[1] === undefined ? '\n' : decodeXml(match[1])).join('');
-      if (text) content.push(...textConversionDocument(text).content!);
-    }
-    const slash = path.lastIndexOf('/');
-    const relPath = `${path.slice(0, slash)}/_rels/${path.slice(slash + 1)}.rels`;
-    const relXml = await zip.file(relPath)?.async('string') ?? '';
-    const images = new Map<string, string>();
-    for (const relation of relXml.matchAll(/<Relationship\b[^>]*>/g)) {
-      const id = /\bId=["']([^"']+)["']/.exec(relation[0])?.[1];
-      const target = /\bTarget=["']([^"']+)["']/.exec(relation[0])?.[1];
-      if (!id || !target || /TargetMode=["']External/i.test(relation[0])) continue;
-      const parts = `${path.slice(0, slash)}/${target}`.split('/');
-      const resolved: string[] = [];
-      for (const part of parts) { if (part === '..') resolved.pop(); else if (part && part !== '.') resolved.push(part); }
-      if (/\.(png|jpe?g|gif|webp)$/i.test(target)) images.set(id, resolved.join('/'));
-    }
-    for (const embed of xml.matchAll(/<a:blip\b[^>]*\br:embed=["']([^"']+)["']/g)) {
-      const imagePath = images.get(embed[1]);
-      if (!imagePath) continue;
-      const image = zip.file(imagePath);
-      if (!image) continue;
-      const extension = imagePath.split('.').pop()!.toLowerCase();
-      const mime = extension === 'jpg' || extension === 'jpeg' ? 'jpeg' : extension;
-      content.push({ type: 'image', attrs: { src: `data:image/${mime};base64,${await image.async('base64')}`, alt: `Ảnh trang chiếu ${index + 1}` } });
-    }
-  }
-  return { type: 'doc', content };
-}
 
 function sheetBounds(sheet: WorkSheet): { rows: number; columns: number } {
   const ref = sheet['!ref'];
@@ -172,6 +123,59 @@ function delimitedBook(XLSX: typeof import('xlsx'), rows: string[][]): WorkBook 
   return book;
 }
 
+function worksheetJsonRows(sheet: WorkSheet, xlsx: typeof import('xlsx')) {
+  const range = xlsx.utils.decode_range(sheet['!ref'] || 'A1');
+  const rows: unknown[][] = [];
+  for (let row = range.s.r; row <= range.e.r; row++) {
+    const values: unknown[] = [];
+    for (let col = range.s.c; col <= range.e.c; col++) {
+      const cell = sheet[xlsx.utils.encode_cell({ r: row, c: col })];
+      if (cell?.f && cell.v == null) values.push(`=${cell.f}`);
+      else if (cell?.t === 'e') values.push(cell.w ?? xlsx.utils.format_cell(cell));
+      else values.push(cell?.v ?? null);
+    }
+    rows.push(values);
+  }
+  return rows;
+}
+
+function prepareBinaryWorkbook(book: WorkBook, xlsx: typeof import('xlsx')) {
+  const names = new Set(book.SheetNames.map(name => name.toLowerCase()));
+  const headers = ['Trang tính', 'Ô', 'Công thức nguồn', 'Tác giả', 'Ghi chú nguồn'];
+  let rows = [headers];
+  let serial = 0;
+  const appendIndex = () => {
+    let name: string;
+    do { serial++; name = 'Công thức và ghi chú' + (serial === 1 ? '' : ' ' + serial); } while (names.has(name.toLowerCase()));
+    names.add(name.toLowerCase());
+    const sheet = xlsx.utils.aoa_to_sheet(rows);
+    sheet['!cols'] = [24, 12, 60, 24, 60].map(wch => ({ wch }));
+    xlsx.utils.book_append_sheet(book, sheet, name);
+    rows = [headers];
+  };
+  for (const name of [...book.SheetNames]) {
+    const sheet = book.Sheets[name];
+    for (const key of Object.keys(sheet)) {
+      if (key.startsWith('!')) continue;
+      const cell = sheet[key];
+      if (!cell.f && !cell.c?.length) continue;
+      const formula = cell.f ? `=${cell.f}` : '';
+      if (formula && cell.v == null) { cell.t = 's'; cell.v = formula; delete cell.w; }
+      delete cell.f;
+      delete cell.F;
+      const notes = cell.c?.length ? cell.c : [{ a: '', t: '' }];
+      for (const [index, note] of notes.entries()) {
+        rows.push([name, key, index === 0 ? formula : '', note.a ?? '', note.t ?? '']);
+        if (rows.length === 50_000) appendIndex();
+      }
+    }
+  }
+  if (rows.length > 1) appendIndex();
+  const warnings = ['XLSB giữ dữ liệu và ô gộp của các trang tính. Macro VBA, ảnh, biểu đồ và định dạng nâng cao có thể bị mất.'];
+  if (serial) warnings.push('Trang “Công thức và ghi chú” lưu biểu thức, địa chỉ ô và ghi chú nguồn. Các ô XLSB hiển thị kết quả đã lưu hoặc biểu thức dạng chữ khi thiếu kết quả. Công thức không tự tính lại.');
+  return warnings;
+}
+
 async function convertSpreadsheet(buffer: ArrayBuffer, ext: string, base: string, target: string, options: ConversionOptions): Promise<ConversionResult> {
   const XLSX = await import('xlsx');
   const zip = ['xlsx', 'xlsm', 'xlsb', 'ods'].includes(ext) ? await openOfficeZip(buffer) : null;
@@ -185,10 +189,11 @@ async function convertSpreadsheet(buffer: ArrayBuffer, ext: string, base: string
       return { files: [{ name: `${base}.xlsx`, blob }], warnings };
     }
   }
-  const book = delimited ? delimitedBook(XLSX, delimited.rows) : XLSX.read(buffer, { type: 'array', cellStyles: true, cellNF: true, cellFormula: true });
+  const book = ext === 'json' ? (await import('./jsonWorkbook')).readJsonWorkbook(buffer, XLSX)
+    : delimited ? delimitedBook(XLSX, delimited.rows) : XLSX.read(buffer, { type: 'array', cellStyles: true, cellNF: true, cellFormula: true });
   checkWorkbook(book);
   checkConversionAbort(options);
-  if (target === ext && ['xlsx', 'ods'].includes(ext)) return { files: [{ name: `${base}.${target}`, blob: new Blob([buffer], { type: mimeTypes[target] }) }], warnings: [] };
+  if (target === ext && ['xlsx', 'xlsb', 'ods', 'json', 'csv', 'tsv'].includes(ext)) return { files: [{ name: `${base}.${target}`, blob: new Blob([buffer], { type: mimeTypes[target] ?? (ext === 'csv' ? 'text/csv' : 'text/tab-separated-values') }) }], warnings: [] };
   for (const name of book.SheetNames) {
     const sheet = book.Sheets[name];
     const range = XLSX.utils.decode_range(sheet['!ref'] || 'A1');
@@ -204,16 +209,17 @@ async function convertSpreadsheet(buffer: ArrayBuffer, ext: string, base: string
   }
   checkWorkbook(book);
   const warnings = ['Chuyển đổi giữ dữ liệu ô và công thức được hỗ trợ. Macro, biểu đồ, ảnh, xác thực dữ liệu và định dạng nâng cao có thể không đi theo; công thức không được tính lại.'];
-  if (target === 'xlsx' || target === 'ods') {
+  if (target === 'xlsx' || target === 'ods' || target === 'xlsb') {
+    const outputWarnings = target === 'xlsb' ? prepareBinaryWorkbook(book, XLSX) : warnings;
     const bytes = XLSX.write(book, { type: 'array', bookType: target, cellStyles: true, bookSST: true }) as ArrayBuffer;
-    return { files: [{ name: `${base}.${target}`, blob: new Blob([bytes], { type: mimeTypes[target] }) }], warnings };
+    return { files: [{ name: `${base}.${target}`, blob: new Blob([bytes], { type: mimeTypes[target] }) }], warnings: outputWarnings };
   }
   const sheets = book.SheetNames.map((name) => ({ name, sheet: book.Sheets[name] }));
   if (['csv', 'tsv', 'json'].includes(target)) {
-    warnings.push('Mỗi trang tính được xuất thành một tệp; chỉ giữ giá trị hiển thị hoặc giá trị đã lưu, không giữ công thức, ô gộp và định dạng.');
+    warnings.push('Mỗi trang tính được xuất thành một tệp dữ liệu. Công thức chưa có kết quả được xuất dạng chữ. Ô gộp và định dạng không đi theo.');
     const files = sheets.map(({ name, sheet }, index) => {
       const stem = sheets.length > 1 ? `${base} - ${index + 1} - ${conversionBaseName(name)}` : base;
-      if (target === 'json') return { name: `${stem}.json`, blob: textBlob(JSON.stringify(XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, raw: true, blankrows: true }), null, 2), 'application/json') };
+      if (target === 'json') return { name: `${stem}.json`, blob: textBlob(JSON.stringify(worksheetJsonRows(sheet, XLSX), null, 2), 'application/json') };
       const value = XLSX.utils.sheet_to_csv(sheet, { FS: target === 'tsv' ? '\t' : ',', RS: '\r\n', blankrows: true });
       return { name: `${stem}.${target}`, blob: textBlob(`\uFEFF${value}`, target === 'tsv' ? 'text/tab-separated-values' : 'text/csv') };
     });
@@ -279,7 +285,7 @@ export async function exportConversionDocument(json: JSONContent, base: string, 
   if (target === 'odt') return one(await (await import('./docExports')).exportOdt(json, page, base));
   if (target === 'epub') return one(await (await import('./docExports')).exportEpub(json, page, base));
   if (target === 'pptx') return one(await (await import('./docOtherFormats')).exportPptx(json, page, base));
-  if (['xlsx', 'csv', 'tsv'].includes(target)) return (await import('./documentSpreadsheet')).exportDocumentSpreadsheet(json, base, target, warnings, options);
+  if (['xlsx', 'csv', 'tsv', 'json'].includes(target)) return (await import('./documentSpreadsheet')).exportDocumentSpreadsheet(json, base, target, warnings, options);
   throw new Error('Định dạng đầu ra chưa được hỗ trợ.');
 }
 

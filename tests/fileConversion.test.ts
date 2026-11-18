@@ -2,7 +2,59 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import JSZip from 'jszip';
 import { conversionTargets, conversionZip, convertFile, uniqueConversionNames } from '../src/lib/fileConversion.ts';
-import { supportsOfficeLayout } from '../src/lib/officeLayoutRoutes.ts';
+import { conversionPlan, supportsOfficeLayout } from '../src/lib/officeLayoutRoutes.ts';
+import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
+import * as XLSX from 'xlsx';
+import { checkLegacySheetSize } from '../src/lib/officeNativeFormats.ts';
+import { CONVERSION_ACCEPT } from '../src/lib/conversionRegistry.ts';
+import { mediaConversionTargets } from '../src/lib/mediaConversionFormats.ts';
+import { officeConversionTargets } from '../src/lib/officeConversionFormats.ts';
+
+Object.assign(globalThis, { DOMParser, XMLSerializer });
+
+test('every catalog route reaches the selected output through a supported engine path', () => {
+  const native = ['pdf', 'docx', 'doc', 'odt', 'rtf', 'xlsx', 'xls', 'ods', 'pptx', 'ppt', 'odp'];
+  for (const suffix of CONVERSION_ACCEPT.split(',')) {
+    const fileName = 'source' + suffix;
+    const formats = conversionTargets(fileName).map(format => format.id);
+    assert.equal(new Set(formats).size, formats.length);
+    for (const format of formats) for (const fidelity of ['layout', 'editable'] as const) {
+      const plan = conversionPlan(fileName, format, fidelity);
+      assert.equal(plan.at(-1)?.target, format, fileName + ' to ' + format);
+      let inputName = fileName;
+      for (const step of plan) {
+        if (step.via === 'native') assert.ok(native.includes(step.target));
+        if (step.via === 'media') assert.ok(mediaConversionTargets(inputName).some(item => item.id === step.target), inputName + ' to ' + step.target);
+        if (step.via === 'office') assert.ok(officeConversionTargets(inputName).some(item => item.id === step.target), inputName + ' to ' + step.target);
+        inputName = 'stage.' + step.target;
+      }
+    }
+  }
+  assert.deepEqual(conversionPlan('slides.odp', 'xlsx'), [{ via: 'native', target: 'pdf' }, { via: 'media', target: 'xlsx' }]);
+  assert.deepEqual(conversionPlan('slides.odp', 'xlsx', 'editable'), [{ via: 'native', target: 'pptx' }, { via: 'office', target: 'xlsx' }]);
+});
+
+test('macro templates retain the VBA project and other embedded parts', async () => {
+  const zip = new JSZip();
+  zip.file('[Content_Types].xml', '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Override PartName="/word/document.xml" ContentType="application/vnd.ms-word.document.macroEnabled.main+xml"/></Types>');
+  zip.file('word/document.xml', '<w:document/>');
+  zip.file('word/vbaProject.bin', new Uint8Array([42, 5, 0, 11]));
+  zip.file('word/media/image1.png', new Uint8Array([1, 2, 3]));
+  const source = new File([await zip.generateAsync({ type: 'uint8array' })], 'source.docm');
+  const result = await convertFile(source, 'dotm');
+  const archive = await JSZip.loadAsync(await result.files[0].blob.arrayBuffer());
+  assert.match(await archive.file('[Content_Types].xml')!.async('string'), /template\.macroEnabled\.main\+xml/);
+  assert.deepEqual(await archive.file('word/vbaProject.bin')!.async('uint8array'), new Uint8Array([42, 5, 0, 11]));
+  assert.deepEqual(await archive.file('word/media/image1.png')!.async('uint8array'), new Uint8Array([1, 2, 3]));
+  assert.deepEqual(result.warnings, []);
+});
+
+test('Excel 97-2003 export rejects content outside its worksheet grid', async () => {
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, { IW4: { t: 's', v: 'last' }, '!ref': 'A1:IW4' }, 'Limit');
+  const input = new File([XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })], 'large.xlsx');
+  await assert.rejects(checkLegacySheetSize(input), /65.536/);
+});
 
 test('print layout uses the bundled renderer and preserves PDF bytes without reflow', async () => {
   const archive = new JSZip();
@@ -25,11 +77,11 @@ test('print layout uses the bundled renderer and preserves PDF bytes without ref
   assert.equal(supportsOfficeLayout('sample.xlsx', 'docx'), true);
 });
 
-test('conversion matrix exposes real routes for every product and rejects legacy unknown files', () => {
-  for (const source of ['sample.docx', 'sample.xlsx', 'sample.pptx', 'sample.pdf', 'sample.png']) {
+test('conversion matrix offers current and legacy formats and rejects unknown files', () => {
+  for (const source of ['sample.docx', 'sample.xlsx', 'sample.pptx', 'sample.pdf', 'sample.png', 'sample.doc', 'sample.ppt']) {
     assert.ok(conversionTargets(source).some((target) => target.id === 'pdf'), source);
   }
-  for (const source of ['sample.doc', 'sample.ppt', 'sample.exe', 'sample.zip']) assert.deepEqual(conversionTargets(source), []);
+  for (const source of ['sample.exe', 'sample.zip']) assert.deepEqual(conversionTargets(source), []);
   assert.ok(conversionTargets('SCAN.PDF').some((target) => target.id === 'docx'));
 });
 

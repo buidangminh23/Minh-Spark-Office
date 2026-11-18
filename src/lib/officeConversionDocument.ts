@@ -12,13 +12,16 @@ export function textConversionDocument(text: string): JSONContent {
 export function conversionNodeText(node: JSONContent): string {
   if (node.type === 'hardBreak') return '\n';
   const separator = node.type === 'tableRow' ? '\t' : ['doc', 'table', 'tableCell', 'tableHeader', 'listItem', 'blockquote'].includes(node.type ?? '') ? '\n' : '';
-  return node.text ?? (node.content ?? []).map(conversionNodeText).join(separator);
+  return node.text ?? (node.content ?? []).filter(child => child.type !== 'image').map(conversionNodeText).join(separator);
 }
 
 export function htmlConversionDocument(html: string): { json: JSONContent; warnings: string[] } {
   const template = document.createElement('template');
   template.innerHTML = html;
-  const parsed = template.content;
+  return conversionHtmlFragment(template.content);
+}
+
+export function conversionHtmlFragment(parsed: DocumentFragment): { json: JSONContent; warnings: string[] } {
   parsed.querySelectorAll('script,style,iframe,object,embed,link,meta,button,svg,math').forEach((element) => element.remove());
   const warnings = new Set<string>();
   let visited = 0;

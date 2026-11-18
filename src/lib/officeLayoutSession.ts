@@ -36,7 +36,7 @@ export function openOfficeLayoutSession() {
   window.addEventListener('pagehide', close, { once: true });
   return {
     close,
-    async render(file: File, options: ConversionOptions): Promise<Blob> {
+    async render(file: File, options: ConversionOptions, outputFormat = 'pdf'): Promise<Blob> {
       checkConversionAbort(options);
       const id = crypto.randomUUID();
       const signal = lifecycle.signal;
@@ -59,7 +59,7 @@ export function openOfficeLayoutSession() {
           if (data.type === 'progress') options.onProgress?.(data.message);
           if (data.type === 'result' || data.type === 'error') {
             finish();
-            if (data.type === 'result' && data.pdf instanceof Blob && data.pdf.size) resolve(data.pdf);
+            if (data.type === 'result' && data.blob instanceof Blob && data.blob.size) resolve(data.blob);
             else reject(new Error(data.message || 'Bộ giữ bố cục không tạo được tệp.'));
           }
         };
@@ -70,7 +70,7 @@ export function openOfficeLayoutSession() {
         signal.addEventListener('abort', abort, { once: true });
         options.signal?.addEventListener('abort', abort, { once: true });
         void ready.then(() => {
-          if (!closed) channel.postMessage({ type: 'render', id, file });
+          if (!closed) channel.postMessage({ type: 'render', id, file, outputFormat });
         });
       });
     },

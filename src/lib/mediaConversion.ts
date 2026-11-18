@@ -18,7 +18,10 @@ const MAX_OUTPUT_BYTES = 200 * 1024 * 1024;
 const IMAGE_POINTS_PER_PIXEL = 0.75;
 const BASE64_BYTES_PER_CHAR = 0.75;
 export { mediaConversionTargets } from './mediaConversionFormats';
-import { mediaConversionTargets } from './mediaConversionFormats';
+import { imageSourceFormat, IMAGE_OUTPUT_EXTENSIONS, mediaConversionTargets } from './mediaConversionFormats';
+import { imageCanvases, validatedImageCopy } from './mediaConversionImage';
+import { encodeBmp, encodeTiff, joinEncodedTiffPages } from './mediaConversionRaster';
+import { pdfReadingSpans, type PdfTextSpan } from './mediaConversionPdfGlyphs';
 
 function positionedRows(lines: MediaTextLine[]): { text: string; x: number }[][] {
   const rows: { y: number; height: number; parts: MediaTextLine[] }[] = [];
@@ -69,6 +72,19 @@ export async function buildMediaTextResult(pages: MediaPage[], target: string, t
   let blob: Blob;
   const warnings = ['Chữ và cột được tái dựng từ vị trí trên trang. Hãy đối chiếu số liệu, bảng và thứ tự đọc; phông chữ, công thức và bố cục gốc không được giữ nguyên.'];
   if (pages.some((page) => !page.lines.some((line) => line.text.trim()))) warnings.push('Một số trang không có chữ nhận dạng được; xem lại các trang trống trong kết quả.');
+  if (['csv', 'tsv', 'json'].includes(target)) {
+    const files = pages.map((page, index) => {
+      const rows = mediaTextTable(page.lines);
+      const name = mediaPageName(title, target, index, pages.length);
+      if (target === 'json') return { name, blob: new Blob([JSON.stringify(rows, null, 2)], { type: 'application/json;charset=utf-8' }) };
+      const separator = target === 'csv' ? ',' : '\t';
+      const quote = (cell: string) => /["\r\n\t,]/.test(cell) ? `"${cell.replaceAll('"', '""')}"` : cell;
+      const content = rows.map((row) => row.map(quote).join(separator)).join('\r\n');
+      const mime = target === 'csv' ? 'text/csv' : 'text/tab-separated-values';
+      return { name, blob: new Blob(['\uFEFF', content, '\r\n'], { type: `${mime};charset=utf-8` }) };
+    });
+    return { files, warnings };
+  }
   if (target === 'txt') blob = new Blob([pages.map((page, index) => `--- Trang ${index + 1} ---\n${pageText(page)}`).join('\n\n')], { type: 'text/plain;charset=utf-8' });
   else if (target === 'html') blob = new Blob([`<!doctype html><html lang="vi"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><style>body{max-width:900px;margin:32px auto;padding:16px;font-family:Arial,sans-serif}section{break-after:page}pre{white-space:pre-wrap;overflow-wrap:anywhere}</style><body>${pages.map((page, index) => `<section><h2>Trang ${index + 1}</h2><pre>${escapeHtml(pageText(page))}</pre></section>`).join('')}</body></html>`], { type: 'text/html;charset=utf-8' });
   else if (target === 'xlsx') {
@@ -92,10 +108,25 @@ export async function buildMediaTextResult(pages: MediaPage[], target: string, t
   return { files: [{ name: `${title}.${target}`, blob }], warnings };
 }
 
+function mediaPageName(title: string, target: string, index: number, count: number) {
+  return `${title}${count > 1 ? ` - trang ${String(index + 1).padStart(3, '0')}` : ''}.${target}`;
+}
+
 async function canvasBlob(canvas: HTMLCanvasElement, target: string): Promise<Blob> {
+  const pixels = () => {
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Không khởi tạo được bộ xử lý ảnh.');
+    return context.getImageData(0, 0, canvas.width, canvas.height);
+  };
+  if (target === 'bmp') return encodeBmp(pixels());
+  if (target === 'tiff') return encodeTiff(pixels());
   const mime = target === 'jpg' ? 'image/jpeg' : `image/${target}`;
-  const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error('Không mã hóa được ảnh.')), mime, 0.92));
-  if (blob.type !== mime) throw new Error(`Trình duyệt này không xuất được ${target.toUpperCase()}. Hãy chọn PNG hoặc JPEG.`);
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, mime, 0.92));
+  if (target === 'webp' && blob?.type !== mime) {
+    const { default: encode } = await import('@jsquash/webp/encode');
+    return new Blob([await encode(pixels(), { quality: 92 })], { type: mime });
+  }
+  if (blob?.type !== mime) throw new Error(`Trình duyệt này không xuất được ${target.toUpperCase()}. Hãy chọn PNG hoặc JPEG.`);
   return blob;
 }
 
@@ -140,7 +171,7 @@ export async function readPdfLines(doc: PDFDocumentProxy, number: number, includ
   const viewport = page.getViewport({ scale: 1 });
   try {
     const [content, annotations] = await Promise.all([page.getTextContent(), includeAnnotations ? page.getAnnotations({ intent: 'any' }) : Promise.resolve([])]);
-    const lines = content.items.flatMap((item): MediaTextLine[] => {
+    const spans = content.items.flatMap((item): PdfTextSpan[] => {
       if (!('str' in item) || !item.str.trim()) return [];
       const [a, b, c, d, e, f] = item.transform;
       const advance = item.width / (Math.hypot(a, b) || 1);
@@ -153,49 +184,11 @@ export async function readPdfLines(doc: PDFDocumentProxy, number: number, includ
       const ys = [start[1], end[1], top[1], far[1]];
       const x = Math.min(...xs);
       const y = Math.min(...ys);
-      return [{ text: item.str, x, y, width: Math.max(1, Math.max(...xs) - x), height: Math.max(1, Math.max(...ys) - y), rotated: end[0] <= start[0] || Math.abs(end[1] - start[1]) > Math.abs(end[0] - start[0]) * 0.05 }];
+      return [{ item, line: { text: item.str, x, y, width: Math.max(1, Math.max(...xs) - x), height: Math.max(1, Math.max(...ys) - y), rotated: end[0] <= start[0] || Math.abs(end[1] - start[1]) > Math.abs(end[0] - start[0]) * 0.05 } }];
     });
+    const lines = await pdfReadingSpans(page, spans);
     return { width: viewport.width, height: viewport.height, lines, transform: viewport.transform, fields: pdfFormFields(annotations, (x, y) => viewport.convertToViewportPoint(x, y)), hasAnnotations: annotations.length > 0 };
   } finally { page.cleanup(); }
-}
-
-async function loadImageCanvas(file: File, options: ConversionOptions, flatten: boolean): Promise<HTMLCanvasElement> {
-  const { readImageFile } = await import('./imageFormats');
-  const source = await readImageFile(file);
-  checkConversionAbort(options);
-  const image = new Image();
-  const canvas = document.createElement('canvas');
-  try {
-    await new Promise<void>((resolve, reject) => {
-      const finish = (error?: Error) => {
-        window.clearTimeout(timer);
-        image.onload = image.onerror = null;
-        options.signal?.removeEventListener('abort', abort);
-        if (error) reject(error); else resolve();
-      };
-      const abort = () => finish(new DOMException('Đã hủy chuyển đổi.', 'AbortError'));
-      const timer = window.setTimeout(() => finish(new Error('Ảnh không đọc được hoặc quá lớn.')), 30_000);
-      image.onload = () => finish();
-      image.onerror = () => finish(new Error('Không đọc được định dạng ảnh này. Với HEIC/TIFF, hãy xuất PNG hoặc JPEG từ ứng dụng gốc rồi thử lại.'));
-      options.signal?.addEventListener('abort', abort, { once: true });
-      image.src = source.dataUrl;
-      if (options.signal?.aborted) abort();
-    });
-    if (!image.naturalWidth || !image.naturalHeight || image.naturalWidth * image.naturalHeight > MAX_PIXELS || Math.max(image.naturalWidth, image.naturalHeight) > 8192) throw new Error('Ảnh vượt giới hạn 16 triệu điểm ảnh hoặc cạnh 8.192 px. Hãy giảm kích thước trước khi chuyển đổi.');
-    canvas.width = image.naturalWidth;
-    canvas.height = image.naturalHeight;
-    const context = canvas.getContext('2d');
-    if (!context) throw new Error('Không khởi tạo được bộ xử lý ảnh.');
-    if (flatten) {
-      context.fillStyle = '#ffffff';
-      context.fillRect(0, 0, canvas.width, canvas.height);
-    }
-    context.drawImage(image, 0, 0);
-    return canvas;
-  } finally {
-    image.src = '';
-    if (source.dataUrl.startsWith('blob:')) URL.revokeObjectURL(source.dataUrl);
-  }
 }
 
 export async function buildMediaLayoutResult(pages: MediaPage[], target: string, title: string, options: ConversionOptions = {}): Promise<ConversionResult> {
@@ -296,7 +289,8 @@ async function buildPageReference(pages: MediaPage[], target: 'xlsx' | 'html', t
     }
   }
   checkConversionAbort(options);
-  const blob = new Blob([await book.xlsx.writeBuffer()], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const { writeImageWorkbook } = await import('./conversionImageWorkbook');
+  const blob = await writeImageWorkbook(book, options);
   return { files: [{ name: `${title}.xlsx`, blob }], warnings: [hasData ? 'Trang tính Mẫu giữ ảnh gốc. Trang tính Dữ liệu chứa chữ và giá trị có thể chỉnh sửa theo cột nhận dạng.' : 'Các trang tính Mẫu giữ ảnh gốc. Chưa có chữ để tạo trang tính Dữ liệu.'] };
 }
 
@@ -309,7 +303,7 @@ export async function convertMediaFile(file: File, target: string, options: Conv
   let originalPdf: ArrayBuffer | undefined;
   const ocrPages = new Set<number>();
   const warnings: string[] = [];
-  const imageTarget = ['png', 'jpg', 'webp'].includes(target);
+  const imageTarget = IMAGE_OUTPUT_EXTENSIONS.includes(target);
   const editableSlides = target === 'pptx' && options.fidelity === 'editable';
   const pageReference = (target === 'html' || target === 'xlsx') && options.fidelity !== 'editable';
   const layout = ((target === 'pptx' || target === 'docx') && options.fidelity !== 'editable') || pageReference;
@@ -367,40 +361,42 @@ export async function convertMediaFile(file: File, target: string, options: Conv
     }
   } else {
     options.onProgress?.('Đang đọc ảnh…');
-    if (imageTarget && await isOriginalImageFormat(file, target)) {
+    if (imageSourceFormat(file.name) === target) {
+      const copy = await validatedImageCopy(file, target, options);
       checkConversionAbort(options);
-      return { files: [{ name: `${title}.${target}`, blob: file.slice(0, file.size, target === 'jpg' ? 'image/jpeg' : `image/${target}`) }], warnings: [] };
+      return { files: [{ name: `${title}.${target}`, blob: copy }], warnings: [] };
     }
-    const canvas = await loadImageCanvas(file, options, target === 'jpg' || editableSlides);
-    if (editableSlides) {
+    let totalBytes = 0;
+    for await (const canvas of imageCanvases(file, options, target === 'jpg' || editableSlides, warnings)) {
       try {
-        const segments = options.ocr === false ? [] : await ocrSegments(await canvasBlob(canvas, 'png'), canvas, options, warnings);
-        slides.push(await finishEditableSlide(canvas, canvas.width * IMAGE_POINTS_PER_PIXEL, canvas.height * IMAGE_POINTS_PER_PIXEL, 1 / IMAGE_POINTS_PER_PIXEL, segments));
+        checkConversionAbort(options);
+        options.onProgress?.(`Đang chuyển trang ${(editableSlides ? slides : pages).length + 1}…`);
+        if (editableSlides) {
+          const segments = options.ocr === false ? [] : await ocrSegments(await canvasBlob(canvas, 'png'), canvas, options, warnings);
+          const slide = await finishEditableSlide(canvas, canvas.width * IMAGE_POINTS_PER_PIXEL, canvas.height * IMAGE_POINTS_PER_PIXEL, 1 / IMAGE_POINTS_PER_PIXEL, segments);
+          totalBytes += slide.background.length * BASE64_BYTES_PER_CHAR;
+          slides.push(slide);
+        } else {
+          const image = await canvasBlob(canvas, imageTarget ? target : 'png');
+          totalBytes += image.size;
+          const page: MediaPage = { width: canvas.width * IMAGE_POINTS_PER_PIXEL, height: canvas.height * IMAGE_POINTS_PER_PIXEL, lines: [], image };
+          if (textNeeded && options.ocr !== false) await mediaExportOcr(page, options, warnings, pageReference || target === 'pdf');
+          pages.push(page);
+        }
+        if (totalBytes > MAX_OUTPUT_BYTES) throw new Error('Kết quả vượt 200 MB. Hãy tách tệp thành nhiều phần nhỏ.');
       } finally { canvas.width = canvas.height = 0; }
-    } else try {
-      pages.push({ width: canvas.width * 0.75, height: canvas.height * 0.75, lines: [], image: await canvasBlob(canvas, imageTarget ? target : 'png') });
-    } finally { canvas.width = canvas.height = 0; }
-    if (textNeeded && options.ocr !== false) await mediaExportOcr(pages[0], options, warnings, pageReference);
-    if (/\.(gif|webp|avif)$/i.test(file.name)) warnings.push('Ảnh động chỉ chuyển một khung hình tĩnh.');
+    }
   }
   checkConversionAbort(options);
   let result: ConversionResult;
   if (editableSlides) result = await buildEditableSlidesResult(slides, title);
-  else if (imageTarget) result = { files: pages.map((page, index) => ({ name: `${title}${pages.length > 1 ? ` - trang ${String(index + 1).padStart(3, '0')}` : ''}.${target}`, blob: page.image! })), warnings: [] };
+  else if (target === 'tiff') result = { files: [{ name: `${title}.tiff`, blob: await joinEncodedTiffPages(pages.map((page) => page.image!), options) }], warnings: [] };
+  else if (imageTarget) result = { files: pages.map((page, index) => ({ name: mediaPageName(title, target, index, pages.length), blob: page.image! })), warnings: [] };
   else if (layout) result = await buildMediaLayoutResult(pages, target, title, options);
   else if (target === 'pdf') result = await buildEditableMediaPdf(pages, title, originalPdf, ocrPages, options);
   else result = await buildMediaTextResult(pages, target, title);
   checkConversionAbort(options);
   return { ...result, warnings: [...new Set([...warnings, ...result.warnings])] };
-}
-
-async function isOriginalImageFormat(file: File, target: string) {
-  const ext = file.name.split('.').pop()?.toLowerCase();
-  if ((target === 'jpg' ? !['jpe', 'jfif', 'jpg', 'jpeg'].includes(ext ?? '') : ext !== target)) return false;
-  const bytes = new Uint8Array(await file.slice(0, 12).arrayBuffer());
-  if (target === 'png') return [137, 80, 78, 71, 13, 10, 26, 10].every((byte, index) => bytes[index] === byte);
-  if (target === 'jpg') return bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255;
-  return String.fromCharCode(...bytes.subarray(0, 4)) === 'RIFF' && String.fromCharCode(...bytes.subarray(8, 12)) === 'WEBP';
 }
 
 async function mediaExportOcr(page: MediaPage, options: ConversionOptions, warnings: string[], keepImage: boolean) {
@@ -506,9 +502,16 @@ async function buildEditableMediaPdf(pages: MediaPage[], title: string, original
     const { buildEditablePdf } = await import('./pdfOcrDocument');
     const inputs = [];
     const warnings = ['Đã tạo chữ PDF chỉnh sửa được. Nền trang và bố cục được giữ; phông chữ tái tạo có thể khác bản scan.'];
-    for (const index of editableIndices) {
+    const indices = originalPdf ? editableIndices : pages.map((_, index) => index);
+    for (const index of indices) {
+      checkConversionAbort(options);
+      if (!originalPdf && !pages[index].lines.length) {
+        const { width, height, image } = pages[index];
+        inputs.push({ pageIndex: index, width, height, lines: [], background: new Uint8Array(await image!.arrayBuffer()) });
+        continue;
+      }
       const result = await prepareEditablePdfPage(pages[index], index, options);
-      if (result.page.lines.length) inputs.push(result.page);
+      if (result.page.lines.length || !originalPdf) inputs.push(result.page);
       warnings.push(...result.warnings);
     }
     if (!inputs.length && originalPdf) return { files: [{ name: `${title}.pdf`, blob: new Blob([originalPdf], { type: 'application/pdf' }) }], warnings: ['Không nhận dạng được vùng chữ để chỉnh sửa. Tệp gốc được giữ nguyên.'] };

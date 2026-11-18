@@ -21,13 +21,13 @@ function workbookFile() {
   return new File([XLSX.write(book, { type: 'array', bookType: 'xlsx' })], 'Data.xlsx');
 }
 
-test('Office matrix does not advertise fabricated legacy document or presentation output', () => {
+test('Office matrix exposes native legacy document and presentation conversion', () => {
   assert.equal(officeFileKind('TEST.XLSM'), 'sheet');
-  assert.equal(officeFileKind('legacy.doc'), null);
+  assert.equal(officeFileKind('legacy.doc'), 'document');
   assert.deepEqual(officeConversionTargets('unknown.exe'), []);
   for (const source of ['document.docx', 'data.xlsx', 'slides.pptx']) {
     assert.ok(officeConversionTargets(source).some((target) => target.id === 'pdf'));
-    assert.ok(!officeConversionTargets(source).some((target) => target.id === 'doc' || target.id === 'ppt'));
+    for (const ext of ['doc', 'xls', 'ppt']) assert.ok(officeConversionTargets(source).some(target => target.id === ext));
   }
 });
 

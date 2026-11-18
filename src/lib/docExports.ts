@@ -337,7 +337,15 @@ export async function exportEpub(json: JSONContent, page: PageSettings, title: s
       case 'codeBlock': return `<pre>${escapeXml(nodeText(node))}</pre>`;
       case 'horizontalRule': return '<hr/>';
       case 'pageBreak': return '';
-      case 'table': return `<table>${(node.content ?? []).map((row) => `<tr>${(row.content ?? []).map((cell) => `<${cell.type === 'tableHeader' ? 'th' : 'td'}>${(cell.content ?? []).map(block).join('')}</${cell.type === 'tableHeader' ? 'th' : 'td'}>`).join('')}</tr>`).join('')}</table>`;
+      case 'image': return inline([node]);
+      case 'table': return `<table>${(node.content ?? []).map((row) => `<tr>${(row.content ?? []).map((cell) => {
+        const tag = cell.type === 'tableHeader' ? 'th' : 'td';
+        const span = ['colspan', 'rowspan'].map(key => {
+          const count = Number(cell.attrs?.[key]);
+          return Number.isInteger(count) && count > 1 ? ` ${key}="${count}"` : '';
+        }).join('');
+        return `<${tag}${span}>${(cell.content ?? []).map(block).join('')}</${tag}>`;
+      }).join('')}</tr>`).join('')}</table>`;
       default: return (node.content ?? []).map(block).join('');
     }
   };

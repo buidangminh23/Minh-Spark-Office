@@ -1,3 +1,5 @@
+import { checkNativeFile, nativeOutputMime } from './officeNativeFormats';
+
 const assetRoot = '/layout-engine/2.3.1/';
 const token = location.hash.slice(1);
 const status = document.querySelector<HTMLElement>('#status')!;
@@ -101,10 +103,14 @@ function start() {
       filename.textContent = file.name;
       progress.removeAttribute('value');
       await initialize();
-      notify('Đang dàn trang theo bố cục in…');
-      const pdf = await request('convert', { inputData: new Uint8Array(await file.arrayBuffer()), inputExt: file.name.split('.').pop()?.toLowerCase(), outputFormat: 'pdf' }, 'result');
-      if (!pdf || pdf.byteLength > 200 * 1024 * 1024 || new TextDecoder().decode(pdf.subarray(0, 5)) !== '%PDF-') throw new Error('Bộ giữ bố cục chưa tạo được PDF hợp lệ trong giới hạn 200 MB.');
-      channel.postMessage({ type: 'result', id: active, pdf: new Blob([pdf], { type: 'application/pdf' }) });
+      const outputFormat = data.outputFormat;
+      if (!['pdf', 'docx', 'doc', 'odt', 'rtf', 'xlsx', 'xls', 'ods', 'pptx', 'ppt', 'odp'].includes(outputFormat)) throw new Error('Định dạng đầu ra chưa được hỗ trợ.');
+      notify(outputFormat === 'pdf' ? 'Đang dàn trang theo bố cục in…' : 'Đang chuyển sang ' + outputFormat.toUpperCase() + '…');
+      const bytes = await request('convert', { inputData: new Uint8Array(await file.arrayBuffer()), inputExt: file.name.split('.').pop()?.toLowerCase(), outputFormat }, 'result');
+      if (!bytes?.byteLength || bytes.byteLength > 200 * 1024 * 1024) throw new Error('Bộ chuyển đổi chưa tạo được tệp trong giới hạn 200 MB.');
+      const blob = new Blob([bytes], { type: nativeOutputMime(outputFormat) });
+      await checkNativeFile(await blob.arrayBuffer(), outputFormat);
+      channel.postMessage({ type: 'result', id: active, blob });
       status.textContent = 'Đã dàn trang xong.';
       progress.value = progress.max;
     } catch (error) {

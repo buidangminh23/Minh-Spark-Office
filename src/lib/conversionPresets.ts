@@ -1,21 +1,27 @@
-import { OFFICE_DOCUMENT_EXTENSIONS, OFFICE_SHEET_EXTENSIONS, OFFICE_SLIDE_EXTENSIONS } from './officeConversionFormats';
+import { CONVERSION_ACCEPT, conversionSourceKind, conversionTargets } from './conversionRegistry';
 import type { FileKind } from './storage';
 
 export type FormatBadge = { text: string; light: string; dark: string };
 export type ConversionPreset = { id: string; from: FileKind; to: FileKind | FormatBadge; target: string; title: string; note: string; fromBadge?: FormatBadge; sources?: readonly string[]; sourceLabel?: string };
 export type ConversionPresetGroup = { title: string; presets: ConversionPreset[] };
 
-export const IMAGE_SOURCE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'jfif', 'jpe', 'webp', 'gif', 'svg', 'bmp', 'ico', 'avif', 'tif', 'tiff', 'heic', 'heif'] as const;
-
-const SOURCE_EXTENSIONS: Record<FileKind, readonly string[]> = {
-  doc: OFFICE_DOCUMENT_EXTENSIONS,
-  sheet: OFFICE_SHEET_EXTENSIONS,
-  slide: OFFICE_SLIDE_EXTENSIONS,
-  pdf: ['pdf'],
-  image: IMAGE_SOURCE_EXTENSIONS,
-};
-
 export const SOURCE_LABEL: Record<FileKind, string> = { doc: 'Word', sheet: 'Excel', slide: 'PowerPoint', pdf: 'PDF', image: 'ảnh' };
+const FORMAT_GROUPS: { kind: FileKind; label: string }[] = [
+  { kind: 'doc', label: 'Văn bản' }, { kind: 'sheet', label: 'Bảng tính' },
+  { kind: 'slide', label: 'Bài trình chiếu' }, { kind: 'pdf', label: 'PDF' }, { kind: 'image', label: 'Hình ảnh' },
+];
+
+function formatKind(extension: string): FileKind {
+  return conversionSourceKind(`file.${extension}`) ?? 'image';
+}
+
+const accepted = CONVERSION_ACCEPT.split(',').map((suffix) => suffix.slice(1));
+const targetsBySource = new Map(accepted.map((extension) => [extension, conversionTargets(`file.${extension}`)]));
+const targetIds = new Set([...targetsBySource.values()].flat().map((target) => target.id));
+export const CONVERSION_SOURCE_GROUPS = FORMAT_GROUPS.map((group) => ({
+  ...group,
+  extensions: accepted.filter((extension) => formatKind(extension) === group.kind).sort(),
+})).filter((group) => group.extensions.length > 0);
 
 const preset = (from: FileKind, to: FileKind | FormatBadge, target: string, title: string, note: string): ConversionPreset => ({ id: `${from}-${target}`, from, to, target, title, note });
 const badge = (text: string, light: string, dark: string): FormatBadge => ({ text, light, dark });
@@ -35,7 +41,7 @@ const TSV = badge('TSV', '#2dd4bf', '#0f8478');
 const JSON_DATA = badge('JSON', '#fbbf24', '#c96a04');
 const JPG = badge('JPG', '#fb7185', '#d3215c');
 
-export const CONVERSION_PRESET_GROUPS: ConversionPresetGroup[] = [
+const shortcuts: ConversionPresetGroup[] = [
   {
     title: 'Sang PDF',
     presets: [
@@ -64,6 +70,17 @@ export const CONVERSION_PRESET_GROUPS: ConversionPresetGroup[] = [
       preset('pdf', PNG, 'png', 'PDF sang PNG', '.pdf → .png'),
       preset('pdf', TXT, 'txt', 'PDF sang văn bản', '.pdf → .txt'),
       preset('pdf', HTML, 'html', 'PDF sang HTML', '.pdf → .html'),
+    ],
+  },
+  {
+    title: 'Office và OpenDocument',
+    presets: [
+      narrow(preset('doc', 'doc', 'docx', 'DOC sang DOCX', '.doc → .docx'), 'legacy-doc-docx', badge('DOC', '#38bdf8', '#1d62d4'), ['doc'], 'DOC'),
+      narrow(preset('sheet', 'sheet', 'xlsx', 'XLS sang XLSX', '.xls → .xlsx'), 'legacy-xls-xlsx', badge('XLS', '#4ade80', '#15803d'), ['xls'], 'XLS'),
+      narrow(preset('slide', 'slide', 'pptx', 'PPT sang PPTX', '.ppt → .pptx'), 'legacy-ppt-pptx', badge('PPT', '#fb923c', '#c2410c'), ['ppt'], 'PPT'),
+      narrow(preset('doc', 'doc', 'docx', 'ODT sang Word', '.odt → .docx'), 'odt-docx', ODT, ['odt'], 'ODT'),
+      narrow(preset('sheet', 'sheet', 'xlsx', 'ODS sang Excel', '.ods → .xlsx'), 'ods-xlsx', ODS, ['ods'], 'ODS'),
+      narrow(preset('slide', 'slide', 'pptx', 'ODP sang PowerPoint', '.odp → .pptx'), 'odp-pptx', badge('ODP', '#fb923c', '#c2410c'), ['odp'], 'ODP'),
     ],
   },
   {
@@ -112,14 +129,70 @@ export const CONVERSION_PRESET_GROUPS: ConversionPresetGroup[] = [
   },
 ];
 
+function presetSources(value: ConversionPreset): string[] {
+  const sources = value.sources ?? CONVERSION_SOURCE_GROUPS.find((group) => group.kind === value.from)?.extensions ?? [];
+  return sources.filter((ext) => targetsBySource.get(ext)?.some((format) => format.id === value.target));
+}
+
+export const CONVERSION_PRESET_GROUPS = shortcuts.map((group) => ({
+  ...group, presets: group.presets.filter((value) => presetSources(value).length > 0),
+})).filter((group) => group.presets.length > 0);
 export const CONVERSION_PRESETS = CONVERSION_PRESET_GROUPS.flatMap((group) => group.presets);
+
+const PRIMARY: Partial<Record<FileKind, string>> = { doc: 'docx', sheet: 'xlsx', slide: 'pptx', pdf: 'pdf' };
+const COLORS: Record<FileKind, [string, string]> = {
+  doc: ['#38bdf8', '#1d62d4'], sheet: ['#4ade80', '#15803d'], slide: ['#fb923c', '#c2410c'],
+  pdf: ['#fb7185', '#b91c1c'], image: ['#60a5fa', '#4338ca'],
+};
+
+function exactPresets(source: string): ConversionPreset[] {
+  const from = formatKind(source);
+  return (targetsBySource.get(source) ?? []).map((item) => {
+    const to = formatKind(item.id);
+    return {
+      id: `format-${source}-${item.id}`, from, sources: [source], sourceLabel: source.toUpperCase(),
+      fromBadge: PRIMARY[from] === source ? undefined : badge(source.toUpperCase(), ...COLORS[from]),
+      to: PRIMARY[to] === item.id ? to : badge(item.id.toUpperCase(), ...COLORS[to]),
+      target: item.id, title: `${source.toUpperCase()} → ${item.id.toUpperCase()}`, note: item.label,
+    };
+  });
+}
 
 function searchable(text: string) {
   return text.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replaceAll('đ', 'd');
 }
 
-export function filterConversionPresets(query: string): ConversionPresetGroup[] {
-  const terms = searchable(query).split(/[^a-z0-9]+/).filter((word) => word && word !== 'to' && word !== 'sang');
+export function filterConversionPresets(query: string, selectedSource = ''): ConversionPresetGroup[] {
+  const normalized = searchable(query).trim();
+  const direction = normalized.match(/^(.*?)\s*(?:→|->|\bto\b|\bsang\b|\bqua\b)\s*(.*?)$/);
+  const aliases: Record<string, string> = { word: 'docx', excel: 'xlsx', powerpoint: 'pptx', jpeg: 'jpg' };
+  const destination = direction?.[2].replace(/^\./, '') ?? '';
+  const targetId = aliases[destination] ?? destination;
+  if (!selectedSource && direction && targetIds.has(targetId)) {
+    const prefix = direction[1].replace(/^\./, '');
+    const families: Record<string, FileKind> = { word: 'doc', excel: 'sheet', powerpoint: 'slide', anh: 'image', image: 'image' };
+    if (!prefix || accepted.includes(prefix) || families[prefix]) {
+      return CONVERSION_SOURCE_GROUPS.map((group) => ({
+        title: group.label,
+        presets: group.extensions.filter((ext) => !prefix || prefix === ext || families[prefix] === group.kind)
+          .flatMap((ext) => exactPresets(ext).filter((route) => route.target === targetId)),
+      })).filter((group) => group.presets.length > 0);
+    }
+  }
+  const terms = normalized.split(/[^a-z0-9]+/).filter((word) => word && !['to', 'sang', 'qua'].includes(word));
+  const source = selectedSource || (accepted.includes(terms[0]) ? terms[0] : '');
+  if (source) {
+    const requested = terms[0] === source && (!selectedSource || direction) ? terms.slice(1) : terms;
+    const routes = exactPresets(source);
+    const target = aliases[requested.join(' ')] ?? requested.join(' ');
+    const presets = targetIds.has(target) || accepted.includes(target) ? routes.filter((item) => item.target === target) : routes.filter((item) => {
+      const haystack = `${item.target} ${searchable(item.note)}`;
+      return requested.every((term) => haystack.includes(term));
+    });
+    return FORMAT_GROUPS.map((group) => ({
+      title: group.label, presets: presets.filter((item) => formatKind(item.target) === group.kind),
+    })).filter((group) => group.presets.length > 0);
+  }
   if (!terms.length) return CONVERSION_PRESET_GROUPS;
   return CONVERSION_PRESET_GROUPS.map((group) => ({
     ...group,
@@ -139,8 +212,6 @@ export function filterConversionPresets(query: string): ConversionPresetGroup[] 
   })).filter((group) => group.presets.length > 0);
 }
 
-const presetSources = (value: ConversionPreset) => value.sources ?? SOURCE_EXTENSIONS[value.from];
-
 export const presetSourceLabel = (value: ConversionPreset) => value.sourceLabel ?? SOURCE_LABEL[value.from];
 
 export function presetAccept(value: ConversionPreset) {
@@ -153,5 +224,7 @@ export function presetAcceptsFile(value: ConversionPreset, fileName: string) {
 }
 
 export function presetSampleName(value: ConversionPreset) {
-  return `sample.${presetSources(value)[0]}`;
+  const sources = presetSources(value);
+  const first = value.from === 'image' ? 'png' : PRIMARY[value.from];
+  return `sample.${first && sources.includes(first) ? first : sources[0]}`;
 }

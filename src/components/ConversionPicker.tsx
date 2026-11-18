@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowRight, ChevronRight, Search } from 'lucide-react';
-import { filterConversionPresets, type ConversionPreset } from '../lib/conversionPresets';
+import { CONVERSION_SOURCE_GROUPS, filterConversionPresets, type ConversionPreset } from '../lib/conversionPresets';
 import { FormatLogo } from './FormatLogo';
 import { SuiteLogo } from './SuiteLogo';
 import './conversion.css';
@@ -33,7 +33,8 @@ export function ConversionMenu({ anchor, onPick, onAll, onClose }: { anchor: HTM
   const menu = useRef<HTMLDivElement>(null);
   const search = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
-  const groups = filterConversionPresets(query);
+  const [source, setSource] = useState('');
+  const groups = filterConversionPresets(query, source);
   const [position, setPosition] = useState<CSSProperties>({ left: -9999, top: 0 });
   const close = useRef(onClose);
 
@@ -49,7 +50,7 @@ export function ConversionMenu({ anchor, onPick, onAll, onClose }: { anchor: HTM
     place();
     window.addEventListener('resize', place);
     return () => window.removeEventListener('resize', place);
-  }, [anchor, query]);
+  }, [anchor, query, source]);
 
   useEffect(() => {
     if (window.innerWidth > STACKED_LAYOUT_MAX_WIDTH) search.current?.focus();
@@ -61,7 +62,7 @@ export function ConversionMenu({ anchor, onPick, onAll, onClose }: { anchor: HTM
     const keys = (event: KeyboardEvent) => {
       if (event.key === 'Escape') { event.preventDefault(); close.current(); anchor.focus(); return; }
       if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
-      if (!menu.current?.contains(document.activeElement)) return;
+      if (!menu.current?.contains(document.activeElement) || document.activeElement instanceof HTMLSelectElement) return;
       const items = Array.from(menu.current?.querySelectorAll<HTMLButtonElement>('button') ?? []);
       const index = items.indexOf(document.activeElement as HTMLButtonElement);
       event.preventDefault();
@@ -75,29 +76,44 @@ export function ConversionMenu({ anchor, onPick, onAll, onClose }: { anchor: HTM
 
   return createPortal(
     <div ref={menu} className="conversion-menu" style={position}>
-      <label className="conversion-search">
-        <Search size={17} aria-hidden="true" />
-        <input type="search" ref={search} aria-label="Tìm cách chuyển đổi" placeholder="Tìm cách chuyển đổi, ví dụ PDF sang Word" value={query} onChange={(event) => setQuery(event.target.value)} />
-      </label>
-      <div className="conversion-menu-results" role="menu" aria-label="Chuyển định dạng">
-      {groups.map((group) => (
-        <div key={group.title} className="conversion-menu-group" role="group" aria-label={group.title}>
-          <div className="conversion-menu-heading" aria-hidden="true">{group.title}</div>
-          <div className="conversion-menu-grid">
-            {group.presets.map((preset) => (
-              <button key={preset.id} role="menuitem" className="conversion-menu-item" onClick={() => onPick(preset)}>
-                <ConversionPair preset={preset} size={26} />
-                <span className="conversion-menu-text"><strong>{preset.title}</strong><span>{preset.note}</span></span>
-              </button>
+      <div className="conversion-menu-filters">
+        <label className="conversion-source">
+          <span>Định dạng nguồn</span>
+          <select value={source} onChange={(event) => { setSource(event.target.value); setQuery(''); }}>
+            <option value="">Tất cả định dạng</option>
+            {CONVERSION_SOURCE_GROUPS.map((group) => (
+              <optgroup key={group.kind} label={group.label}>
+                {group.extensions.map((extension) => <option key={extension} value={extension}>{extension.toUpperCase()}</option>)}
+              </optgroup>
             ))}
-          </div>
+          </select>
+        </label>
+        <label className="conversion-search">
+          <Search size={17} aria-hidden="true" />
+          <input type="search" ref={search} aria-label={source ? 'Tìm định dạng đầu ra' : 'Tìm cách chuyển đổi'} placeholder={source ? 'Tìm định dạng đầu ra' : 'Tìm cách chuyển đổi, ví dụ PDF sang Word'} value={query} onChange={(event) => setQuery(event.target.value)} />
+        </label>
+      </div>
+      <div className="conversion-menu-options" role="menu" aria-label="Chuyển định dạng">
+        <div className="conversion-menu-results">
+          {groups.map((group) => (
+            <div key={group.title} className="conversion-menu-group" role="group" aria-label={group.title}>
+              <div className="conversion-menu-heading" aria-hidden="true">{group.title}</div>
+              <div className="conversion-menu-grid">
+                {group.presets.map((preset) => (
+                  <button key={preset.id} role="menuitem" className="conversion-menu-item" onClick={() => onPick(preset)}>
+                    <ConversionPair preset={preset} size={26} />
+                    <span className="conversion-menu-text"><strong>{preset.title}</strong><span>{preset.note}</span></span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+          {!groups.length && <p className="conversion-no-matches" role="status">Chưa tìm thấy cặp định dạng phù hợp.</p>}
         </div>
-      ))}
-      {!groups.length && <p className="conversion-no-matches" role="status">Chưa tìm thấy cặp định dạng phù hợp.</p>}
-      <button role="menuitem" className="conversion-menu-item conversion-menu-more" onClick={onAll}>
-        <span className="conversion-menu-text"><strong>Nhiều loại tệp cùng lúc</strong><span>Chọn định dạng riêng cho từng tệp</span></span>
-        <ChevronRight size={18} aria-hidden="true" />
-      </button>
+        <button role="menuitem" className="conversion-menu-item conversion-menu-more" onClick={onAll}>
+          <span className="conversion-menu-text"><strong>Nhiều loại tệp cùng lúc</strong><span>Chọn định dạng riêng cho từng tệp</span></span>
+          <ChevronRight size={18} aria-hidden="true" />
+        </button>
       </div>
     </div>,
     document.body,

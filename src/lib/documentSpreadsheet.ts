@@ -145,10 +145,11 @@ export async function exportDocumentSpreadsheet(json: JSONContent, base: string,
   if (target !== 'xlsx') {
     const separator = target === 'csv' ? ',' : '\t';
     const escape = (value: string) => /["\r\n\t,]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
-    if (sections.some((sheet) => sheet.pictures.length)) warnings.push('CSV và TSV lưu mô tả ảnh dưới dạng chữ.');
+    if (sections.some((sheet) => sheet.pictures.length)) warnings.push('Ảnh được xuất dưới dạng mô tả trong tệp dữ liệu.');
     const files = sections.map(({ rows, pictures }, index) => {
       for (const { node, row, column } of pictures) rows[row][column] += `${rows[row][column] ? ' ' : ''}[${node.attrs?.alt || 'Ảnh'}]`;
       const name = `${base}${sections.length > 1 ? ` - ${tablesOnly ? 'bang' : 'trang'} ${index + 1}` : ''}.${target}`;
+      if (target === 'json') return { name, blob: new Blob([JSON.stringify(rows, null, 2)], { type: 'application/json;charset=utf-8' }) };
       const content = rows.map((row) => row.map(escape).join(separator)).join('\r\n');
       return { name, blob: new Blob(['\uFEFF', content, '\r\n'], { type: `${target === 'csv' ? 'text/csv' : 'text/tab-separated-values'};charset=utf-8` }) };
     });
@@ -179,7 +180,8 @@ export async function exportDocumentSpreadsheet(json: JSONContent, base: string,
     await embedPictures(book, sheet, section, options);
   }
   checkConversionAbort(options);
-  const bytes = await book.xlsx.writeBuffer();
+  const { writeImageWorkbook } = await import('./conversionImageWorkbook');
+  const blob = await writeImageWorkbook(book, options);
   checkConversionAbort(options);
-  return { files: [{ name: `${base}.xlsx`, blob: new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }) }], warnings };
+  return { files: [{ name: `${base}.xlsx`, blob }], warnings };
 }

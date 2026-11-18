@@ -28,7 +28,7 @@ export function conversionTableGrid(table: JSONContent, visitCell?: (node: JSONC
           rows[rr][cc] = '';
         }
       }
-      rows[r][c] = conversionNodeText(cell).trim();
+      rows[r][c] = conversionNodeText(cell);
       visitCell?.(cell, r, c);
       if (width > 1 || height > 1) merges.push({ s: { r, c }, e: { r: r + height - 1, c: c + width - 1 } });
       c += width;

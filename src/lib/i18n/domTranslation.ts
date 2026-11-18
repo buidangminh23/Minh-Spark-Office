@@ -1,6 +1,6 @@
 import { translateMultiline, type Translate } from './uiTranslator';
 
-const ATTRIBUTES = ['title', 'placeholder', 'aria-label', 'alt', 'data-tooltip'] as const;
+const ATTRIBUTES = ['title', 'placeholder', 'aria-label', 'alt', 'data-tooltip', 'label'] as const;
 const SKIP_SELECTOR = [
   '[data-no-translate]',
   '.ProseMirror',
