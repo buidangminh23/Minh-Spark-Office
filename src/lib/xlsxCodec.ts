@@ -170,6 +170,8 @@ async function excelJsToWorkbook(buffer: ArrayBuffer, name: string): Promise<Wor
     const rowLimit = Math.min(Math.max(worksheet.rowCount, 1), MAX_IMPORT_ROWS);
     const colLimit = Math.min(Math.max(worksheet.columnCount, 1), MAX_IMPORT_COLS);
     const sheet = emptySheet(worksheet.name, Math.max(rowLimit + 50, 1000), Math.max(colLimit + 5, 26));
+    if (worksheet.properties.defaultRowHeight > 0) sheet.defaultRowHeight = worksheet.properties.defaultRowHeight * 4 / 3;
+    sheet.defaultColumnWidth = worksheet.properties.defaultColWidth ? Math.round(worksheet.properties.defaultColWidth * 7) : 64;
     if (worksheet.state && worksheet.state !== 'visible') sheet.hidden = 1;
     const tab = readColor(worksheet.properties?.tabColor as ExcelJS.Color | undefined);
     if (tab) sheet.tabColor = tab;
@@ -186,7 +188,7 @@ async function excelJsToWorkbook(buffer: ArrayBuffer, name: string): Promise<Wor
       }
       if (rowNumber > rowLimit) return;
       const r = rowNumber - 1;
-      if (row.height) sheet.rowData[r] = { ...(sheet.rowData[r] ?? {}), h: Math.round(row.height * 4 / 3) };
+      if (row.height) sheet.rowData[r] = { h: row.height * 4 / 3 };
       if (row.hidden) sheet.rowData[r] = { ...(sheet.rowData[r] ?? {}), hd: 1 };
       row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
         if (colNumber > colLimit) return;
@@ -205,7 +207,7 @@ async function excelJsToWorkbook(buffer: ArrayBuffer, name: string): Promise<Wor
     });
     worksheet.columns?.forEach((column, index) => {
       if (index >= colLimit) return;
-      if (column.width) sheet.columnData[index] = { w: Math.round(column.width * 7 + 5) };
+      if (column.width) sheet.columnData[index] = { w: Math.round(column.width * 7) };
       if (column.hidden) sheet.columnData[index] = { ...(sheet.columnData[index] ?? {}), hd: 1 };
     });
     const merges = (worksheet.model as { merges?: string[] }).merges ?? [];
@@ -270,7 +272,7 @@ function sheetJsToWorkbook(buffer: ArrayBuffer, name: string, csv = false): Work
     }
     (worksheet['!cols'] ?? []).forEach((column, index) => {
       if (!column) return;
-      const width = column.wpx ?? (column.wch ? column.wch * 7 + 5 : column.width ? column.width * 7 + 5 : undefined);
+      const width = column.wpx ?? (column.wch ? column.wch * 7 + 5 : column.width ? column.width * 7 : undefined);
       if (width) sheet.columnData[index] = { w: Math.round(width) };
       if (column.hidden) sheet.columnData[index] = { ...(sheet.columnData[index] ?? {}), hd: 1 };
     });
@@ -448,17 +450,21 @@ export async function writeWorkbookXlsx(data: WorkbookData, options: { macroEnab
       : [{ showGridLines: sheet.showGridlines !== 0 }];
     const worksheet = workbook.addWorksheet(sheet.name.slice(0, 31) || 'Sheet', {
       views: freeze,
-      properties: sheet.tabColor ? { tabColor: { argb: toArgb(sheet.tabColor) } } as Partial<ExcelJS.WorksheetProperties> : undefined,
+      properties: {
+        ...(sheet.defaultRowHeight && { defaultRowHeight: sheet.defaultRowHeight * 0.75 }),
+        ...(sheet.defaultColumnWidth && { defaultColWidth: sheet.defaultColumnWidth / 7 }),
+        ...(sheet.tabColor && { tabColor: { argb: toArgb(sheet.tabColor)! } }),
+      },
       state: sheet.hidden ? 'hidden' : 'visible',
     });
     for (const [colKey, column] of Object.entries(sheet.columnData ?? {})) {
       const col = worksheet.getColumn(Number(colKey) + 1);
-      if (column?.w) col.width = Math.max(1, (column.w - 5) / 7);
+      if (column?.w) col.width = column.w / 7;
       if (column?.hd) col.hidden = true;
     }
     for (const [rowKey, row] of Object.entries(sheet.rowData ?? {})) {
       const excelRow = worksheet.getRow(Number(rowKey) + 1);
-      if (row?.h) excelRow.height = row.h * 0.75;
+      if (row?.h && row.ia !== 1 && (row.ia === 0 || row.ah === undefined)) excelRow.height = row.h * 0.75;
       if (row?.hd) excelRow.hidden = true;
     }
     for (const [rowKey, columns] of Object.entries(sheet.cellData ?? {})) {

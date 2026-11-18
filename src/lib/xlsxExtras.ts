@@ -112,6 +112,12 @@ export async function attachWorkbookExtras(data: WorkbookData, zip: JSZip, sheet
   for (const [index, sheetId] of data.sheetOrder.entries()) {
     const sheet = data.sheets[sheetId];
     const xml = sheet && sheetPaths[index] ? await zip.file(sheetPaths[index])?.async('string') : undefined;
+    if (xml) {
+      for (const [tag] of xml.matchAll(/<row\b[^>]*>/g)) {
+        const row = sheet.rowData[Number(attribute(tag, 'r')) - 1];
+        if (row?.h !== undefined) row.ia = /^(1|true)$/.test(attribute(tag, 'customHeight') ?? '') ? 0 : 1;
+      }
+    }
     const rules = xml ? readDataValidations(xml, sheet.rowCount, sheet.columnCount, `xl-dv-${index + 1}`) : [];
     if (rules.length) validations[sheetId] = rules;
   }

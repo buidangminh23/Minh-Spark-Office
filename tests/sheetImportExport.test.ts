@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
+import JSZip from 'jszip';
 import {
   describeImportTruncation,
   emptySheet,
@@ -90,6 +92,42 @@ test('importSpreadsheet types CSV numbers so formulas can sum them', async () =>
   assert.deepEqual(sheet.cellData[3][2], { v: 1, t: 3 });
   assert.equal(sheet.cellData[0][0].v, 'name');
   assert.equal(wb.importTruncation, undefined);
+});
+
+test('xlsx import distinguishes cached and fixed wrapped row heights and preserves them on export', async () => {
+  const source = new ExcelJS.Workbook();
+  const original = source.addWorksheet('Stock', { properties: { defaultRowHeight: 15 } });
+  original.getColumn(3).width = 274 / 7;
+  for (const index of [1, 2, 3]) {
+    const cell = original.getCell(index, 3);
+    cell.value = 'Wrapped product description '.repeat(4);
+    cell.alignment = { wrapText: true };
+  }
+  original.getRow(1).height = 15;
+  original.getRow(2).height = 28.25;
+  original.getRow(2).hidden = true;
+  const path = 'xl/worksheets/sheet1.xml';
+  const zip = await JSZip.loadAsync(await source.xlsx.writeBuffer());
+  const xml = await zip.file(path)!.async('string');
+  zip.file(path, xml.replace(/<row r="1"[^>]*>/, (tag) => tag.replace(' customHeight="1"', '')));
+  const data = await importSpreadsheet(await zip.generateAsync({ type: 'arraybuffer' }), 'stock.xlsx');
+  const sheet = data.sheets[data.sheetOrder[0]];
+  assert.equal(sheet.defaultRowHeight, 20);
+  assert.equal(sheet.columnData[2].w, 274);
+  assert.deepEqual(sheet.rowData[0], { h: 20, ia: 1 });
+  assert.deepEqual(sheet.rowData[1], { h: 28.25 * 4 / 3, hd: 1, ia: 0 });
+  assert.equal(sheet.rowData[2]?.h, undefined);
+  sheet.rowData[0].ah = 60;
+  const exported = await exportWorkbookToXlsx(data);
+  const reopened = new ExcelJS.Workbook();
+  await reopened.xlsx.load(await exported.arrayBuffer());
+  const result = reopened.worksheets[0];
+  assert.equal(result.getRow(1).height, undefined);
+  assert.equal(result.getRow(2).height, 28.25);
+  assert.equal(result.getRow(2).hidden, true);
+  assert.equal(result.getColumn(3).width, 274 / 7);
+  assert.equal(result.properties.defaultRowHeight, 15);
+  assert.equal(result.getCell('C1').alignment.wrapText, true);
 });
 
 test('importSpreadsheet reports rows dropped beyond the import limit', async () => {

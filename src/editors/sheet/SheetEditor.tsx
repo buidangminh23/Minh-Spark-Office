@@ -37,6 +37,7 @@ import {
   whenSheetEditorFocused,
 } from '@univerjs/preset-sheets-core';
 import { EXTRA_FUNCTION_DESCRIPTIONS, EXTRA_FUNCTIONS } from './extraFunctions';
+import { fitWrappedRows } from './fitWrappedRows';
 import {
   EXCEL_NUMBER_FORMATS,
   PAGE_COLUMN_STEP,
@@ -1285,6 +1286,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
 
       const fWb = api.getActiveWorkbook();
       if (fWb) {
+        if (univerRef.current) fitWrappedRows(univerRef.current, api);
         lastSheetIdRef.current = fWb.getActiveSheet()?.getSheetId() ?? '';
         const selectionSub = fWb.onSelectionChange(() => {
           syncUiFromSelection();

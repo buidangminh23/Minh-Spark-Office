@@ -41,7 +41,7 @@ export type SheetData = {
   tabColor?: string;
   hidden?: number;
   cellData: Record<number, Record<number, CellValue>>;
-  rowData: Record<number, { h?: number; hd?: number }>;
+  rowData: Record<number, { h?: number; hd?: number; ia?: number; ah?: number }>;
   columnData: Record<number, { w?: number; hd?: number }>;
   mergeData: { startRow: number; endRow: number; startColumn: number; endColumn: number }[];
   freeze?: { xSplit: number; ySplit: number; startRow: number; startColumn: number };
