@@ -1,3 +1,4 @@
+import { resizeTable, updateTableHeader } from '../../lib/slideTable';
 import { useRef, useState } from 'react';
 import { FeatureMenu, type FeatureItem } from '../../components/FeatureMenu';
 import {
@@ -636,6 +637,9 @@ export function SlideRibbon(props: SlideRibbonProps) {
   const isShapeSelected = selectedElement?.type === 'shape';
   const isImageSelected = selectedElement?.type === 'image';
   const isTableSelected = selectedElement?.type === 'table';
+  const changeHeader = (changes: Parameters<typeof updateTableHeader>[1]) => {
+    if (selectedElement) onUpdateSelectedElement(updateTableHeader(selectedElement, changes));
+  };
   const isChartSelected = selectedElement?.type === 'chart';
 
   const slideFeatures: FeatureItem[] = [
@@ -2892,7 +2896,7 @@ export function SlideRibbon(props: SlideRibbonProps) {
                   <input
                     type="checkbox"
                     checked={selectedElement?.tableHeaderRow ?? true}
-                    onChange={(e) => onUpdateSelectedElement({ tableHeaderRow: e.target.checked })}
+                    onChange={(e) => changeHeader({ tableHeaderRow: e.target.checked })}
                   />
                   <span>Dòng tiêu đề</span>
                 </label>
@@ -2901,7 +2905,7 @@ export function SlideRibbon(props: SlideRibbonProps) {
                   <input
                     type="color"
                     value={selectedElement?.tableHeaderColor || '#D83B01'}
-                    onChange={(e) => onUpdateSelectedElement({ tableHeaderColor: e.target.value })}
+                    onChange={(e) => changeHeader({ tableHeaderColor: e.target.value })}
                     style={{ width: '22px', height: '22px', padding: 0, border: 'none', cursor: 'pointer' }}
                   />
                 </label>
@@ -2910,7 +2914,7 @@ export function SlideRibbon(props: SlideRibbonProps) {
                   <input
                     type="color"
                     value={selectedElement?.tableHeaderTextColor || '#FFFFFF'}
-                    onChange={(e) => onUpdateSelectedElement({ tableHeaderTextColor: e.target.value })}
+                    onChange={(e) => changeHeader({ tableHeaderTextColor: e.target.value })}
                     style={{ width: '22px', height: '22px', padding: 0, border: 'none', cursor: 'pointer' }}
                   />
                 </label>
@@ -2924,7 +2928,7 @@ export function SlideRibbon(props: SlideRibbonProps) {
                 <button
                   className="ppt-gallery-card-btn"
                   style={{ minWidth: '40px', height: '28px', background: '#0078D4', color: '#FFF' }}
-                  onClick={() => onUpdateSelectedElement({ tableHeaderColor: '#0078D4', tableHeaderTextColor: '#FFFFFF' })}
+                  onClick={() => changeHeader({ tableHeaderColor: '#0078D4', tableHeaderTextColor: '#FFFFFF' })}
                   title="Mẫu Xanh Office"
                 >
                   Xanh
@@ -2932,7 +2936,7 @@ export function SlideRibbon(props: SlideRibbonProps) {
                 <button
                   className="ppt-gallery-card-btn"
                   style={{ minWidth: '40px', height: '28px', background: '#D83B01', color: '#FFF' }}
-                  onClick={() => onUpdateSelectedElement({ tableHeaderColor: '#D83B01', tableHeaderTextColor: '#FFFFFF' })}
+                  onClick={() => changeHeader({ tableHeaderColor: '#D83B01', tableHeaderTextColor: '#FFFFFF' })}
                   title="Mẫu Cam Nổi Bật"
                 >
                   Cam
@@ -2940,7 +2944,7 @@ export function SlideRibbon(props: SlideRibbonProps) {
                 <button
                   className="ppt-gallery-card-btn"
                   style={{ minWidth: '40px', height: '28px', background: '#107C41', color: '#FFF' }}
-                  onClick={() => onUpdateSelectedElement({ tableHeaderColor: '#107C41', tableHeaderTextColor: '#FFFFFF' })}
+                  onClick={() => changeHeader({ tableHeaderColor: '#107C41', tableHeaderTextColor: '#FFFFFF' })}
                   title="Mẫu Xanh Lá"
                 >
                   Lục
@@ -2948,7 +2952,7 @@ export function SlideRibbon(props: SlideRibbonProps) {
                 <button
                   className="ppt-gallery-card-btn"
                   style={{ minWidth: '40px', height: '28px', background: '#0F172A', color: '#FFF' }}
-                  onClick={() => onUpdateSelectedElement({ tableHeaderColor: '#0F172A', tableHeaderTextColor: '#FFFFFF' })}
+                  onClick={() => changeHeader({ tableHeaderColor: '#0F172A', tableHeaderTextColor: '#FFFFFF' })}
                   title="Mẫu Đen Midnight"
                 >
                   Đen
@@ -2966,10 +2970,7 @@ export function SlideRibbon(props: SlideRibbonProps) {
                     const currentData = selectedElement?.tableData || [['A', 'B'], ['1', '2']];
                     const numCols = currentData[0]?.length || 2;
                     const newRow = new Array(numCols).fill('Mới');
-                    onUpdateSelectedElement({
-                      tableData: [...currentData, newRow],
-                      tableRows: (selectedElement?.tableRows || currentData.length) + 1,
-                    });
+                    if (selectedElement) onUpdateSelectedElement(resizeTable(selectedElement, [...currentData, newRow]));
                   }}
                   title="Thêm một hàng mới ở dưới"
                 >
@@ -2980,10 +2981,7 @@ export function SlideRibbon(props: SlideRibbonProps) {
                   onClick={() => {
                     const currentData = selectedElement?.tableData || [['A', 'B'], ['1', '2']];
                     if (currentData.length <= 1) return;
-                    onUpdateSelectedElement({
-                      tableData: currentData.slice(0, -1),
-                      tableRows: Math.max(1, (selectedElement?.tableRows || currentData.length) - 1),
-                    });
+                    if (selectedElement) onUpdateSelectedElement(resizeTable(selectedElement, currentData.slice(0, -1)));
                   }}
                   title="Xóa hàng cuối"
                 >
@@ -2994,10 +2992,7 @@ export function SlideRibbon(props: SlideRibbonProps) {
                   onClick={() => {
                     const currentData = selectedElement?.tableData || [['A', 'B'], ['1', '2']];
                     const newData = currentData.map((row, rIdx) => [...row, rIdx === 0 ? 'Cột mới' : '—']);
-                    onUpdateSelectedElement({
-                      tableData: newData,
-                      tableCols: (selectedElement?.tableCols || (currentData[0]?.length || 2)) + 1,
-                    });
+                    if (selectedElement) onUpdateSelectedElement(resizeTable(selectedElement, newData));
                   }}
                   title="Thêm một cột mới ở bên phải"
                 >
@@ -3009,10 +3004,7 @@ export function SlideRibbon(props: SlideRibbonProps) {
                     const currentData = selectedElement?.tableData || [['A', 'B'], ['1', '2']];
                     if ((currentData[0]?.length || 2) <= 1) return;
                     const newData = currentData.map((row) => row.slice(0, -1));
-                    onUpdateSelectedElement({
-                      tableData: newData,
-                      tableCols: Math.max(1, (selectedElement?.tableCols || currentData[0].length) - 1),
-                    });
+                    if (selectedElement) onUpdateSelectedElement(resizeTable(selectedElement, newData));
                   }}
                   title="Xóa cột cuối"
                 >
@@ -3039,12 +3031,16 @@ export function SlideRibbon(props: SlideRibbonProps) {
             <div className="ppt-ribbon-group">
               <div className="ppt-group-content">
                 <button
-                  className={`ppt-tool-btn ${selectedElement?.chartType === 'column' ? 'is-active' : ''}`}
-                  onClick={() => onUpdateSelectedElement({ chartType: 'column' })}
+                  className={`ppt-tool-btn ${selectedElement?.chartType === 'column' && !selectedElement.chartGrouping ? 'is-active' : ''}`}
+                  onClick={() => onUpdateSelectedElement({ chartType: 'column', chartGrouping: undefined })}
                   title="Biểu đồ cột dọc"
                 >
                   <BarChart3 size={16} /> Cột
                 </button>
+                <button className={`ppt-tool-btn ${selectedElement?.chartType === 'column' && selectedElement.chartGrouping ? 'is-active' : ''}`}
+                  onClick={() => onUpdateSelectedElement({ chartType: 'column', chartGrouping: 'stacked' })}>Cột chồng</button>
+                <button className={`ppt-tool-btn ${selectedElement?.chartType === 'scatter' ? 'is-active' : ''}`}
+                  onClick={() => onUpdateSelectedElement({ chartType: 'scatter', chartGrouping: undefined })}>Phân tán</button>
                 <button
                   className={`ppt-tool-btn ${selectedElement?.chartType === 'bar' ? 'is-active' : ''}`}
                   onClick={() => onUpdateSelectedElement({ chartType: 'bar' })}

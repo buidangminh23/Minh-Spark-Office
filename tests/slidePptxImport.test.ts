@@ -5,6 +5,7 @@ import { buildPptxFile, textRuns, transitionXml } from '../src/lib/pptxExport.ts
 import { customGeometryPath, importFromPptx, importPptxDetailed } from '../src/lib/pptxImport.ts';
 import { parseXml, descendants } from '../src/lib/miniXml.ts';
 import type { PresentationData, SlideElement } from '../src/lib/slideTypes.ts';
+import { applyPatch } from '../src/lib/slideArrange.ts';
 
 const PIXEL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
@@ -58,6 +59,39 @@ const deck: PresentationData = {
     },
   ],
 };
+
+test('text links retain their individual labels, target slides and positions after PPTX round trips', async () => {
+  const url = 'https://example.org/guide?a=1&b=2';
+  const text = 'Read guide or guide\n• Open next page';
+  const box = element({
+    id: 'links', type: 'text', text,
+    textLinks: [
+      { start: text.lastIndexOf('guide'), text: 'guide', url, tooltip: 'Reference', color: '#EA9700', underline: false },
+      { start: text.indexOf('next'), text: 'next page', slideId: deck.slides[1].id },
+    ],
+  });
+  const sample = { ...deck, slides: deck.slides.map((slide, index) => ({ ...slide, elements: index === 0 ? [box] : [] })) };
+  const bytes = await buildPptxFile(sample);
+  const imported = await importFromPptx(bytes.buffer as ArrayBuffer, 'links.pptx');
+  const result = imported.slides[0].elements[0];
+  assert.equal(result.text, text);
+  assert.deepEqual(result.textLinks?.map(({ start, text, url, slideId }) => ({ start, text, url, slideId })), [
+    { start: text.lastIndexOf('guide'), text: 'guide', url, slideId: undefined },
+    { start: text.indexOf('next'), text: 'next page', url: undefined, slideId: imported.slides[1].id },
+  ]);
+  assert.equal(result.textLinks?.[0].tooltip, 'Reference');
+  assert.equal(result.textLinks?.[0].color, '#EA9700');
+  assert.equal(result.textLinks?.[0].underline, false);
+  const zip = await JSZip.loadAsync(bytes);
+  const relPath = 'ppt/slides/_rels/slide1.xml.rels';
+  const rels = await zip.file(relPath)!.async('string');
+  zip.file(relPath, rels.replace('https://example.org/guide?a=1&amp;b=2', 'javascript:alert(1)'));
+  const blocked = await importFromPptx(await zip.generateAsync({ type: 'arraybuffer' }), 'blocked.pptx');
+  assert.equal(blocked.slides[0].elements[0].text, text);
+  assert.deepEqual(blocked.slides[0].elements[0].textLinks?.map((link) => link.text), ['next page']);
+  const [edited] = applyPatch([box], { links: { text: 'Intro: ' + text } });
+  assert.deepEqual(edited.textLinks?.map((link) => link.start), box.textLinks!.map((link) => link.start + 7));
+});
 
 test('a deck exported to pptx comes back with its shapes, text, tables, charts and transitions', async () => {
   const file = await buildPptxFile(deck);

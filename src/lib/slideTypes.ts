@@ -11,7 +11,7 @@ export type SlideLayout =
 
 export type ShapeType = string;
 
-export type ChartType = 'bar' | 'column' | 'line' | 'pie' | 'doughnut';
+export type ChartType = 'bar' | 'column' | 'line' | 'pie' | 'doughnut' | 'scatter';
 
 export type TransitionCategory = 'subtle' | 'exciting' | 'dynamic';
 
@@ -157,6 +157,16 @@ export type ElementType =
 
 export type SlideLinkKind = 'url' | 'slide' | 'next' | 'prev' | 'first' | 'last' | 'end' | 'email';
 
+export interface SlideTextLink {
+  start: number;
+  text: string;
+  color?: string;
+  underline?: boolean;
+  url?: string;
+  slideId?: string;
+  tooltip?: string;
+}
+
 export interface SlideLink {
   kind: SlideLinkKind;
   url?: string;
@@ -207,6 +217,17 @@ export interface ChartSeries {
   name: string;
   values: number[];
   color: string;
+  xValues?: number[];
+  showLine?: boolean;
+  markerSize?: number;
+}
+
+export interface ChartAxis {
+  title?: string;
+  min?: number;
+  max?: number;
+  majorUnit?: number;
+  gridLines?: boolean;
 }
 
 export interface SmartArtItem {
@@ -214,6 +235,17 @@ export interface SmartArtItem {
   desc: string;
   icon?: string;
   color?: string;
+}
+
+export interface SlideTableCellStyle {
+  fill?: string;
+  color?: string;
+  bold?: boolean;
+  fontSize?: number;
+  fontFace?: string;
+  align?: 'left' | 'center' | 'right' | 'justify';
+  verticalAlign?: 'top' | 'middle' | 'bottom';
+  padding?: [number, number, number, number];
 }
 
 export interface SlideElement {
@@ -237,6 +269,7 @@ export interface SlideElement {
 
   // Text properties
   text?: string;
+  textLinks?: SlideTextLink[];
   fontFamily?: string;
   fontSize?: number; // pt (10 - 96)
   fontWeight?: 'normal' | 'bold' | '600' | '700' | '800';
@@ -295,6 +328,10 @@ export interface SlideElement {
   tableRows?: number;
   tableCols?: number;
   tableData?: string[][];
+  tableColumnWidths?: number[];
+  tableRowHeights?: number[];
+  tableCellStyles?: SlideTableCellStyle[][];
+  tableBorderColor?: string;
   tableHeaderRow?: boolean;
   tableHeaderColor?: string;
   tableHeaderTextColor?: string;
@@ -304,6 +341,11 @@ export interface SlideElement {
   chartTitle?: string;
   chartCategories?: string[];
   chartSeries?: ChartSeries[];
+  chartGrouping?: 'stacked' | 'percentStacked';
+  chartGapWidth?: number;
+  chartXAxis?: ChartAxis;
+  chartYAxis?: ChartAxis;
+  chartLegend?: boolean;
 
   // SmartArt properties
   smartArtType?: 'process' | 'cycle' | 'pyramid' | 'list' | 'matrix';

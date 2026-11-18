@@ -612,7 +612,7 @@ export function SlideFormatPane({
               />
             </div>
 
-            <div style={{ marginTop: '12px' }}>
+            {selectedElement.chartType !== 'scatter' && <div style={{ marginTop: '12px' }}>
               <span className="ppt-format-label" style={{ display: 'block', marginBottom: '6px' }}>
                 Các mốc danh mục (Categories):
               </span>
@@ -632,7 +632,7 @@ export function SlideFormatPane({
                   />
                 ))}
               </div>
-            </div>
+            </div>}
 
             <div style={{ marginTop: '14px' }}>
               <span className="ppt-format-label" style={{ display: 'block', marginBottom: '6px' }}>
@@ -663,7 +663,17 @@ export function SlideFormatPane({
                       }}
                     />
                   </div>
-                  <div style={{ display: 'flex', gap: '6px' }}>
+                  {selectedElement.chartType === 'scatter' && <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {ser.values.map((_, vi) => <label key={vi}>X <input type="number" className="ppt-input-text"
+                      style={{ width: '58px' }} value={ser.xValues?.[vi] ?? vi + 1}
+                      onChange={(e) => {
+                        const xValues = ser.values.map((_, i) => ser.xValues?.[i] ?? i + 1);
+                        xValues[vi] = Number(e.target.value);
+                        onUpdateElement({ chartSeries: selectedElement.chartSeries?.map((s, i) => i === si ? { ...s, xValues } : s) });
+                      }} /></label>)}
+                  </div>}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {selectedElement.chartType === 'scatter' && <span>Y</span>}
                     {ser.values.map((val, vi) => (
                       <input
                         key={vi}

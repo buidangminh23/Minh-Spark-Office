@@ -472,7 +472,7 @@ export default function SlideEditor({
         if (idx !== activeSlideIndex) return s;
         return {
           ...s,
-          elements: s.elements.map((el) => (el.id === elementId ? { ...el, ...updates } : el)),
+          elements: applyPatch(s.elements, { [elementId]: updates }),
         };
       }),
     }));
@@ -1783,6 +1783,10 @@ export default function SlideEditor({
                     slideMaster={currentMaster}
                     slideIndex={activeSlideIndex}
                     onSelectElement={handleSelectElementWithPainter}
+                    onLinkedSlide={(id) => {
+                      const index = presentation.slides.findIndex((slide) => slide.id === id);
+                      if (index >= 0) setActiveSlideIndex(index);
+                    }}
                     onSelectElements={(ids, primary) => {
                       if (ids.length <= 1) handleSelectElementWithPainter(ids[0] ?? null);
                       else selectElements(ids, primary);

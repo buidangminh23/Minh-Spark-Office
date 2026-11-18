@@ -1,3 +1,4 @@
+import { resizeTable } from '../../lib/slideTable';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { RefreshCw, Check, X, FileSpreadsheet } from 'lucide-react';
 import type { SlideElement } from '../../lib/slideTypes';
@@ -151,9 +152,7 @@ export function SlideSheetsLinkModal({
       } else {
         const tableData = buildTableFromGrid(grid);
         onUpdateElement(selectedElement.id, {
-          tableData,
-          tableRows: tableData.length,
-          tableCols: tableData[0].length,
+          ...resizeTable(selectedElement, tableData),
           sheetLink,
         });
       }

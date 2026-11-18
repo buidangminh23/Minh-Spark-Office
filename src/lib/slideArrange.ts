@@ -1,4 +1,5 @@
 import type { SlideElement } from './slideTypes';
+import { updateTextLinks } from './slideTextLinks';
 
 export type AlignMode = 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom';
 export type DistributeMode = 'horizontal' | 'vertical';
@@ -160,5 +161,12 @@ export function elementsInRect(elements: SlideElement[], rect: Box): string[] {
 }
 
 export function applyPatch(elements: SlideElement[], patch: ElementPatch): SlideElement[] {
-  return elements.map((element) => (patch[element.id] ? { ...element, ...patch[element.id] } : element));
+  return elements.map((element) => {
+    const changes = patch[element.id];
+    if (!changes) return element;
+    if (changes.text !== undefined && changes.text !== element.text && element.textLinks?.length && !('textLinks' in changes)) {
+      return { ...element, ...changes, textLinks: updateTextLinks(element.text ?? '', changes.text, element.textLinks) };
+    }
+    return { ...element, ...changes };
+  });
 }

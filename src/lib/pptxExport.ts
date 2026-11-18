@@ -1,9 +1,11 @@
 import PptxGenJS from 'pptxgenjs';
 import JSZip from 'jszip';
-import type { PresentationData, SlideBackground, SlideElement, SlideTransition } from './slideTypes';
+import type { ChartSeries, PresentationData, SlideBackground, SlideElement, SlideTransition } from './slideTypes';
 import { downloadBlob } from './download';
 import { getShapeDef, parseSimplePath } from './slideShapes';
 import { slideAspectInfo } from './settings/slideOptions';
+import { tableCellStyle, tableFractions } from './slideTable';
+import { safeSlideLinkUrl, slideTextSegments } from './slideTextLinks';
 
 const DEFAULT_SHAPE_FILL = '0284C7';
 const WHITE = 'FFFFFF';
@@ -122,16 +124,32 @@ function isBold(el: SlideElement): boolean {
   return el.fontWeight === 'bold' || Number(el.fontWeight) >= 600;
 }
 
-export function textRuns(text: string): PptxGenJS.TextProps[] {
+export function textRuns(text: string, links?: SlideElement['textLinks'], slides?: PresentationData['slides']): PptxGenJS.TextProps[] {
   const lines = text.split('\n');
-  return lines.map((line, index) => {
+  let offset = 0;
+  return lines.flatMap((line, index) => {
     const bullet = /^(\s*)•\s?(.*)$/.exec(line);
-    const options: PptxGenJS.TextPropsOptions = { breakLine: index < lines.length - 1 };
-    if (bullet) {
-      options.bullet = { indent: 18 };
-      options.indentLevel = Math.floor(bullet[1].length / 2);
-    }
-    return { text: bullet ? bullet[2] : line, options };
+    const end = offset + line.length;
+    const segments = slideTextSegments(text, bullet ? end - bullet[2].length : offset, end, links);
+    offset = end + 1;
+    return segments.map((segment, i) => {
+      const options: PptxGenJS.TextPropsOptions = { breakLine: i === segments.length - 1 && index < lines.length - 1 };
+      if (bullet && i === 0) {
+        options.bullet = { indent: 18 };
+        options.indentLevel = Math.floor(bullet[1].length / 2);
+      }
+      if (segment.link) {
+        const { slideId, tooltip, color, underline } = segment.link;
+        const url = safeSlideLinkUrl(segment.link.url);
+        const target = slideId ? slides?.findIndex((slide) => slide.id === slideId) ?? -1 : -1;
+        if (url || target >= 0) {
+          options.hyperlink = { ...(url ? { url } : { slide: target + 1 }), tooltip };
+          if (color) options.color = parseCssColor(color) ?? undefined;
+          if (underline !== undefined) options.underline = { style: underline ? 'sng' : 'none' };
+        }
+      }
+      return { text: segment.text, options };
+    });
   });
 }
 
@@ -255,23 +273,75 @@ export function transitionXml(transition: SlideTransition | undefined): string {
   return `<p:transition ${attrs}>${basic(direction)}</p:transition>`;
 }
 
+function scatterX(series: ChartSeries) {
+  return series.values.map((_, i) => series.xValues?.[i] ?? i + 1);
+}
+
+function scatterData(series: ChartSeries[]) {
+  const xValues = series.flatMap(scatterX);
+  let offset = 0;
+  const columns = series.map((item) => {
+    const values = new Array<number>(offset);
+    for (const value of item.values) values.push(value);
+    offset += item.values.length;
+    return { name: item.name, values };
+  });
+  return [{ name: 'X', values: xValues }, ...columns];
+}
+
+function scatterRanges(xml: string, series: ChartSeries[]) {
+  let index = 0;
+  let row = 2;
+  return xml.replace(/<c:ser>[\s\S]*?<\/c:ser>/g, (source) => {
+    const item = series[index++];
+    const first = row;
+    row += item.values.length;
+    const last = Math.max(first, row - 1);
+    const ranges = source.replace(/<c:(xVal|yVal)>[\s\S]*?<\/c:\1>/g, (block: string, axis: string) => {
+      const column = block.match(/Sheet1!\$(\w+)\$/)?.[1] ?? 'A';
+      const values = axis === 'xVal' ? scatterX(item) : item.values;
+      const points = values.map((value, i) => `<c:pt idx="${i}"><c:v>${value}</c:v></c:pt>`).join('');
+      return `<c:${axis}><c:numRef><c:f>Sheet1!$${column}$${first}:$${column}$${last}</c:f><c:numCache><c:formatCode>General</c:formatCode><c:ptCount val="${values.length}"/>${points}</c:numCache></c:numRef></c:${axis}>`;
+    });
+    const marker = ranges.replace(/<c:marker>[\s\S]*?<\/c:marker>/, (tag: string) => item.markerSize === 0
+      ? '<c:marker><c:symbol val="none"/></c:marker>'
+      : tag.replace(/<c:size val="[^"]*"\/>/, `<c:size val="${Math.min(72, Math.max(2, Math.round(item.markerSize ?? 5)))}"/>`));
+    return item.showLine ? marker : marker.replace(/<a:ln\b[^>]*>[\s\S]*?<\/a:ln>/, '<a:ln><a:noFill/></a:ln>');
+  });
+}
+
 export async function addSlideTransitions(
   file: ArrayBuffer | Uint8Array,
-  presentation: PresentationData
+  presentation: PresentationData,
+  scatterCharts: ChartSeries[][] = []
 ): Promise<Uint8Array> {
   const zip = await JSZip.loadAsync(file);
+  if (scatterCharts.length) {
+    const parts = zip.file(/^ppt\/charts\/chart\d+\.xml$/).sort((a, b) =>
+      Number(a.name.match(/(\d+)\.xml$/)?.[1]) - Number(b.name.match(/(\d+)\.xml$/)?.[1]));
+    let scatterIndex = 0;
+    for (const part of parts) {
+      const xml = await part.async('string');
+      if (xml.includes('<c:scatterChart>')) zip.file(part.name, scatterRanges(xml, scatterCharts[scatterIndex++]));
+    }
+  }
   for (let index = 0; index < presentation.slides.length; index++) {
-    const xml = transitionXml(presentation.slides[index].transition);
+    const slide = presentation.slides[index];
+    const xml = transitionXml(slide.transition);
+    const tables = slide.elements.filter((el) => el.type === 'table' && el.tableData)
+      .sort((a, b) => (a.zIndex ?? 10) - (b.zIndex ?? 10));
     const part = zip.file(`ppt/slides/slide${index + 1}.xml`);
-    if (!xml || !part) continue;
-    const source = await part.async('string');
-    if (source.includes('<p:transition') || !source.includes('</p:sld>')) continue;
-    zip.file(`ppt/slides/slide${index + 1}.xml`, source.replace('</p:sld>', `${xml}</p:sld>`));
+    if ((!xml && !tables.length) || !part) continue;
+    let source = await part.async('string');
+    let tableIndex = 0;
+    source = source.replace(/<a:tblPr\/>/g, (original) => tables[tableIndex++]?.tableHeaderRow ? '<a:tblPr firstRow="1"/>' : original);
+    if (xml && !source.includes('<p:transition')) source = source.replace('</p:sld>', `${xml}</p:sld>`);
+    zip.file(part.name, source);
   }
   return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
 }
 
-export function createPptxDocument(presentation: PresentationData): PptxGenJS {
+export function createPptxDocument(presentation: PresentationData, scatterCharts: ChartSeries[][] = []): PptxGenJS {
   const pres = new PptxGenJS();
   const widthIn = slideWidthIn(presentation);
 
@@ -309,7 +379,7 @@ export function createPptxDocument(presentation: PresentationData): PptxGenJS {
       const transparency = el.opacity !== undefined && el.opacity < 1 ? Math.round((1 - el.opacity) * 100) : undefined;
 
       if (el.type === 'text' && el.text) {
-        slide.addText(textRuns(el.text), {
+        slide.addText(textRuns(el.text, el.textLinks, presentation.slides), {
           ...box,
           rotate,
           ...textOptions(el, { color: '000000', size: 18, align: 'left', valign: 'top' }),
@@ -342,7 +412,7 @@ export function createPptxDocument(presentation: PresentationData): PptxGenJS {
         const custom = el.shapeType === 'custom' && el.customPath ? customGeometryPoints(el.customPath, w, h) : undefined;
         const shapeName = (custom ? 'custGeom' : def.prst) as PptxGenJS.SHAPE_NAME;
         if (el.text && !custom) {
-          slide.addText(textRuns(el.text), {
+          slide.addText(textRuns(el.text, el.textLinks, presentation.slides), {
             ...box,
             rotate,
             ...flips,
@@ -356,7 +426,7 @@ export function createPptxDocument(presentation: PresentationData): PptxGenJS {
         } else {
           slide.addShape(shapeName, { ...box, rotate, ...flips, fill, line, shadow, points: custom });
           if (el.text) {
-            slide.addText(textRuns(el.text), {
+            slide.addText(textRuns(el.text, el.textLinks, presentation.slides), {
               ...box,
               rotate,
               ...textOptions(el, { color: 'FFFFFF', size: 16, align: 'center', valign: 'middle' }),
@@ -368,31 +438,40 @@ export function createPptxDocument(presentation: PresentationData): PptxGenJS {
         if (el.src.startsWith('data:image')) slide.addImage({ data: el.src, ...image });
         else if (el.src.startsWith('http')) slide.addImage({ path: el.src, ...image });
       } else if (el.type === 'table' && el.tableData) {
-        const tableRows = el.tableData.map((row, rIdx) => {
-          const isHeader = rIdx === 0 && el.tableHeaderRow;
-          return row.map((cell) => ({
+        const tableRows = el.tableData.map((row, rIdx) => row.map((cell, cIdx) => {
+          const style = tableCellStyle(el, rIdx, cIdx);
+          const fill = parseCssColor(style.fill);
+          return {
             text: cell,
             options: {
-              fill: isHeader ? { color: colorOr(el.tableHeaderColor, 'D83B01') } : { color: rIdx % 2 === 0 ? 'F8FAFC' : 'FFFFFF' },
-              color: isHeader ? colorOr(el.tableHeaderTextColor, 'FFFFFF') : '1E293B',
-              bold: isHeader,
-              align: 'center',
-              valign: 'middle',
+              fill: fill ? { color: fill } : { color: 'FFFFFF', transparency: 100 },
+              color: parseCssColor(style.color) ?? '000000',
+              bold: style.bold,
+              fontSize: style.fontSize,
+              fontFace: style.fontFace,
+              align: style.align,
+              valign: style.verticalAlign,
+              margin: style.padding?.map((n) => n / 72),
             },
-          }));
-        });
+          };
+        }));
 
         slide.addTable(tableRows as PptxGenJS.TableRow[], {
           ...box,
-          border: { type: 'solid', pt: 1, color: 'CBD5E1' },
+          colW: tableFractions(el.tableColumnWidths, el.tableCols ?? el.tableData[0]?.length ?? 0)?.map((part) => part * w),
+          rowH: tableFractions(el.tableRowHeights, el.tableData.length)?.map((part) => part * h),
+          border: { type: 'solid', pt: 1, color: colorOr(el.tableBorderColor, 'CBD5E1') },
         });
       } else if (el.type === 'chart' && el.chartSeries && el.chartCategories) {
         let presChartType = pres.ChartType.bar;
         if (el.chartType === 'line') presChartType = pres.ChartType.line;
+        else if (el.chartType === 'scatter') presChartType = pres.ChartType.scatter;
         else if (el.chartType === 'pie') presChartType = pres.ChartType.pie;
         else if (el.chartType === 'doughnut') presChartType = pres.ChartType.doughnut;
 
-        const chartData = el.chartSeries.map((s) => ({
+        const scatter = el.chartType === 'scatter';
+        if (scatter) scatterCharts.push(el.chartSeries);
+        const chartData = scatter ? scatterData(el.chartSeries) : el.chartSeries.map((s) => ({
           name: s.name,
           labels: el.chartCategories!,
           values: s.values,
@@ -406,8 +485,22 @@ export function createPptxDocument(presentation: PresentationData): PptxGenJS {
         slide.addChart(presChartType, chartData, {
           ...box,
           barDir: el.chartType === 'bar' ? 'bar' : 'col',
+          barGrouping: el.chartGrouping,
+          barGapWidthPct: el.chartGapWidth,
+          catAxisTitle: el.chartXAxis?.title,
+          valAxisTitle: el.chartYAxis?.title,
+          showCatAxisTitle: Boolean(el.chartXAxis?.title),
+          showValAxisTitle: Boolean(el.chartYAxis?.title),
+          catAxisMinVal: el.chartXAxis?.min,
+          catAxisMaxVal: el.chartXAxis?.max,
+          catAxisMajorUnit: el.chartXAxis?.majorUnit,
+          valAxisMinVal: el.chartYAxis?.min,
+          valAxisMaxVal: el.chartYAxis?.max,
+          valAxisMajorUnit: el.chartYAxis?.majorUnit,
+          catGridLine: el.chartXAxis?.gridLines === false ? { style: 'none' } : undefined,
+          valGridLine: el.chartYAxis?.gridLines === false ? { style: 'none' } : undefined,
           chartColors: perSeriesColors ? colors : undefined,
-          showLegend: el.chartSeries.length > 1,
+          showLegend: el.chartLegend ?? el.chartSeries.length > 1,
           legendPos: 'b',
           showTitle: Boolean(el.chartTitle),
           title: el.chartTitle || '',
@@ -557,9 +650,10 @@ export function createPptxDocument(presentation: PresentationData): PptxGenJS {
 }
 
 export async function buildPptxFile(presentation: PresentationData): Promise<Uint8Array> {
-  const pres = createPptxDocument(presentation);
+  const scatterCharts: ChartSeries[][] = [];
+  const pres = createPptxDocument(presentation, scatterCharts);
   const raw = (await pres.write({ outputType: 'arraybuffer' })) as ArrayBuffer;
-  return addSlideTransitions(raw, presentation);
+  return addSlideTransitions(raw, presentation, scatterCharts);
 }
 
 export async function exportToPptx(

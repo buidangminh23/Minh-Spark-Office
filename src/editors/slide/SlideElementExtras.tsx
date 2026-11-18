@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { CameraOff, FileText, Link2, Music2, Pause, Play } from 'lucide-react';
 import type { SlideElement } from '../../lib/slideTypes';
+import { safeSlideLinkUrl, slideTextSegments } from '../../lib/slideTextLinks';
+import { openExternalLink } from '../../lib/externalLinks';
 import { INDENT_STEP_PX, displayText, listMarker, textDirectionStyle } from '../../lib/slideTextOps';
 import { cropClipPath, imageFilterCss } from '../../lib/slideImageOps';
 import { formatBytes } from '../../lib/download';
@@ -31,7 +33,7 @@ export function textEffectStyle(el: SlideElement): CSSProperties {
   return style;
 }
 
-function lineInner(el: SlideElement, line: string): ReactNode {
+function lineInner(el: SlideElement, line: ReactNode): ReactNode {
   const text = line || ' ';
   if (el.textGradient) {
     return (
@@ -44,23 +46,48 @@ function lineInner(el: SlideElement, line: string): ReactNode {
   return text;
 }
 
-export function RichTextLines({ el, slideIndex }: { el: SlideElement; slideIndex: number }) {
-  const lines = displayText(el, slideIndex).split('\n');
+function textLinePositions(text: string) {
+  let start = 0;
+  let marker = -1;
+  return text.split('\n').map((line) => {
+    const markerIndex = line.trim() ? ++marker : undefined;
+    const position = { line, start, end: start + line.length, markerIndex };
+    start = position.end + 1;
+    return position;
+  });
+}
+
+export function RichTextLines({ el, slideIndex, readOnly, onLinkedSlide }: { el: SlideElement; slideIndex: number; readOnly?: boolean; onLinkedSlide?: (id: string) => void }) {
+  const fullText = displayText(el, slideIndex);
+  const lines = textLinePositions(fullText);
   const indent = (el.indentLevel ?? 0) * INDENT_STEP_PX;
-  let counter = -1;
   return (
     <>
-      {lines.map((line, idx) => {
-        const hasMarker = el.isBullet && line.trim().length > 0;
-        if (hasMarker) counter += 1;
+      {lines.map(({ line, start, end, markerIndex }, idx) => {
+        const content = line && el.textLinks?.length ? slideTextSegments(fullText, start, end, el.textLinks).map(({ text, link }, key) => {
+          if (!link) return text;
+          const style = { textDecoration: link.underline === false ? 'none' : 'underline', color: link.color ?? '#0563C1' };
+          if (!onLinkedSlide) return <span key={key} style={style}>{text}</span>;
+          const url = safeSlideLinkUrl(link.url);
+          return <a key={key} href={url ?? '#'} target={url ? '_blank' : undefined} rel="noopener noreferrer"
+            style={{ ...style, pointerEvents: 'auto' }} title={link.tooltip || url}
+            onPointerDown={(event) => { if (readOnly || event.ctrlKey || event.metaKey) event.stopPropagation(); }}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              if (!readOnly && !event.ctrlKey && !event.metaKey && event.detail !== 0) return;
+              if (url) openExternalLink(url);
+              else if (link.slideId) onLinkedSlide(link.slideId);
+            }}>{text}</a>;
+        }) : line;
         return (
           <div key={idx} style={{ paddingLeft: indent + (el.isBullet ? 26 : 0), position: 'relative', breakInside: 'avoid' }}>
-            {hasMarker && (
+            {el.isBullet && markerIndex !== undefined && (
               <span aria-hidden="true" style={{ position: 'absolute', left: indent, width: 22, textAlign: 'right', paddingRight: 6, boxSizing: 'border-box' }}>
-                {listMarker(el, counter)}
+                {listMarker(el, markerIndex)}
               </span>
             )}
-            {lineInner(el, line)}
+            {lineInner(el, content)}
           </div>
         );
       })}

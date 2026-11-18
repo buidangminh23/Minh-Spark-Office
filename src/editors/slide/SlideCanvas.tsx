@@ -6,6 +6,8 @@ import { collectSlideAnimations, type MorphGeometry } from '../../lib/slideEffec
 import { boundsOf, elementsInRect, expandSelection, moveBoxes, type Box, type ElementPatch } from '../../lib/slideArrange';
 import { isLineShape } from '../../lib/slideShapes';
 import { ShapeSvg } from './SlideShapeSvg';
+import { tableCellStyle, tableFractions } from '../../lib/slideTable';
+import { SlidePlot } from './SlidePlot';
 import { ToneDot } from './slideIcons';
 import { isEditableKeyTarget } from './slideKeyTarget';
 import { clearSlideDraftText, setSlideDraftText } from './slideDraftText';
@@ -19,6 +21,7 @@ interface SlideCanvasProps {
   zoom: number;
   selectedElementId: string | null;
   onSelectElement: (id: string | null) => void;
+  onLinkedSlide?: (id: string) => void;
   onUpdateElement: (id: string, updates: Partial<SlideElement>) => void;
   onDeleteElement?: (id: string) => void;
   selectedElementIds?: string[];
@@ -69,6 +72,7 @@ export function SlideCanvas({
   zoom,
   selectedElementId,
   onSelectElement,
+  onLinkedSlide,
   onUpdateElement,
   onDeleteElement,
   selectedElementIds,
@@ -804,7 +808,7 @@ export function SlideCanvas({
               </div>
             )}
             {!readOnly && <LinkBadge el={el} />}
-            {renderElementContent(el, isEditing, (newText) => onUpdateElement(el.id, { text: newText, field: undefined }), (updates) => onUpdateElement(el.id, updates), { slideIndex, presenting, readOnly, thumbnail })}
+            {renderElementContent(el, isEditing, (newText) => onUpdateElement(el.id, { text: newText, field: undefined }), (updates) => onUpdateElement(el.id, updates), { slideIndex, presenting, readOnly, thumbnail, aspectRatio, onLinkedSlide: drawMode === 'select' ? onLinkedSlide : undefined })}
 
             {showHandles && drawMode === 'select' && !el.locked && (
               <>
@@ -898,7 +902,7 @@ function renderElementContent(
   isEditing: boolean,
   onTextChange: (val: string) => void,
   onUpdateElementProps?: (updates: Partial<SlideElement>) => void,
-  ctx: { slideIndex: number; presenting: boolean; readOnly: boolean; thumbnail?: boolean } = { slideIndex: 0, presenting: false, readOnly: false }
+  ctx: { slideIndex: number; presenting: boolean; readOnly: boolean; thumbnail?: boolean; aspectRatio?: SlideAspect; onLinkedSlide?: (id: string) => void } = { slideIndex: 0, presenting: false, readOnly: false }
 ): ReactNode {
   if (el.type === 'icon') return <IconElementView el={el} />;
   if (el.type === 'audio') return <AudioElementView el={el} presenting={ctx.presenting} />;
@@ -945,7 +949,7 @@ function renderElementContent(
     return (
       <div className="ppt-text-box" style={textStyle}>
         {el.text || el.field ? (
-          <RichTextLines el={el} slideIndex={ctx.slideIndex} />
+          <RichTextLines el={el} {...ctx} />
         ) : (
           <span style={{ color: '#94A3B8', fontStyle: 'italic' }}>
             {el.placeholder || 'Bấm đúp để nhập văn bản'}
@@ -980,7 +984,7 @@ function renderElementContent(
                 el.verticalAlign === 'top' ? 'flex-start' : el.verticalAlign === 'bottom' ? 'flex-end' : undefined,
             }}
           >
-            {el.highlight || el.textGradient || el.isBullet ? <RichTextLines el={el} slideIndex={ctx.slideIndex} /> : el.text}
+            {el.highlight || el.textGradient || el.isBullet || el.textLinks?.length ? <RichTextLines el={el} {...ctx} /> : el.text}
           </div>
         )}
       </div>
@@ -1025,28 +1029,38 @@ function renderElementContent(
   }
 
   if (el.type === 'table' && el.tableData) {
+    const widths = tableFractions(el.tableColumnWidths, el.tableCols ?? el.tableData[0]?.length ?? 0);
+    const heights = tableFractions(el.tableRowHeights, el.tableData.length);
     return (
-      <table className="ppt-table">
+      <table className="ppt-table" style={{ tableLayout: widths ? 'fixed' : undefined }}>
+        {widths && <colgroup>{widths.map((width, index) => <col key={index} style={{ width: `${width * 100}%` }} />)}</colgroup>}
         <tbody>
           {el.tableData.map((row, rIdx) => {
-            const isHeader = rIdx === 0 && el.tableHeaderRow;
             return (
-              <tr key={rIdx}>
-                {row.map((cell, cIdx) => (
-                  <td
-                    key={cIdx}
-                    style={{
-                      background: isHeader
-                        ? (el.tableHeaderColor || '#D83B01')
-                        : (rIdx % 2 === 0 ? '#F8FAFC' : '#FFFFFF'),
-                      color: isHeader ? (el.tableHeaderTextColor || '#FFFFFF') : '#1E293B',
-                      fontWeight: isHeader ? 'bold' : 'normal',
-                      textAlign: 'center',
-                    }}
-                  >
-                    {cell}
-                  </td>
-                ))}
+              <tr key={rIdx} style={{ height: heights ? `${heights[rIdx] * 100}%` : undefined }}>
+                {row.map((cell, cIdx) => {
+                  const style = tableCellStyle(el, rIdx, cIdx);
+                  return (
+                    <td
+                      key={cIdx}
+                      style={{
+                        background: style.fill,
+                        borderColor: el.tableBorderColor,
+                        color: style.color,
+                        fontWeight: style.bold ? 'bold' : 'normal',
+                        fontSize: style.fontSize,
+                        fontFamily: style.fontFace,
+                        textAlign: style.align,
+                        verticalAlign: style.verticalAlign,
+                        padding: style.padding?.map((n) => `${n}px`).join(' '),
+                        whiteSpace: 'pre-wrap',
+                        overflowWrap: 'anywhere',
+                      }}
+                    >
+                      {cell}
+                    </td>
+                  );
+                })}
               </tr>
             );
           })}
@@ -1056,6 +1070,9 @@ function renderElementContent(
   }
 
   if (el.type === 'chart' && el.chartSeries && el.chartCategories) {
+    if (el.chartType === 'scatter' || (el.chartType === 'column' && el.chartGrouping)) {
+      return <SlidePlot el={el} width={slideBaseWidth(ctx.aspectRatio) * el.width / 100} height={540 * el.height / 100} />;
+    }
     return (
       <div className="ppt-chart-box">
         {el.chartTitle && (

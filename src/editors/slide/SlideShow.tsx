@@ -468,6 +468,7 @@ export function SlideShow({
   // Key navigation & hotkeys
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' && e.target instanceof Element && e.target.closest('a[href]')) return;
       if (isEditableKeyTarget(e.target) && e.key !== 'Escape') return;
       e.stopPropagation();
       if (menuPos) {
@@ -797,6 +798,10 @@ export function SlideShow({
 
   const canAdvance = animStep < clickCount || resolveAdvance({ slides, current: currentIndex, loop: showSettings.slideLoop, endWithBlack: showSettings.slideEndWithBlack, atEnd }).type !== 'stay';
   const canStepBack = atEnd || currentIndex !== 0 || animStep !== 0;
+  const openLinkedSlide = (id: string) => {
+    const index = slides.findIndex((slide) => slide.id === id);
+    if (index >= 0) setCurrentIndex(index);
+  };
   const laserColor = LASER_COLORS[showSettings.slideLaserColor] ?? LASER_COLORS.red;
   const endScreen = atEnd ? (
     <div
@@ -871,6 +876,7 @@ export function SlideShow({
                 slide={currentSlide}
                 aspectRatio={aspectRatio}
                 zoom={presenterMainFit.zoom}
+                onLinkedSlide={openLinkedSlide}
                 selectedElementId={null}
                 onSelectElement={() => {}}
                 onUpdateElement={() => {}}
@@ -1094,6 +1100,7 @@ export function SlideShow({
               }
             }
           }}
+          onLinkedSlide={drawTool === 'none' ? openLinkedSlide : undefined}
           onUpdateElement={() => {}}
           hiddenElementIds={hiddenElementIds}
           geometryOverrides={morph?.overrides}

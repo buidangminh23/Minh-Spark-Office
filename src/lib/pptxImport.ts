@@ -6,6 +6,8 @@ import type {
   SlideBackground,
   SlideData,
   SlideElement,
+  SlideTableCellStyle,
+  SlideTextLink,
   SlideTransition,
   TransitionDirection,
   TransitionType,
@@ -13,6 +15,7 @@ import type {
 import { createSlideFromLayout } from './slideTemplates';
 import { child, childrenOf, descendants, localName, parseXml, path, type XmlNode } from './miniXml';
 import { shapeFromPrst } from './slideShapes';
+import { safeSlideLinkUrl } from './slideTextLinks';
 import { SLIDE_ASPECTS, slideBaseWidth } from './settings/slideOptions';
 
 function nearestAspect(ratio: number): PresentationData['aspectRatio'] {
@@ -93,6 +96,8 @@ interface LayerInfo {
 
 interface SlideEnv {
   zip: JSZip;
+  tableStyles?: XmlNode;
+  slideIds: Map<string, string>;
   color: ColorContext;
   slideCx: number;
   slideCy: number;
@@ -259,7 +264,11 @@ async function readRels(zip: JSZip, partPath: string): Promise<Map<string, Rel>>
   const rels = new Map<string, Rel>();
   const doc = await readXml(zip, relsPath);
   for (const node of descendants(doc, 'Relationship')) {
-    if (node.attrs.TargetMode === 'External') continue;
+    if (node.attrs.TargetMode === 'External') {
+      const url = safeSlideLinkUrl(node.attrs.Target);
+      if (node.attrs.Type?.endsWith('/hyperlink') && url) rels.set(node.attrs.Id, { target: url, type: node.attrs.Type });
+      continue;
+    }
     rels.set(node.attrs.Id, { target: resolvePath(partPath, node.attrs.Target ?? ''), type: node.attrs.Type ?? '' });
   }
   return rels;
@@ -633,6 +642,7 @@ function pxScale(env: SlideEnv): number {
 
 interface TextResult {
   text: string;
+  textLinks?: SlideTextLink[];
   style: TextStyle;
   anchor: 'top' | 'middle' | 'bottom';
   fontScale: number;
@@ -654,7 +664,7 @@ function readTextBody(
   const ownList = child(txBody, 'a:lstStyle');
   const bodyPr = child(txBody, 'a:bodyPr');
 
-  const lines: string[] = [];
+  const lines: { text: string; links: SlideTextLink[] }[] = [];
   let dominant: TextStyle | undefined;
   let counter = 0;
   for (const paragraph of childrenOf(txBody, 'a:p')) {
@@ -669,6 +679,7 @@ function readTextBody(
       levelStyle(masterStyle, level, ctx)
     );
     let line = '';
+    const links: SlideTextLink[] = [];
     let runStyle: TextStyle | undefined;
     for (const part of paragraph.children) {
       if (part.name === 'a:br') {
@@ -676,21 +687,34 @@ function readTextBody(
       } else if (part.name === 'a:r' || part.name === 'a:fld') {
         let value = child(part, 'a:t')?.text ?? '';
         if (part.name === 'a:fld' && /slidenum/i.test(part.attrs.type ?? '')) value = String(env.slideNumber);
-        if (value && !runStyle) runStyle = mergeStyles(readRunStyle(child(part, 'a:rPr'), ctx), base);
+        const runProps = child(part, 'a:rPr');
+        if (value && !runStyle) runStyle = mergeStyles(readRunStyle(runProps, ctx), base);
+        const click = child(runProps, 'a:hlinkClick');
+        const rel = click && env.rels.get(click.attrs['r:id']);
+        if (rel && value) {
+          const url = rel.type.endsWith('/hyperlink') ? safeSlideLinkUrl(rel.target) : undefined;
+          const slideId = rel.type.endsWith('/slide') ? env.slideIds.get(rel.target) : undefined;
+          if (url || slideId) {
+            const style = readRunStyle(runProps, ctx);
+            links.push({ start: line.length, text: value, url, slideId, tooltip: click.attrs.tooltip, color: style.color ?? `#${ctx.theme.colors.hlink ?? '0563C1'}`, underline: style.underline });
+          }
+        }
         line += value;
       }
     }
     if (line.trim() && base.bullet && base.bullet !== 'none') {
       counter = base.bullet === 'number' ? counter + 1 : 0;
-      line = `${'  '.repeat(level)}${base.bullet === 'number' ? `${counter}.` : '•'} ${line}`;
+      const prefix = `${'  '.repeat(level)}${base.bullet === 'number' ? `${counter}.` : '•'} `;
+      for (const link of links) link.start += prefix.length;
+      line = prefix + line;
     } else if (line.trim()) {
       counter = 0;
     }
-    lines.push(line);
+    lines.push({ text: line, links });
     if (!dominant && runStyle) dominant = runStyle;
   }
-  while (lines.length > 0 && !lines[lines.length - 1].trim()) lines.pop();
-  while (lines.length > 0 && !lines[0].trim()) lines.shift();
+  while (lines.length > 0 && !lines[lines.length - 1].text.trim()) lines.pop();
+  while (lines.length > 0 && !lines[0].text.trim()) lines.shift();
   if (lines.length === 0) return undefined;
 
   const anchorName = bodyPr?.attrs.anchor ?? layoutPh?.bodyPr?.attrs.anchor ?? masterPh?.bodyPr?.attrs.anchor ?? 't';
@@ -698,8 +722,15 @@ function readTextBody(
   const style = dominant ?? {};
   if (!style.color && fallbackColor) style.color = fallbackColor;
   if (!style.font) style.font = kind === 'title' ? ctx.theme.majorFont : ctx.theme.minorFont;
+  let offset = 0;
+  const textLinks = lines.flatMap((line) => {
+    const links = line.links.map((link) => ({ ...link, start: link.start + offset }));
+    offset += line.text.length + 1;
+    return links;
+  });
   return {
-    text: lines.join('\n'),
+    text: lines.map((line) => line.text).join('\n'),
+    textLinks: textLinks.length ? textLinks : undefined,
     style,
     anchor: anchorName === 'ctr' ? 'middle' : anchorName === 'b' ? 'bottom' : 'top',
     fontScale: autofit ? parseInt(autofit, 10) / 100000 : 1,
@@ -712,6 +743,7 @@ function textProps(result: TextResult, env: SlideEnv, defaultSize: number): Part
   const align = style.align === 'ctr' ? 'center' : style.align === 'r' ? 'right' : style.align === 'just' ? 'justify' : 'left';
   return {
     text: result.text,
+    ...(result.textLinks && { textLinks: result.textLinks }),
     fontFamily: `'${style.font ?? env.color.theme.minorFont}', 'Segoe UI', sans-serif`,
     fontSize: Math.round(size * 10) / 10,
     fontWeight: style.bold ? 'bold' : 'normal',
@@ -989,21 +1021,98 @@ function cellText(cell: XmlNode): string {
     .trim();
 }
 
+function tableFill(container: XmlNode | undefined, ctx: ColorContext) {
+  const fill = readFill(container, ctx);
+  if (fill?.kind === 'solid') return css(fill.color);
+  if (fill?.kind === 'none') return 'transparent';
+  return undefined;
+}
+
+const mediumTableAccents = ['{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}', '{21E4AEA4-8DFA-4A89-87EB-49C32662AFE0}',
+  '{F5AB1C69-6EDB-4FF4-983F-18BD219EF322}', '{00A15C55-8517-42AA-B614-E9B94910E393}',
+  '{7DF18680-E054-41AD-8BC1-D1AEF772440D}', '{93296810-A885-4BE3-A3E7-6D5BEEA58F35}'];
+
+function mediumTableRegions(accent: string, theme: Theme): Record<string, SlideTableCellStyle> {
+  const tint = (amount: number) => `#${rgbToHex(hexToRgb(accent).map((value) => value * amount + 255 * (1 - amount)))}`;
+  const edge = { fill: `#${accent}`, color: `#${theme.colors.lt1}`, bold: true };
+  const band = { fill: tint(0.4) };
+  return { wholeTbl: { fill: tint(0.2), color: `#${theme.colors.dk1}` }, band1H: band, band1V: band,
+    firstRow: edge, lastRow: edge, firstCol: edge, lastCol: edge };
+}
+
+function tableRegionStyle(region: XmlNode, ctx: ColorContext): SlideTableCellStyle {
+  const cell = child(region, 'a:tcStyle');
+  const text = child(region, 'a:tcTxStyle');
+  const fill = tableFill(child(cell, 'a:fill'), ctx);
+  const fillRef = readColor(child(cell, 'a:fillRef'), ctx);
+  const color = readColor(text, ctx);
+  const bold = text?.attrs.b;
+  return {
+    ...(fill || fillRef ? { fill: fill ?? css(fillRef!) } : {}),
+    ...(color ? { color: css(color) } : {}),
+    ...(bold && bold !== 'def' ? { bold: bold === 'on' || bold === '1' || bold === 'true' } : {}),
+  };
+}
+
 function tableElement(tbl: XmlNode, env: SlideEnv, xfrm: Xfrm, groupId: string | undefined): SlideElement {
-  const rows = childrenOf(tbl, 'a:tr').map((row) => childrenOf(row, 'a:tc').map(cellText));
-  const firstCell = path(tbl, 'a:tr', 'a:tc');
-  const headerFill = readFill(child(firstCell, 'a:tcPr'), env.color);
-  const headerText = readColor(descendants(firstCell, 'a:solidFill').find((node) => node !== child(child(firstCell, 'a:tcPr'), 'a:solidFill')), env.color);
+  const rowNodes = childrenOf(tbl, 'a:tr');
+  const cells = rowNodes.map((row) => childrenOf(row, 'a:tc'));
+  const properties = child(tbl, 'a:tblPr');
+  const enabled = (name: string) => ['1', 'true'].includes(properties?.attrs[name] ?? '');
+  const styleId = child(properties, 'a:tableStyleId')?.text.trim() ?? env.tableStyles?.attrs.def;
+  const tableStyle = childrenOf(env.tableStyles, 'a:tblStyle').find((style) => style.attrs.styleId === styleId);
+  const accentIndex = mediumTableAccents.indexOf(styleId?.toUpperCase() ?? '');
+  const accentKey = `accent${accentIndex + 1}`;
+  const accent = env.color.theme.colors[env.color.clrMap[accentKey] ?? accentKey];
+  const regions = !tableStyle && accentIndex >= 0 && accent ? mediumTableRegions(accent, env.color.theme)
+    : Object.fromEntries((tableStyle?.children ?? []).map((region) => [localName(region.name), tableRegionStyle(region, env.color)]));
+  const header = enabled('firstRow');
+  const firstColumn = enabled('firstCol');
+  const firstBorder = readLine(path(cells[0]?.[0], 'a:tcPr', 'a:lnL'), env.color);
+  const cellStyles = cells.map((row, r) => row.map((cell, c): SlideTableCellStyle => {
+    const first = header && r === 0;
+    const last = enabled('lastRow') && r === cells.length - 1;
+    const left = firstColumn && c === 0;
+    const right = enabled('lastCol') && c === row.length - 1;
+    const bandRow = enabled('bandRow') ? regions[(r - Number(header)) % 2 === 0 ? 'band1H' : 'band2H'] : undefined;
+    const bandCol = enabled('bandCol') ? regions[(c - Number(firstColumn)) % 2 === 0 ? 'band1V' : 'band2V'] : undefined;
+    const style: SlideTableCellStyle = Object.assign({}, regions.wholeTbl, bandRow, bandCol,
+      left && regions.firstCol, right && regions.lastCol, first && regions.firstRow, last && regions.lastRow,
+      first && left && regions.nwCell, first && right && regions.neCell, last && left && regions.swCell, last && right && regions.seCell);
+    const tcPr = child(cell, 'a:tcPr');
+    const body = child(cell, 'a:txBody');
+    const pPr = path(body, 'a:p', 'a:pPr');
+    const run = descendants(body, 'a:r')[0];
+    const text = mergeStyles(readRunStyle(child(run, 'a:rPr'), env.color), readParagraphStyle(pPr, env.color),
+      levelStyle(child(body, 'a:lstStyle'), Number(pPr?.attrs.lvl) || 0, env.color));
+    const scale = pxScale(env);
+    const margin = (attr: string, fallback: number) => Number(tcPr?.attrs[attr] ?? fallback) / EMU_PER_PT * scale;
+    const fill = tableFill(tcPr, env.color);
+    return {
+      fill: fill ?? style.fill ?? (first ? `#${env.color.theme.colors.accent1}` : enabled('bandRow') && r % 2 === 0 ? '#F8FAFC' : 'transparent'),
+      color: text.color ?? style.color ?? (first ? '#FFFFFF' : `#${env.color.theme.colors[env.color.clrMap.tx1 ?? 'dk1']}`),
+      bold: text.bold ?? style.bold ?? first,
+      fontSize: text.size ? text.size * scale : undefined,
+      fontFace: text.font ?? env.color.theme.minorFont,
+      align: text.align === 'ctr' ? 'center' : text.align === 'r' ? 'right' : text.align === 'just' ? 'justify' : 'left',
+      verticalAlign: tcPr?.attrs.anchor === 'ctr' ? 'middle' : tcPr?.attrs.anchor === 'b' ? 'bottom' : 'top',
+      padding: [margin('marT', 45720), margin('marR', 91440), margin('marB', 45720), margin('marL', 91440)],
+    };
+  }));
   return {
     id: env.nextId(),
     type: 'table',
     ...percentBox(env, xfrm),
-    tableRows: rows.length,
-    tableCols: Math.max(0, ...rows.map((row) => row.length)),
-    tableData: rows,
-    tableHeaderRow: child(tbl, 'a:tblPr')?.attrs.firstRow === '1',
-    tableHeaderColor: headerFill?.kind === 'solid' ? css(headerFill.color) : `#${env.color.theme.colors.accent1 ?? '4472C4'}`,
-    tableHeaderTextColor: headerText ? css(headerText) : '#FFFFFF',
+    tableRows: cells.length,
+    tableCols: Math.max(0, ...cells.map((row) => row.length)),
+    tableData: cells.map((row) => row.map(cellText)),
+    tableCellStyles: cellStyles,
+    tableColumnWidths: childrenOf(child(tbl, 'a:tblGrid'), 'a:gridCol').map((col) => Number(col.attrs.w)),
+    tableRowHeights: rowNodes.map((row) => Number(row.attrs.h)),
+    tableHeaderRow: header,
+    tableHeaderColor: cellStyles[0]?.[0]?.fill,
+    tableHeaderTextColor: cellStyles[0]?.[0]?.color,
+    tableBorderColor: firstBorder?.color ? css(firstBorder.color) : !tableStyle && accentIndex >= 0 ? `#${env.color.theme.colors.lt1}` : undefined,
     groupId,
   };
 }
@@ -1011,6 +1120,37 @@ function tableElement(tbl: XmlNode, env: SlideEnv, xfrm: Xfrm, groupId: string |
 function cachedValues(node: XmlNode | undefined): string[] {
   const points = descendants(node, 'c:pt').sort((a, b) => parseInt(a.attrs.idx ?? '0', 10) - parseInt(b.attrs.idx ?? '0', 10));
   return points.map((point) => child(point, 'c:v')?.text ?? '');
+}
+
+function chartText(node: XmlNode | undefined) {
+  return descendants(node, 'a:t').map((run) => run.text).join('') || cachedValues(node)[0];
+}
+
+function chartNumber(raw: string | undefined) {
+  if (!raw?.trim()) return undefined;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : undefined;
+}
+
+function chartAxis(axis: XmlNode | undefined) {
+  if (!axis) return undefined;
+  return {
+    title: chartText(child(axis, 'c:title')),
+    min: chartNumber(path(axis, 'c:scaling', 'c:min')?.attrs.val),
+    max: chartNumber(path(axis, 'c:scaling', 'c:max')?.attrs.val),
+    majorUnit: chartNumber(child(axis, 'c:majorUnit')?.attrs.val),
+    gridLines: Boolean(child(axis, 'c:majorGridlines')),
+  };
+}
+
+function numericPoints(node: XmlNode | undefined) {
+  const values = new Map<number, number>();
+  for (const point of descendants(node, 'c:pt')) {
+    const value = chartNumber(child(point, 'c:v')?.text);
+    const index = chartNumber(point.attrs.idx);
+    if (index !== undefined && value !== undefined) values.set(index, value);
+  }
+  return values;
 }
 
 async function chartElement(
@@ -1026,28 +1166,55 @@ async function chartElement(
   const kind = localName(plot.name);
   let chartType: ChartType = 'column';
   if (/^bar/.test(kind)) chartType = child(plot, 'c:barDir')?.attrs.val === 'bar' ? 'bar' : 'column';
-  else if (/^(line|area|scatter|radar)/.test(kind)) chartType = 'line';
+  else if (kind === 'scatterChart') chartType = 'scatter';
+  else if (/^(line|area|radar)/.test(kind)) chartType = 'line';
   else if (/^doughnut/.test(kind)) chartType = 'doughnut';
   else if (/^(pie|ofPie)/.test(kind)) chartType = 'pie';
   const series = childrenOf(plot, 'c:ser');
   if (series.length === 0) return undefined;
-  const categories = cachedValues(child(series[0], 'c:cat') ?? child(series[0], 'c:xVal'));
+  const categories = cachedValues(child(series[0], 'c:cat'));
+  const scatterStyle = child(plot, 'c:scatterStyle')?.attrs.val ?? 'marker';
+  const grouping = child(plot, 'c:grouping')?.attrs.val;
   const chartSeries: ChartSeries[] = series.map((ser, index) => {
-    const color = readColor(path(ser, 'c:spPr', 'a:solidFill'), env.color);
-    return {
-      name: cachedValues(child(ser, 'c:tx'))[0] || `Chuỗi ${index + 1}`,
-      values: cachedValues(child(ser, 'c:val') ?? child(ser, 'c:yVal')).map((value) => Number(value) || 0),
+    const marker = child(ser, 'c:marker');
+    const line = path(ser, 'c:spPr', 'a:ln');
+    const color = readColor(path(marker, 'c:spPr', 'a:solidFill'), env.color)
+      ?? readColor(path(ser, 'c:spPr', 'a:solidFill'), env.color)
+      ?? readColor(child(line, 'a:solidFill'), env.color);
+    const data: ChartSeries = {
+      name: cachedValues(child(ser, 'c:tx'))[0] || path(ser, 'c:tx', 'c:v')?.text || `Chuỗi ${index + 1}`,
+      values: cachedValues(child(ser, 'c:val')).map((value) => Number(value) || 0),
       color: color ? css(color) : CHART_PALETTE[index % CHART_PALETTE.length],
     };
+    if (chartType === 'scatter') {
+      const xs = numericPoints(child(ser, 'c:xVal'));
+      const ys = numericPoints(child(ser, 'c:yVal'));
+      const pairs = [...ys].sort(([a], [b]) => a - b).filter(([i]) => xs.has(i));
+      data.xValues = pairs.map(([i]) => xs.get(i)!);
+      data.values = pairs.map(([, y]) => y);
+      data.showLine = /^(line|smooth)/.test(scatterStyle) && !child(line, 'a:noFill');
+      const symbol = child(marker, 'c:symbol')?.attrs.val;
+      data.markerSize = symbol === 'none' || (!marker && !/marker/i.test(scatterStyle))
+        ? 0 : chartNumber(child(marker, 'c:size')?.attrs.val) ?? 5;
+    }
+    return data;
   });
-  const title = descendants(child(descendants(doc, 'c:chart')[0], 'c:title'), 'a:t').map((node) => node.text).join('');
+  const chart = descendants(doc, 'c:chart')[0];
+  const axes = plotArea!.children.filter((node) => /(?:cat|val|date)Ax$/.test(node.name));
+  const xAxis = axes.find((axis) => /^(b|t)$/.test(child(axis, 'c:axPos')?.attrs.val ?? ''));
+  const yAxis = axes.find((axis) => /^(l|r)$/.test(child(axis, 'c:axPos')?.attrs.val ?? ''));
   return {
     id: env.nextId(),
     type: 'chart',
     ...percentBox(env, xfrm),
     chartType,
-    chartTitle: title || undefined,
-    chartCategories: categories.length > 0 ? categories : chartSeries[0].values.map((_, index) => String(index + 1)),
+    chartTitle: chartText(child(chart, 'c:title')),
+    chartGrouping: grouping === 'stacked' || grouping === 'percentStacked' ? grouping : undefined,
+    chartGapWidth: chartNumber(child(plot, 'c:gapWidth')?.attrs.val),
+    chartXAxis: chartAxis(xAxis),
+    chartYAxis: chartAxis(yAxis),
+    chartLegend: Boolean(child(chart, 'c:legend')),
+    chartCategories: categories.length ? categories : Array.from({ length: Math.max(...chartSeries.map((s) => s.values.length)) }, (_, i) => String(i + 1)),
     chartSeries,
     groupId,
   };
@@ -1273,6 +1440,8 @@ export async function importPptxDetailed(
   const canvasW = slideBaseWidth(aspectRatio);
 
   const layerCache = new Map<string, Promise<LayerInfo | undefined>>();
+  const tableStyleDoc = await readXml(zip, relByType(presentationRels, '/tableStyles') ?? 'ppt/tableStyles.xml');
+  const tableStyles = child(tableStyleDoc, 'a:tblStyleLst');
   const themeCache = new Map<string, Promise<Theme>>();
   const mediaCache = new Map<string, Promise<string | null>>();
   const getLayer = (partPath: string | undefined) => {
@@ -1287,6 +1456,7 @@ export async function importPptxDetailed(
   };
 
   const stamp = Date.now();
+  const slideIds = new Map(slidePaths.map((partPath, index) => [partPath, `imported-slide-${index + 1}-${stamp}`]));
   let counter = 0;
   const slides: SlideData[] = [];
 
@@ -1301,6 +1471,8 @@ export async function importPptxDetailed(
     const clrMapNode = child(master?.root.children[0], 'p:clrMap');
     const env: SlideEnv = {
       zip,
+      tableStyles,
+      slideIds,
       color: { theme, clrMap: { ...DEFAULT_CLR_MAP, ...(clrMapNode?.attrs ?? {}) } },
       slideCx,
       slideCy,
@@ -1343,7 +1515,7 @@ export async function importPptxDetailed(
     });
     report.elements += elements.length;
     slides.push({
-      id: `imported-slide-${index + 1}-${stamp}`,
+      id: slideIds.get(partPath)!,
       layout: index === 0 ? 'title' : 'title-content',
       background,
       transition: readTransition(root),
