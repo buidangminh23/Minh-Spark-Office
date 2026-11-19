@@ -2,6 +2,7 @@ import PptxGenJS from 'pptxgenjs';
 import JSZip from 'jszip';
 import type { ChartSeries, PresentationData, SlideBackground, SlideElement, SlideTransition } from './slideTypes';
 import { downloadBlob } from './download';
+import { buildPptxKeepingSource } from './sourceExport';
 import { getShapeDef, parseSimplePath } from './slideShapes';
 import { slideAspectInfo } from './settings/slideOptions';
 import { tableCellStyle, tableFractions } from './slideTable';
@@ -658,9 +659,10 @@ export async function buildPptxFile(presentation: PresentationData): Promise<Uin
 
 export async function exportToPptx(
   presentation: PresentationData,
-  fileName = 'Bai-thuyet-trinh.pptx'
+  fileName = 'Bai-thuyet-trinh.pptx',
+  sourceId?: string
 ): Promise<void> {
-  const bytes = await buildPptxFile(presentation);
+  const bytes = await buildPptxKeepingSource(sourceId, presentation, buildPptxFile);
   const outName = fileName.endsWith('.pptx') ? fileName : `${fileName}.pptx`;
   const blob = new Blob([bytes as BlobPart], {
     type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',

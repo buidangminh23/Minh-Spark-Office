@@ -5,6 +5,7 @@ import { importDocxFull } from '../../lib/docxImport';
 import { flattenForExport } from './docFlatten';
 import { downloadBlob, pickFile, readAsDataUrl } from '../../lib/download';
 import { type FileMeta, type PageSettings } from '../../lib/storage';
+import { unchangedDocx } from '../../lib/sourceExport';
 import { currentAuthor, newId, type DocCtx } from './DocContext';
 import { jsonText, sha256, splitByHeading, transformCase, type CaseMode } from './docTools';
 
@@ -22,7 +23,8 @@ const run = async (ctx: DocCtx, busy: string, task: () => Promise<void>, failure
 };
 
 export const exportAsDocx = (ctx: DocCtx) => run(ctx, 'Đang tạo tệp .docx…', async () => {
-  downloadBlob(await exportDocx(await resolveImages(flattenForExport(ctx.editor)), ctx.page, ctx.title), `${baseName(ctx)}.docx`);
+  const original = await unchangedDocx(ctx.meta.id, ctx.editor.getJSON(), ctx.page);
+  downloadBlob(original ?? await exportDocx(await resolveImages(flattenForExport(ctx.editor)), ctx.page, ctx.title), `${baseName(ctx)}.docx`);
   ctx.ui.toast('Đã tải xuống tệp Word (.docx)');
 }, 'Lỗi khi xuất DOCX');
 

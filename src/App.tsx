@@ -723,6 +723,7 @@ function MainApp({ onEditing, frameId }: { onEditing: (editing: boolean) => void
           page: imported.page,
         };
         await saveFile(meta, content);
+        if (/\.docx$/i.test(file.name)) await (await import('./lib/sourceFiles')).saveSourceFile(id, { name: file.name, bytes: new Uint8Array(bytes) });
         refreshFilesSoon();
         showDocument(meta, content);
         ui.toast(`Đã nạp tệp Word "${file.name}"`);
@@ -811,6 +812,7 @@ function MainApp({ onEditing, frameId }: { onEditing: (editing: boolean) => void
           presentation,
         };
         await saveFile(meta, content);
+        if (/\.pptx$/i.test(file.name)) await (await import('./lib/sourceFiles')).saveSourceFile(id, { name: file.name, bytes: new Uint8Array(bytes) });
         refreshFilesSoon();
         showDocument(meta, content);
         ui.toast(

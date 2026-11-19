@@ -19,9 +19,9 @@ const ALWAYS_FROM_SOURCE = new Set(['printOptions', 'pageMargins', 'pageSetup', 
 
 type Child = { name: string; xml: string };
 type Parsed = { head: string; children: Child[]; tail: string };
-type Relationship = { id: string; type: string; target: string; external: boolean };
+export type Relationship = { id: string; type: string; target: string; external: boolean };
 
-const attribute = (tag: string, name: string) => new RegExp(`\\b${name}="([^"]*)"`).exec(tag)?.[1] ?? '';
+export const attribute = (tag: string, name: string) => new RegExp(`\\b${name}="([^"]*)"`).exec(tag)?.[1] ?? '';
 
 function startTagEnd(xml: string, from: number) {
   let quote = '';
@@ -82,9 +82,9 @@ const orderOf = (name: string) => {
   return index < 0 ? WORKSHEET_ORDER.length : index;
 };
 
-const relsPathOf = (part: string) => part.replace(/([^/]+)$/, '_rels/$1.rels');
+export const relsPathOf = (part: string) => part.replace(/([^/]+)$/, '_rels/$1.rels');
 
-function resolveTarget(part: string, target: string) {
+export function resolveTarget(part: string, target: string) {
   if (target.startsWith('/')) return target.slice(1);
   const segments = part.split('/').slice(0, -1);
   for (const piece of target.split('/')) {
@@ -94,7 +94,7 @@ function resolveTarget(part: string, target: string) {
   return segments.join('/');
 }
 
-const readRelationships = (xml: string | undefined): Relationship[] =>
+export const readRelationships = (xml: string | undefined): Relationship[] =>
   [...(xml ?? '').matchAll(/<Relationship\b[^>]*>/g)].map(([tag]) => ({
     id: attribute(tag, 'Id'),
     type: attribute(tag, 'Type'),
@@ -105,7 +105,7 @@ const readRelationships = (xml: string | undefined): Relationship[] =>
 const relationshipXml = (item: Relationship) =>
   `<Relationship Id="${item.id}" Type="${item.type}" Target="${item.target}"${item.external ? ' TargetMode="External"' : ''}/>`;
 
-const relationshipsXml = (items: Relationship[]) =>
+export const relationshipsXml = (items: Relationship[]) =>
   `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${items.map(relationshipXml).join('')}</Relationships>`;
 
 const text = (zip: JSZip, path: string) => zip.file(path)?.async('string');
@@ -131,7 +131,7 @@ export async function captureSourcePackage(zip: JSZip, data: WorkbookData): Prom
   return archive.length > MAX_ARCHIVE_CHARS ? undefined : { archive, sheets, order: paths };
 }
 
-class PartCopier {
+export class PartCopier {
   private readonly copied = new Map<string, string>();
   readonly contentTypes = new Map<string, string>();
   readonly extensions = new Map<string, string>();
@@ -153,6 +153,10 @@ class PartCopier {
     if (!extension) return;
     const fallback = new RegExp(`<Default\\b[^>]*Extension="${extension}"[^>]*>`, 'i').exec(this.sourceTypes)?.[0];
     if (fallback) this.extensions.set(extension, attribute(fallback, 'ContentType'));
+  }
+
+  alias(sourcePath: string, outputPath: string) {
+    this.copied.set(sourcePath, outputPath);
   }
 
   async copy(sourcePath: string): Promise<string | null> {
@@ -251,7 +255,7 @@ function mergeDefinedNames(outputWorkbook: string, sourceWorkbook: string, sheet
   return outputWorkbook.replace('</sheets>', `</sheets><definedNames>${added.join('')}</definedNames>`);
 }
 
-function mergeContentTypes(xml: string, copier: PartCopier) {
+export function mergeContentTypes(xml: string, copier: PartCopier) {
   let result = xml;
   for (const [extension, type] of copier.extensions) {
     if (!new RegExp(`<Default\\b[^>]*Extension="${extension}"`, 'i').test(result)) result = result.replace('</Types>', `<Default Extension="${extension}" ContentType="${type}"/></Types>`);

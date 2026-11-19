@@ -281,6 +281,12 @@ export default function SlideEditor({
   }, [redoStack, presentation]);
 
   const presentationRef = useRef(presentation);
+  useEffect(() => {
+    void (async () => {
+      const [{ stampSourceFile }, { presentationStamp }] = await Promise.all([import('../../lib/sourceFiles'), import('../../lib/sourceExport')]);
+      await stampSourceFile(meta.id, () => presentationStamp(content.presentation));
+    })();
+  }, [meta.id]);
   const savedPresentationRef = useRef(content.presentation);
   const mountedRef = useRef(true);
   const saveContextRef = useRef({ meta, onSave, comments: content.comments });
@@ -1549,7 +1555,7 @@ export default function SlideEditor({
     textBox: { run: handleAddText },
     find: { run: () => setIsFindReplaceOpen(true) },
     print: { run: () => setIsPrintOpen(true) },
-    pptx: { run: () => void exportToPptx(presentation, meta.name) },
+    pptx: { run: () => void exportToPptx(presentation, meta.name, meta.id) },
     notes: { run: () => setShowNotes(!showNotes), active: showNotes },
   };
 
@@ -2074,7 +2080,7 @@ export default function SlideEditor({
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
         presentation={presentation}
-        onExportPptx={() => exportToPptx(presentation, meta.name)}
+        onExportPptx={() => exportToPptx(presentation, meta.name, meta.id)}
         onExportPdf={() => {
           setIsExportModalOpen(false);
           setIsPrintOpen(true);
@@ -2269,7 +2275,7 @@ export default function SlideEditor({
           content={{ kind: 'slide', presentation }}
           onClose={() => setIsBackstageOpen(false)}
           onSave={handleExplicitSave}
-          onExportPptx={() => exportToPptx(presentation, meta.name)}
+          onExportPptx={() => exportToPptx(presentation, meta.name, meta.id)}
           onPrint={() => { setIsBackstageOpen(false); setIsPrintOpen(true); }}
           onNew={() => {
             setIsBackstageOpen(false);

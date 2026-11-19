@@ -33,6 +33,8 @@ import { useFormatState } from './useFormatState';
 import { ensureFont, ensureFontsInJson } from './fonts';
 import { useDictation, useReadAloud } from './useSpeech';
 import { addComment, editLink, insertFootnote } from './actions';
+import { stampSourceFile } from '../../lib/sourceFiles';
+import { docSignature } from '../../lib/sourceExport';
 import { basePage, useWorkspace, type CommentItem, type DocContent, type FileMeta, type PageSettings } from '../../lib/storage';
 import { useUi } from '../../components/ui';
 import 'katex/dist/katex.min.css';
@@ -351,6 +353,10 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
 
   const latest = useRef({ meta, title, page, comments, onSave });
   latest.current = { meta, title, page, comments, onSave };
+  useEffect(() => {
+    if (!editor) return;
+    void stampSourceFile(meta.id, () => ({ signature: docSignature(editor.getJSON(), latest.current.page) }));
+  }, [editor, meta.id]);
 
   const persist = useCallback(async (explicit = false) => {
     const savedRevision = changeRevision.current;
