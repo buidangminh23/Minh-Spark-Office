@@ -13,7 +13,13 @@ function officeLayoutEngine(): Plugin {
   const original = readFileSync(source(workerName), 'utf8');
   const mapStart = 'var U={pdf:"pdf",';
   if (original.split(mapStart).length !== 2) throw new Error('Unexpected LibreOffice 2.3.1 worker format map');
-  const worker = original.replace(mapStart, mapStart + 'fodt:"fodt",fods:"fods",fodp:"fodp",pot:"pot",');
+  const singleCore = 'Object.defineProperty(self.navigator,"hardwareConcurrency",{value:1,configurable:true});';
+  const worker = singleCore + original.replace(mapStart, mapStart + 'fodt:"fodt",fods:"fods",fodp:"fodp",pot:"pot",');
+  const engineName = 'soffice.js';
+  const poolStart = 'var pthreadPoolSize=4;';
+  const engineSource = readFileSync(source(engineName), 'utf8');
+  if (engineSource.split(poolStart).length !== 2) throw new Error('Unexpected LibreOffice 2.3.1 thread pool size');
+  const engine = engineSource.replace(poolStart, 'var pthreadPoolSize=16;');
   const middleware = (serveFromPackage: boolean): import('vite').Connect.NextHandleFunction => (req, res, next) => {
     const path = req.url?.split('?')[0] ?? '';
     if (path === '/office-layout.html' || path.startsWith(prefix)) {
@@ -26,6 +32,7 @@ function officeLayoutEngine(): Plugin {
     if (!serveFromPackage) return next();
     res.setHeader('Content-Type', name.endsWith('.js') ? 'text/javascript' : 'application/octet-stream');
     if (name === workerName) { res.end(worker); return; }
+    if (name === engineName) { res.end(engine); return; }
     createReadStream(source(name)).on('error', next).pipe(res);
   };
   return {
@@ -33,7 +40,7 @@ function officeLayoutEngine(): Plugin {
     configureServer(server) { server.middlewares.use(middleware(true)); },
     configurePreviewServer(server) { server.middlewares.use(middleware(false)); },
     generateBundle() {
-      for (const name of assets) this.emitFile({ type: 'asset', fileName: prefix.slice(1) + name, source: name === workerName ? worker : readFileSync(source(name)) });
+      for (const name of assets) this.emitFile({ type: 'asset', fileName: prefix.slice(1) + name, source: name === workerName ? worker : name === engineName ? engine : readFileSync(source(name)) });
     },
   };
 }

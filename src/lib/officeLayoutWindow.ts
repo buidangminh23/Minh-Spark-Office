@@ -80,9 +80,9 @@ function start() {
     const url = (name: string) => new URL(assetRoot + name, location.href).href;
     const [wasm, data, script] = await Promise.all([
       assetUrl('soffice.wasm.gz', 'application/wasm'), assetUrl('soffice.data.gz', 'application/octet-stream'),
-      location.hostname === 'tauri.localhost' ? assetUrl('soffice.js', 'text/javascript') : url('soffice.js'),
+      location.hostname === 'tauri.localhost' ? assetUrl('soffice.js', 'text/javascript') : url('soffice.js?threads=16'),
     ]);
-    worker = new Worker(url('browser.worker.global.js?formats=2'));
+    worker = new Worker(url('browser.worker.global.js?formats=3'));
     try {
       await request('init', { sofficeJs: script, sofficeWorkerJs: url('soffice.worker.js'), sofficeWasm: wasm, sofficeData: data }, 'ready');
     } catch (error) {
@@ -110,6 +110,7 @@ function start() {
       let bytes = await request('convert', { inputData: new Uint8Array(await file.arrayBuffer()), inputExt: file.name.split('.').pop()?.toLowerCase(), outputFormat: binaryFormat }, 'result');
       if (!bytes?.byteLength || bytes.byteLength > 200 * 1024 * 1024) throw new Error('Bộ chuyển đổi chưa tạo được tệp trong giới hạn 200 MB.');
       if (outputFormat === 'dot' || outputFormat === 'xlt') bytes = await (await import('./legacyOfficeTemplates')).createLegacyTemplate(bytes, outputFormat);
+      if (outputFormat === 'xlsx') bytes = await (await import('./xlsxEngineRepair')).repairEngineXlsx(bytes);
       const blob = new Blob([bytes], { type: nativeOutputMime(outputFormat) });
       await checkNativeFile(await blob.arrayBuffer(), outputFormat);
       channel.postMessage({ type: 'result', id: active, blob });
