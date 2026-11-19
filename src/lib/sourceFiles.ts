@@ -1,6 +1,7 @@
 import { createStore, del, get, set, type UseStore } from 'idb-keyval';
 
-export type SourceFile = { name: string; bytes: Uint8Array; signature?: string; parts?: string[] };
+export type SourceBlocks = { nodes: string[]; groups: Array<{ from: number; count: number; nodes: number }>; page: string };
+export type SourceFile = { name: string; bytes: Uint8Array; signature?: string; parts?: string[]; blocks?: SourceBlocks };
 
 let store: UseStore | null = null;
 const sourceStore = () => (store ??= createStore('minh-office-sources', 'files'));
@@ -36,10 +37,12 @@ export async function loadSourceFile(id: string): Promise<SourceFile | undefined
   }
 }
 
-export async function stampSourceFile(id: string, stamp: () => Pick<SourceFile, 'signature' | 'parts'>): Promise<void> {
+type Stamp = Pick<SourceFile, 'signature' | 'parts' | 'blocks'>;
+
+export async function stampSourceFile(id: string, stamp: (source: SourceFile) => Stamp | Promise<Stamp>): Promise<void> {
   const source = await loadSourceFile(id);
   if (!source || source.signature) return;
-  await saveSourceFile(id, { ...source, ...stamp() });
+  await saveSourceFile(id, { ...source, ...(await stamp(source)) });
 }
 
 export async function removeSourceFile(id: string): Promise<void> {

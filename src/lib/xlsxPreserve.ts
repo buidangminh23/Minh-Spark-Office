@@ -188,7 +188,7 @@ export class PartCopier {
   }
 }
 
-function mergeNamespaces(outputHead: string, sourceHead: string) {
+export function mergeNamespaces(outputHead: string, sourceHead: string) {
   let head = outputHead;
   for (const [declaration, prefix] of sourceHead.matchAll(/\sxmlns:([A-Za-z0-9]+)="[^"]*"/g)) {
     if (!new RegExp(`\\sxmlns:${prefix}=`).test(head)) head = head.replace(/>$/, `${declaration}>`);

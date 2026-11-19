@@ -1,4 +1,4 @@
-import { unchangedDocx } from '../../lib/sourceExport';
+import { docxKeepingSource } from '../../lib/sourceExport';
 import { exportDocx, jsonToMarkdown } from '../../lib/docxConvertLazy';
 import { exportEpub, exportOdt, exportRtf } from '../../lib/docExports';
 import { exportLatex, exportPptx, jsonToText, resolveImages, tablesOf, tablesToXlsx, tableToCsv } from '../../lib/docOtherFormats';
@@ -25,7 +25,7 @@ const one = (ctx: DocCtx, extension: string, blob: Blob): ExportResult => [{ nam
 
 const flat = (ctx: DocCtx, equationAsText = true) => flattenForExport(ctx.editor, { equationAsText });
 const flatResolved = (ctx: DocCtx, equationAsText = true) => resolveImages(flat(ctx, equationAsText));
-const docxBlob = async (ctx: DocCtx) => (await unchangedDocx(ctx.meta.id, ctx.editor.getJSON(), ctx.page)) ?? exportDocx(await flatResolved(ctx, false), ctx.page, ctx.title);
+const docxBlob = async (ctx: DocCtx) => docxKeepingSource(ctx.meta.id, ctx.editor.getJSON(), ctx.page, flat(ctx, false), async () => exportDocx(await flatResolved(ctx, false), ctx.page, ctx.title));
 
 const requirePaged = (ctx: DocCtx) => {
   if ((ctx.page.columns ?? 1) > 1) throw new Error('Tài liệu đang chia cột toàn trang: hãy dùng "PDF qua hộp thoại in", hoặc đặt lại 1 cột rồi xuất.');
