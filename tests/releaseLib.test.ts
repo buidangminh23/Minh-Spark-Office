@@ -6,6 +6,7 @@ import {
   PREFLIGHT_CHECKS,
   VERSION_FILES,
   bumpVersionText,
+  firebaseBuildConfig,
   missingPlatforms,
   nextPatchVersion,
   parseChecksums,
@@ -105,4 +106,11 @@ test('the download page leads macOS with the curl installer and every version st
   assert.doesNotMatch(mac.slice(mac.indexOf('.dmg') - 200, mac.indexOf('.dmg')), /dl-btn-primary/, 'the DMG is the secondary action');
   assert.ok(MAC_INSTALL_COMMAND.includes(new URL('/install-macos.sh', 'https://office.minhspark.com').href));
   assert.ok(readRepo('public/install-macos.sh').startsWith('#!/bin/bash'));
+});
+
+test('release refuses to build a desktop app without Firebase sign-in config', () => {
+  const full = ['VITE_FIREBASE_API_KEY=key', 'VITE_FIREBASE_AUTH_DOMAIN=a.firebaseapp.com', 'VITE_FIREBASE_PROJECT_ID="proj"', 'VITE_FIREBASE_APP_ID=1:2:web:3', '# Created by Vercel CLI'].join(String.fromCharCode(13, 10));
+  assert.deepEqual(firebaseBuildConfig([full], {}), { missing: [], projectId: 'proj', apiKey: 'key' });
+  assert.deepEqual(firebaseBuildConfig([], {}).missing, ['VITE_FIREBASE_API_KEY', 'VITE_FIREBASE_AUTH_DOMAIN', 'VITE_FIREBASE_PROJECT_ID', 'VITE_FIREBASE_APP_ID']);
+  assert.deepEqual(firebaseBuildConfig(['VITE_FIREBASE_API_KEY='], { VITE_FIREBASE_AUTH_DOMAIN: 'x', VITE_FIREBASE_PROJECT_ID: 'p', VITE_FIREBASE_APP_ID: 'i' }).missing, ['VITE_FIREBASE_API_KEY']);
 });

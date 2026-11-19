@@ -86,3 +86,23 @@ export const retainedUpdaterFiles = (files, version, count = RETAINED_RELEASES) 
 export const EXPECTED_UPDATER_PLATFORMS = ['windows-x86_64-nsis', 'windows-x86_64', 'windows-x86_64-msi', 'darwin-aarch64', 'linux-x86_64', 'linux-x86_64-deb', 'linux-x86_64-appimage'];
 
 export const missingPlatforms = (manifest) => EXPECTED_UPDATER_PLATFORMS.filter((platform) => !manifest?.platforms?.[platform]?.signature);
+
+export const FIREBASE_ENV_KEYS = ['VITE_FIREBASE_API_KEY', 'VITE_FIREBASE_AUTH_DOMAIN', 'VITE_FIREBASE_PROJECT_ID', 'VITE_FIREBASE_APP_ID'];
+
+export function parseEnvText(text) {
+  const values = {};
+  for (const line of text.split(/\r?\n/)) {
+    const match = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/.exec(line);
+    if (!match) continue;
+    values[match[1]] = match[2].replace(/^(['"])(.*)\1$/, '$2').trim();
+  }
+  return values;
+}
+
+export function firebaseBuildConfig(envFiles, processEnv) {
+  const merged = {};
+  for (const text of envFiles) Object.assign(merged, parseEnvText(text));
+  for (const key of FIREBASE_ENV_KEYS) if (processEnv[key]?.trim()) merged[key] = processEnv[key].trim();
+  const missing = FIREBASE_ENV_KEYS.filter((key) => !merged[key]);
+  return { missing, projectId: merged.VITE_FIREBASE_PROJECT_ID ?? '', apiKey: merged.VITE_FIREBASE_API_KEY ?? '' };
+}

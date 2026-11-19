@@ -8,7 +8,9 @@ import {
   MAC_INSTALL_COMMAND,
   PREFLIGHT_CHECKS,
   VERSION_FILES,
+  FIREBASE_ENV_KEYS,
   bumpVersionText,
+  firebaseBuildConfig,
   isSemver,
   missingPlatforms,
   nextPatchVersion,
@@ -143,8 +145,30 @@ function readVersion() {
   return JSON.parse(readFileSync(join(root, 'src-tauri/tauri.conf.json'), 'utf8')).version;
 }
 
+function firebaseConfig() {
+  const files = ['.env', '.env.local', '.env.production', '.env.production.local'].map((name) => join(root, name)).filter((path) => existsSync(path)).map((path) => readFileSync(path, 'utf8'));
+  return firebaseBuildConfig(files, process.env);
+}
+
+function requireFirebaseConfig() {
+  const { missing } = firebaseConfig();
+  if (missing.length) throw new Error(`Firebase sign-in config missing (${missing.join(', ')}); copy the ${FIREBASE_ENV_KEYS.length} VITE_FIREBASE_* lines into .env.local (never VERCEL_OIDC_TOKEN), or the app ships with "Đăng nhập Google chưa được cấu hình"`);
+}
+
+function requireFirebaseInDist() {
+  const { projectId, apiKey } = firebaseConfig();
+  const assets = join(root, 'dist/assets');
+  const found = readdirSync(assets).filter((name) => name.endsWith('.js')).some((name) => {
+    const text = readFileSync(join(assets, name), 'utf8');
+    return text.includes(apiKey) && text.includes(projectId);
+  });
+  if (!found) throw new Error('dist has no Firebase config baked in; the desktop app would not be able to sign in');
+  console.log('Firebase config present in the desktop build');
+}
+
 function preflight({ checkClean }) {
   heading('Preflight');
+  requireFirebaseConfig();
   if (process.platform !== 'win32') throw new Error('Run the release on the Windows build machine');
   if (checkClean && capture('git', ['status', '--porcelain']) !== '') throw new Error('Working tree is not clean; commit or stash first');
   requireOriginMain('HEAD does not contain origin/main; rebase onto origin/main first');
@@ -190,6 +214,7 @@ function buildWindows() {
   heading('Build and sign Windows installers');
   ensureSigningKey();
   run('pwsh', ['-NoProfile', '-File', 'scripts/build-desktop.ps1', '-StageWeb']);
+  requireFirebaseInDist();
 }
 
 function buildMac(version) {
@@ -197,6 +222,7 @@ function buildMac(version) {
   if (!existsSync(join(root, 'dist/index.html')) || existsSync(join(root, 'dist/downloads'))) {
     throw new Error('dist is not the prepared desktop build; run --from windows first');
   }
+  requireFirebaseInDist();
   const work = mkdtempSync(join(tmpdir(), 'mso-mac-'));
   temporaryPaths.push(work);
   const bundleName = `src-${version}.tar`;
