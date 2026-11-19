@@ -9589,5 +9589,15 @@
  "Tải mẫu về máy, mở và sửa chung mọi tài liệu chung.": "Download templates, open and co-edit every shared document.",
  "Mẫu không sửa chung được.": "Templates can't be co-edited.",
  "Mọi người chỉ tải bản riêng về máy, thay đổi của ai người nấy thấy. Muốn cả nhóm sửa cùng lúc, hãy đưa vào Tài liệu chung.": "Everyone downloads a private copy and only sees their own changes. To edit together, put it in Shared documents.",
- "Đưa vào Tài liệu chung": "Put it in Shared documents"
+ "Đưa vào Tài liệu chung": "Put it in Shared documents",
+ "Tự động lưu đang bật: mọi thay đổi được lưu ngay. Bấm để tắt.": "AutoSave is on: every change is saved right away. Click to turn it off.",
+ "Tự động lưu đang tắt: thay đổi chỉ được lưu khi bạn bấm Lưu (Ctrl+S). Bấm để bật.": "AutoSave is off: changes are saved only when you click Save (Ctrl+S). Click to turn it on.",
+ "Bật": "On",
+ "Khi tắt, thay đổi chỉ được lưu vào tệp khi bấm Lưu (Ctrl+S); bản đang sửa vẫn được giữ tạm trên máy để mở lại. Khi bật, mọi thay đổi được lưu ngay. Tài liệu chung của nhóm luôn tự lưu.": "When off, changes are saved to the file only when you click Save (Ctrl+S); your edits are kept on this device so you can reopen them. When on, every change is saved right away. Team shared documents always save automatically.",
+ "Bật hoặc tắt Tự động lưu, sao lưu và khôi phục tài liệu.": "Turn AutoSave on or off, back up and restore documents.",
+ "Mở lại thay đổi chưa lưu?": "Reopen unsaved changes?",
+ "Mở thay đổi chưa lưu": "Open unsaved changes",
+ "Mở bản đã lưu": "Open saved version",
+ "Lưu bảng tính (Ctrl+S)": "Save workbook (Ctrl+S)",
+ "Chưa giữ được thay đổi trên máy. Hãy bấm Lưu (Ctrl+S) để không mất nội dung.": "Could not keep your changes on this device. Click Save (Ctrl+S) so nothing is lost."
 }

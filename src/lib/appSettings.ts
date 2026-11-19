@@ -75,6 +75,7 @@ export const DEFAULT_SETTINGS = {
   qatCommands: ['save', 'undo', 'redo'] as QatCommand[],
 
 
+  autoSave: false,
   macroPolicy: 'enable' as MacroPolicy,
   confirmLinks: true,
   usageStats: true,

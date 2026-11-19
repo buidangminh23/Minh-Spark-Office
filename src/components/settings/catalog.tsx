@@ -159,9 +159,9 @@ const BASE_CATEGORIES: SettingCategory[] = [
       {
         id: 'backup',
         title: 'Lưu & sao lưu',
-        description: 'Tài liệu tự lưu vào máy ngay khi gõ, kể cả lúc mất mạng.',
+        description: 'Bật hoặc tắt Tự động lưu, sao lưu và khôi phục tài liệu.',
         icon: <Save size={ICON} />,
-        options: [{ kind: 'custom', id: 'backup', label: 'Sao lưu toàn bộ và khôi phục', keywords: 'backup khôi phục tải về', render: () => <BackupPanel /> }],
+        options: [{ kind: 'custom', id: 'backup', label: 'Sao lưu toàn bộ và khôi phục', keywords: 'backup khôi phục tải về tự động lưu autosave', render: () => <BackupPanel /> }],
       },
     ],
   },

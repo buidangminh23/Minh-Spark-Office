@@ -42,6 +42,7 @@ import type { FileKind } from './lib/storage';
 import { loadEditor, loadedEditors, preloadEditor, type EditorKind } from './lib/editorModules';
 import { importTargetOf, isOleContainer } from './lib/importTarget';
 import { getSettings } from './lib/appSettings';
+import { discardUnsaved, isNewerThanSaved, keepUnsaved, readUnsaved } from './lib/unsavedChanges';
 import { SettingsHost } from './components/settings/SettingsHost';
 import { registerBackupActions } from './components/settings/settingsShared';
 import type { DesktopFileBatch } from './lib/desktopFileQueue';
@@ -90,6 +91,7 @@ function MainApp({ onEditing, frameId }: { onEditing: (editing: boolean) => void
   const [files, setFiles] = useState<FileMeta[]>([]);
   const [activeMeta, setActiveMeta] = useState<FileMeta | null>(null);
   const [activeContent, setActiveContent] = useState<FileContent | null>(null);
+  const [openedUnsaved, setOpenedUnsaved] = useState(false);
   const [bootError, setBootError] = useState('');
   const bootGuard = useRef<ReturnType<typeof createTabBootGuard> | null>(null);
   const activeEditorKind = activeMeta && activeContent && activeMeta.kind === activeContent.kind ? activeMeta.kind : null;
@@ -165,9 +167,27 @@ function MainApp({ onEditing, frameId }: { onEditing: (editing: boolean) => void
       const content = copy?.content ?? (meta ? await storage.loadContent(meta.id) : undefined);
       if (!alive || !guard.isActive()) return;
       if (!meta || !content || content.kind !== meta.kind) { guard.finish(); setBootError(OPEN_FAILED); return; }
+      const scope = user?.uid ?? null;
+      const kept = await readUnsaved(scope, meta.id).catch(() => null);
+      let opened = content;
+      let unsaved = false;
+      if (kept && isNewerThanSaved(kept, meta)) {
+        guard.finish();
+        const at = new Date(kept.at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
+        const restore = Boolean(await ui.ask({
+          title: 'Mở lại thay đổi chưa lưu?',
+          message: `“${meta.name}” có thay đổi chưa lưu từ lúc ${at}. Bạn có thể tiếp tục với các thay đổi đó, hoặc mở bản đã lưu (thay đổi chưa lưu vẫn được giữ cho tới khi bạn sửa tiếp).`,
+          confirmText: 'Mở thay đổi chưa lưu',
+          cancelText: 'Mở bản đã lưu',
+        }));
+        if (!alive) return;
+        if (restore) { opened = kept.content; unsaved = true; }
+      } else if (!guard.isActive()) return;
+      if (!alive) return;
       activeDocument.current = meta;
+      setOpenedUnsaved(unsaved);
       setActiveMeta(meta);
-      setActiveContent(content);
+      setActiveContent(opened);
     };
     boot().catch((error: unknown) => {
       if (!alive || !guard.isActive()) return;
@@ -932,7 +952,17 @@ function MainApp({ onEditing, frameId }: { onEditing: (editing: boolean) => void
   }, [ready, files]);
 
   // Save current active document or sheet
-  const handleSaveActive = async (meta: FileMeta, content: FileContent, explicit = false) => {
+  const handleSaveActive = async (meta: FileMeta, content: FileContent, explicit = false, force = false) => {
+    const scope = user?.uid ?? null;
+    if (!explicit && !force && !getSettings().autoSave) {
+      try {
+        await keepUnsaved(scope, meta, content);
+        return true;
+      } catch {
+        ui.toast('Chưa giữ được thay đổi trên máy. Hãy bấm Lưu (Ctrl+S) để không mất nội dung.', true);
+        return false;
+      }
+    }
     try {
       if (explicit && !user) await storage.saveFile(meta, content);
       const account = explicit ? await login() : user;
@@ -948,6 +978,7 @@ function MainApp({ onEditing, frameId }: { onEditing: (editing: boolean) => void
       } else {
         await target.saveFile(meta, content);
       }
+      if (!force) await discardUnsaved(scope, meta.id).catch(() => undefined);
       if (currentStorage.current === storage && activeDocument.current?.id === meta.id) {
         setActiveMeta(meta);
         setActiveContent(content);
@@ -1111,8 +1142,9 @@ function MainApp({ onEditing, frameId }: { onEditing: (editing: boolean) => void
           key={activeMeta.id}
           meta={activeMeta}
           content={activeContent}
+          startUnsaved={openedUnsaved}
           onSave={handleSaveActive}
-          onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
+          onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent, false, true)}
           onNewDocument={(html) => void handleCreateDoc(html)}
           onOpenFile={(file) => void handleImportFile(file)}
           onOpenSaved={(meta, content) => { refreshFilesSoon(); showDocument(meta, content); }}
@@ -1127,8 +1159,9 @@ function MainApp({ onEditing, frameId }: { onEditing: (editing: boolean) => void
           key={activeMeta.id}
           meta={activeMeta}
           content={activeContent}
+          startUnsaved={openedUnsaved}
           onSave={handleSaveActive}
-          onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
+          onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent, false, true)}
           onBack={handleCloseEditor}
         />
       );
@@ -1140,8 +1173,9 @@ function MainApp({ onEditing, frameId }: { onEditing: (editing: boolean) => void
           key={activeMeta.id}
           meta={activeMeta}
           content={activeContent}
+          startUnsaved={openedUnsaved}
           onSave={handleSaveActive}
-          onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
+          onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent, false, true)}
           onBack={handleCloseEditor}
         />
       );
@@ -1154,7 +1188,7 @@ function MainApp({ onEditing, frameId }: { onEditing: (editing: boolean) => void
           meta={activeMeta}
           content={activeContent}
           onSave={handleSaveActive}
-          onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
+          onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent, false, true)}
           onBack={handleCloseEditor}
           onOpenInDoc={handleCreateDocWithImage}
           onOpenInSheet={handleCreateSheetWithImage}
@@ -1170,7 +1204,7 @@ function MainApp({ onEditing, frameId }: { onEditing: (editing: boolean) => void
           meta={activeMeta}
           content={activeContent}
           onSave={handleSaveActive}
-          onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent)}
+          onRename={(name) => handleSaveActive({ ...activeMeta, name }, activeContent, false, true)}
           onBack={handleCloseEditor}
         />
       );

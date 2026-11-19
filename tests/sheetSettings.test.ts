@@ -22,7 +22,7 @@ test('sheet defaults are part of app settings and keep today behaviour', () => {
   assert.equal(SHEET_DEFAULTS.sheetEnterMove, true);
   assert.equal(SHEET_DEFAULTS.sheetEnterDirection, 'down');
   assert.equal(SHEET_DEFAULTS.sheetNewSheetCount, 1);
-  assert.equal(SHEET_DEFAULTS.sheetQatShow, false);
+  assert.equal(SHEET_DEFAULTS.sheetQatShow, true);
   assert.ok(Object.values(SHEET_DEFAULTS.sheetTabs).every(Boolean));
 });
 

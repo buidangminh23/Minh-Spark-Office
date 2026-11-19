@@ -1,4 +1,5 @@
 import { useContext, useEffect, useState, type ReactNode } from 'react';
+import { AutoSaveToggle } from '../AutoSaveToggle';
 import {
   ArrowDown, ArrowUp, Check as CheckIcon, CircleHelp, Download, FileText, Image, Languages, LogOut, Plus, Presentation,
   RefreshCw, RotateCcw, Sheet, Trash2, Upload,
@@ -84,8 +85,8 @@ export function BackupPanel() {
   const { onExportBackup, onImportBackup, onClose } = useActions();
   return (
     <>
-      <Row label="Tự động lưu" hint="Luôn bật. Mỗi thay đổi được ghi vào máy sau chưa tới 1 giây, kể cả khi mất mạng.">
-        <span className="st-badge">Luôn bật</span>
+      <Row label="Tự động lưu" hint="Khi tắt, thay đổi chỉ được lưu vào tệp khi bấm Lưu (Ctrl+S); bản đang sửa vẫn được giữ tạm trên máy để mở lại. Khi bật, mọi thay đổi được lưu ngay. Tài liệu chung của nhóm luôn tự lưu.">
+        <AutoSaveToggle />
       </Row>
       <Row label="Sao lưu toàn bộ tài liệu" hint="Tải về một tệp .json chứa mọi tài liệu trên máy này.">
         <button type="button" className="st-btn" onClick={onExportBackup}><Download size={16} />Sao lưu</button>

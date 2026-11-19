@@ -39,7 +39,7 @@ export const SHEET_DEFAULTS = {
     automate: true,
     help: true,
   } as Record<SheetTab, boolean>,
-  sheetQatShow: false,
+  sheetQatShow: true,
   sheetQatPosition: 'above' as SheetQatPosition,
   sheetQatCommands: ['save', 'undo', 'redo'] as SheetQatCommand[],
 };

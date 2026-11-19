@@ -80,8 +80,29 @@ export function createLiveDocument(db: Firestore, path: { teamId: string; itemId
       if (!data || typeof data.data !== 'string') throw new Error('live/missing-chunk');
       parts.push(data.data);
     }
-    Y.applyUpdate(ydoc, fromBase64(parts.join('')), ORIGIN_PERSIST);
+    const update = fromBase64(parts.join(''));
+    Y.applyUpdate(ydoc, update, ORIGIN_PERSIST);
     baseRevision = head.revision;
+    return update;
+  };
+
+  const coveredBy = (update: Uint8Array) => {
+    const saved = new Y.Doc();
+    try {
+      Y.applyUpdate(saved, update);
+      return Y.equalSnapshots(Y.snapshot(ydoc), Y.snapshot(saved));
+    } finally {
+      saved.destroy();
+    }
+  };
+
+  const adoptRemoteSave = async (head: { revision: string; chunkCount: number }) => {
+    const update = await applyHead(head);
+    if (saving || !(localDirty || anyDirty) || !coveredBy(update)) return;
+    localDirty = false;
+    anyDirty = false;
+    savedAt = Date.now();
+    setState('saved');
   };
 
   const writeChunks = async (revision: string, chunks: string[]) => {
@@ -228,7 +249,7 @@ export function createLiveDocument(db: Firestore, path: { teamId: string; itemId
       const data = snapshot.data();
       if (!data || typeof data.revision !== 'string' || data.revision === baseRevision) return;
       if (String(data.updatedBy ?? '') === mesh.peerId) return;
-      void applyHead({ revision: data.revision, chunkCount: Number(data.chunkCount) || 0 }).catch((error) => console.warn('live: head refresh failed', error));
+      void adoptRemoteSave({ revision: data.revision, chunkCount: Number(data.chunkCount) || 0 }).catch((error) => console.warn('live: head refresh failed', error));
     }, (error) => console.warn('live: head listener failed', error)));
     const tick = setInterval(() => {
       const interval = mesh.status() === 'online' ? 30_000 : 10_000;

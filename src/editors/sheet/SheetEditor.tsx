@@ -135,6 +135,7 @@ import { UniverSheetsSortPreset } from '@univerjs/preset-sheets-sort';
 import UniverPresetSheetsSortViVN from '@univerjs/preset-sheets-sort/locales/vi-VN';
 import UniverPresetSheetsSortEnUS from '@univerjs/preset-sheets-sort/locales/en-US';
 import { getSettings, setSettings, useSetting } from '../../lib/appSettings';
+import { AutoSaveToggle } from '../../components/AutoSaveToggle';
 import type { SheetEnterDirection } from '../../lib/settings/sheetDefaults';
 import { openSettings } from '../../components/settings/settingsShared';
 import { SheetQuickAccess, type SheetQatHandlers } from './SheetQuickAccess';
@@ -411,6 +412,7 @@ interface SheetEditorProps {
   onRename: (name: string) => void;
   onBack: () => void;
   live?: SheetLiveBinding;
+  startUnsaved?: boolean;
 }
 
 type SheetRibbonTab =
@@ -748,7 +750,7 @@ const SHEET_SCROLLBAR_STYLE = {
   hideTrackWhenUnscrollable: false,
 };
 
-export default function SheetEditor({ meta, content, onSave, onBack, live }: SheetEditorProps) {
+export default function SheetEditor({ meta, content, onSave, onBack, live, startUnsaved = false }: SheetEditorProps) {
   const ui = useUi();
   const { user, login } = useAccount();
   const sourceStorage = useWorkspace();
@@ -781,10 +783,15 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
 
   const [chosenTab, setActiveTab] = useState<SheetRibbonTab>('home');
   const [title, setTitle] = useState(meta.name);
-  const [savedStatus, updateSavedStatus] = useState<'saved' | 'saving'>('saved');
+  const [savedStatus, updateSavedStatus] = useState<'saved' | 'saving' | 'unsaved'>(startUnsaved ? 'unsaved' : 'saved');
+  const autoSave = useSetting('autoSave');
+  const qatShow = useSetting('sheetQatShow');
+  const qatPosition = useSetting('sheetQatPosition');
+  const qatCommands = useSetting('sheetQatCommands');
+  const qatAboveShown = qatShow && qatPosition === 'above' && qatCommands.includes('undo') && qatCommands.includes('redo');
   const [changeVersion, setChangeVersion] = useState(0);
   const changeRevision = useRef(0);
-  const setSavedStatus = useCallback((status: 'saved' | 'saving') => {
+  const setSavedStatus = useCallback((status: 'saved' | 'saving' | 'unsaved') => {
     if (status === 'saving') {
       changeRevision.current++;
       setChangeVersion(changeRevision.current);
@@ -1244,7 +1251,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
         excel: excelStateRef.current,
       }, explicit);
       if (saved) {
-        if (changeRevision.current === savedRevision) setSavedStatus('saved');
+        if (changeRevision.current === savedRevision) setSavedStatus(explicit || getSettings().autoSave ? 'saved' : 'unsaved');
         if (explicit) ui.toast('Đã lưu bảng tính');
       }
       return saved;
@@ -5424,7 +5431,13 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
               readOnly={Boolean(live)}
               title={live ? title : 'Đổi tên bảng tính'}
             />
-            {live ? live.bar : <button className={`save-pill ${savedStatus}`} onClick={() => void handleOpenHistory()} title="Mở lịch sử phiên bản">
+            {!live && <AutoSaveToggle onEnable={() => { if (savedStatus !== 'saved') void persistWorkbook(false); }} />}
+            {live ? live.bar : savedStatus !== 'saved' && !autoSave ? (
+              <button className="save-pill unsaved" onClick={() => handleSaveNow()} title="Lưu bảng tính (Ctrl+S)">
+                <Clock size={12} />
+                <span>Chưa lưu</span>
+              </button>
+            ) : <button className={`save-pill ${savedStatus}`} onClick={() => void handleOpenHistory()} title="Mở lịch sử phiên bản">
               {savedStatus === 'saved' ? (
                 <>
                   <CheckCircle2 size={12} />
@@ -5442,12 +5455,16 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
 
           <div className="topbar-right">
             {live?.people}
-            <button className="btn" onClick={() => getActiveContext()?.fWorkbook.undo()} title="Hoàn tác (Ctrl+Z)">
-              <Undo2 size={14} />
-            </button>
-            <button className="btn" onClick={() => getActiveContext()?.fWorkbook.redo()} title="Làm lại (Ctrl+Y)">
-              <Redo2 size={14} />
-            </button>
+            {!qatAboveShown && (
+              <>
+                <button className="btn" onClick={() => getActiveContext()?.fWorkbook.undo()} title="Hoàn tác (Ctrl+Z)">
+                  <Undo2 size={14} />
+                </button>
+                <button className="btn" onClick={() => getActiveContext()?.fWorkbook.redo()} title="Làm lại (Ctrl+Y)">
+                  <Redo2 size={14} />
+                </button>
+              </>
+            )}
             <button className="btn" onClick={() => void handleOpenHistory()} title="Lịch sử phiên bản">
               <History size={14} />
               <span>Lịch sử</span>

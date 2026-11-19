@@ -80,6 +80,7 @@ import {
   getAnimationDef,
 } from '../../lib/slideEffects';
 import { getSettings, setSettings, useSettings } from '../../lib/appSettings';
+import { AutoSaveToggle } from '../../components/AutoSaveToggle';
 import { isRibbonTabVisible, slideBaseWidth as slideBaseWidthFor, trimHistory, zoomFromSetting } from '../../lib/settings/slideOptions';
 import type { SlideQatCommand, SlideRibbonTabId } from '../../lib/settings/slideDefaults';
 import { openSettings } from '../../components/settings/settingsShared';
@@ -103,6 +104,7 @@ interface SlideEditorProps {
   onRename: (name: string) => void;
   onBack: () => void;
   live?: SlideLiveBinding;
+  startUnsaved?: boolean;
 }
 
 const AUTOSAVE_DEBOUNCE_MS = 1000;
@@ -126,6 +128,7 @@ export default function SlideEditor({
   onRename,
   onBack,
   live,
+  startUnsaved = false,
 }: SlideEditorProps) {
   const ui = useUi();
   const [presentation, setPresentation] = useState<PresentationData>(content.presentation);
@@ -224,7 +227,8 @@ export default function SlideEditor({
   const [redoStack, setRedoStack] = useState<PresentationData[]>([]);
 
   // Autosave status indicator
-  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>(startUnsaved ? 'unsaved' : 'saved');
+  const autoSave = useSettings().autoSave;
   const autosaveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const currentSlide = presentation.slides[activeSlideIndex] || presentation.slides[0];
@@ -311,7 +315,7 @@ export default function SlideEditor({
       const ok = await save(saveMeta, { kind: 'slide', presentation: snapshot, comments }, explicit);
       if (ok) savedPresentationRef.current = snapshot;
       if (mountedRef.current) {
-        setSaveStatus(ok && presentationRef.current === snapshot ? 'saved' : 'unsaved');
+        setSaveStatus(ok && presentationRef.current === snapshot && (explicit || getSettings().autoSave) ? 'saved' : 'unsaved');
       }
       return ok;
     },
@@ -1578,8 +1582,13 @@ export default function SlideEditor({
               readOnly={Boolean(live)}
               title={live ? meta.name : 'Nhấp để đổi tên tệp'}
             />
+            {!live && <AutoSaveToggle onEnable={() => { if (saveStatus !== 'saved') void saveLatest(false); }} />}
             {live ? live.bar : <span className="ppt-save-badge">
-              {saveStatus === 'saved' ? (
+              {saveStatus !== 'saved' && !autoSave ? (
+                <>
+                  <Clock size={14} color="#B42318" /> Chưa lưu
+                </>
+              ) : saveStatus === 'saved' ? (
                 <>
                   <CheckCircle2 size={14} color="#10B981" /> Đã lưu
                 </>
@@ -1591,13 +1600,12 @@ export default function SlideEditor({
                 'Chưa lưu'
               )}
             </span>}
+            {qatAbove && <span style={{ width: '1px', height: '18px', background: '#E2E8F0', margin: '0 6px' }} />}
+            <SlideQuickAccess placement="above" actions={qatActions} />
           </div>
         </div>
 
         <div className="ppt-title-quick">
-          <SlideQuickAccess placement="above" actions={qatActions} />
-          {qatAbove && <span style={{ width: '1px', height: '18px', background: '#E2E8F0', margin: '0 6px' }} />}
-
           {live?.people}
           <button
             className="ppt-present-top-btn"

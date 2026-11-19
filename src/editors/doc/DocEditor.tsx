@@ -87,7 +87,8 @@ import { DocPrintDialog } from './ui/DocPrintDialog';
 import SafeBoundary from './ui/SafeBoundary';
 import { AUTO_TITLE_SCAN_BLOCKS, deriveDocTitle, isDefaultDocName, type TitleBlock } from './autoTitle';
 import { useDocumentCloser } from '../../lib/documentCloser';
-import { getSettings } from '../../lib/appSettings';
+import { getSettings, useSetting } from '../../lib/appSettings';
+import { AutoSaveToggle } from '../../components/AutoSaveToggle';
 import { FormattingMarks } from './formattingMarks';
 import { QuickAccess } from './ui/QuickAccess';
 import { openExternalLink } from '../../lib/externalLinks';
@@ -105,6 +106,7 @@ interface DocEditorProps {
   onOpenFile?: (file: File) => void;
   onOpenSaved?: (meta: FileMeta, content: DocContent) => void;
   live?: DocLiveBinding;
+  startUnsaved?: boolean;
 }
 
 export type DocLiveBinding = {
@@ -155,7 +157,7 @@ const applyFormat = (editor: Editor, format: CopiedFormat) => {
 
 const MIN_AUTO_ZOOM = 25;
 
-export default function DocEditor({ meta, content, onSave, onBack, onNewDocument, onOpenFile, onOpenSaved, live }: DocEditorProps) {
+export default function DocEditor({ meta, content, onSave, onBack, onNewDocument, onOpenFile, onOpenSaved, live, startUnsaved = false }: DocEditorProps) {
   const ui = useUi();
   const { user } = useAccount();
   const storage = useWorkspace();
@@ -172,7 +174,8 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
   const [merge, setMerge] = useState<MergeData | null>(null);
   const [mergePreview, setMergePreview] = useState<number | null>(null);
   const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
-  const [savedStatus, setSavedStatus] = useState<'saved' | 'saving'>('saved');
+  const [savedStatus, setSavedStatus] = useState<'saved' | 'saving' | 'unsaved'>(startUnsaved ? 'unsaved' : 'saved');
+  const autoSave = useSetting('autoSave');
   const [revision, setRevision] = useState(0);
   const changeRevision = useRef(0);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -364,7 +367,7 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
     const savedRevision = changeRevision.current;
     const { meta: m, title: t, page: p, comments: c, onSave: save } = latest.current;
     const saved = await save({ ...m, name: t, updatedAt: Date.now(), size: JSON.stringify(editor.getJSON()).length, preview: editor.getText().slice(0, 160) }, { kind: 'doc', json: editor.getJSON(), page: p, comments: c }, explicit);
-    if (saved && changeRevision.current === savedRevision) setSavedStatus('saved');
+    if (saved && changeRevision.current === savedRevision) setSavedStatus(explicit || getSettings().autoSave ? 'saved' : 'unsaved');
     return saved;
   }, [editor]);
 
@@ -650,11 +653,18 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
                 <button className="icon-btn" onClick={() => { void persist(false).then((saved) => { if (saved) onBack(); }); }} title="Về danh sách tệp" aria-label="Quay lại"><ArrowLeft size={18} /></button>
                 <SuiteLogo kind="doc" size={32} decorative={false} />
                 <input className="editor-title-input" value={title} aria-label="Tên tài liệu" onChange={(e) => { autoTitleRef.current = false; setTitle(e.target.value); markDirty(); }} onBlur={handleTitleBlur} onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()} />
-                <QuickAccess placement="above" />
                 {live ? live.bar : (
-                  <button className={`save-pill ${savedStatus}`} onClick={() => user ? setDialog('history') : void saveNow()} title={user ? 'Xem lịch sử phiên bản' : 'Đăng nhập để lưu tài liệu'}>
-                    {savedStatus === 'saved' ? <><CheckCircle2 size={13} /><span>{user ? 'Đã lưu trên máy' : 'Đã lưu nháp trên máy'}</span></> : <><Clock size={13} /><span>{user ? 'Đang lưu…' : 'Đang lưu nháp…'}</span></>}
-                  </button>
+                  <>
+                    <AutoSaveToggle onEnable={() => { if (savedStatus !== 'saved') void persist(false); }} />
+                    {savedStatus !== 'saved' && !autoSave ? (
+                      <button className="save-pill unsaved" onClick={() => void saveNow()} title="Lưu tài liệu (Ctrl+S)"><Clock size={13} /><span>Chưa lưu</span></button>
+                    ) : (
+                      <button className={`save-pill ${savedStatus}`} onClick={() => user ? setDialog('history') : void saveNow()} title={user ? 'Xem lịch sử phiên bản' : 'Đăng nhập để lưu tài liệu'}>
+                        {savedStatus === 'saved' ? <><CheckCircle2 size={13} /><span>{user ? 'Đã lưu trên máy' : 'Đã lưu nháp trên máy'}</span></> : <><Clock size={13} /><span>{user ? 'Đang lưu…' : 'Đang lưu nháp…'}</span></>}
+                      </button>
+                    )}
+                <QuickAccess placement="above" />
+                  </>
                 )}
               </div>
               <div className="topbar-right">

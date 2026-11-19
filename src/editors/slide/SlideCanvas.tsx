@@ -66,6 +66,18 @@ interface SlideCanvasProps {
 
 export type RemoteSlidePeer = { key: string; name: string; color: string; ids: string[] };
 
+function focusEditableAtEnd(node: HTMLDivElement | null) {
+  if (!node || node.ownerDocument.activeElement === node) return;
+  node.focus({ preventScroll: true });
+  const selection = node.ownerDocument.getSelection();
+  if (!selection) return;
+  const range = node.ownerDocument.createRange();
+  range.selectNodeContents(node);
+  range.collapse(false);
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
 export function SlideCanvas({
   slide,
   aspectRatio,
@@ -181,6 +193,11 @@ export function SlideCanvas({
     if (drawMode !== 'select') return; // In draw mode, canvas handles it
 
     e.stopPropagation();
+    if (editingTextId && editingTextId !== el.id) {
+      const active = e.currentTarget.ownerDocument.activeElement;
+      if ((active as HTMLElement | null)?.isContentEditable) (active as HTMLElement).blur();
+      setEditingTextId(null);
+    }
     const members = expandSelection(slide.elements, [el.id]);
     const additive = e.shiftKey || e.ctrlKey || e.metaKey;
     let nextIds: string[];
@@ -937,7 +954,7 @@ function renderElementContent(
           spellCheck={getSettings().slideSpellcheck}
           className="ppt-text-box is-editing"
           style={textStyle}
-          autoFocus
+          ref={focusEditableAtEnd}
           onInput={(e) => setSlideDraftText(el.id, e.currentTarget.innerText)}
           onBlur={(e) => onTextChange(e.currentTarget.innerText)}
         >
