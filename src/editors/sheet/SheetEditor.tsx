@@ -5441,6 +5441,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
           </div>
 
           <div className="topbar-right">
+            {live?.people}
             <button className="btn" onClick={() => getActiveContext()?.fWorkbook.undo()} title="Hoàn tác (Ctrl+Z)">
               <Undo2 size={14} />
             </button>

@@ -204,7 +204,7 @@ describe('team rules', { skip: !process.env.FIRESTORE_EMULATOR_HOST }, () => {
     await assertFails(setDoc(doc(as('editor'), 'teams', TEAM, 'items', 'F'.repeat(20), 'chunks', `${REVISION}_600`), { revision: REVISION, index: 600, data: 'QUJD' }));
   });
 
-  test('shared documents are editable by every editor', async () => {
+  test('shared documents are editable by every member, templates are not', async () => {
     await environment.withSecurityRulesDisabled(async (context) => {
       const raw = context.firestore() as unknown as Firestore;
       await setDoc(doc(raw, 'teams', TEAM, 'items', ITEM), { ...item('owner', 'document'), createdAt: Timestamp.fromMillis(0), updatedAt: Timestamp.fromMillis(0) });
@@ -212,7 +212,10 @@ describe('team rules', { skip: !process.env.FIRESTORE_EMULATOR_HOST }, () => {
     const next = '87654321-4321-4321-8321-cba987654321';
     await assertSucceeds(setDoc(doc(as('editor'), 'teams', TEAM, 'items', ITEM, 'chunks', `${next}_0`), chunk(next)));
     await assertSucceeds(setDoc(doc(as('editor'), 'teams', TEAM, 'items', ITEM), { ...item('owner', 'document', next), updatedBy: 'editor', updatedByName: 'editor', createdAt: Timestamp.fromMillis(0) }));
-    await assertFails(setDoc(doc(as('viewer'), 'teams', TEAM, 'items', ITEM), { ...item('owner', 'document', REVISION), updatedBy: 'viewer', updatedByName: 'viewer', createdAt: Timestamp.fromMillis(0) }));
+    const third = '97654321-4321-4321-8321-cba987654321';
+    await assertSucceeds(setDoc(doc(as('viewer'), 'teams', TEAM, 'items', ITEM, 'chunks', `${third}_0`), chunk(third)));
+    await assertSucceeds(setDoc(doc(as('viewer'), 'teams', TEAM, 'items', ITEM), { ...item('owner', 'document', third), updatedBy: 'viewer', updatedByName: 'viewer', createdAt: Timestamp.fromMillis(0) }));
+    await assertFails(setDoc(doc(as('stranger'), 'teams', TEAM, 'items', ITEM), { ...item('owner', 'document', third), updatedBy: 'stranger', updatedByName: 'stranger', createdAt: Timestamp.fromMillis(0) }));
   });
 
   test('the owner can delete the whole team', async () => {
@@ -258,19 +261,22 @@ describe('team rules', { skip: !process.env.FIRESTORE_EMULATOR_HOST }, () => {
     await assertSucceeds(deleteDoc(doc(signals('viewer'), 'S'.repeat(20))));
   });
 
-  test('live state: editors save heads and chunks, viewers only read, the current revision is immutable', async () => {
+  test('live state: every member saves heads and chunks, strangers cannot, the current revision is immutable', async () => {
     await seedDocument();
     const live = (who: Person, name: string) => doc(as(who), 'teams', TEAM, 'items', DOC, 'live', name);
     const liveChunk = (who: Person, revision = REVISION) => doc(as(who), 'teams', TEAM, 'items', DOC, 'liveChunks', `${revision}_0`);
     await assertSucceeds(setDoc(liveChunk('editor'), { revision: REVISION, index: 0, data: 'AAA' }));
-    await assertFails(setDoc(liveChunk('viewer', OTHER_REVISION), { revision: OTHER_REVISION, index: 0, data: 'AAA' }));
+    await assertSucceeds(setDoc(liveChunk('viewer', OTHER_REVISION), { revision: OTHER_REVISION, index: 0, data: 'AAA' }));
+    await assertFails(setDoc(liveChunk('stranger', OTHER_REVISION), { revision: OTHER_REVISION, index: 0, data: 'AAA' }));
+    await assertSucceeds(setDoc(live('viewer', 'head'), head('viewer')));
     await assertSucceeds(setDoc(live('editor', 'head'), head('editor')));
-    await assertFails(setDoc(live('viewer', 'head'), head('viewer')));
+    await assertFails(setDoc(live('stranger', 'head'), head('stranger')));
     await assertFails(setDoc(live('editor', 'head'), { ...head('editor'), updatedByUid: 'admin' }));
     await assertFails(setDoc(liveChunk('editor'), { revision: REVISION, index: 0, data: 'BBB' }));
     await assertFails(deleteDoc(liveChunk('editor')));
     await assertSucceeds(setDoc(live('editor', 'lock'), { peerId: peerId('editor'), uid: 'editor', at: serverTimestamp() }));
-    await assertFails(setDoc(live('viewer', 'lock'), { peerId: peerId('viewer'), uid: 'viewer', at: serverTimestamp() }));
+    await assertSucceeds(setDoc(live('viewer', 'lock'), { peerId: peerId('viewer'), uid: 'viewer', at: serverTimestamp() }));
+    await assertFails(setDoc(live('stranger', 'lock'), { peerId: peerId('stranger'), uid: 'stranger', at: serverTimestamp() }));
     await assertSucceeds(getDoc(live('viewer', 'head')));
     await assertFails(getDoc(live('stranger', 'head')));
     await assertFails(deleteDoc(live('editor', 'head')));

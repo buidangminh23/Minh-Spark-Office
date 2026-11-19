@@ -189,8 +189,6 @@ export function createLiveDocument(db: Firestore, path: { teamId: string; itemId
     if (channel === CHANNEL_SYNC) {
       const decoder = decoding.createDecoder(data);
       const encoder = encoding.createEncoder();
-      const type = decoding.peekVarUint(decoder);
-      if (type !== syncProtocol.messageYjsSyncStep1 && from.role === 'viewer') return;
       syncProtocol.readSyncMessage(decoder, encoder, ydoc, ORIGIN_REMOTE);
       if (encoding.length(encoder) > 0) mesh.send(CHANNEL_SYNC, encoding.toUint8Array(encoder), from.peerId);
     } else if (channel === CHANNEL_AWARENESS) {

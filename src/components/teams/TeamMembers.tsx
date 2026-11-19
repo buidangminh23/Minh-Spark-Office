@@ -1,19 +1,14 @@
 import { useRef, useState } from 'react';
-import { Check, Link2, Mail, MailPlus, Plus, Send, Trash2, UserMinus, X } from 'lucide-react';
+import { Check, Link2, MailPlus, Plus, RotateCcw, Send, Trash2, UserMinus, X } from 'lucide-react';
 import { useUi } from '../ui';
-import { isDesktop } from '../../lib/desktop';
+import { InviteMailError, sendInviteMails } from '../../lib/inviteMailClient';
 import { teamErrorMessage, type TeamStore } from '../../lib/teamStore';
 import {
   assignableRoles,
   can,
   canManageMember,
-  gmailComposeUrl,
-  inviteBody,
-  inviteGroupBody,
   inviteExpired,
   inviteLink,
-  inviteSubject,
-  mailtoUrl,
   parseEmailList,
   ROLE_DESCRIPTION,
   ROLE_LABEL,
@@ -27,55 +22,46 @@ import { formatDate, PersonAvatar, RoleBadge, TmButton, TmField } from './TeamPa
 
 const ROLES: TeamRole[] = ['owner', 'admin', 'editor', 'viewer'];
 const MATRIX: Array<{ label: string; roles: TeamRole[] }> = [
-  { label: 'Xem và dùng mẫu, đọc tài liệu chung', roles: ['owner', 'admin', 'editor', 'viewer'] },
-  { label: 'Đăng mẫu, sửa chung tài liệu', roles: ['owner', 'admin', 'editor'] },
+  { label: 'Tải mẫu về máy, sửa chung tài liệu chung', roles: ['owner', 'admin', 'editor', 'viewer'] },
+  { label: 'Đăng mẫu và tải lên tài liệu chung', roles: ['owner', 'admin', 'editor'] },
   { label: 'Sửa, xoá mẫu của người khác', roles: ['owner', 'admin'] },
   { label: 'Mời, đổi quyền, xoá thành viên cấp dưới', roles: ['owner', 'admin'] },
   { label: 'Đổi tên, xoá nhóm, chuyển quyền sở hữu', roles: ['owner'] },
 ];
 
-function openCompose(url: string) {
-  window.open(url, '_blank', 'noopener');
-}
-
-function openMailApp(url: string) {
-  if (isDesktop()) window.open(url, '_blank');
-  else window.location.href = url;
-}
-
 const MAX_BATCH = 20;
 
-function groupCompose(made: TeamInvite[], inviterName: string) {
-  const first = made[0];
-  if (made.length === 1) return gmailComposeUrl(first.email, inviteSubject(first.teamName), inviteMail(first, inviterName).body);
-  const entries = made.map((invite) => ({ email: invite.email, link: inviteLink(window.location.origin, invite.teamId, invite.id) }));
-  const expireAt = Math.min(...made.map((invite) => invite.expireAt));
-  const body = inviteGroupBody({ teamName: first.teamName, inviterName, role: first.role, entries, expireAt });
-  return gmailComposeUrl(made.map((invite) => invite.email).join(','), inviteSubject(first.teamName), body);
+async function deliverInvites(teamId: string, invites: TeamInvite[]) {
+  try {
+    const { sent } = await sendInviteMails(teamId, invites.map((invite) => invite.id));
+    return { sent: sent.length, error: '' };
+  } catch (failure) {
+    return { sent: 0, error: failure instanceof InviteMailError ? failure.message : 'Chưa gửi được thư mời.' };
+  }
 }
 
-function inviteMail(invite: TeamInvite, inviterName: string) {
-  const link = inviteLink(window.location.origin, invite.teamId, invite.id);
-  const subject = inviteSubject(invite.teamName);
-  const body = inviteBody({ teamName: invite.teamName, inviterName, role: invite.role, link, expireAt: invite.expireAt });
-  return { link, subject, body };
-}
-
-function InviteActions({ invite, inviterName, compact }: { invite: TeamInvite; inviterName: string; compact?: boolean }) {
+function InviteActions({ invite, canSend, compact }: { invite: TeamInvite; canSend: boolean; compact?: boolean }) {
   const ui = useUi();
   const [copied, setCopied] = useState(false);
-  const mail = inviteMail(invite, inviterName);
+  const [sending, setSending] = useState(false);
+  const link = inviteLink(window.location.origin, invite.teamId, invite.id);
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(mail.link);
+      await navigator.clipboard.writeText(link);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch { ui.toast('Không sao chép được. Hãy chọn và sao chép liên kết thủ công.', true); }
   };
+  const resend = async () => {
+    setSending(true);
+    const result = await deliverInvites(invite.teamId, [invite]);
+    setSending(false);
+    if (result.sent) ui.toast(`Đã gửi lại email mời tới ${invite.email}.`);
+    else ui.toast(`${result.error} Bạn có thể sao chép liên kết để gửi thủ công.`, true);
+  };
   return (
     <div className="tm-invite-actions">
-      <TmButton variant={compact ? 'ghost' : 'primary'} icon={<Send size={16} aria-hidden="true" />} onClick={() => openCompose(gmailComposeUrl(invite.email, mail.subject, mail.body))}>{compact ? 'Gmail' : 'Gửi qua Gmail'}</TmButton>
-      {!compact && <TmButton icon={<Mail size={16} aria-hidden="true" />} onClick={() => openMailApp(mailtoUrl(invite.email, mail.subject, mail.body))}>Ứng dụng email</TmButton>}
+      {canSend && <TmButton variant={compact ? 'ghost' : 'primary'} icon={<Send size={16} aria-hidden="true" />} disabled={sending} onClick={() => void resend()}>{sending ? 'Đang gửi…' : 'Gửi lại email'}</TmButton>}
       <TmButton variant={compact ? 'ghost' : 'default'} icon={copied ? <Check size={16} aria-hidden="true" /> : <Link2 size={16} aria-hidden="true" />} onClick={() => void copy()}>{copied ? 'Đã sao chép' : compact ? 'Liên kết' : 'Sao chép liên kết'}</TmButton>
     </div>
   );
@@ -112,6 +98,14 @@ function InvitePanel({ store, team, role, members, invites }: { store: TeamStore
     draftRef.current?.focus();
   };
 
+  const resendAll = async () => {
+    setBusy(true);
+    const result = await deliverInvites(team.id, created);
+    setBusy(false);
+    if (result.sent) ui.toast(`Đã gửi lại email mời tới ${result.sent} người.`);
+    else ui.toast(result.error, true);
+  };
+
   const send = async () => {
     if (!queue.length) return;
     setBusy(true);
@@ -120,7 +114,9 @@ function InvitePanel({ store, team, role, members, invites }: { store: TeamStore
     try {
       for (const email of queue) made.push(await store.createInvite(team, email, inviteRole));
       setQueue([]);
-      openCompose(groupCompose(made, store.user.name));
+      const result = await deliverInvites(team.id, made);
+      if (result.sent) ui.toast(result.sent === 1 ? `Đã gửi email mời tới ${made[0].email}.` : `Đã gửi email mời tới ${result.sent} người.`);
+      else ui.toast(`Đã tạo lời mời nhưng chưa gửi được email: ${result.error} Hãy bấm Gửi lại email hoặc sao chép liên kết.`, true);
     } catch (failure) {
       setQueue((current) => current.filter((email) => !made.some((invite) => invite.email === email)));
       ui.toast(teamErrorMessage(failure), true);
@@ -136,7 +132,7 @@ function InvitePanel({ store, team, role, members, invites }: { store: TeamStore
         <span className="tm-card-icon" aria-hidden="true"><MailPlus size={20} /></span>
         <div>
           <h2 id="tm-invite-title">Mời thành viên</h2>
-          <p>Người được mời phải đăng nhập Google bằng đúng email này. Lời mời hết hạn sau 7 ngày.</p>
+          <p>Bấm Gửi lời mời là email được gửi đi ngay. Người được mời đăng nhập Google bằng đúng email này. Lời mời hết hạn sau 7 ngày.</p>
         </div>
       </div>
       <div className="tm-invite-form">
@@ -184,13 +180,13 @@ function InvitePanel({ store, team, role, members, invites }: { store: TeamStore
         <div className="tm-created">
           <div className="tm-created-head">
             <h3>Đã tạo {created.length} lời mời</h3>
-            <TmButton icon={<Send size={16} aria-hidden="true" />} onClick={() => openCompose(groupCompose(created, store.user.name))}>Mở lại thư gửi chung</TmButton>
+            <TmButton icon={<Send size={16} aria-hidden="true" />} disabled={busy} onClick={() => void resendAll()}>Gửi lại tất cả</TmButton>
           </div>
           <ul>
             {created.map((invite) => (
               <li key={invite.id}>
                 <span className="tm-created-who"><strong>{invite.email}</strong><RoleBadge role={invite.role} /></span>
-                <InviteActions invite={invite} inviterName={store.user.name} compact />
+                <InviteActions invite={invite} canSend compact />
               </li>
             ))}
           </ul>
@@ -225,6 +221,20 @@ export function TeamMembers({ store, team, role, members, invites, loading }: { 
       await store.deleteInvite(team.id, invite.id);
       ui.toast(`Đã thu hồi lời mời gửi ${invite.email}.`);
     } catch (failure) { ui.toast(teamErrorMessage(failure), true); }
+  };
+
+  const [reinviting, setReinviting] = useState<string | null>(null);
+  const canReinvite = (invite: TeamInvite) => assignableRoles(role).includes(invite.role);
+  const reinvite = async (invite: TeamInvite) => {
+    setReinviting(invite.id);
+    try {
+      const fresh = await store.createInvite(team, invite.email, invite.role);
+      await store.deleteInvite(team.id, invite.id).catch(() => undefined);
+      const result = await deliverInvites(team.id, [fresh]);
+      if (result.sent) ui.toast(`Đã mời lại và gửi email tới ${invite.email}.`);
+      else ui.toast(`Đã tạo lời mời mới nhưng chưa gửi được email: ${result.error} Hãy bấm Gửi lại email.`, true);
+    } catch (failure) { ui.toast(teamErrorMessage(failure), true); }
+    finally { setReinviting(null); }
   };
 
   const sorted = sortMembers(members);
@@ -288,7 +298,8 @@ export function TeamMembers({ store, team, role, members, invites, loading }: { 
                       <td className="tm-col-date">{expired ? 'Đã hết hạn' : formatDate(invite.expireAt)}</td>
                       <td className="tm-col-wide">
                         <div className="tm-row-actions">
-                          {!expired && <InviteActions invite={invite} inviterName={invite.invitedByName || store.user.name} compact />}
+                          {!expired && <InviteActions invite={invite} canSend={invite.invitedBy === store.user.uid} compact />}
+                          {expired && canReinvite(invite) && <TmButton variant="ghost" icon={<RotateCcw size={16} aria-hidden="true" />} disabled={reinviting === invite.id} onClick={() => void reinvite(invite)}>{reinviting === invite.id ? 'Đang gửi…' : 'Mời lại'}</TmButton>}
                           <button type="button" className="tm-icon-btn tm-danger" aria-label={`Thu hồi lời mời gửi ${invite.email}`} title="Thu hồi" onClick={() => void revoke(invite)}><Trash2 size={18} /></button>
                         </div>
                       </td>

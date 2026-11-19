@@ -19,6 +19,7 @@ export type SheetLiveBinding = {
   user: LiveUser;
   readOnly: boolean;
   bar: ReactNode;
+  people?: ReactNode;
 };
 
 type CellPresence = { sheetId: string; r0: number; c0: number; r1: number; c1: number };

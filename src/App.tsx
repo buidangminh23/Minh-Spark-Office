@@ -989,7 +989,7 @@ function MainApp({ onEditing, frameId }: { onEditing: (editing: boolean) => void
     await saveFile(meta, structuredClone(content));
     refreshFilesSoon();
     showDocument(meta, content);
-    ui.toast(`Đã tạo “${meta.name}” từ mẫu của nhóm`);
+    ui.toast(`Đã tải mẫu về máy: “${meta.name}”. Đây là bản riêng của bạn, người khác không thấy thay đổi.`);
   };
 
   const handleOpenShared: SharedOpen = (item) => {

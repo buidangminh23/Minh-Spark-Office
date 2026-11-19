@@ -114,6 +114,7 @@ export type DocLiveBinding = {
   seed: boolean;
   readOnly: boolean;
   bar: ReactNode;
+  people?: ReactNode;
   onSeeded: () => void;
 };
 
@@ -657,6 +658,7 @@ export default function DocEditor({ meta, content, onSave, onBack, onNewDocument
                 )}
               </div>
               <div className="topbar-right">
+                {live?.people}
                 <button className="command-search" onClick={() => setDialog('commandpalette')} title="Tìm lệnh (Alt+Q)"><Search size={14} /><span>Tìm lệnh</span></button>
                 {!live && <button className="btn" onClick={() => setDialog('history')} title="Lịch sử phiên bản"><History size={15} /><span>Lịch sử</span></button>}
                 <button className={`btn ${view.sidePanel === 'comments' ? 'btn-primary' : ''}`} onClick={() => setView({ sidePanel: view.sidePanel === 'comments' ? null : 'comments' })} title="Bình luận"><MessageSquare size={15} /><span>Bình luận{openComments ? ` (${openComments})` : ''}</span></button>

@@ -1598,6 +1598,7 @@ export default function SlideEditor({
           <SlideQuickAccess placement="above" actions={qatActions} />
           {qatAbove && <span style={{ width: '1px', height: '18px', background: '#E2E8F0', margin: '0 6px' }} />}
 
+          {live?.people}
           <button
             className="ppt-present-top-btn"
             onClick={() => setIsSlideShowActive(true)}

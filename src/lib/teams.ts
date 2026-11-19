@@ -78,21 +78,21 @@ export const ROLE_LABEL: Record<TeamRole, string> = {
   owner: 'Chủ sở hữu',
   admin: 'Quản trị viên',
   editor: 'Biên tập viên',
-  viewer: 'Người xem',
+  viewer: 'Thành viên',
 };
 
 export const ROLE_DESCRIPTION: Record<TeamRole, string> = {
   owner: 'Toàn quyền với nhóm, kể cả đổi tên, xoá nhóm và chuyển quyền sở hữu.',
   admin: 'Mời, đổi quyền và xoá thành viên cấp thấp hơn; quản lý mọi mẫu và tài liệu.',
-  editor: 'Đăng mẫu, sửa tài liệu chung và mẫu do mình đăng.',
-  viewer: 'Xem và dùng mẫu, đọc tài liệu chung.',
+  editor: 'Đăng mẫu và tài liệu chung, sửa mẫu do mình đăng.',
+  viewer: 'Tải mẫu về máy, mở và sửa chung mọi tài liệu chung.',
 };
 
 const MIN_RANK: Record<TeamAction, number> = {
   view: 1,
   useTemplate: 1,
   publish: 2,
-  editDocument: 2,
+  editDocument: 1,
   manageOthersItems: 3,
   invite: 3,
   manageMembers: 3,
@@ -202,55 +202,6 @@ export function inviteLink(origin: string, teamId: string, inviteId: string) {
 export function parseInviteToken(value: string | null | undefined) {
   const match = /^([A-Za-z0-9_-]{20})\.([A-Za-z0-9_-]{24})$/.exec(value?.trim() ?? '');
   return match ? { teamId: match[1], inviteId: match[2] } : null;
-}
-
-export function inviteSubject(teamName: string) {
-  return `Lời mời tham gia nhóm "${teamName}" trên Office 23`;
-}
-
-export function inviteBody(input: { teamName: string; inviterName: string; role: TeamRole; link: string; expireAt: number }) {
-  const expires = new Date(input.expireAt).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  return [
-    'Xin chào,',
-    '',
-    `${input.inviterName || 'Một thành viên'} mời bạn tham gia nhóm "${input.teamName}" trên Office 23 với vai trò ${ROLE_LABEL[input.role]}.`,
-    'Trong nhóm, mọi người chia sẻ mẫu tài liệu, bảng tính, bài thuyết trình và cùng chỉnh sửa tài liệu chung.',
-    '',
-    'Mở liên kết sau và đăng nhập Google bằng chính địa chỉ email nhận thư này để tham gia:',
-    input.link,
-    '',
-    `Lời mời có hiệu lực đến ngày ${expires}.`,
-  ].join('\n');
-}
-
-export function inviteGroupBody(input: { teamName: string; inviterName: string; role: TeamRole; entries: Array<{ email: string; link: string }>; expireAt: number }) {
-  const expires = new Date(input.expireAt).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  return [
-    'Xin chào mọi người,',
-    '',
-    `${input.inviterName || 'Một thành viên'} mời mọi người tham gia nhóm "${input.teamName}" trên Office 23 với vai trò ${ROLE_LABEL[input.role]}.`,
-    'Trong nhóm, mọi người chia sẻ mẫu tài liệu, bảng tính, bài thuyết trình và cùng chỉnh sửa tài liệu chung.',
-    '',
-    'Mỗi người mở đúng liên kết ghi email của mình và đăng nhập Google bằng chính email đó (liên kết của người khác sẽ không dùng được):',
-    '',
-    ...input.entries.map((entry) => `${entry.email}: ${entry.link}`),
-    '',
-    `Lời mời có hiệu lực đến ngày ${expires}.`,
-  ].join('\n');
-}
-
-export function gmailComposeUrl(to: string, subject: string, body: string) {
-  const url = new URL('https://mail.google.com/mail/');
-  url.searchParams.set('view', 'cm');
-  url.searchParams.set('fs', '1');
-  url.searchParams.set('to', to);
-  url.searchParams.set('su', subject);
-  url.searchParams.set('body', body);
-  return url.toString();
-}
-
-export function mailtoUrl(to: string, subject: string, body: string) {
-  return `mailto:${encodeURIComponent(to).replace(/%40/g, '@')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
 export function initials(name: string, fallback = '?') {

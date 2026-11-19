@@ -203,10 +203,14 @@ service cloud.firestore {
       }
 
       match /items/{itemId} {
+        function liveDocument() {
+          return exists(itemDoc(teamId, itemId)) && get(itemDoc(teamId, itemId)).data.type == 'document';
+        }
+
         allow read: if isMember(teamId);
         allow create: if itemId.matches('^[A-Za-z0-9_-]{20}$') && myRank(teamId) >= 2 && validItem(request.resource.data)
           && request.resource.data.authorUid == request.auth.uid && request.resource.data.createdAt == request.time;
-        allow update: if myRank(teamId) >= 2 && validItem(request.resource.data)
+        allow update: if (myRank(teamId) >= 2 || (isMember(teamId) && resource.data.type == 'document')) && validItem(request.resource.data)
           && request.resource.data.authorUid == resource.data.authorUid && request.resource.data.createdAt == resource.data.createdAt
           && request.resource.data.type == resource.data.type && request.resource.data.kind == resource.data.kind
           && (resource.data.type == 'document' || resource.data.authorUid == request.auth.uid || myRank(teamId) >= 3)
@@ -221,7 +225,7 @@ service cloud.firestore {
             return !exists(itemDoc(teamId, itemId)) || get(itemDoc(teamId, itemId)).data.revision != chunkRevision();
           }
           allow read: if isMember(teamId);
-          allow create: if myRank(teamId) >= 2
+          allow create: if (myRank(teamId) >= 2 || (isMember(teamId) && liveDocument()))
             && chunkId.matches('^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}_([0-9]|[1-9][0-9]|[1-5][0-9][0-9])$')
             && request.resource.data.keys().hasAll(['revision', 'index', 'data']) && request.resource.data.keys().hasOnly(['revision', 'index', 'data'])
             && request.resource.data.revision == chunkRevision() && request.resource.data.index is int
@@ -229,11 +233,7 @@ service cloud.firestore {
             && request.resource.data.data is string && request.resource.data.data.size() > 0 && request.resource.data.data.size() <= 600000
             && request.resource.data.data.matches('^[A-Za-z0-9+/]*={0,2}$') && notLiveRevision();
           allow update: if false;
-          allow delete: if myRank(teamId) >= 2 && notLiveRevision();
-        }
-
-        function liveDocument() {
-          return exists(itemDoc(teamId, itemId)) && get(itemDoc(teamId, itemId)).data.type == 'document';
+          allow delete: if (myRank(teamId) >= 2 || (isMember(teamId) && liveDocument())) && notLiveRevision();
         }
 
         match /peers/{peerId} {
@@ -265,7 +265,7 @@ service cloud.firestore {
 
         match /live/{name} {
           allow read: if isMember(teamId);
-          allow create, update: if myRank(teamId) >= 2 && liveDocument() && (
+          allow create, update: if isMember(teamId) && liveDocument() && (
             (name == 'lock' && request.resource.data.keys().hasOnly(['peerId', 'uid', 'at']) && request.resource.data.uid == request.auth.uid
               && request.resource.data.at == request.time)
             || (name == 'head' && request.resource.data.keys().hasAll(['revision', 'chunkCount', 'bytes', 'updatedBy', 'updatedByUid', 'updatedByName', 'at'])
@@ -285,7 +285,7 @@ service cloud.firestore {
             return /databases/$(database)/documents/teams/$(teamId)/items/$(itemId)/live/head;
           }
           allow read: if isMember(teamId);
-          allow create: if myRank(teamId) >= 2 && liveDocument()
+          allow create: if isMember(teamId) && liveDocument()
             && chunkId.matches('^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}_([0-9]|[1-9][0-9]|[1-5][0-9][0-9])$')
             && request.resource.data.keys().hasAll(['revision', 'index', 'data']) && request.resource.data.keys().hasOnly(['revision', 'index', 'data'])
             && request.resource.data.revision == liveRevision() && request.resource.data.index is int
@@ -293,7 +293,7 @@ service cloud.firestore {
             && request.resource.data.data is string && request.resource.data.data.size() <= 600000
             && (!exists(liveHead()) || get(liveHead()).data.revision != liveRevision());
           allow update: if false;
-          allow delete: if myRank(teamId) >= 2 && (!exists(liveHead()) || get(liveHead()).data.revision != liveRevision());
+          allow delete: if isMember(teamId) && liveDocument() && (!exists(liveHead()) || get(liveHead()).data.revision != liveRevision());
         }
       }
     }

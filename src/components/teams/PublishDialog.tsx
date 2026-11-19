@@ -65,7 +65,7 @@ export function PublishDialog({ store, teamId, type, files, categories, replacin
     <TmModal
       wide
       title={replacing ? `Cập nhật nội dung ${noun}` : type === 'template' ? 'Đăng mẫu lên nhóm' : 'Thêm tài liệu chung'}
-      subtitle={replacing ? 'Chọn tài liệu trong kho của bạn để thay nội dung hiện tại.' : type === 'template' ? 'Chọn một tài liệu trong kho của bạn. Thành viên dùng mẫu sẽ nhận một bản sao riêng.' : 'Chọn văn bản, bảng tính hoặc bài thuyết trình để cả nhóm cùng mở và chỉnh sửa trực tiếp.'}
+      subtitle={replacing ? 'Chọn tài liệu trong kho của bạn để thay nội dung hiện tại.' : type === 'template' ? 'Chọn một tài liệu trong kho của bạn. Mẫu không ai sửa trực tiếp được, thành viên tải về máy rồi sửa bản riêng.' : 'Chọn văn bản, bảng tính hoặc bài thuyết trình để cả nhóm cùng mở và sửa cùng lúc.'}
       onClose={() => { if (!busy) onClose(); }}
       footer={(
         <>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Copy, Edit2, Ellipsis, FilePlus2, FolderOpen, RefreshCw, Search, Trash2, Users } from 'lucide-react';
+import { Download, Edit2, Ellipsis, FilePlus2, FolderOpen, RefreshCw, Search, Trash2, Users } from 'lucide-react';
 import { SuiteLogo } from '../SuiteLogo';
 import { Popover } from '../HomeParts';
 import { useUi } from '../ui';
@@ -98,11 +98,12 @@ export function TeamLibrary({ store, teamId, type, role, items, members, files, 
         </label>
         {canPublish && (
           <TmButton variant="primary" icon={<FilePlus2 size={18} aria-hidden="true" />} onClick={() => setPublishing('new')}>
-            {isTemplate ? 'Đăng mẫu' : 'Thêm tài liệu'}
+            {isTemplate ? 'Đăng mẫu' : 'Tải lên để sửa chung'}
           </TmButton>
         )}
       </div>
 
+      <p className="tm-muted">{isTemplate ? 'Mẫu chỉ để tải về. Bấm “Tải về máy để sửa” sẽ tạo một bản riêng trên máy bạn, người khác không thấy thay đổi. Không ai sửa trực tiếp trên mẫu.' : 'Tài liệu tải lên đây được cả nhóm sửa cùng lúc. Thay đổi của mỗi người hiện ngay trên máy những người đang mở.'}</p>
       {error && <p className="tm-alert" role="alert">{error}</p>}
       {loading && !ofType.length ? (
         <div className="tm-grid" aria-busy="true">{[0, 1, 2].map((index) => <div key={index} className="tm-item tm-skeleton" />)}</div>
@@ -113,7 +114,7 @@ export function TeamLibrary({ store, teamId, type, role, items, members, files, 
             const deletable = canDeleteItem(role, item, uid);
             return (
               <article key={item.id} className={`tm-item tm-kind-${item.kind}`}>
-                <button type="button" className="tm-item-cover" onClick={() => (isTemplate ? onUse(item) : onOpen(item))} aria-label={isTemplate ? `Dùng mẫu ${item.name}` : `Mở ${item.name}`}>
+                <button type="button" className="tm-item-cover" onClick={() => (isTemplate ? onUse(item) : onOpen(item))} aria-label={isTemplate ? `Tải mẫu ${item.name} về máy để sửa` : `Mở ${item.name} để sửa chung`}>
                   <span className="tm-item-paper" aria-hidden="true">
                     <span className="tm-item-paper-title">{item.name}</span>
                     <span className="tm-item-paper-text">{item.preview || item.description || ' '}</span>
@@ -129,7 +130,7 @@ export function TeamLibrary({ store, teamId, type, role, items, members, files, 
                       }>
                         {editable && <button role="menuitem" className="ws-menu-item" onClick={() => { closeMenu(); void editInfo(item); }}><Edit2 size={16} />Sửa thông tin</button>}
                         {editable && <button role="menuitem" className="ws-menu-item" onClick={() => { closeMenu(); setPublishing(item); }}><RefreshCw size={16} />Thay nội dung</button>}
-                        {!isTemplate && <button role="menuitem" className="ws-menu-item" onClick={() => { closeMenu(); onUse(item); }}><Copy size={16} />Tạo bản sao riêng</button>}
+                        {!isTemplate && <button role="menuitem" className="ws-menu-item" onClick={() => { closeMenu(); onUse(item); }}><Download size={16} />Tải bản riêng về máy</button>}
                         {deletable && <button role="menuitem" className="ws-menu-item ws-menu-danger" onClick={() => { closeMenu(); void remove(item); }}><Trash2 size={16} />Xoá</button>}
                       </Popover>
                     )}
@@ -144,7 +145,7 @@ export function TeamLibrary({ store, teamId, type, role, items, members, files, 
                   </div>
                   <div className="tm-item-actions">
                     {isTemplate ? (
-                      <TmButton variant="primary" icon={<Copy size={16} aria-hidden="true" />} onClick={() => onUse(item)}>Dùng mẫu</TmButton>
+                      <TmButton variant="primary" icon={<Download size={16} aria-hidden="true" />} onClick={() => onUse(item)}>Tải về máy để sửa</TmButton>
                     ) : (
                       <TmButton variant="primary" icon={<FolderOpen size={16} aria-hidden="true" />} onClick={() => onOpen(item)}>{can(role, 'editDocument') ? 'Mở và sửa chung' : 'Mở để xem'}</TmButton>
                     )}
@@ -158,8 +159,8 @@ export function TeamLibrary({ store, teamId, type, role, items, members, files, 
         <div className="ws-empty tm-empty">
           <Users size={32} aria-hidden="true" />
           <h3>{ofType.length ? 'Không có mục nào khớp bộ lọc' : isTemplate ? 'Nhóm chưa có mẫu nào' : 'Nhóm chưa có tài liệu chung'}</h3>
-          <p>{ofType.length ? 'Thử đổi loại, danh mục hoặc từ khoá.' : canPublish ? (isTemplate ? 'Đăng một văn bản, bảng tính hoặc slide làm mẫu để cả nhóm dùng lại.' : 'Thêm một tài liệu để cả nhóm cùng mở và chỉnh sửa theo thời gian thực.') : 'Khi biên tập viên đăng, mục mới sẽ hiện ở đây ngay.'}</p>
-          {canPublish && !ofType.length && <TmButton variant="primary" icon={<FilePlus2 size={18} aria-hidden="true" />} onClick={() => setPublishing('new')}>{isTemplate ? 'Đăng mẫu đầu tiên' : 'Thêm tài liệu đầu tiên'}</TmButton>}
+          <p>{ofType.length ? 'Thử đổi loại, danh mục hoặc từ khoá.' : canPublish ? (isTemplate ? 'Đăng một văn bản, bảng tính hoặc slide làm mẫu. Thành viên tải mẫu về máy rồi sửa bản riêng.' : 'Tải một tài liệu lên để cả nhóm cùng mở và sửa cùng lúc.') : 'Khi biên tập viên đăng, mục mới sẽ hiện ở đây ngay.'}</p>
+          {canPublish && !ofType.length && <TmButton variant="primary" icon={<FilePlus2 size={18} aria-hidden="true" />} onClick={() => setPublishing('new')}>{isTemplate ? 'Đăng mẫu đầu tiên' : 'Tải lên tài liệu đầu tiên'}</TmButton>}
         </div>
       )}
 

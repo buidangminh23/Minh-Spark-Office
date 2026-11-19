@@ -16,7 +16,7 @@ import { caretColorsByUid, keepCaretColorUnique } from '../../lib/live/caretColo
 import { readFlat, writeFlat } from '../../lib/live/flatSync';
 import { flattenWorkbook, SHEET_MAP, unflattenWorkbook } from '../../lib/live/sheetSync';
 import { flattenPresentation, SLIDE_MAP, unflattenPresentation } from '../../lib/live/slideSync';
-import { LiveBar } from './LiveBar';
+import { LiveBar, LivePeople } from './LiveBar';
 import { TmButton } from './TeamParts';
 import { useTeamStore } from './useTeams';
 
@@ -231,7 +231,7 @@ export function SharedFrame({ frameId, onEditing }: { frameId: string; onEditing
 
   const isLeader = useCallback(() => {
     if (!session) return false;
-    const writers = session.mesh.peers().filter((peer) => peer.self || (peer.connected && peer.role !== 'viewer')).map((peer) => peer.peerId);
+    const writers = session.mesh.peers().filter((peer) => peer.self || peer.connected).map((peer) => peer.peerId);
     return pickLeader(writers) === session.mesh.peerId;
   }, [session]);
 
@@ -281,6 +281,7 @@ export function SharedFrame({ frameId, onEditing }: { frameId: string; onEditing
   const readOnly = !can(session.role, 'editDocument');
   const peers = meshState.peers.map((peer) => ({ ...peer, color: caretColors.get(peer.uid) ?? peer.color }));
   const bar = <LiveBar peers={peers} status={meshState.status} saveState={saveState.value} savedAt={saveState.at} />;
+  const people = <LivePeople peers={peers} />;
   const back = () => host?.showHome();
 
   if (session.item.kind === 'doc' && session.content.kind === 'doc' && loadedEditors.doc) {
@@ -294,7 +295,7 @@ export function SharedFrame({ frameId, onEditing }: { frameId: string; onEditing
           onSave={async () => true}
           onRename={() => undefined}
           onBack={back}
-          live={{ ydoc: previewBinding.ydoc, awareness: previewBinding.awareness, user: { name: session.store.user.name, color: colorForUid(session.store.user.uid) }, seed: true, readOnly: true, bar, onSeeded: () => undefined }}
+          live={{ ydoc: previewBinding.ydoc, awareness: previewBinding.awareness, user: { name: session.store.user.name, color: colorForUid(session.store.user.uid) }, seed: true, readOnly: true, bar, people, onSeeded: () => undefined }}
         />
       );
     }
@@ -313,6 +314,7 @@ export function SharedFrame({ frameId, onEditing }: { frameId: string; onEditing
           seed: session.opened === 'seed' || seedLate,
           readOnly,
           bar,
+          people,
           onSeeded: () => { void session.live.save(true).then(() => ui.toast('Đã bật sửa chung cho tài liệu này.')); },
         }}
       />
@@ -321,8 +323,8 @@ export function SharedFrame({ frameId, onEditing }: { frameId: string; onEditing
   const liveUser = { uid: session.store.user.uid, name: session.store.user.name, color: colorForUid(session.store.user.uid) };
   const previewing = Boolean(waiting && previewBinding);
   const structured = previewing && previewBinding
-    ? { ydoc: previewBinding.ydoc, awareness: previewBinding.awareness, user: liveUser, readOnly: true, bar }
-    : { ydoc: session.live.ydoc, awareness: session.live.awareness, user: liveUser, readOnly, bar };
+    ? { ydoc: previewBinding.ydoc, awareness: previewBinding.awareness, user: liveUser, readOnly: true, bar, people }
+    : { ydoc: session.live.ydoc, awareness: session.live.awareness, user: liveUser, readOnly, bar, people };
   const editorKey = previewing ? 'preview' : 'live';
   const current = openedContent ?? session.content;
   if (current.kind === 'sheet' && loadedEditors.sheet) {

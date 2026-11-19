@@ -29,6 +29,21 @@ export function uniquePeople(peers: LivePeer[]) {
   return [...byUid.values()].sort((a, b) => Number(b.self) - Number(a.self) || a.name.localeCompare(b.name, 'vi'));
 }
 
+export function LivePeople({ peers }: { peers: LivePeer[] }) {
+  const people = uniquePeople(peers);
+  if (!people.length) return null;
+  return (
+    <span className="tm-live-people" role="group" aria-label={`${people.length} người đang mở tài liệu`}>
+      {people.slice(0, 5).map((peer) => (
+        <span key={peer.uid} className={`tm-live-person ${peer.connected || peer.self ? '' : 'is-pending'}`} style={{ '--tm-ring': peer.color } as React.CSSProperties} title={`${peer.name}${peer.self ? ' (bạn)' : ''}`}>
+          <PersonAvatar uid={peer.uid} name={peer.name} photoURL={peer.photoURL} size={28} />
+        </span>
+      ))}
+      {people.length > 5 && <span className="tm-live-more" title={people.slice(5).map((peer) => peer.name).join(', ')}>+{people.length - 5}</span>}
+    </span>
+  );
+}
+
 export function LiveBar({ peers, status, saveState, savedAt }: { peers: LivePeer[]; status: MeshStatus; saveState: SaveState; savedAt: number }) {
   const people = uniquePeople(peers);
   const [, tick] = useState(0);
@@ -36,15 +51,7 @@ export function LiveBar({ peers, status, saveState, savedAt }: { peers: LivePeer
   const time = new Date(savedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
   const StatusIcon = status === 'online' ? Radio : status === 'degraded' ? CloudOff : Wifi;
   return (
-    <div className="tm-livebar" role="group" aria-label="Người đang sửa tài liệu">
-      <span className="tm-live-people">
-        {people.slice(0, 6).map((peer) => (
-          <span key={peer.uid} className={`tm-live-person ${peer.connected || peer.self ? '' : 'is-pending'}`} style={{ '--tm-ring': peer.color } as React.CSSProperties} title={`${peer.name}${peer.self ? ' (bạn)' : ''}${peer.role === 'viewer' ? ' · chỉ xem' : ''}`}>
-            <PersonAvatar uid={peer.uid} name={peer.name} photoURL={peer.photoURL} size={26} />
-          </span>
-        ))}
-        {people.length > 6 && <span className="tm-live-more">+{people.length - 6}</span>}
-      </span>
+    <div className="tm-livebar" role="group" aria-label="Trạng thái sửa chung">
       <span className={`tm-live-status is-${status}`} title={STATUS_TEXT[status]}>
         <StatusIcon size={14} aria-hidden="true" />
         <span className="tm-live-label">{status === 'alone' ? 'Một mình' : status === 'online' ? `${people.length} người đang sửa` : status === 'degraded' ? 'Đồng bộ chậm' : 'Đang kết nối'}</span>

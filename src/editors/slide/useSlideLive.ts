@@ -13,6 +13,7 @@ export type SlideLiveBinding = {
   user: LiveUser;
   readOnly: boolean;
   bar: ReactNode;
+  people?: ReactNode;
 };
 
 type SlidePresence = { slideId: string; ids: string[] };
