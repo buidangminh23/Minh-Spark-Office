@@ -50,6 +50,8 @@ export type SheetData = {
   zoomRatio?: number;
 };
 
+export type SourcePackage = { archive: string; sheets: Record<string, string>; order: string[] };
+
 export type ImportTruncation = { sheet: string; rows: number; columns: number; keptRows: number; keptColumns: number };
 
 export type WorkbookData = {
@@ -68,6 +70,7 @@ export type WorkbookData = {
   automation?: AutomationBundle;
   formButtons?: FormButtonMap;
   formImages?: FormImageMap;
+  sourcePackage?: SourcePackage;
 };
 
 export type AutomationButton = { sheet: string; row: number; column: number; target: string };

@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties, type RefObject } from 'react';
+import { useLayoutEffect, useRef, type CSSProperties, type RefObject } from 'react';
 import type { FormButton, FormButtonAnchor, FormImageMap } from '../../lib/formButtons';
 
 type CellBox = { x: number; y: number };
@@ -34,9 +34,15 @@ export const findGridCanvas = (host: HTMLElement) =>
     return !best || width > best.getBoundingClientRect().width ? canvas : best;
   }, null);
 
-const anchorPoint = (sheet: FormButtonSheet, anchor: FormButtonAnchor, origin: CellBox): CellBox => {
+const clampOffset = (offset: number, extent: number) => Math.max(0, Math.min(offset, Math.max(0, extent)));
+
+export const anchorPoint = (sheet: FormButtonSheet, anchor: FormButtonAnchor, origin: CellBox): CellBox => {
   const cell = sheet.getRange(anchor.row, anchor.column, 1, 1).getCellRect();
-  return { x: cell.x - origin.x + anchor.columnOffset, y: cell.y - origin.y + anchor.rowOffset };
+  const next = sheet.getRange(anchor.row + 1, anchor.column + 1, 1, 1).getCellRect();
+  return {
+    x: cell.x - origin.x + clampOffset(anchor.columnOffset, next.x - cell.x),
+    y: cell.y - origin.y + clampOffset(anchor.rowOffset, next.y - cell.y),
+  };
 };
 
 function boxOf(sheet: FormButtonSheet, button: FormButton, origin: CellBox) {
@@ -133,27 +139,31 @@ function LayerItem({ item, images, onRun }: { item: FormButton; images: FormImag
 export function FormButtonLayer({ buttons, images, container, getSheet, onRun }: Props) {
   const layerRef = useRef<HTMLDivElement | null>(null);
   const getSheetRef = useRef(getSheet);
-  useEffect(() => {
+  useLayoutEffect(() => {
     getSheetRef.current = getSheet;
   });
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!buttons.length) return;
     let frame = 0;
-    const tick = () => {
-      frame = requestAnimationFrame(tick);
+    const placeNow = () => {
       const layer = layerRef.current;
       const host = container.current;
       const sheet = getSheetRef.current();
-      if (!layer || !host || !sheet) return;
+      if (!layer) return;
       let placed = false;
       try {
-        placed = layout(sheet, host, layer, buttons);
+        placed = Boolean(host && sheet) && layout(sheet!, host!, layer, buttons);
       } catch {
         placed = false;
       }
       layer.style.visibility = placed ? 'visible' : 'hidden';
     };
+    const tick = () => {
+      frame = requestAnimationFrame(tick);
+      placeNow();
+    };
+    placeNow();
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
   }, [buttons, container]);

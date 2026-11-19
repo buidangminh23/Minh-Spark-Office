@@ -264,7 +264,7 @@ import {
   type FileVersion,
   type CommentItem,
 } from '../../lib/storage';
-import type { CellStyle, SheetData, WorkbookData } from '../../lib/sheetTypes';
+import type { CellStyle, SheetData, SourcePackage, WorkbookData } from '../../lib/sheetTypes';
 import {
   emptyWorkbook,
   importSpreadsheet,
@@ -821,6 +821,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
   const formButtonsRef = useRef(formButtons);
   const [formImages, setFormImages] = useState(() => sanitizeFormImages(content.formImages ?? content.workbook.formImages));
   const savedFormImages = Object.keys(formImages).length ? formImages : undefined;
+  const [sourcePackage, setSourcePackage] = useState<SourcePackage | undefined>(() => content.sourcePackage ?? content.workbook.sourcePackage);
   const vbaProjectRef = useRef(vbaProject);
   vbaProjectRef.current = vbaProject;
   const vbaMacros = useMemo(() => listVbaMacros(vbaProject), [vbaProject]);
@@ -1239,6 +1240,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
         vba: vbaProject ?? undefined,
         formButtons: savedFormButtons,
         formImages: savedFormImages,
+        sourcePackage,
         excel: excelStateRef.current,
       }, explicit);
       if (saved) {
@@ -1515,6 +1517,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
       delete clonedWb.automation;
       delete clonedWb.formButtons;
       delete clonedWb.formImages;
+      delete clonedWb.sourcePackage;
       univer.createUnit(UniverInstanceType.UNIVER_SHEET, clonedWb);
       registerWrappedCellSpacing(univer);
       registerBackspaceClearsSelection(univer);
@@ -3438,7 +3441,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
   const handleCleanWorkbook = async () => {
     const ctx = getEditableContext();
     if (!ctx || !doctorData) throw new Error('Không có sổ tính để dọn');
-    const draft: SheetContent = { kind: 'sheet', workbook: captureHydratedWorkbook(), comments, printSettings, outlines, macros, vba: vbaProject ?? undefined, formButtons: savedFormButtons, formImages: savedFormImages, excel: excelStateRef.current };
+    const draft: SheetContent = { kind: 'sheet', workbook: captureHydratedWorkbook(), comments, printSettings, outlines, macros, vba: vbaProject ?? undefined, formButtons: savedFormButtons, formImages: savedFormImages, sourcePackage, excel: excelStateRef.current };
     try {
       const saved = await sourceStorage.saveVersion(meta.id, draft, 'Trước khi tối ưu');
       setVersions((prev) => [saved, ...prev]);
@@ -3835,6 +3838,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
 
   const workbookWithAutomation = (withVba: boolean): WorkbookData => {
     const wb = captureHydratedWorkbook();
+    if (sourcePackage) wb.sourcePackage = sourcePackage;
     if (macros.length) wb.automation = { version: 1, macros };
     if (!withVba) return wb;
     const base: VbaProjectData = vbaProject ?? { modules: [], codePage: 1252 };
@@ -5135,7 +5139,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
   };
 
   const handleCreateSnapshot = async (label: string) => {
-    const draft: SheetContent = { kind: 'sheet', workbook: captureHydratedWorkbook(), comments, printSettings, outlines, macros, vba: vbaProject ?? undefined, formButtons: savedFormButtons, formImages: savedFormImages, excel: excelStateRef.current };
+    const draft: SheetContent = { kind: 'sheet', workbook: captureHydratedWorkbook(), comments, printSettings, outlines, macros, vba: vbaProject ?? undefined, formButtons: savedFormButtons, formImages: savedFormImages, sourcePackage, excel: excelStateRef.current };
     const currentMeta = { ...meta, name: title.trim() || meta.name, updatedAt: Date.now() };
     try {
       if (!user) await sourceStorage.saveFile(currentMeta, draft);
@@ -5165,6 +5169,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live }: She
     formButtonsRef.current = sanitizeFormButtons(cont.formButtons);
     setFormButtons(formButtonsRef.current);
     setFormImages(sanitizeFormImages(cont.formImages));
+    setSourcePackage(cont.sourcePackage);
     setModal(null);
     setSavedStatus('saving');
     setTimeout(() => syncUiFromSelection(), 90);

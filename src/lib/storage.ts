@@ -1,7 +1,7 @@
 import { createStore, get, set, update, promisifyRequest, type UseStore } from 'idb-keyval';
 import { createContext, useContext } from 'react';
 import type { JSONContent } from '@tiptap/react';
-import type { WorkbookData } from './sheetTypes';
+import type { SourcePackage, WorkbookData } from './sheetTypes';
 import type { VbaProjectData } from './vbaProject';
 import type { FormButtonMap, FormImageMap } from './formButtons';
 import type { PresentationData } from './slideTypes';
@@ -175,6 +175,7 @@ export type SheetContent = {
   vba?: VbaProjectData;
   formButtons?: FormButtonMap;
   formImages?: FormImageMap;
+  sourcePackage?: SourcePackage;
   excel?: SheetExcelState;
 };
 export type PdfContent = {

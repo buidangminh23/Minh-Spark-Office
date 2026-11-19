@@ -4,6 +4,8 @@ import * as XLSX from 'xlsx';
 import { buildVbaProject, fromBase64, readVbaProject, updateVbaProject } from './vbaProject';
 import { RECORDED_VBA_MODULE, addMinhBundle, addVbaProject, readCodeNames, readMinhBundle, worksheetPaths } from './xlsmPackage';
 import { readSheetObjects } from './formButtons';
+import { applyCenterAcross, isCenterAcrossMerge } from './centerAcross';
+import { captureSourcePackage, restoreSourcePackage } from './xlsxPreserve';
 import { attachWorkbookExtras, excelColumnPixels, excelDigitWidth, excelFontName, readWorkbookFonts, type WorkbookFonts } from './xlsxExtras';
 import type { CellStyle, CellValue, ImportTruncation, WorkbookData } from './sheetTypes';
 import { emptySheet, emptyWorkbook, uid } from './workbookBasics';
@@ -183,6 +185,7 @@ async function excelJsToWorkbook(buffer: ArrayBuffer, name: string, zip: JSZip):
     if (tab) sheet.tabColor = tab;
     let contentRows = 0;
     let contentColumns = 0;
+    const continuous = new Map<number, Set<number>>();
     worksheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
       if (row.hasValues) {
         contentRows = Math.max(contentRows, rowNumber);
@@ -198,6 +201,10 @@ async function excelJsToWorkbook(buffer: ArrayBuffer, name: string, zip: JSZip):
       if (row.hidden) sheet.rowData[r] = { ...(sheet.rowData[r] ?? {}), hd: 1 };
       row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
         if (colNumber > colLimit) return;
+        if (cell.alignment?.horizontal === 'centerContinuous' && !cell.isMerged) {
+          if (!continuous.has(r)) continuous.set(r, new Set());
+          continuous.get(r)!.add(colNumber - 1);
+        }
         if (cell.isMerged && cell.master.address !== cell.address) {
           const style = styleRef(styleFromExcel(cell, fonts));
           if (style) (sheet.cellData[r] ??= {})[colNumber - 1] = { s: style };
@@ -221,6 +228,7 @@ async function excelJsToWorkbook(buffer: ArrayBuffer, name: string, zip: JSZip):
       const decoded = XLSX.utils.decode_range(range);
       sheet.mergeData.push({ startRow: decoded.s.r, endRow: decoded.e.r, startColumn: decoded.s.c, endColumn: decoded.e.c });
     }
+    applyCenterAcross(sheet, continuous);
     const view = worksheet.views?.[0] as (ExcelJS.WorksheetView & { xSplit?: number; ySplit?: number; showGridLines?: boolean; zoomScale?: number }) | undefined;
     if (view) {
       if (view.state === 'frozen' && (view.xSplit || view.ySplit)) {
@@ -315,6 +323,7 @@ export async function readSpreadsheet(buffer: ArrayBuffer, fileName: string): Pr
       data = sheetJsToWorkbook(buffer, name);
     }
     await attachAutomation(data, zip);
+    data.sourcePackage = await captureSourcePackage(zip, data).catch(() => undefined);
     return data;
   }
   return sheetJsToWorkbook(buffer, name);
@@ -402,11 +411,23 @@ function sheetCodeNames(data: WorkbookData, reserved: Set<string>): string[] {
   return names;
 }
 
+async function loadWithSourceParts(written: ArrayBuffer, data: WorkbookData) {
+  if (!data.sourcePackage) return JSZip.loadAsync(written);
+  try {
+    const zip = await JSZip.loadAsync(written);
+    await restoreSourcePackage(zip, data);
+    return zip;
+  } catch (error) {
+    console.warn('Original workbook parts could not be restored:', error);
+    return JSZip.loadAsync(written);
+  }
+}
+
 async function finishPackage(data: WorkbookData, written: ArrayBuffer, macroEnabled: boolean, normalFont: Pick<ExcelJS.Font, 'name' | 'size' | 'bold' | 'italic'>): Promise<ArrayBuffer> {
   const buttons = collectButtons(data);
   const hasBundle = !!data.automation?.macros?.length || buttons.length > 0;
   const project = data.vba;
-  const zip = await JSZip.loadAsync(written);
+  const zip = await loadWithSourceParts(written, data);
   const styles = zip.file('xl/styles.xml')!;
   const styleXml = await styles.async('string');
   const name = normalFont.name.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -458,9 +479,10 @@ export async function writeWorkbookXlsx(data: WorkbookData, options: { macroEnab
   for (const sheetId of data.sheetOrder) {
     const sheet = data.sheets[sheetId];
     if (!sheet) continue;
+    const zoom = sheet.zoomRatio && sheet.zoomRatio !== 1 ? { zoomScale: Math.round(sheet.zoomRatio * 100), zoomScaleNormal: Math.round(sheet.zoomRatio * 100) } : {};
     const freeze = sheet.freeze && (sheet.freeze.xSplit > 0 || sheet.freeze.ySplit > 0)
-      ? [{ state: 'frozen' as const, xSplit: sheet.freeze.xSplit, ySplit: sheet.freeze.ySplit, showGridLines: sheet.showGridlines !== 0 }]
-      : [{ showGridLines: sheet.showGridlines !== 0 }];
+      ? [{ state: 'frozen' as const, xSplit: sheet.freeze.xSplit, ySplit: sheet.freeze.ySplit, showGridLines: sheet.showGridlines !== 0, ...zoom }]
+      : [{ showGridLines: sheet.showGridlines !== 0, ...zoom }];
     const worksheet = workbook.addWorksheet(sheet.name.slice(0, 31) || 'Sheet', {
       views: freeze,
       properties: {
@@ -523,6 +545,13 @@ export async function writeWorkbookXlsx(data: WorkbookData, options: { macroEnab
       }
     }
     for (const merge of sheet.mergeData ?? []) {
+      if (isCenterAcrossMerge(sheet, merge) && resolveStyle(data, sheet.cellData[merge.startRow]?.[merge.startColumn]?.s)?.ht === 2) {
+        for (let column = merge.startColumn; column <= merge.endColumn; column += 1) {
+          const target = worksheet.getCell(merge.startRow + 1, column + 1);
+          target.alignment = { ...(target.alignment ?? {}), horizontal: 'centerContinuous' };
+        }
+        continue;
+      }
       try {
         worksheet.mergeCells(merge.startRow + 1, merge.startColumn + 1, merge.endRow + 1, merge.endColumn + 1);
       } catch {
