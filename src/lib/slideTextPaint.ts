@@ -29,6 +29,7 @@ const MIN_EDITABLE_CHARACTERS = 4;
 const WIDTH_TOLERANCE = 1.02;
 
 export type MeasureText = (text: string, fontPx: number, bold: boolean) => number;
+export type TextExtent = (text: string, bold: boolean) => { ascent: number; descent: number } | null;
 
 const trusted = (word: SourceWord) => word.confidence === undefined || word.confidence >= MIN_CONFIDENCE;
 
@@ -143,11 +144,20 @@ export function backgroundColor(image: PixelImage, box: PixelBox, pad: number): 
 const distance = (data: Uint8ClampedArray, offset: number, color: Rgb) =>
   Math.max(Math.abs(data[offset] - color[0]), Math.abs(data[offset + 1] - color[1]), Math.abs(data[offset + 2] - color[2]));
 
-export function fontMetrics(text: string, inkHeight: number) {
+const STACKED_UPPER = /[ẤẦẨẪẬẮẰẲẴẶẾỀỂỄỆỐỒỔỖỘ]/;
+const ACCENTED_UPPER = /[ÀÁẢÃÂĂÈÉẺẼÊÌÍỈĨÒÓỎÕÔƠỜỚỞỠÙÚỦŨƯỪỨỬỮỲÝỶỸ]/;
+const STACKED_LOWER = /[ấầẩẫắằẳẵếềểễốồổỗ]/;
+const DOT_BELOW = /[ẠẶẬẸỆỊỌỘỢỤỰỴạặậẹệịọộợụựỵ]/;
+
+export function fontMetrics(text: string, inkHeight: number, extent?: { ascent: number; descent: number } | null) {
+  if (extent && extent.ascent + extent.descent > 0.2) {
+    const fontPx = Math.max(1, inkHeight / (extent.ascent + extent.descent));
+    return { fontPx, capOffset: (0.905 - extent.ascent) * fontPx };
+  }
   const tall = /[A-Z0-9bdfhkltĐÀ-ỹ&@#%(){}[\]/\\|!?'"]/.test(text);
   const deep = /[gjpqy,;(){}[\]|]/.test(text);
-  const above = tall ? 0.72 : 0.53;
-  const below = deep ? 0.21 : 0;
+  const above = STACKED_UPPER.test(text) ? 1.02 : ACCENTED_UPPER.test(text) ? 0.93 : STACKED_LOWER.test(text) ? 0.9 : tall ? 0.72 : 0.53;
+  const below = deep ? 0.21 : DOT_BELOW.test(text) ? 0.17 : 0;
   const fontPx = Math.max(1, inkHeight / (above + below));
   return { fontPx, capOffset: (0.905 - above) * fontPx };
 }
@@ -189,7 +199,7 @@ function columnSpans(image: PixelImage, box: PixelBox, background: Rgb, minGap: 
   return spans;
 }
 
-export function paintLine(image: PixelImage, segment: TextSegment): PaintedLine | null {
+export function paintLine(image: PixelImage, segment: TextSegment, extent?: TextExtent): PaintedLine | null {
   const area = clampBox(segment.box, image);
   if (!area.width || !area.height) return null;
   const pad = Math.max(2, Math.round(area.height * 0.15));
@@ -217,7 +227,7 @@ export function paintLine(image: PixelImage, segment: TextSegment): PaintedLine 
     }
   }
   const color: Rgb = [Math.round(sum[0] / count), Math.round(sum[1] / count), Math.round(sum[2] / count)];
-  const { fontPx, capOffset } = fontMetrics(segment.text, ink.height);
+  const { fontPx, capOffset } = fontMetrics(segment.text, ink.height, extent?.(segment.text.replace(/\s+/g, ' '), false));
   const words = segment.text.split(/\s+/).filter(Boolean);
   const wordBoxes = segment.words?.length === words.length
     ? segment.words.map((word) => clampBox(word.box, image))
@@ -254,6 +264,25 @@ function tightHeight(image: PixelImage, box: PixelBox, background: Rgb): number 
   return Number.isFinite(top) ? bottom - top + 1 : 0;
 }
 
+function rowHasInk(image: PixelImage, y: number, x0: number, x1: number, background: Rgb) {
+  for (let x = x0; x < x1; x++) if (distance(image.data, (y * image.width + x) * 4, background) > INK_THRESHOLD) return true;
+  return false;
+}
+
+export function growToInk(image: PixelImage, segment: TextSegment): TextSegment {
+  const area = clampBox(segment.box, image);
+  if (!area.width || !area.height) return segment;
+  const background = backgroundColor(image, area, Math.max(2, Math.round(area.height * 0.15)));
+  let top = area.y;
+  let bottom = area.y + area.height;
+  const up = Math.max(0, top - Math.ceil(area.height * 0.3));
+  const down = Math.min(image.height, bottom + Math.ceil(area.height * 0.35));
+  while (top > up && rowHasInk(image, top - 1, area.x, area.x + area.width, background)) top--;
+  while (bottom < down && rowHasInk(image, bottom, area.x, area.x + area.width, background)) bottom++;
+  if (top === up || bottom === down) return segment;
+  return { ...segment, box: { x: segment.box.x, y: top, width: segment.box.width, height: bottom - top } };
+}
+
 export function eraseLine(image: PixelImage, line: PaintedLine) {
   const pad = Math.max(2, Math.round(line.fontPx * 0.12));
   const area = clampBox({ x: line.ink.x - pad, y: line.ink.y - pad, width: line.ink.width + pad * 2, height: line.ink.height + pad * 2 }, image);
@@ -277,8 +306,8 @@ export function fitToInk(line: PaintedLine, measure: MeasureText): PaintedLine {
   return { ...line, fontPx: line.fontPx * ratio, capOffset: line.capOffset * ratio };
 }
 
-export function paintAndErase(image: PixelImage, segments: TextSegment[], measure?: MeasureText): PaintedLine[] {
-  const painted = segments.map((segment) => paintLine(image, segment)).filter((line): line is PaintedLine => line !== null && editableLength(line) >= MIN_EDITABLE_CHARACTERS);
+export function paintAndErase(image: PixelImage, segments: TextSegment[], measure?: MeasureText, extent?: TextExtent): PaintedLine[] {
+  const painted = segments.map((segment) => paintLine(image, growToInk(image, segment), extent)).filter((line): line is PaintedLine => line !== null && editableLength(line) >= MIN_EDITABLE_CHARACTERS);
   for (const line of painted) eraseLine(image, line);
   return measure ? painted.map((line) => fitToInk(line, measure)) : painted;
 }

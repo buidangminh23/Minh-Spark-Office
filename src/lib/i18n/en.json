@@ -320,6 +320,8 @@
  "Việc lưu lại PDF có thể làm mất hiệu lực chữ ký số.": "Saving the PDF again may invalidate digital signatures.",
  "Giữ ảnh từng trang và tách giá trị vào các trang tính có thể sửa, hoặc chỉ xuất dữ liệu.": "Keep page images alongside editable data sheets, or export just the data.",
  "Giữ ảnh từng trang kèm lớp chữ tìm kiếm, hoặc xuất văn bản theo thứ tự đọc.": "Keep page images with a searchable text layer, or export text in reading order.",
+ "Giữ nguyên ảnh từng trang; OCR thêm lớp chữ ẩn để tìm kiếm và sao chép.": "Keep every page image untouched; OCR adds a hidden text layer for search and copy.",
+ "Ảnh từng trang được giữ nguyên. Chữ nhận dạng nằm ở lớp ẩn để tìm kiếm và sao chép.": "Every page image is kept as is. Recognized text sits in a hidden layer for search and copy.",
  "Văn bản, bảng và ảnh nhúng được lấy từ HTML. CSS và tài nguyên ngoài tệp có thể làm thay đổi bố cục.": "Text, tables, and embedded images are extracted from HTML. CSS and external resources may affect the layout.",
  "Các trường biểu mẫu được chuyển thành chữ với giá trị và trạng thái đang hiển thị.": "Form fields are converted to text using their displayed values and states.",
  "Giữ các trang tính. Với tài liệu, xuất chữ, bảng, ô gộp và ảnh nhúng theo thứ tự gốc.": "Keep worksheets. For documents, export text, tables, merged cells, and embedded images in their original order.",

@@ -5,6 +5,16 @@ import type { MediaPage } from './mediaConversion';
 import type { EditablePdfPageInput } from './pdfOcrTypes';
 import { prepareEditableBackground } from './ocr/editableBackground';
 
+const MIN_EDITABLE_CONFIDENCE = 60;
+const MIN_SHORT_CONFIDENCE = 85;
+
+export function isReliableOcrLine(line: { text: string; confidence?: number }): boolean {
+  if (line.confidence === undefined) return true;
+  const characters = line.text.replace(/[^\p{L}\p{N}]/gu, '').length;
+  if (!characters) return false;
+  return line.confidence >= (characters < 3 ? MIN_SHORT_CONFIDENCE : MIN_EDITABLE_CONFIDENCE);
+}
+
 export async function prepareEditablePdfPage(page: MediaPage, pageIndex: number, options: ConversionOptions = {}): Promise<{ page: EditablePdfPageInput; warnings: string[] }> {
   checkConversionAbort(options);
   if (!page.image) throw new Error('Thiếu ảnh nền trang PDF để tạo chữ chỉnh sửa được.');
@@ -23,7 +33,8 @@ export async function prepareEditablePdfPage(page: MediaPage, pageIndex: number,
     const source = context.getImageData(0, 0, canvas.width, canvas.height);
     const scaleX = canvas.width / page.width;
     const scaleY = canvas.height / page.height;
-    const result = prepareEditableBackground(source, page.lines.map((line) => ({
+    const reliable = page.lines.filter(isReliableOcrLine);
+    const result = prepareEditableBackground(source, reliable.map((line) => ({
       text: line.text, confidence: 100,
       bbox: { x0: line.x * scaleX, y0: line.y * scaleY, x1: (line.x + line.width) * scaleX, y1: (line.y + line.height) * scaleY },
     })), page.width, page.height);
@@ -33,7 +44,8 @@ export async function prepareEditablePdfPage(page: MediaPage, pageIndex: number,
     context.putImageData(new ImageData(new Uint8ClampedArray(result.pixels), canvas.width, canvas.height), 0, 0);
     const background = await new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Không lưu được nền trang PDF.')), 'image/png'));
     checkConversionAbort(options);
-    return { page: { pageIndex, width: page.width, height: page.height, lines: result.lines, background: new Uint8Array(await background.arrayBuffer()) }, warnings: result.warnings };
+    const warnings = reliable.length < page.lines.length ? [...result.warnings, 'Những vùng chữ nhận dạng chưa chắc chắn được giữ nguyên dạng ảnh.'] : result.warnings;
+    return { page: { pageIndex, width: page.width, height: page.height, lines: result.lines, background: new Uint8Array(await background.arrayBuffer()) }, warnings };
   } finally {
     image.src = '';
     URL.revokeObjectURL(url);

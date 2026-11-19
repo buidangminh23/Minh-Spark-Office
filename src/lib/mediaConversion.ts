@@ -1,12 +1,12 @@
 import type { PDFDocumentProxy } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import type { ConversionOptions, ConversionResult } from './conversionTypes';
-import { checkConversionAbort, conversionBaseName } from './conversionTypes';
+import { checkConversionAbort, cleanPdfText, conversionBaseName } from './conversionTypes';
 import type { OcrPage } from './conversionOcr';
 import type { EditableSlide } from './editableSlidesDeck';
 import type { TextSegment } from './slideTextPaint';
 import { includeWidgetValues, pdfFormFields, wordPageSize, type PdfFormField } from './mediaPageLayout';
 
-export type MediaTextLine = { text: string; x: number; y: number; width: number; height: number; rotated?: boolean };
+export type MediaTextLine = { text: string; x: number; y: number; width: number; height: number; rotated?: boolean; confidence?: number };
 export type MediaPage = { width: number; height: number; lines: MediaTextLine[]; image?: Blob; transform?: number[]; fields?: PdfFormField[]; hasAnnotations?: boolean };
 
 const MAX_PIXELS = 16_000_000;
@@ -181,7 +181,7 @@ export async function readPdfLines(doc: PDFDocumentProxy, number: number, includ
   try {
     const [content, annotations] = await Promise.all([page.getTextContent(), includeAnnotations ? page.getAnnotations({ intent: 'any' }) : Promise.resolve([])]);
     const spans = content.items.flatMap((item): PdfTextSpan[] => {
-      if (!('str' in item) || !item.str.trim()) return [];
+      if (!('str' in item) || !cleanPdfText(item.str).trim()) return [];
       const [a, b, c, d, e, f] = item.transform;
       const advance = item.width / (Math.hypot(a, b) || 1);
       const rise = (item.height || Math.hypot(c, d)) / (Math.hypot(c, d) || 1);
@@ -195,7 +195,7 @@ export async function readPdfLines(doc: PDFDocumentProxy, number: number, includ
       const y = Math.min(...ys);
       return [{ item, line: { text: item.str, x, y, width: Math.max(1, Math.max(...xs) - x), height: Math.max(1, Math.max(...ys) - y), rotated: end[0] <= start[0] || Math.abs(end[1] - start[1]) > Math.abs(end[0] - start[0]) * 0.05 } }];
     });
-    const lines = await pdfReadingSpans(page, spans);
+    const lines = (await pdfReadingSpans(page, spans)).map((line) => ({ ...line, text: cleanPdfText(line.text) })).filter((line) => line.text.trim());
     return { width: viewport.width, height: viewport.height, lines, transform: viewport.transform, fields: pdfFormFields(annotations, (x, y) => viewport.convertToViewportPoint(x, y)), hasAnnotations: annotations.length > 0 };
   } finally { page.cleanup(); }
 }
@@ -418,7 +418,7 @@ export async function convertMediaFile(file: File, target: string, options: Conv
   else if (target === 'gif' && timing) result = { files: [{ name: `${title}.gif`, blob: new Blob(pages.map(page => page.image!), { type: 'image/gif' }) }], warnings: [] };
   else if (imageTarget) result = { files: pages.map((page, index) => ({ name: mediaPageName(title, target, index, pages.length), blob: page.image! })), warnings: [] };
   else if (layout) result = await buildMediaLayoutResult(pages, target, title, options);
-  else if (target === 'pdf') result = await buildEditableMediaPdf(pages, title, originalPdf, ocrPages, options);
+  else if (target === 'pdf') result = await buildSearchableMediaPdf(pages, title, originalPdf, ocrPages, options);
   else result = await buildMediaTextResult(pages, target, title);
   checkConversionAbort(options);
   return { ...result, warnings: [...new Set([...warnings, ...result.warnings])] };
@@ -453,7 +453,7 @@ export async function applyOcr(page: MediaPage, options: ConversionOptions, warn
   const recognized = await recognizeImage(page.image!, options);
   const scaleX = page.width / recognized.width;
   const scaleY = page.height / recognized.height;
-  page.lines = recognized.lines.flatMap((line) => line.words?.length ? line.words : [line]).map((line) => ({ text: line.text, x: line.bbox.x0 * scaleX, y: line.bbox.y0 * scaleY, width: (line.bbox.x1 - line.bbox.x0) * scaleX, height: (line.bbox.y1 - line.bbox.y0) * scaleY }));
+  page.lines = recognized.lines.flatMap((line) => line.words?.length ? line.words : [line]).map((line) => ({ text: cleanPdfText(line.text), x: line.bbox.x0 * scaleX, y: line.bbox.y0 * scaleY, width: (line.bbox.x1 - line.bbox.x0) * scaleX, height: (line.bbox.y1 - line.bbox.y0) * scaleY, confidence: line.confidence })).filter((line) => line.text.trim());
   addOcrWarnings(recognized, warnings);
 }
 
@@ -490,7 +490,12 @@ async function finishEditableSlide(canvas: HTMLCanvasElement, width: number, hei
     context.font = `${bold ? 'bold ' : ''}${fontPx}px Arial, Helvetica, sans-serif`;
     return context.measureText(text).width;
   };
-  const lines = paintAndErase({ data: pixels.data, width: pixels.width, height: pixels.height }, segments, measure);
+  const extent = (text: string, bold: boolean) => {
+    context.font = `${bold ? 'bold ' : ''}100px Arial, Helvetica, sans-serif`;
+    const box = context.measureText(text);
+    return Number.isFinite(box.actualBoundingBoxAscent) ? { ascent: box.actualBoundingBoxAscent / 100, descent: box.actualBoundingBoxDescent / 100 } : null;
+  };
+  const lines = paintAndErase({ data: pixels.data, width: pixels.width, height: pixels.height }, segments, measure, extent);
   context.putImageData(pixels, 0, 0);
   return { width, height, scale, background: await slideBackground(canvas), lines };
 }
@@ -520,34 +525,14 @@ async function buildEditableSlidesResult(slides: EditableSlide[], title: string)
   return { files: [{ name: `${title}.pptx`, blob }], warnings };
 }
 
-async function buildEditableMediaPdf(pages: MediaPage[], title: string, originalPdf: ArrayBuffer | undefined, ocrPages: Set<number>, options: ConversionOptions): Promise<ConversionResult> {
-  const editableIndices = originalPdf ? [...ocrPages] : pages.flatMap((page, index) => page.lines.length ? [index] : []);
-  if (editableIndices.length) {
-    const { prepareEditablePdfPage } = await import('./pdfEditableOcr');
-    const { buildEditablePdf } = await import('./pdfOcrDocument');
-    const inputs = [];
-    const warnings = ['Đã tạo chữ PDF chỉnh sửa được. Nền trang và bố cục được giữ; phông chữ tái tạo có thể khác bản scan.'];
-    const indices = originalPdf ? editableIndices : pages.map((_, index) => index);
-    for (const index of indices) {
-      checkConversionAbort(options);
-      if (!originalPdf && !pages[index].lines.length) {
-        const { width, height, image } = pages[index];
-        inputs.push({ pageIndex: index, width, height, lines: [], background: new Uint8Array(await image!.arrayBuffer()) });
-        continue;
-      }
-      const result = await prepareEditablePdfPage(pages[index], index, options);
-      if (result.page.lines.length || !originalPdf) inputs.push(result.page);
-      warnings.push(...result.warnings);
-    }
-    if (!inputs.length && originalPdf) return { files: [{ name: `${title}.pdf`, blob: new Blob([originalPdf], { type: 'application/pdf' }) }], warnings: ['Không nhận dạng được vùng chữ để chỉnh sửa. Tệp gốc được giữ nguyên.'] };
-    if (!inputs.length) throw new Error('Không nhận dạng được vùng chữ để chỉnh sửa. Tệp gốc được giữ nguyên.');
-    const bytes = await buildEditablePdf(originalPdf, inputs);
-    checkConversionAbort(options);
-    if (originalPdf) warnings.push('Việc lưu lại PDF có thể làm mất hiệu lực chữ ký số.');
-    return { files: [{ name: `${title}.pdf`, blob: new Blob([bytes as BlobPart], { type: 'application/pdf' }) }], warnings };
-  }
+async function buildSearchableMediaPdf(pages: MediaPage[], title: string, originalPdf: ArrayBuffer | undefined, ocrPages: Set<number>, options: ConversionOptions): Promise<ConversionResult> {
+  const layerNote = 'Ảnh từng trang được giữ nguyên. Chữ nhận dạng nằm ở lớp ẩn để tìm kiếm và sao chép.';
   if (originalPdf) {
-    return { files: [{ name: `${title}.pdf`, blob: new Blob([originalPdf], { type: 'application/pdf' }) }], warnings: [] };
+    const layers = [...ocrPages].filter((index) => pages[index].lines.length && pages[index].transform).map((index) => ({ pageIndex: index, transform: pages[index].transform!, lines: pages[index].lines }));
+    if (!layers.length) return { files: [{ name: `${title}.pdf`, blob: new Blob([originalPdf], { type: 'application/pdf' }) }], warnings: [] };
+    const bytes = await (await import('./pdfSearchableLayer')).addSearchableLayer(originalPdf, layers);
+    checkConversionAbort(options);
+    return { files: [{ name: `${title}.pdf`, blob: new Blob([bytes as BlobPart], { type: 'application/pdf' }) }], warnings: [layerNote] };
   }
   const { buildPdf } = await import('./docPageFormats');
   const { basePage } = await import('./storage');
@@ -558,5 +543,5 @@ async function buildEditableMediaPdf(pages: MediaPage[], title: string, original
     runs: pages.flatMap((page, index) => page.lines.map((line) => ({ page: index, text: line.text, x: line.x / 0.75, y: line.y / 0.75, w: line.width / 0.75, h: line.height / 0.75 }))),
     links: [],
   });
-  return { files: [{ name: `${title}.pdf`, blob }], warnings: pages.some((page) => page.lines.length) ? [] : ['PDF chỉ chứa ảnh; không có lớp chữ tìm kiếm.'] };
+  return { files: [{ name: `${title}.pdf`, blob }], warnings: [pages.some((page) => page.lines.length) ? layerNote : 'PDF chỉ chứa ảnh; không có lớp chữ tìm kiếm.'] };
 }

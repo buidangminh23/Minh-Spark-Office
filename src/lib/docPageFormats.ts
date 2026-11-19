@@ -25,6 +25,8 @@ export async function buildPdf(input: { pages: PageImage[]; runs: TextRun[]; lin
   pdf.setLanguage(input.page.language ?? 'vi');
   if (properties?.subject) pdf.setSubject(properties.subject);
   if (properties?.keywords) pdf.setKeywords(properties.keywords.split(/[,;]/).map((word) => word.trim()).filter(Boolean));
+  const glyphs = font ? new Set(font.getCharacterSet()) : null;
+  const printable = (text: string) => [...text].map((character) => glyphs!.has(character.codePointAt(0)!) ? character : /\s/u.test(character) ? ' ' : '').join('');
   for (const [index, image] of input.pages.entries()) {
     const width = image.cssWidth * PT_PER_PX;
     const height = image.cssHeight * PT_PER_PX;
@@ -35,9 +37,10 @@ export async function buildPdf(input: { pages: PageImage[]; runs: TextRun[]; lin
     if (font) {
       const key = page.node.newFontDictionary(font.name, font.ref);
       for (const run of input.runs) {
-        if (run.page !== index || !run.text.trim()) continue;
+        const text = printable(run.text);
+        if (run.page !== index || !text.trim()) continue;
         const size = run.h * PT_PER_PX * FONT_SIZE_RATIO;
-        const natural = font.widthOfTextAtSize(run.text, size);
+        const natural = font.widthOfTextAtSize(text, size);
         const squeeze = natural > 0 ? Math.min(SQUEEZE_MAX, Math.max(SQUEEZE_MIN, ((run.w * PT_PER_PX) / natural) * 100)) : 100;
         const baseline = height - (run.y + run.h * BASELINE_RATIO) * PT_PER_PX;
         page.pushOperators(
@@ -47,7 +50,7 @@ export async function buildPdf(input: { pages: PageImage[]; runs: TextRun[]; lin
           lib.setTextRenderingMode(lib.TextRenderingMode.Invisible),
           lib.setCharacterSqueeze(squeeze),
           lib.setTextMatrix(1, 0, 0, 1, run.x * PT_PER_PX, baseline),
-          lib.showText(font.encodeText(run.text)),
+          lib.showText(font.encodeText(text)),
           lib.endText(),
           lib.popGraphicsState(),
         );

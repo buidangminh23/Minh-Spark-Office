@@ -8,7 +8,7 @@ export function imageSourceFormat(fileName: string) {
   return fileName.split('.').pop()!.toLowerCase().replace(/^(?:jpeg|jfif|jpe)$/, 'jpg').replace(/^tif$/, 'tiff');
 }
 const TARGETS: Record<string, ConversionTarget> = {
-  pdf: { id: 'pdf', label: 'PDF (.pdf)', description: 'Giữ nền và bố cục; OCR tạo chữ PDF chỉnh sửa được khi được bật.' },
+  pdf: { id: 'pdf', label: 'PDF (.pdf)', description: 'Giữ nguyên ảnh từng trang; OCR thêm lớp chữ ẩn để tìm kiếm và sao chép.' },
   docx: { id: 'docx', label: 'Word (.docx)', description: 'Giữ bố cục bằng ảnh trang, hoặc lấy chữ/OCR để chỉnh sửa.' },
   xlsx: { id: 'xlsx', label: 'Excel (.xlsx)', description: 'Giữ ảnh từng trang và tách giá trị vào các trang tính có thể sửa, hoặc chỉ xuất dữ liệu.' },
   pptx: { id: 'pptx', label: 'PowerPoint (.pptx)', description: 'Giữ bố cục: mỗi trang thành ảnh slide. Chỉnh sửa: giữ nền trang, chữ đặt đúng chỗ và sửa được.' },
