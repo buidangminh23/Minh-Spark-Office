@@ -1,9 +1,11 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::borrow::Cow;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use tauri::webview::{Color, NewWindowFeatures, NewWindowResponse};
 use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindowBuilder, Wry};
+#[cfg(any(target_os = "macos", test))]
+mod bundle_name;
 mod close_guard;
 mod desktop_auth;
 mod native_print;
@@ -24,6 +26,7 @@ fn open_web_app() -> Result<(), String> {
 const DESKTOP_MARKER_SCRIPT: &str = "(()=>{const mark=()=>{const root=document.documentElement;if(!root)return false;root.classList.add('ms-desktop');return true};if(!mark())new MutationObserver((_,observer)=>{if(mark())observer.disconnect()}).observe(document,{childList:true})})()";
 
 static APP_WINDOW_COUNT: AtomicUsize = AtomicUsize::new(0);
+static RESTARTING: AtomicBool = AtomicBool::new(false);
 
 fn correct_asset_content_type(
     request: tauri::http::Request<Vec<u8>>,
@@ -210,6 +213,13 @@ fn main() {
                 {
                     api.prevent_exit();
                     close_guard::request(app);
+                }
+                tauri::RunEvent::ExitRequested { code, .. } => {
+                    RESTARTING.store(*code == Some(tauri::RESTART_EXIT_CODE), Ordering::SeqCst);
+                }
+                #[cfg(target_os = "macos")]
+                tauri::RunEvent::Exit if !RESTARTING.load(Ordering::SeqCst) => {
+                    bundle_name::rename_legacy_bundle();
                 }
                 _ => {}
             }
