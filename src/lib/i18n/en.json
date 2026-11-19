@@ -9586,5 +9586,8 @@
  "Không có lời mời nào của bạn còn hiệu lực để gửi.": "None of your invitations are still valid to send.",
  "Dịch vụ gửi thư đang lỗi.": "The email service is having problems.",
  "Đăng mẫu và tài liệu chung, sửa mẫu do mình đăng.": "Publish templates and shared documents, edit templates they published.",
- "Tải mẫu về máy, mở và sửa chung mọi tài liệu chung.": "Download templates, open and co-edit every shared document."
+ "Tải mẫu về máy, mở và sửa chung mọi tài liệu chung.": "Download templates, open and co-edit every shared document.",
+ "Mẫu không sửa chung được.": "Templates can't be co-edited.",
+ "Mọi người chỉ tải bản riêng về máy, thay đổi của ai người nấy thấy. Muốn cả nhóm sửa cùng lúc, hãy đưa vào Tài liệu chung.": "Everyone downloads a private copy and only sees their own changes. To edit together, put it in Shared documents.",
+ "Đưa vào Tài liệu chung": "Put it in Shared documents"
 }

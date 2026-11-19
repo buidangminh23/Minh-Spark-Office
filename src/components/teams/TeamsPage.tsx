@@ -46,7 +46,7 @@ export function TeamsPage({ files, inviteToken, onInviteDone, onCreateFromConten
   const memberships = useMemberships(store);
   const myInvites = useMyInvites(store);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>('templates');
+  const [tab, setTab] = useState<Tab>('documents');
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState(false);
   const [switcher, setSwitcher] = useState(false);
@@ -63,7 +63,7 @@ export function TeamsPage({ files, inviteToken, onInviteDone, onCreateFromConten
     if (store && current && me) void store.syncProfile(current.team.id, me).catch(() => undefined);
   }, [store, current, me]);
 
-  useEffect(() => { if (tab === 'settings' && !role) setTab('templates'); }, [tab, role]);
+  useEffect(() => { if (tab === 'settings' && !role) setTab('documents'); }, [tab, role]);
 
   const [publishFileId, setPublishFileId] = useState<string | null>(null);
   const shareCallbacks = useRef({ ui, onShareHandled });
@@ -120,7 +120,7 @@ export function TeamsPage({ files, inviteToken, onInviteDone, onCreateFromConten
 
   const joined = (teamId: string) => {
     select(teamId);
-    setTab('templates');
+    setTab('documents');
     onInviteDone();
     ui.toast('Đã tham gia nhóm.');
   };
@@ -191,8 +191,8 @@ export function TeamsPage({ files, inviteToken, onInviteDone, onCreateFromConten
 
           <nav className="tm-tabs" role="tablist" aria-label="Khu vực của nhóm">
             {([
-              ['templates', 'Mẫu chung', <FileStack key="t" size={18} />],
               ['documents', 'Tài liệu chung', <Files key="d" size={18} />],
+              ['templates', 'Mẫu chung', <FileStack key="t" size={18} />],
               ['members', 'Thành viên', <Users key="m" size={18} />],
               ['settings', 'Cài đặt nhóm', <Settings2 key="s" size={18} />],
             ] as Array<[Tab, string, React.ReactNode]>).map(([value, label, icon]) => (
@@ -219,7 +219,7 @@ export function TeamsPage({ files, inviteToken, onInviteDone, onCreateFromConten
             />
           )}
           {store && tab === 'members' && <TeamMembers store={store} team={current.team} role={current.role} members={data.members.data} invites={data.invites.data} loading={data.members.loading} />}
-          {store && tab === 'settings' && <TeamSettings key={current.team.id + current.team.updatedAt} store={store} team={current.team} role={current.role} members={data.members.data} onLeft={() => { setSelectedId(null); setTab('templates'); }} />}
+          {store && tab === 'settings' && <TeamSettings key={current.team.id + current.team.updatedAt} store={store} team={current.team} role={current.role} members={data.members.data} onLeft={() => { setSelectedId(null); setTab('documents'); }} />}
         </>
       )}
 

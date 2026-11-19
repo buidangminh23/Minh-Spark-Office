@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Search } from 'lucide-react';
+import { Search, Users } from 'lucide-react';
 import { SuiteLogo } from '../SuiteLogo';
 import { useWorkspace, type FileMeta } from '../../lib/storage';
 import { relativeTime } from '../../lib/download';
@@ -9,7 +9,7 @@ import { TmButton, TmField, TmModal } from './TeamParts';
 
 const stripExtension = (name: string) => name.replace(/\.(docx?|xlsx|xlsm|xls|csv|pptx?|pdf|md|txt|html?)$/i, '');
 
-export function PublishDialog({ store, teamId, type, files, categories, replacing, initialFileId = null, onClose, onDone }: {
+export function PublishDialog({ store, teamId, type: initialType, files, categories, replacing, initialFileId = null, onClose, onDone }: {
   store: TeamStore;
   initialFileId?: string | null;
   teamId: string;
@@ -21,6 +21,7 @@ export function PublishDialog({ store, teamId, type, files, categories, replacin
   onDone: (message: string) => void;
 }) {
   const workspace = useWorkspace();
+  const [type, setType] = useState<TeamItemType>(initialType);
   const candidates = useMemo(() => files
     .filter((file) => !file.deletedAt && ((type === 'document' ? LIVE_ITEM_KINDS : TEAM_ITEM_KINDS) as string[]).includes(file.kind) && (!replacing || file.kind === replacing.kind))
     .sort((a, b) => b.updatedAt - a.updatedAt), [files, replacing, type]);
@@ -75,6 +76,12 @@ export function PublishDialog({ store, teamId, type, files, categories, replacin
         </>
       )}
     >
+      {type === 'template' && !replacing && (
+        <div className="tm-publish-warning" role="note">
+          <p><strong>Mẫu không sửa chung được.</strong> Mọi người chỉ tải bản riêng về máy, thay đổi của ai người nấy thấy. Muốn cả nhóm sửa cùng lúc, hãy đưa vào Tài liệu chung.</p>
+          {(!selected || (LIVE_ITEM_KINDS as string[]).includes(selected.kind)) && <TmButton icon={<Users size={16} aria-hidden="true" />} disabled={busy} onClick={() => setType('document')}>Đưa vào Tài liệu chung</TmButton>}
+        </div>
+      )}
       <div className="tm-publish">
         <div className="tm-publish-files">
           <span className="tm-field-label" id="tm-publish-files-label">Tài liệu của bạn</span>
