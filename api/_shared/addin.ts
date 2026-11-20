@@ -1,5 +1,5 @@
 export type AddinProvider = 'claude' | 'chatgpt';
-export type AddinApp = 'doc' | 'sheet' | 'pdf';
+export type AddinApp = 'doc' | 'sheet' | 'pdf' | 'slide';
 export type AddinTurn = { role: 'user' | 'assistant'; content: string };
 export type AddinPdf = { name: string; base64: string };
 export type AddinContext = { label: string; text: string; pdf?: AddinPdf };
@@ -19,11 +19,13 @@ const APP_DESCRIPTION: Record<AddinApp, string> = {
   doc: '23 Docs, a word processor. The context is the selected passage or the whole document.',
   sheet: '23 Sheets, a spreadsheet. The context lists the active sheet, the selected range with its address, and the sheet data as tab-separated rows with A1 addresses.',
   pdf: '23 PDF, a PDF viewer. The PDF file itself is attached when available, followed by any notes.',
+  slide: '23 Slides, a presentation editor. The context is an optional source document for the deck.',
 };
 const APP_OUTPUT: Record<AddinApp, string> = {
   doc: 'When the user asks you to write, rewrite, translate or summarize content that belongs in the document, reply with that content only, formatted in simple Markdown (headings, lists, bold, tables), so it can be inserted as is.',
   sheet: 'When the user asks for data, a table or values to put into cells, reply with a Markdown table only, without extra prose. Write numbers in cells without thousands separators and with "." as the decimal point. When the user asks for a formula, reply with the formula on its own line starting with "=", using English function names and A1 references, then one short sentence explaining it.',
   pdf: 'Quote page numbers when you refer to specific parts of the PDF.',
+  slide: 'When the user asks for a deck plan, reply with the requested JSON only, without Markdown fences or prose.',
 };
 
 export function systemPrompt(provider: AddinProvider, app: AddinApp, documentName: string) {
@@ -55,7 +57,7 @@ export function validateRequest(value: unknown, pdfLimit = MAX_SERVER_PDF_BASE64
   if (!isRecord(value)) return { ok: false, error: 'Yêu cầu không hợp lệ.' };
   const { provider, app, documentName, turns, context } = value;
   if (provider !== 'claude' && provider !== 'chatgpt') return { ok: false, error: 'Add-in không hợp lệ.' };
-  if (app !== 'doc' && app !== 'sheet' && app !== 'pdf') return { ok: false, error: 'Ứng dụng không hợp lệ.' };
+  if (app !== 'doc' && app !== 'sheet' && app !== 'pdf' && app !== 'slide') return { ok: false, error: 'Ứng dụng không hợp lệ.' };
   if (typeof documentName !== 'string') return { ok: false, error: 'Thiếu tên tệp.' };
   if (!Array.isArray(turns) || turns.length === 0 || turns.length > MAX_TURNS) return { ok: false, error: 'Cuộc trò chuyện quá dài, hãy bấm Cuộc trò chuyện mới.' };
   const cleanTurns: AddinTurn[] = [];

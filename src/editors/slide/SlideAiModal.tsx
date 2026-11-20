@@ -11,12 +11,14 @@ import {
   Send,
   Zap,
   Lightbulb,
+  LayoutTemplate,
 } from 'lucide-react';
+import { SlidePptMasterPanel } from './SlidePptMasterPanel';
 import type { SlideData, SlideElement, SlideBackground, SlideLayout } from '../../lib/slideTypes';
 import { SLIDE_THEMES } from '../../lib/slideThemes';
 import { createSlideFromLayout } from '../../lib/slideTemplates';
 
-type AiModalTab = 'topic' | 'text-to-deck' | 'chat-edit' | 'translate';
+type AiModalTab = 'ppt-master' | 'topic' | 'text-to-deck' | 'chat-edit' | 'translate';
 
 interface SlideAiModalProps {
   isOpen: boolean;
@@ -98,7 +100,7 @@ export function SlideAiModal({
   onApplyTheme,
   onUpdatePresentationSlides,
 }: SlideAiModalProps) {
-  const [activeTab, setActiveTab] = useState<AiModalTab>('topic');
+  const [activeTab, setActiveTab] = useState<AiModalTab>('ppt-master');
 
   // Tab 1: Topic Deck Generator State
   const [prompt, setPrompt] = useState('');
@@ -438,7 +440,7 @@ export function SlideAiModal({
         <div className="ppt-dialog-header" style={{ background: 'linear-gradient(135deg, #312E81 0%, #4338CA 100%)', color: '#FFFFFF' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Sparkles size={20} color="#FBBF24" />
-            <span style={{ fontWeight: 700, fontSize: '17px' }}>AI Presentation Copilot · Trợ Lý Toàn Năng (100% Offline)</span>
+            <span style={{ fontWeight: 700, fontSize: '17px' }}>AI Presentation Copilot · PPT Master</span>
           </div>
           <button className="ppt-dialog-close-btn" style={{ color: '#FFFFFF' }} onClick={onClose}>
             <X size={16} />
@@ -447,6 +449,13 @@ export function SlideAiModal({
 
         {/* 4 Tabs Bar */}
         <div className="ppt-ai-tab-strip">
+          <button
+            className={`ppt-ai-tab-btn ${activeTab === 'ppt-master' ? 'is-active' : ''}`}
+            onClick={() => setActiveTab('ppt-master')}
+          >
+            <LayoutTemplate size={16} />
+            <span>PPT Master</span>
+          </button>
           <button
             className={`ppt-ai-tab-btn ${activeTab === 'topic' ? 'is-active' : ''}`}
             onClick={() => setActiveTab('topic')}
@@ -477,6 +486,9 @@ export function SlideAiModal({
           </button>
         </div>
 
+        {activeTab === 'ppt-master' ? (
+          <SlidePptMasterPanel onClose={onClose} onApply={(deck) => onApplyGeneratedDeck(deck, currentThemeId)} />
+        ) : (<>
         {/* Body Container */}
         <div className="ppt-dialog-body" style={{ minHeight: '360px' }}>
           {/* TAB 1: TOPIC DECK GENERATOR */}
@@ -751,6 +763,7 @@ export function SlideAiModal({
             </button>
           )}
         </div>
+        </>)}
       </div>
     </div>
   );
