@@ -5,7 +5,7 @@ import { getVersion } from '@tauri-apps/api/app';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { isDesktop } from '../lib/desktop';
 import { saveActiveDocumentForExit } from '../lib/documentCloser';
-import { installAfterDocumentSave, withTimeout } from '../lib/desktopClose';
+import { installAfterDocumentSave, relaunchesAfterInstall, withTimeout } from '../lib/desktopClose';
 import { acquireWorkspaceExit } from '../lib/workspaceLifecycle';
 import { clearDockProgress, requestDockAttention, showDockProgress } from '../lib/desktopProgress';
 import { UpdateProgressRing, type RingMode } from './UpdateProgressRing';
@@ -172,7 +172,7 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
       save: saveActiveDocumentForExit,
       install: async () => {
         await selectedUpdate.install({ restartAfterInstall: true });
-        if (/Mac/.test(navigator.platform)) await relaunch();
+        if (relaunchesAfterInstall(navigator.platform)) await relaunch();
       },
     });
     if (result !== 'installing') {

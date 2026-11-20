@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import 'fake-indexeddb/auto';
-import { createDesktopCloseHandler, installAfterDocumentSave } from '../src/lib/desktopClose.ts';
+import { createDesktopCloseHandler, installAfterDocumentSave, relaunchesAfterInstall } from '../src/lib/desktopClose.ts';
 import { createDocumentCloseRegistry } from '../src/lib/documentCloser.ts';
 import { acquireWorkspaceExit, createWorkspaceLifecycle, trackWorkspaceOperation } from '../src/lib/workspaceLifecycle.ts';
 import { createDesktopFileQueue } from '../src/lib/desktopFileQueue.ts';
@@ -311,4 +311,10 @@ test('overlapping image operations keep exit blocked until every earlier write c
   assert.deepEqual(replies, [false, false, true]);
   assert.equal(durableImage, 'final image');
   assert.equal(lifecycle.isBlocked(), true);
+});
+
+test('the app relaunches itself after an update everywhere except Windows, whose installer restarts it', () => {
+  assert.equal(relaunchesAfterInstall('Linux x86_64'), true);
+  assert.equal(relaunchesAfterInstall('MacIntel'), true);
+  assert.equal(relaunchesAfterInstall('Win32'), false);
 });

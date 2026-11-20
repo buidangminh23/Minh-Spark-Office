@@ -2,6 +2,8 @@ import type { WorkspaceExitLease } from './workspaceLifecycle';
 
 export const EXIT_SAVE_TIMEOUT_MS = 30_000;
 
+export const relaunchesAfterInstall = (platform: string) => !/Win/i.test(platform);
+
 export function withTimeout<T>(work: Promise<T>, ms: number, fallback: T): Promise<T> {
   return new Promise((resolve) => {
     const timer = setTimeout(() => resolve(fallback), ms);
