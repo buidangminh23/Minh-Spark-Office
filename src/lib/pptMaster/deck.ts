@@ -128,6 +128,14 @@ const list = (value: unknown, limit = MAX_LIST) => (Array.isArray(value) ? value
 const record = (value: unknown): Record<string, unknown> | null => (value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null);
 const optional = (value: string) => value || undefined;
 
+export function toNumber(value: unknown) {
+  if (typeof value === 'number') return value;
+  const raw = String(value ?? '').replace(/\s/g, '');
+  if (/^-?\d+,\d+$/.test(raw)) return Number(raw.replace(',', '.'));
+  if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(raw)) return Number(raw.replace(/\./g, '').replace(',', '.'));
+  return Number(raw.replace(/,/g, '').replace(/[^\d.-]/g, ''));
+}
+
 function parseItems(value: unknown): DeckItem[] | undefined {
   if (!Array.isArray(value)) return undefined;
   const items = value.map(record).filter(Boolean).map((item) => ({ label: text(item!.label, 120), detail: optional(text(item!.detail, 300)), value: optional(text(item!.value, 24)) })).filter((item) => item.label || item.value).slice(0, MAX_LIST);
@@ -148,7 +156,7 @@ function parseChart(value: unknown): DeckChart | undefined {
   const categories = list(chart.categories, MAX_CATEGORIES);
   const series = (Array.isArray(chart.series) ? chart.series : []).map(record).filter(Boolean).slice(0, MAX_SERIES).map((entry) => ({
     name: text(entry!.name, 60) || 'Dữ liệu',
-    values: (Array.isArray(entry!.values) ? entry!.values : []).slice(0, categories.length).map((v) => (typeof v === 'number' ? v : Number(String(v).replace(/[^\d.-]/g, '')))).map((v) => (Number.isFinite(v) ? v : 0)),
+    values: (Array.isArray(entry!.values) ? entry!.values : []).slice(0, categories.length).map(toNumber).map((v) => (Number.isFinite(v) ? v : 0)),
   })).filter((entry) => entry.values.length === categories.length && entry.values.length > 0);
   if (!categories.length || !series.length) return undefined;
   return { type, categories, series, unit: optional(text(chart.unit, 20)) };
