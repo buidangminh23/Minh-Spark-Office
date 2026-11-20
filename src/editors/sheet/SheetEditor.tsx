@@ -3,7 +3,7 @@ import { SheetPrintDialog } from './SheetPrintDialog';
 import { saveAccountSnapshot } from '../../lib/accountSnapshots';
 import { useAccount } from '../../components/Authentication';
 import { useWorkspace } from '../../lib/storage';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { TipsPanel, TipsRibbonButton } from '../../components/tips/TipsPane';
 import { FeatureMenu, type FeatureItem } from '../../components/FeatureMenu';
 import { currentAuthorName } from '../../lib/currentAuthor';
@@ -256,6 +256,7 @@ import {
   PencilRuler,
   ChevronUp,
   ChevronDown,
+  Stamp,
 } from 'lucide-react';
 
 import {
@@ -402,6 +403,8 @@ import {
 } from './SheetBizModals';
 import { nextFontSize, SHEET_FONT_SIZES } from '../../lib/fontSizeStep';
 import ComboBox from '../../components/ComboBox';
+import WatermarkDialog from '../../components/WatermarkDialog';
+import { normalizeWatermark, watermarkCss } from '../../lib/watermark';
 import { useSheetLive, type SheetLiveBinding } from './useSheetLive';
 import { isShareableFileId, requestTeamShare } from '../../lib/teamShare';
 
@@ -806,6 +809,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live, start
   const [replyText, setReplyText] = useState('');
   const [replyingCommentId, setReplyingCommentId] = useState<string | null>(null);
 
+  const [watermarkOpen, setWatermarkOpen] = useState(false);
   const [printSettings, setPrintSettings] = useState<SheetPrintSettings>(
     () => content.printSettings ?? DEFAULT_PRINT_SETTINGS
   );
@@ -4333,6 +4337,8 @@ export default function SheetEditor({ meta, content, onSave, onBack, live, start
     setSavedStatus('saving');
   };
 
+  const sheetWatermark = normalizeWatermark(printSettings.watermark);
+
   const updatePrintSettings = (patch: Partial<SheetPrintSettings>) => {
     const { pageBreaks: _pageBreaks, signedBy: _signedBy, signedRole: _signedRole, signedAt: _signedAt, ...recorded } = patch;
     if (Object.keys(recorded).length) recordAppStep('printSetting', recorded);
@@ -6173,6 +6179,10 @@ export default function SheetEditor({ meta, content, onSave, onBack, live, start
                       <X size={20} color="#dc2626" />
                       <span>Xoá vùng in</span>
                     </button>
+                    <button className="ribbon-btn-large" onClick={() => setWatermarkOpen(true)} title="Chèn chữ hoặc ảnh mờ lên mọi trang in và tệp Excel xuất ra">
+                      <Stamp size={20} color="#7c3aed" />
+                      <span>Hình mờ</span>
+                    </button>
                     <button className="ribbon-btn-large" onClick={() => handlePageBreak('toggle')} title="Chèn hoặc bỏ ngắt trang thủ công phía trên hàng đang chọn">
                       <SeparatorHorizontal size={20} color="#7c3aed" />
                       <span>Ngắt trang ({activePageBreakCount})</span>
@@ -7196,6 +7206,13 @@ export default function SheetEditor({ meta, content, onSave, onBack, live, start
         />
         <FormButtonLayer buttons={activeFormButtons} images={formImages} container={containerRef} getSheet={getFormButtonSheet} onRun={runFormButton} />
         {showHorizontalScroll && <SheetScrollBar container={containerRef} getSheet={getScrollBarSheet} scrollBy={scrollSheetBy} />}
+        {sheetWatermark && (
+          <div className="sheet-watermark-layer" aria-hidden>
+            {sheetWatermark.kind === 'image'
+              ? <img src={sheetWatermark.image} alt="" style={watermarkCss(sheetWatermark) as CSSProperties} />
+              : <span style={watermarkCss(sheetWatermark) as CSSProperties}>{sheetWatermark.text}</span>}
+          </div>
+        )}
         {parity.overlay}
 
         <TipsPanel app="sheet" />
@@ -7710,6 +7727,21 @@ export default function SheetEditor({ meta, content, onSave, onBack, live, start
           onSaveSettings={(next) => updatePrintSettings(next)}
           onDownloadHtml={handleDownloadPrintHtml}
           onClose={() => setModal(null)}
+        />
+      )}
+
+      {watermarkOpen && (
+        <WatermarkDialog
+          title="Hình mờ bảng tính"
+          initial={sheetWatermark}
+          aspect={printSettings.orientation === 'landscape' ? 'landscape' : 'portrait'}
+          note="Hình mờ hiện trên bảng tính, mọi trang in và tệp Excel tải về (Excel hiện ở chế độ Bố trí trang)."
+          onApply={(spec) => {
+            updatePrintSettings({ watermark: spec ?? undefined });
+            ui.toast(spec ? 'Đã đặt hình mờ cho bảng tính' : 'Đã xoá hình mờ');
+          }}
+          onClose={() => setWatermarkOpen(false)}
+          onError={(message) => ui.toast(message, true)}
         />
       )}
 

@@ -7,6 +7,7 @@ import type { FormButtonMap, FormImageMap } from './formButtons';
 import type { PresentationData } from './slideTypes';
 import { PAPER_KEYS, paperLabel, paperPx, type PaperKey } from './paperSizes';
 import { validateCloudMeta, validateCloudPayload } from './cloudCodec';
+import type { WatermarkSpec } from './watermark';
 
 export type FileKind = 'doc' | 'sheet' | 'pdf' | 'slide' | 'image';
 
@@ -145,6 +146,7 @@ export type SheetPrintSettings = {
   header?: SheetHeaderFooter;
   footer?: SheetHeaderFooter;
   backgrounds?: Record<string, string>;
+  watermark?: WatermarkSpec;
 };
 
 export type SheetHeaderFooter = { left: string; center: string; right: string };

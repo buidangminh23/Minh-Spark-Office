@@ -48,6 +48,7 @@ import { latexToMath as fallbackLatexToMath } from './docxMath';
 import { expandChemistry } from './chemLatex';
 import { normalizePresentation } from '../editors/doc/equationStyle';
 import { blockLabel, type BlockKind } from '../editors/doc/mailMerge';
+import { docWatermarkSpec, injectDocxWatermark } from './watermarkDocx';
 
 const TWIP = 15;
 const ALIGN: Record<string, (typeof AlignmentType)[keyof typeof AlignmentType]> = {
@@ -656,7 +657,13 @@ export async function exportDocx(json: JSONContent, page: PageSettings, title: s
       children: body.children.length ? body.children : [new Paragraph({ children: [] })],
     })),
   });
-  return Packer.toBlob(document);
+  const blob = await Packer.toBlob(document);
+  const watermark = docWatermarkSpec(page);
+  if (!watermark) return blob;
+  const JSZip = (await import('jszip')).default;
+  const zip = await JSZip.loadAsync(await blob.arrayBuffer());
+  if (!(await injectDocxWatermark(zip, watermark, contentWidth))) return blob;
+  return zip.generateAsync({ type: 'blob', mimeType: blob.type || 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', compression: 'DEFLATE' });
 }
 
 export async function importDocx(buffer: ArrayBuffer): Promise<string> {

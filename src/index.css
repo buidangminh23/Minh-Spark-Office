@@ -1523,6 +1523,14 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   position: relative;
 }
 
+.sheet-watermark-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 4;
+}
+
 .sheet-container {
   flex: 1;
   width: 100%;

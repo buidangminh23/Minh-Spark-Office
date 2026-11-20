@@ -123,3 +123,46 @@ export function watermarkCss(spec: WatermarkSpec, scale = 1): Record<string, str
     color: `#${watermarkColorHex(spec.color)}`,
   };
 }
+
+export type SlideWatermark = {
+  text: string;
+  enabled: boolean;
+  opacity?: number;
+  kind?: 'text' | 'image';
+  image?: string;
+  color?: string;
+  size?: number;
+  font?: string;
+  layout?: WatermarkLayout;
+};
+
+const SLIDE_LEGACY = { color: '#64748B', size: 48, font: 'Segoe UI', opacity: 0.15 };
+
+export function slideWatermarkSpec(mark: SlideWatermark | null | undefined): WatermarkSpec | null {
+  if (!mark?.enabled) return null;
+  return normalizeWatermark({
+    kind: mark.kind ?? 'text',
+    text: mark.text,
+    image: mark.image,
+    color: mark.color ?? SLIDE_LEGACY.color,
+    size: mark.size ?? SLIDE_LEGACY.size,
+    font: mark.font ?? SLIDE_LEGACY.font,
+    layout: mark.layout ?? 'diagonal',
+    opacity: mark.opacity ?? SLIDE_LEGACY.opacity,
+  });
+}
+
+export function toSlideWatermark(spec: WatermarkSpec | null, previous?: SlideWatermark): SlideWatermark {
+  if (!spec) return { ...(previous ?? { text: '' }), enabled: false };
+  return {
+    enabled: true,
+    kind: spec.kind,
+    text: spec.text ?? '',
+    image: spec.image,
+    color: spec.color,
+    size: spec.size,
+    font: spec.font,
+    layout: spec.layout,
+    opacity: spec.opacity,
+  };
+}

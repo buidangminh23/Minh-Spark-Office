@@ -92,6 +92,8 @@ import { useSlideExtrasController } from './useSlideExtrasController';
 import { SlideDialogHost, useShowSession } from './SlideExtrasHost';
 import { AccessibilityPane, CommentsPane, NotesPageView, OutlinePanel, SelectionPane } from './SlideExtraPanes';
 import { masterForSlide } from '../../lib/slideHeaderFooter';
+import WatermarkDialog from '../../components/WatermarkDialog';
+import { slideWatermarkSpec, toSlideWatermark, type WatermarkSpec } from '../../lib/watermark';
 
 
 const exportToPptx = async (...args: Parameters<typeof import('../../lib/pptxExport').exportToPptx>) =>
@@ -211,9 +213,6 @@ export default function SlideEditor({
   const [isSheetsLinkOpen, setIsSheetsLinkOpen] = useState(false);
   const [isCustomShowsOpen, setIsCustomShowsOpen] = useState(false);
   const [customShowSlideIds, setCustomShowSlideIds] = useState<string[] | null>(null);
-  const [watermarkText, setWatermarkText] = useState(presentation.watermark?.text || 'BẢN QUYỀN - MINH SPARK');
-  const [watermarkEnabled, setWatermarkEnabled] = useState(presentation.watermark?.enabled ?? false);
-  const [watermarkOpacity, setWatermarkOpacity] = useState(presentation.watermark?.opacity ?? 0.15);
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
   const stopPreviewRef = useRef<(() => void) | null>(null);
   const [animationPainterActive, setAnimationPainterActive] = useState(false);
@@ -1157,19 +1156,10 @@ export default function SlideEditor({
     ui.toast('Đã áp dụng bố cục thiết kế từ AI Designer');
   };
 
-  const handleSaveWatermark = () => {
+  const handleSaveWatermark = (spec: WatermarkSpec | null) => {
     pushHistory(presentation);
-    const updated = {
-      ...presentation,
-      watermark: {
-        text: watermarkText,
-        enabled: watermarkEnabled,
-        opacity: watermarkOpacity,
-      },
-    };
-    setPresentation(updated);
-    setIsWatermarkModalOpen(false);
-    ui.toast('Đã lưu cấu hình hình mờ bài thuyết trình');
+    setPresentation({ ...presentation, watermark: toSlideWatermark(spec, presentation.watermark) });
+    ui.toast(spec ? 'Đã lưu cấu hình hình mờ bài thuyết trình' : 'Đã tắt hình mờ');
   };
 
   // Change Theme
@@ -2143,54 +2133,16 @@ export default function SlideEditor({
         }}
       />
 
-      {/* Watermark Configuration Modal */}
       {isWatermarkModalOpen && (
-        <div className="ppt-modal-backdrop" onClick={() => setIsWatermarkModalOpen(false)}>
-          <div className="ppt-dialog-card" onClick={(e) => e.stopPropagation()} style={{ width: '440px' }}>
-            <div className="ppt-dialog-header">
-              <span style={{ fontWeight: 700 }}>Hình Mờ & Bản Quyền (Watermark)</span>
-              <button className="ppt-dialog-close-btn" onClick={() => setIsWatermarkModalOpen(false)}>×</button>
-            </div>
-            <div className="ppt-dialog-body">
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '16px' }}>
-                <input
-                  type="checkbox"
-                  checked={watermarkEnabled}
-                  onChange={(e) => setWatermarkEnabled(e.target.checked)}
-                />
-                <span style={{ fontWeight: 600 }}>Bật hiển thị hình mờ trên toàn bộ bài thuyết trình</span>
-              </label>
-
-              <div className="ppt-dialog-field">
-                <label style={{ fontWeight: 600 }}>Nội dung chữ hình mờ (Watermark Text):</label>
-                <input
-                  type="text"
-                  className="ppt-input"
-                  value={watermarkText}
-                  onChange={(e) => setWatermarkText(e.target.value)}
-                  placeholder="Ví dụ: BẢN QUYỀN - MINH SPARK, BẢO MẬT NỘI BỘ..."
-                />
-              </div>
-
-              <div className="ppt-dialog-field" style={{ marginTop: '12px' }}>
-                <label style={{ fontWeight: 600 }}>Độ mờ đục ({Math.round(watermarkOpacity * 100)}%):</label>
-                <input
-                  type="range"
-                  min="0.05"
-                  max="0.5"
-                  step="0.05"
-                  value={watermarkOpacity}
-                  onChange={(e) => setWatermarkOpacity(Number(e.target.value))}
-                  style={{ width: '100%' }}
-                />
-              </div>
-            </div>
-            <div className="ppt-dialog-footer">
-              <button className="ppt-secondary-action-btn" onClick={() => setIsWatermarkModalOpen(false)}>Huỷ</button>
-              <button className="ppt-primary-action-btn" onClick={handleSaveWatermark}>Lưu cấu hình</button>
-            </div>
-          </div>
-        </div>
+        <WatermarkDialog
+          title="Hình mờ bài thuyết trình"
+          initial={slideWatermarkSpec(presentation.watermark)}
+          aspect={presentation.aspectRatio === '4:3' ? 'portrait' : 'landscape'}
+          note="Hình mờ hiện trên mọi trang chiếu, bản in và tệp xuất ra."
+          onApply={handleSaveWatermark}
+          onClose={() => setIsWatermarkModalOpen(false)}
+          onError={(message) => ui.toast(message, true)}
+        />
       )}
 
       {/* Mail Merge Modal */}

@@ -6,6 +6,7 @@ import { exportSheetToStyledHtml } from '../../lib/xlsxConvert';
 import { PrintDialog } from '../../components/print/PrintDialog';
 import type { PrintItem, PrintSettings, PrintSlice, PrintSource } from '../../components/print/printTypes';
 import type { MarginPreset, PaperKey } from '../../lib/print/printLayout';
+import { normalizeWatermark } from '../../lib/watermark';
 
 type SheetScope = 'active' | 'all';
 type AreaMode = 'data' | 'selection' | 'custom';
@@ -159,8 +160,9 @@ export function SheetPrintDialog({ workbook, activeSheetId, title, activeRangeA1
       loading: measured === null,
       items: (measured ?? []).map((sheet) => toItem(sheet, repeatRows + (headings ? 1 : 0))),
       bands: { header: settings.header, footer: settings.footer, sheet: workbook.sheets[activeSheetId]?.name ?? '', file: title },
+      watermark: normalizeWatermark(settings.watermark),
     }),
-    [title, measured, repeatRows, headings, settings.header, settings.footer, workbook, activeSheetId],
+    [title, measured, repeatRows, headings, settings.header, settings.footer, settings.watermark, workbook, activeSheetId],
   );
 
   const persisted = (): SheetPrintSettings => ({

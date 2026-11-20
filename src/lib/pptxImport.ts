@@ -17,6 +17,7 @@ import { child, childrenOf, descendants, localName, parseXml, path, type XmlNode
 import { shapeFromPrst } from './slideShapes';
 import { safeSlideLinkUrl } from './slideTextLinks';
 import { SLIDE_ASPECTS, slideBaseWidth } from './settings/slideOptions';
+import type { SlideWatermark } from './watermark';
 
 function nearestAspect(ratio: number): PresentationData['aspectRatio'] {
   let best = SLIDE_ASPECTS[0];
@@ -611,6 +612,47 @@ function loadMedia(env: SlideEnv, partPath: string): Promise<string | null> {
   })();
   env.mediaCache.set(partPath, task);
   return task;
+}
+
+const WATERMARK_NAME = 'MinhWatermark';
+const OOXML_PERCENT = 100000;
+const OOXML_ANGLE = 60000;
+
+const watermarkLayout = (node: XmlNode) => {
+  const rot = Number(path(node, 'p:spPr', 'a:xfrm')?.attrs.rot ?? 0) / OOXML_ANGLE;
+  return Math.abs(rot % 360) > 1 ? 'diagonal' as const : 'horizontal' as const;
+};
+
+async function takeWatermark(tree: XmlNode | undefined, env: SlideEnv): Promise<SlideWatermark | undefined> {
+  if (!tree) return undefined;
+  const isMark = (node: XmlNode) => (path(node, 'p:nvSpPr', 'p:cNvPr') ?? path(node, 'p:nvPicPr', 'p:cNvPr'))?.attrs.name?.startsWith(WATERMARK_NAME);
+  const marks = tree.children.filter(isMark);
+  if (!marks.length) return undefined;
+  tree.children = tree.children.filter((node) => !isMark(node));
+  const node = marks[0];
+  if (node.name === 'p:pic') {
+    const blip = path(node, 'p:blipFill', 'a:blip');
+    const image = await mediaFromRel(env, env.rels, blip?.attrs['r:embed']);
+    if (!image) return undefined;
+    const amt = child(blip, 'a:alphaModFix')?.attrs.amt;
+    return { enabled: true, kind: 'image', text: '', image, layout: watermarkLayout(node), opacity: amt ? Number(amt) / OOXML_PERCENT : 0.3 };
+  }
+  const text = descendants(node, 'a:t').map((item) => item.text).join('');
+  if (!text.trim()) return undefined;
+  const rPr = descendants(node, 'a:rPr')[0];
+  const color = descendants(rPr, 'a:srgbClr')[0];
+  const alpha = child(color, 'a:alpha')?.attrs.val;
+  const size = Number(rPr?.attrs.sz ?? 0) / 100;
+  return {
+    enabled: true,
+    kind: 'text',
+    text,
+    color: color?.attrs.val ? `#${color.attrs.val}` : undefined,
+    font: child(rPr, 'a:latin')?.attrs.typeface,
+    size: size || undefined,
+    layout: watermarkLayout(node),
+    opacity: alpha ? Number(alpha) / OOXML_PERCENT : undefined,
+  };
 }
 
 async function mediaFromRel(env: SlideEnv, rels: Map<string, Rel>, relId: string | undefined): Promise<string | null> {
@@ -1459,6 +1501,7 @@ export async function importPptxDetailed(
   const slideIds = new Map(slidePaths.map((partPath, index) => [partPath, `imported-slide-${index + 1}-${stamp}`]));
   let counter = 0;
   const slides: SlideData[] = [];
+  let watermark: SlideWatermark | undefined;
 
   for (let index = 0; index < slidePaths.length; index++) {
     const partPath = slidePaths[index];
@@ -1503,7 +1546,10 @@ export async function importPptxDetailed(
     env.rels = rels;
     env.mediaLimit = undefined;
     env.diagramDrawings = [...rels.values()].filter((rel) => rel.type.endsWith('/diagramDrawing')).map((rel) => rel.target);
-    elements.push(...(await treeElements(path(slideNode, 'p:cSld', 'p:spTree'), env, IDENTITY, undefined, false)));
+    const slideTree = path(slideNode, 'p:cSld', 'p:spTree');
+    const slideWatermark = await takeWatermark(slideTree, env);
+    if (slideWatermark && !watermark) watermark = slideWatermark;
+    elements.push(...(await treeElements(slideTree, env, IDENTITY, undefined, false)));
 
     const background =
       (await readBackground(root, env, rels)) ??
@@ -1531,7 +1577,7 @@ export async function importPptxDetailed(
   report.slides = slides.length;
   report.skipped = [...new Set(report.skipped)];
   return {
-    presentation: { aspectRatio, themeId: 'office-classic', title: fileName, slides },
+    presentation: { aspectRatio, themeId: 'office-classic', title: fileName, slides, ...(watermark ? { watermark } : {}) },
     report,
   };
 }

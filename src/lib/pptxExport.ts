@@ -7,6 +7,7 @@ import { getShapeDef, parseSimplePath } from './slideShapes';
 import { slideAspectInfo } from './settings/slideOptions';
 import { tableCellStyle, tableFractions } from './slideTable';
 import { safeSlideLinkUrl, slideTextSegments } from './slideTextLinks';
+import { clampOpacity, decodeDataUrl, estimateTextWidth, fitBox, imageSize, slideWatermarkSpec, watermarkColorHex, WATERMARK_ANGLE, type WatermarkSpec } from './watermark';
 
 const DEFAULT_SHAPE_FILL = '0284C7';
 const WHITE = 'FFFFFF';
@@ -342,6 +343,41 @@ export async function addSlideTransitions(
   return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
 }
 
+export const WATERMARK_OBJECT_NAME = 'MinhWatermark';
+const WATERMARK_TEXT_PADDING_IN = 0.2;
+
+function addWatermark(slide: PptxGenJS.Slide, spec: WatermarkSpec, widthIn: number) {
+  const rotate = spec.layout === 'horizontal' ? 0 : 360 - WATERMARK_ANGLE;
+  const transparency = Math.round((1 - clampOpacity(spec.opacity)) * 100);
+  if (spec.kind === 'image') {
+    const image = decodeDataUrl(spec.image);
+    if (!image) return;
+    const natural = imageSize(image.bytes);
+    const box = fitBox(natural?.width ?? 4, natural?.height ?? 3, widthIn * 0.7, SLIDE_HEIGHT_IN * 0.7);
+    slide.addImage({ data: spec.image!, x: (widthIn - box.width) / 2, y: (SLIDE_HEIGHT_IN - box.height) / 2, w: box.width, h: box.height, rotate, transparency, objectName: WATERMARK_OBJECT_NAME });
+    return;
+  }
+  const size = spec.size ?? 48;
+  const w = Math.min(widthIn, estimateTextWidth(spec.text ?? '', size) * 1.1 / 72 + WATERMARK_TEXT_PADDING_IN);
+  const h = (size * 1.4) / 72;
+  slide.addText(spec.text ?? '', {
+    x: (widthIn - w) / 2,
+    y: (SLIDE_HEIGHT_IN - h) / 2,
+    w,
+    h,
+    fontFace: spec.font ?? 'Arial',
+    fontSize: size,
+    bold: true,
+    color: watermarkColorHex(spec.color),
+    transparency,
+    rotate,
+    align: 'center',
+    valign: 'middle',
+    margin: 0,
+    objectName: WATERMARK_OBJECT_NAME,
+  });
+}
+
 export function createPptxDocument(presentation: PresentationData, scatterCharts: ChartSeries[][] = []): PptxGenJS {
   const pres = new PptxGenJS();
   const widthIn = slideWidthIn(presentation);
@@ -355,10 +391,12 @@ export function createPptxDocument(presentation: PresentationData, scatterCharts
   pres.title = presentation.title || 'Office 23 Presentation';
   pres.author = presentation.author || 'Office 23';
 
+  const watermark = slideWatermarkSpec(presentation.watermark);
   presentation.slides.forEach((slideData) => {
     const slide = pres.addSlide();
     if (slideData.hidden) slide.hidden = true;
     slide.background = mapSlideBackground(slideData.background);
+    if (watermark) addWatermark(slide, watermark, widthIn);
 
     if (slideData.notes) {
       slide.addNotes(slideData.notes);

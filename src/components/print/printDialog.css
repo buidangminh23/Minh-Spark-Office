@@ -298,3 +298,5 @@
   .mp-dialog { height: 100dvh; border-radius: 0; }
   .mp-head, .mp-print-row, .mp-scroll { padding-left: var(--mp-gap-2); padding-right: var(--mp-gap-2); }
 }
+
+.mp-watermark { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 3; }

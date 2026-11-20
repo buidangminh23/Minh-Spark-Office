@@ -1,6 +1,7 @@
 import JSZip from 'jszip';
 import { ommlToLatex } from './ommlLatex';
 import { basePage, PAGE_SIZES, type PageSettings } from './storage';
+import { readDocxWatermark } from './watermarkDocx';
 
 const TWIP_PER_PX = 15;
 const EMU_PER_PX = 9525;
@@ -546,10 +547,17 @@ export async function importDocxFull(buffer: ArrayBuffer): Promise<{ html: strin
     page.pageNumbers = false;
     for (const ref of childrenOf(sect)) {
       if (ref.localName !== 'headerReference' && ref.localName !== 'footerReference') continue;
-      if ((attr(ref, 'type') ?? 'default') !== 'default') continue;
       const id = ref.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id') ?? ref.getAttribute('r:id') ?? '';
       const target = ctx.rels.get(id);
       if (!target) continue;
+      if (ref.localName === 'headerReference' && !page.watermark && !page.watermarkOptions) {
+        const mark = await readDocxWatermark(zip, `word/${target}`);
+        if (mark) {
+          page.watermark = mark.watermark;
+          page.watermarkOptions = mark.watermarkOptions;
+        }
+      }
+      if ((attr(ref, 'type') ?? 'default') !== 'default') continue;
       const region = regionText(await readText(zip, `word/${target}`));
       if (ref.localName === 'headerReference') page.header = region.text;
       else page.footer = region.text;

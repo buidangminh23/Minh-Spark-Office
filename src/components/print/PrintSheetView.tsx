@@ -1,10 +1,11 @@
 import { createPortal } from 'react-dom';
-import { useMemo } from 'react';
+import { useMemo, type CSSProperties } from 'react';
 import { PRINT_ROOT_ID } from '../../lib/print/printRun';
 import type { PrintSheet } from './printPages';
 import type { OutputPage, PrintRun } from './printOutput';
 import type { PrintBandText, PrintSettings, PrintSource } from './printTypes';
 import { expandHeaderFooter } from '../../lib/print/headerFooter';
+import { watermarkCss } from '../../lib/watermark';
 
 const today = () => new Date().toLocaleDateString('vi-VN');
 const mm = (value: number) => `${value}mm`;
@@ -61,6 +62,13 @@ export function PrintSheetView({ sheet, source, settings, number, total, guides 
       {showFooter && (
         <div className="mp-band mp-band-bottom" style={{ bottom: mm(settings.footerMm), left: mm(margins.left), right: mm(margins.right) }}>
           <span>Trang {number} / {total}</span>
+        </div>
+      )}
+      {source.watermark && (
+        <div className="mp-watermark" aria-hidden>
+          {source.watermark.kind === 'image'
+            ? <img src={source.watermark.image} alt="" style={watermarkCss(source.watermark) as CSSProperties} />
+            : <span style={watermarkCss(source.watermark) as CSSProperties}>{source.watermark.text}</span>}
         </div>
       )}
       {guides && (() => {

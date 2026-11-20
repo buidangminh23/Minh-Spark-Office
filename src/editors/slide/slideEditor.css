@@ -3513,18 +3513,10 @@
 .ppt-canvas-watermark {
   position: absolute;
   inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 48px;
-  font-weight: 900;
-  color: #64748B;
-  transform: rotate(-30deg);
-  letter-spacing: var(--space-1);
+  overflow: hidden;
   pointer-events: none;
   z-index: 5;
   user-select: none;
-  text-transform: uppercase;
 }
 
 /* AI Modal Tabs Strip */

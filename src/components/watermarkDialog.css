@@ -1,0 +1,18 @@
+.watermark-dialog { display: grid; gap: 14px; }
+.watermark-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.watermark-dialog-head h2 { display: flex; align-items: center; gap: 8px; margin: 0; }
+.watermark-dialog .dialog-subtitle { margin: 0; }
+.watermark-kinds { display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; }
+.watermark-kinds label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.watermark-body { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: start; }
+.watermark-form { display: grid; gap: 12px; min-width: 0; }
+.watermark-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; }
+.watermark-field { display: grid; gap: 4px; font-size: 12.5px; font-weight: 600; min-width: 0; }
+.watermark-field > span { color: var(--muted, #64748b); }
+.watermark-color { padding: 2px; height: 34px; }
+.watermark-preview { display: grid; place-items: center; padding: 12px; background: #eef1f6; border-radius: 8px; }
+.watermark-preview-sheet { position: relative; overflow: hidden; background: #fff; box-shadow: 0 0 0 1px #d6dbe4, 0 4px 12px rgba(15, 23, 42, 0.08); }
+.watermark-actions { display: flex; justify-content: flex-end; gap: 8px; }
+@media (max-width: 560px) {
+  .watermark-body { grid-template-columns: minmax(0, 1fr); }
+}

@@ -1,5 +1,6 @@
 import type { PresentationData, SlideElement } from './slideTypes';
 import { getShapeDef } from './slideShapes';
+import { slideWatermarkSpec, watermarkCss } from './watermark';
 
 const DEFAULT_TITLE = 'Bài Thuyết Trình 23 Slides';
 
@@ -129,6 +130,7 @@ const PLAYER_SCRIPT = `
     var slide = slides[idx];
     stage.style.background = backgroundCss(slide.background);
     (slide.elements || []).forEach(function (el) { stage.appendChild(renderElement(el)); });
+    if (deck.watermark) { var mark = document.createElement('div'); mark.className = 'wm'; mark.innerHTML = deck.watermark; stage.appendChild(mark); }
     pageIndicator.textContent = (idx + 1) + ' / ' + slides.length;
   }
 
@@ -161,11 +163,24 @@ function withShapeMask(el: SlideElement): SlideElement & { shapeMask?: string; s
   return { ...el, shapeMask: `url("data:image/svg+xml,${encodeURIComponent(svg)}")` };
 }
 
+const cssKey = (key: string) => key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
+
+export function watermarkMarkup(presentation: PresentationData): string {
+  const spec = slideWatermarkSpec(presentation.watermark);
+  if (!spec) return '';
+  const style = Object.entries(watermarkCss(spec))
+    .map(([key, value]) => `${cssKey(key)}:${key === 'fontSize' || key === 'letterSpacing' ? `calc(${value} * var(--unit))` : value}`)
+    .join(';');
+  if (spec.kind === 'image') return `<img src="${escapeHtmlText(spec.image ?? '')}" alt="" style="${escapeHtmlText(style)}">`;
+  return `<span style="${escapeHtmlText(style)}">${escapeHtmlText(spec.text ?? '')}</span>`;
+}
+
 export function buildStandaloneHtml(presentation: PresentationData): string {
   const title = escapeHtmlText(presentation.title || DEFAULT_TITLE);
   const deck = {
     aspectRatio: presentation.aspectRatio,
     slides: presentation.slides.map((slide) => ({ ...slide, elements: slide.elements.map(withShapeMask) })),
+    watermark: watermarkMarkup(presentation),
   };
   return `<!DOCTYPE html>
 <html lang="vi">
@@ -185,6 +200,7 @@ export function buildStandaloneHtml(presentation: PresentationData): string {
     .controls { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(15,23,42,0.9); padding: 8px 16px; border-radius: 999px; display: flex; gap: 12px; align-items: center; z-index: 100; font-size: 13px; }
     .btn { background: #334155; border: none; color: #FFF; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-weight: 600; }
     .btn:hover { background: #475569; }
+    .wm { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 50; }
   </style>
 </head>
 <body>

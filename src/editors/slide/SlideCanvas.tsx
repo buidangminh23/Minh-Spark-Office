@@ -1,5 +1,5 @@
 import type { SlideAspect } from '../../lib/slideTypes';
-import { useRef, useState, useEffect, type ReactNode } from 'react';
+import { useRef, useState, useEffect, type CSSProperties, type ReactNode } from 'react';
 import { Lock, Sheet, Copy, ZoomIn, Cuboid, Clapperboard, Pause, Play, RotateCcw, ChartNoAxesColumn } from 'lucide-react';
 import type { SlideData, SlideElement } from '../../lib/slideTypes';
 import { collectSlideAnimations, type MorphGeometry } from '../../lib/slideEffects';
@@ -14,6 +14,7 @@ import { clearSlideDraftText, setSlideDraftText } from './slideDraftText';
 import { getSettings } from '../../lib/appSettings';
 import { gridStepPercent, slideBaseWidth, snapPosition, snapResize } from '../../lib/settings/slideOptions';
 import { AudioElementView, CameoElementView, IconElementView, LinkBadge, ObjectElementView, RichTextLines, imageEffectStyle, textDecorationOf, textEffectStyle } from './SlideElementExtras';
+import { slideWatermarkSpec, watermarkCss, type SlideWatermark } from '../../lib/watermark';
 
 interface SlideCanvasProps {
   slide: SlideData;
@@ -45,11 +46,7 @@ interface SlideCanvasProps {
   geometryTransitionSec?: number;
   showAnimBadges?: boolean;
   hiddenElementIds?: string[];
-  watermark?: {
-    text: string;
-    enabled: boolean;
-    opacity?: number;
-  };
+  watermark?: SlideWatermark;
   slideMaster?: {
     enabled: boolean;
     headerText?: string;
@@ -170,6 +167,8 @@ export function SlideCanvas({
       y: ((clientY - rect.top) / rect.height) * 100,
     };
   };
+
+  const watermarkSpec = slideWatermarkSpec(watermark);
 
   // Background style computation
   const backgroundStyle: React.CSSProperties = {
@@ -563,12 +562,11 @@ export function SlideCanvas({
       )}
 
       {/* Presentation Watermark */}
-      {watermark?.enabled && watermark.text && (
-        <div
-          className="ppt-canvas-watermark"
-          style={{ opacity: watermark.opacity ?? 0.15 }}
-        >
-          {watermark.text}
+      {watermarkSpec && (
+        <div className="ppt-canvas-watermark" aria-hidden>
+          {watermarkSpec.kind === 'image'
+            ? <img src={watermarkSpec.image} alt="" style={watermarkCss(watermarkSpec) as CSSProperties} />
+            : <span style={watermarkCss(watermarkSpec) as CSSProperties}>{watermarkSpec.text}</span>}
         </div>
       )}
 

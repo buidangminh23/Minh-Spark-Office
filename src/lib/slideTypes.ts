@@ -1,3 +1,4 @@
+import type { SlideWatermark } from './watermark';
 export type SlideLayout =
   | 'title'
   | 'title-content'
@@ -532,11 +533,7 @@ export interface PresentationData {
   title?: string;
   author?: string;
   sections?: SlideSection[];
-  watermark?: {
-    text: string;
-    enabled: boolean;
-    opacity?: number;
-  };
+  watermark?: SlideWatermark;
   customShows?: {
     id: string;
     name: string;

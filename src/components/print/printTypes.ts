@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { PAPERS } from '../../lib/print/printLayout';
 import type { PagesPerSheet } from './printOutput';
 import type { ContentKind, MarginPreset, Margins, OrientationChoice, PaperKey, ScaleMode, Size } from '../../lib/print/printLayout';
+import type { WatermarkSpec } from '../../lib/watermark';
 
 export type PrintSlice = { offsetPx: number; heightPx: number; part: number };
 
@@ -26,6 +27,7 @@ export type PrintSource = {
   currentItem?: number;
   loading?: boolean;
   bands?: PrintBands;
+  watermark?: WatermarkSpec | null;
 };
 
 export type PrintBandText = { left: string; center: string; right: string };
