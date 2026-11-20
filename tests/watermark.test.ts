@@ -108,3 +108,29 @@ test('picture slide watermark round-trips through PPTX', async () => {
   assert.ok(imported.watermark?.image?.startsWith('data:image/png'));
   assert.ok(Math.abs((imported.watermark?.opacity ?? 0) - 0.4) < 0.02);
 });
+
+test('sheet watermark becomes an Excel header picture on every worksheet', async () => {
+  const { writeWorkbookXlsx } = await import('../src/lib/xlsxCodec');
+  const { emptyWorkbook, emptySheet } = await import('../src/lib/workbookBasics');
+  const { injectXlsxWatermark } = await import('../src/lib/watermarkXlsx');
+  const workbook = emptyWorkbook('Test') as { sheetOrder: string[]; sheets: Record<string, unknown> };
+  const second = emptySheet('Trang 2') as { id: string };
+  workbook.sheets[second.id] = second;
+  workbook.sheetOrder.push(second.id);
+  const zip = await JSZip.loadAsync(await writeWorkbookXlsx(workbook as never));
+  const image = decodeDataUrl(PIXEL)!;
+  assert.equal(await injectXlsxWatermark(zip, { bytes: image.bytes, width: 450, height: 600 }), true);
+  const sheets = Object.keys(zip.files).filter((path) => /^xl\/worksheets\/sheet\d+\.xml$/.test(path));
+  assert.equal(sheets.length, 2);
+  for (const path of sheets) {
+    const xml = await zip.file(path)!.async('string');
+    assert.match(xml, /<oddHeader>&amp;C&amp;G<\/oddHeader>/);
+    assert.match(xml, /<legacyDrawingHF r:id="rIdMinhWatermarkHF"\/>/);
+    assert.ok(xml.indexOf('<headerFooter') < xml.indexOf('<legacyDrawingHF'));
+    const rels = await zip.file(path.replace('xl/worksheets/', 'xl/worksheets/_rels/') + '.rels')!.async('string');
+    assert.match(rels, /vmlDrawingMinhWatermark\.vml/);
+  }
+  assert.ok(zip.file('xl/media/minh-watermark.png'));
+  assert.match(await zip.file('xl/drawings/vmlDrawingMinhWatermark.vml')!.async('string'), /id="CH"/);
+  assert.match(await zip.file('[Content_Types].xml')!.async('string'), /Extension="vml"/);
+});

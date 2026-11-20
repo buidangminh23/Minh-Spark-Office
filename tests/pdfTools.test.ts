@@ -4,6 +4,7 @@ import { PDFArray, PDFDict, PDFDocument, PDFName, degrees } from 'pdf-lib';
 import JSZip from 'jszip';
 import {
   addPageNumbers,
+  addWatermark,
   compressPdf,
   deletePages,
   insertBlankPage,
@@ -247,4 +248,17 @@ test('writeProperties stores Vietnamese document properties', async () => {
   assert.equal(properties.author, 'Bùi Đăng Minh');
   assert.equal(properties.subject, 'Hồ sơ');
   assert.equal(properties.keywords, 'pdf biên bản');
+});
+
+test('addWatermark stamps Vietnamese text and images on every page', async () => {
+  const { readFileSync } = await import('node:fs');
+  const fontBytes = new Uint8Array(readFileSync('node_modules/dejavu-fonts-ttf/ttf/DejaVuSans-Bold.ttf'));
+  const source = await makePdf([[595, 842], [842, 595]], 90);
+  const text = await addWatermark(source, { kind: 'text', text: 'BẢN NHÁP', color: '#dc2626', size: 64, layout: 'diagonal', opacity: 0.25 }, { fontBytes });
+  assert.equal(text.pageCount, 2);
+  const doc = await PDFDocument.load(text.bytes);
+  for (const page of doc.getPages()) assert.ok(page.node.Contents());
+  const image = await addWatermark(source, { kind: 'image', image: { bytes: PNG_1X1, format: 'png' }, layout: 'horizontal', opacity: 0.3 }, { pageIndexes: [1] });
+  assert.equal(image.pageCount, 1);
+  await assert.rejects(addWatermark(source, { kind: 'text', text: '  ' }), (error) => isPdfToolError(error));
 });

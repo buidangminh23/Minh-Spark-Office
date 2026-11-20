@@ -381,3 +381,80 @@ export async function writeProperties(bytes: Uint8Array, properties: PdfProperti
   doc.setModificationDate(new Date());
   return doc.save();
 }
+
+export type PdfWatermark = {
+  kind: 'text' | 'image';
+  text?: string;
+  image?: { bytes: Uint8Array; format: 'png' | 'jpeg' };
+  color?: string;
+  size?: number;
+  layout?: 'diagonal' | 'horizontal';
+  opacity?: number;
+};
+
+const WATERMARK_ANGLE_DEG = 35;
+const WATERMARK_PX_TO_PT = 0.75;
+const WATERMARK_MAX_WIDTH = 0.85;
+const WATERMARK_IMAGE_WIDTH = 0.6;
+
+const watermarkRgb = (color: string | undefined) => {
+  const hex = /^#?([0-9a-f]{6})$/i.exec(color ?? '')?.[1] ?? 'c0c0c0';
+  return rgb(parseInt(hex.slice(0, 2), 16) / 255, parseInt(hex.slice(2, 4), 16) / 255, parseInt(hex.slice(4, 6), 16) / 255);
+};
+
+const rotatePoint = (x: number, y: number, degreesValue: number) => {
+  const radians = (degreesValue * Math.PI) / 180;
+  return { x: x * Math.cos(radians) - y * Math.sin(radians), y: x * Math.sin(radians) + y * Math.cos(radians) };
+};
+
+function placeAtCenter(page: PDFPage, width: number, height: number, angle: number) {
+  const box = page.getCropBox();
+  const rotation = page.getRotation().angle;
+  const visual = visualSize(box, rotation);
+  const offset = rotatePoint(-width / 2, -height / 2, angle);
+  const anchor = visualRectToDraw({ u: visual.width / 2 + offset.x, v: visual.height / 2 + offset.y, width, height }, box, rotation);
+  return { ...anchor, visual, rotate: anchor.rotate + angle };
+}
+
+export async function addWatermark(bytes: Uint8Array, mark: PdfWatermark, options: PdfToolOptions & { fontBytes?: Uint8Array; pageIndexes?: number[] | null } = {}) {
+  const doc = await loadPdf(bytes, options);
+  const angle = mark.layout === 'horizontal' ? 0 : WATERMARK_ANGLE_DEG;
+  const opacity = Math.min(1, Math.max(0.02, mark.opacity ?? 0.2));
+  const pages = doc.getPages();
+  const targets = options.pageIndexes?.length ? options.pageIndexes.filter((index) => index >= 0 && index < pages.length) : pages.map((_, index) => index);
+  if (mark.kind === 'image') {
+    if (!mark.image) throw new PdfToolError('Chưa chọn ảnh hình mờ.');
+    const image = mark.image.format === 'png' ? await doc.embedPng(mark.image.bytes) : await doc.embedJpg(mark.image.bytes);
+    for (const index of targets) {
+      const page = pages[index];
+      const visual = visualSize(page.getCropBox(), page.getRotation().angle);
+      const width = Math.min(visual.width, visual.height) * WATERMARK_IMAGE_WIDTH;
+      const height = width * (image.height / image.width);
+      const place = placeAtCenter(page, width, height, angle);
+      page.drawImage(image, { x: place.x, y: place.y, width, height, rotate: degrees(place.rotate), opacity });
+    }
+  } else {
+    const text = (mark.text ?? '').trim();
+    if (!text) throw new PdfToolError('Chưa nhập nội dung hình mờ.');
+    let font;
+    if (options.fontBytes) {
+      const fontkit = (await import('@pdf-lib/fontkit')).default;
+      doc.registerFontkit(fontkit);
+      font = await doc.embedFont(options.fontBytes, { subset: true });
+    } else font = await doc.embedFont(StandardFonts.HelveticaBold);
+    const color = watermarkRgb(mark.color);
+    for (const index of targets) {
+      const page = pages[index];
+      const visual = visualSize(page.getCropBox(), page.getRotation().angle);
+      let size = (mark.size ?? 64) * WATERMARK_PX_TO_PT;
+      const span = angle ? Math.hypot(visual.width, visual.height) : visual.width;
+      const width = font.widthOfTextAtSize(text, size);
+      if (width > span * WATERMARK_MAX_WIDTH) size *= (span * WATERMARK_MAX_WIDTH) / width;
+      const textWidth = font.widthOfTextAtSize(text, size);
+      const textHeight = font.heightAtSize(size, { descender: false });
+      const place = placeAtCenter(page, textWidth, textHeight * 0.75, angle);
+      page.drawText(text, { x: place.x, y: place.y, size, font, color, opacity, rotate: degrees(place.rotate) });
+    }
+  }
+  return { bytes: await doc.save(), pageCount: targets.length };
+}

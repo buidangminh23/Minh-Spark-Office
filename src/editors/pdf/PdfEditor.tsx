@@ -55,6 +55,7 @@ import {
   FileMinus,
   FileOutput,
   RectangleHorizontal,
+  Stamp,
 } from 'lucide-react';
 
 import {
@@ -76,8 +77,15 @@ import { extractAllText, rasterizePages, trimmedCanvasPng } from './pdfRaster';
 import type { ImagePageInput, Margins, PageNumberFormat, PageNumberPosition, PdfProperties, SignatureAnchor } from './pdfTools';
 import { isShareableFileId, requestTeamShare } from '../../lib/teamShare';
 import type { EditablePdfPage } from '../../lib/pdfOcrTypes';
+import WatermarkDialog from '../../components/WatermarkDialog';
+import { decodeDataUrl, type WatermarkSpec } from '../../lib/watermark';
 
 const loadPdfTools = () => import('./pdfTools');
+
+const loadWatermarkFont = async () => {
+  const url = (await import('dejavu-fonts-ttf/ttf/DejaVuSans-Bold.ttf?url')).default;
+  return new Uint8Array(await (await fetch(url)).arrayBuffer());
+};
 
 const SIGN_ANCHORS: { value: SignatureAnchor; label: string }[] = [
   { value: 'bottom-right', label: 'Góc dưới bên phải' },
@@ -256,6 +264,7 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
   const [pageOpRange, setPageOpRange] = useState('');
   const [pageOpAngle, setPageOpAngle] = useState(90);
   const [showPageNumberModal, setShowPageNumberModal] = useState(false);
+  const [showWatermarkModal, setShowWatermarkModal] = useState(false);
   const [pageNumberPosition, setPageNumberPosition] = useState<PageNumberPosition>('bottom-center');
   const [pageNumberFormat, setPageNumberFormat] = useState<PageNumberFormat>('of-total');
   const [properties, setProperties] = useState<PdfProperties | null>(null);
@@ -747,6 +756,27 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
       await applyPdfBytes(result.bytes);
       setShowPageNumberModal(false);
       ui.toast(`Đã đánh số ${result.pageCount} trang`);
+    });
+  };
+
+  const handleAddWatermark = (spec: WatermarkSpec | null) => {
+    const bytes = requireBytes();
+    if (!bytes || !spec) return;
+    let image: ImagePageInput | undefined;
+    if (spec.kind === 'image') {
+      const decoded = decodeDataUrl(spec.image);
+      if (!decoded || decoded.ext === 'gif') {
+        ui.toast('Hình mờ ảnh trong PDF chỉ nhận ảnh PNG hoặc JPG', true);
+        return;
+      }
+      image = { bytes: decoded.bytes, format: decoded.ext };
+    }
+    void runPdfTool('Đang chèn hình mờ…', async () => {
+      const tools = await loadPdfTools();
+      const fontBytes = spec.kind === 'text' ? await loadWatermarkFont() : undefined;
+      const result = await tools.addWatermark(bytes, { kind: spec.kind, text: spec.text, image, color: spec.color, size: spec.size, layout: spec.layout, opacity: spec.opacity }, { keepAttributes, fontBytes });
+      await applyPdfBytes(result.bytes);
+      ui.toast(`Đã chèn hình mờ vào ${result.pageCount} trang`);
     });
   };
 
@@ -1358,6 +1388,10 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
                   <button className="ribbon-btn-large" onClick={() => { if (requireBytes()) setShowPageNumberModal(true); }} title="Đánh số lên mọi trang của tệp PDF">
                     <Hash size={20} color="#d97706" />
                     <span className="pdf-ribbon-label">Số trang</span>
+                  </button>
+                  <button className="ribbon-btn-large" onClick={() => { if (requireBytes()) setShowWatermarkModal(true); }} title="Chèn chữ hoặc ảnh mờ lên mọi trang của tệp PDF">
+                    <Stamp size={20} color="#7c3aed" />
+                    <span className="pdf-ribbon-label">Hình mờ</span>
                   </button>
                   <button className="ribbon-btn-large" onClick={openCommentComposer} title="Thêm ghi chú cho tài liệu">
                     <StickyNote size={20} color="#ca8a04" />
@@ -2283,6 +2317,19 @@ export default function PdfEditor({ meta, content, onSave, onBack }: PdfEditorPr
             </div>
           </div>
         </div>
+      )}
+
+      {showWatermarkModal && (
+        <WatermarkDialog
+          title="Chèn hình mờ vào PDF"
+          initial={null}
+          allowNone={false}
+          note={`Hình mờ được vẽ cố định lên cả ${totalPages} trang, không gỡ lại được trên tệp đã lưu. Nên giữ bản gốc trước khi chèn.`}
+          applyLabel={`Chèn vào ${totalPages} trang`}
+          onApply={handleAddWatermark}
+          onClose={() => setShowWatermarkModal(false)}
+          onError={(message) => ui.toast(message, true)}
+        />
       )}
 
       {showPageNumberModal && (

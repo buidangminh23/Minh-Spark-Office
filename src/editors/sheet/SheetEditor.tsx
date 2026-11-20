@@ -3871,10 +3871,17 @@ export default function SheetEditor({ meta, content, onSave, onBack, live, start
     return wb;
   };
 
+  const withSheetWatermark = async (blob: Blob) => {
+    if (!sheetWatermark) return blob;
+    const { addXlsxWatermark, renderWatermarkPicture } = await import('../../lib/watermarkXlsx');
+    const picture = await renderWatermarkPicture(sheetWatermark);
+    return picture ? addXlsxWatermark(blob, picture) : blob;
+  };
+
   const handleExportXlsx = async () => {
     try {
       ui.showBusy('Đang xuất tệp Excel (.xlsx)…');
-      const blob = await exportWorkbookToXlsx(workbookWithAutomation(false));
+      const blob = await withSheetWatermark(await exportWorkbookToXlsx(workbookWithAutomation(false)));
       downloadBlob(blob, `${stripSpreadsheetExt(title)}.xlsx`);
       const hasVba = !!vbaProject?.modules.some((module) => module.code.trim());
       ui.toast(
@@ -3892,7 +3899,7 @@ export default function SheetEditor({ meta, content, onSave, onBack, live, start
   const handleExportXlsm = async () => {
     try {
       ui.showBusy('Đang xuất tệp Excel có macro (.xlsm)…');
-      const blob = await exportWorkbookToXlsm(workbookWithAutomation(true));
+      const blob = await withSheetWatermark(await exportWorkbookToXlsm(workbookWithAutomation(true)));
       downloadBlob(blob, `${stripSpreadsheetExt(title)}.xlsm`);
       ui.toast(`Đã tải xuống "${stripSpreadsheetExt(title)}.xlsm" kèm macro VBA${macros.length ? ` (macro đã ghi nằm trong mô-đun ${RECORDED_VBA_MODULE})` : ''}`);
     } catch (err) {
