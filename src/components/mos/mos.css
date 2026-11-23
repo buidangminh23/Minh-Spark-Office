@@ -69,7 +69,7 @@
 }
 
 .mos-seg button.is-active {
-  background: var(--ws-ink);
+  background: var(--mos-accent, #2563eb);
   color: #ffffff;
   font-weight: 600;
 }
@@ -98,9 +98,9 @@
 }
 
 .mos-track-btn.is-active {
-  border-color: var(--mos-accent);
-  box-shadow: 0 0 0 1px var(--mos-accent);
-  background: var(--ws-surface);
+  border-color: var(--ws-line);
+  background: color-mix(in srgb, var(--mos-accent) 6%, var(--ws-surface));
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--mos-accent) 12%, rgb(15 23 42 / 5%));
 }
 
 .mos-track-info {
@@ -256,14 +256,15 @@
 }
 
 .mos-mode-item.is-primary {
-  background: #16325c;
-  border-color: #16325c;
-  color: #ffffff;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--mos-accent, #2563eb) 9%, #ffffff) 0%, #ffffff 78%);
+  border-color: var(--ws-line);
+  color: var(--ws-ink);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--mos-accent, #2563eb) 10%, rgb(15 23 42 / 4%));
 }
 
 .mos-mode-item.is-primary:hover {
-  background: #1d4075;
-  border-color: #1d4075;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--mos-accent, #2563eb) 13%, #ffffff) 0%, #ffffff 78%);
+  border-color: var(--ws-line);
 }
 
 .mos-mode-head {
@@ -285,8 +286,8 @@
 }
 
 .mos-mode-item.is-primary .mos-mode-icon {
-  background: rgb(255 255 255 / 14%);
-  border-color: rgb(255 255 255 / 18%);
+  background: var(--mos-accent, #2563eb);
+  border-color: transparent;
   color: #ffffff;
 }
 
@@ -302,9 +303,9 @@
 }
 
 .mos-mode-item.is-primary .mos-mode-tag {
-  background: rgb(255 255 255 / 16%);
-  border-color: transparent;
-  color: #e2ecff;
+  background: color-mix(in srgb, var(--mos-accent, #2563eb) 11%, #ffffff);
+  border-color: color-mix(in srgb, var(--mos-accent, #2563eb) 26%, transparent);
+  color: var(--mos-accent, #1d4ed8);
 }
 
 .mos-mode-body strong {
@@ -316,7 +317,7 @@
 }
 
 .mos-mode-item.is-primary .mos-mode-body strong {
-  color: #ffffff;
+  color: var(--ws-ink);
 }
 
 .mos-mode-body p {
@@ -327,7 +328,7 @@
 }
 
 .mos-mode-item.is-primary .mos-mode-body p {
-  color: #cbd9f2;
+  color: var(--ws-ink-2);
 }
 
 .mos-mode-foot {
@@ -341,7 +342,8 @@
 }
 
 .mos-mode-item.is-primary .mos-mode-foot {
-  color: #ffffff;
+  color: var(--mos-accent, #2563eb);
+  font-weight: 700;
 }
 
 .mos-split-cols {
@@ -504,14 +506,15 @@
 }
 
 .mos-btn-primary {
-  background: #16325c;
-  border-color: #16325c;
+  background: var(--mos-accent, #2563eb);
+  border-color: var(--mos-accent, #2563eb);
   color: #ffffff;
 }
 
 .mos-btn-primary:hover:not(:disabled) {
-  background: #1f447a;
-  border-color: #1f447a;
+  background: var(--mos-accent, #2563eb);
+  border-color: var(--mos-accent, #2563eb);
+  filter: brightness(0.93);
 }
 
 .mos-btn-accent {
@@ -676,8 +679,8 @@
   display: grid;
   place-items: center;
   padding: 20px;
-  background: rgb(15 23 42 / 56%);
-  backdrop-filter: blur(2px);
+  background: rgb(15 23 42 / 26%);
+  backdrop-filter: blur(4px);
 }
 
 .mos-modal {
@@ -689,7 +692,7 @@
   border: 1px solid var(--ws-line);
   background: var(--ws-surface);
   color: var(--ws-ink);
-  box-shadow: 0 24px 60px rgb(15 23 42 / 28%);
+  box-shadow: 0 24px 60px rgb(15 23 42 / 14%);
   overflow: hidden;
 }
 
@@ -704,14 +707,15 @@
   gap: 12px;
   padding: 16px 22px;
   border-bottom: 1px solid var(--ws-line);
-  background: #16325c;
-  color: #ffffff;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  color: var(--ws-ink);
 }
 
 .mos-modal-head h2 {
   margin: 0;
   font-size: 17px;
   font-weight: 700;
+  color: var(--ws-ink);
 }
 
 .mos-modal-close {
@@ -720,12 +724,12 @@
   display: inline-grid;
   place-items: center;
   border-radius: 8px;
-  color: #dbe7fb;
+  color: var(--ws-muted);
 }
 
 .mos-modal-close:hover {
-  background: rgb(255 255 255 / 14%);
-  color: #ffffff;
+  background: var(--ws-page);
+  color: var(--ws-ink);
 }
 
 .mos-modal-body {
@@ -872,7 +876,7 @@
   height: 5px;
   flex: none;
   cursor: row-resize;
-  background: #1f4480;
+  background: #dbe3ef;
   display: grid;
   place-items: center;
   user-select: none;
@@ -883,11 +887,11 @@
   width: 44px;
   height: 2px;
   border-radius: 999px;
-  background: rgb(255 255 255 / 45%);
+  background: #94a3b8;
 }
 
 .mos-splitter:hover {
-  background: #1a3a6d;
+  background: #cbd5e1;
 }
 
 .mos-console {
@@ -1039,9 +1043,11 @@
   justify-content: center;
   gap: 5px;
   padding: 0 14px;
-  border-radius: 0;
-  background: #53575c;
-  color: #ffffff;
+  border-radius: 4px 4px 0 0;
+  border: 1px solid #d5dde8;
+  border-bottom: 0;
+  background: #e9eef5;
+  color: #334155;
   font-size: 12.5px;
   font-weight: 500;
   white-space: nowrap;
@@ -1049,21 +1055,27 @@
 }
 
 .mos-task-tab:hover {
-  background: #64696f;
+  background: #f1f5f9;
+  color: #0f172a;
 }
 
 .mos-task-tab.is-active {
-  background: #c7ccd2;
-  color: #1e242b;
-  font-weight: 600;
+  background: #ffffff;
+  color: #0f172a;
+  font-weight: 700;
+  box-shadow: inset 0 2px 0 #2563eb;
 }
 
 .mos-task-tab.is-marked-done:not(.is-active) {
-  background: #3d6b59;
+  background: #dcfce7;
+  color: #166534;
+  border-color: #86efac;
 }
 
 .mos-task-tab.is-marked-review:not(.is-active) {
-  background: #8a6424;
+  background: #fef3c7;
+  color: #92400e;
+  border-color: #fcd34d;
 }
 
 .mos-tab-status-done { color: #22c55e; }
@@ -1201,29 +1213,36 @@
 }
 
 .mos-real-btn.is-nav {
-  background: #53575c;
+  background: #ffffff;
+  color: #1e293b;
+  border: 1px solid #cbd5e1;
+}
+
+.mos-real-btn.is-nav:hover:not(:disabled) {
+  background: #f1f5f9;
+  filter: none;
 }
 
 .mos-real-btn.is-complete {
-  background: #28a67c;
+  background: #16a34a;
 }
 
 .mos-real-btn.is-complete.is-on {
-  background: #167956;
+  background: #15803d;
   box-shadow: inset 0 0 0 2px #bbf7d0;
 }
 
 .mos-real-btn.is-review {
-  background: #e69819;
+  background: #f59e0b;
 }
 
 .mos-real-btn.is-review.is-on {
-  background: #b97308;
+  background: #d97706;
   box-shadow: inset 0 0 0 2px #fde68a;
 }
 
 .mos-real-btn.is-check {
-  background: #275191;
+  background: #2563eb;
 }
 
 .mos-briefing-grid {
@@ -2006,7 +2025,7 @@
 }
 
 .mos-runner[data-mos-version='2016'] .mos-splitter {
-  background: #2c3136;
+  background: #d5dde8;
 }
 
 .mos-runner[data-mos-version='2016'] .mos-console {
@@ -2015,28 +2034,77 @@
 
 .mos-runner[data-mos-version='2016'] .mos-compass-bar {
   height: 38px;
-  background: linear-gradient(180deg, #434950 0%, #31363c 100%);
+  background: linear-gradient(180deg, #f5f7fa 0%, #e4eaf2 100%);
+  color: #1e293b;
   border-bottom: 2px solid var(--mos-office-app);
 }
 
+.mos-runner[data-mos-version='2016'] .mos-compass-ver {
+  background: var(--mos-office-app);
+  color: #ffffff;
+}
+
+.mos-runner[data-mos-version='2016'] .mos-compass-proj {
+  color: #1e293b;
+  font-weight: 600;
+}
+
+.mos-runner[data-mos-version='2016'] .mos-compass-code {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+}
+
+.mos-runner[data-mos-version='2016'] .mos-compass-icon-btn,
+.mos-runner[data-mos-version='2016'] .mos-compass-lang {
+  color: #334155;
+  border-color: #cbd5e1;
+  background: #ffffff;
+}
+
+.mos-runner[data-mos-version='2016'] .mos-compass-icon-btn:hover,
+.mos-runner[data-mos-version='2016'] .mos-compass-lang:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
 .mos-runner[data-mos-version='2016'] .mos-compass-timer {
-  background: #22262b;
-  border: 1px solid #555d66;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #0f172a;
   padding: 2px 10px;
   border-radius: 2px;
   font-size: 13px;
 }
 
+.mos-runner[data-mos-version='2016'] .mos-compass-timer.is-warn {
+  background: #fef3c7;
+  border-color: #f59e0b;
+  color: #92400e;
+}
+
+.mos-runner[data-mos-version='2016'] .mos-compass-timer.is-urgent {
+  background: #fee2e2;
+  border-color: #ef4444;
+  color: #991b1b;
+}
+
 .mos-runner[data-mos-version='2016'] .mos-compass-link {
-  border: 1px solid rgb(255 255 255 / 18%);
-  background: rgb(255 255 255 / 7%);
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #1e293b;
   border-radius: 2px;
   height: 26px;
 }
 
+.mos-runner[data-mos-version='2016'] .mos-compass-link:hover:not(:disabled) {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
 .mos-runner[data-mos-version='2016'] .mos-compass-link.is-grade {
   background: var(--mos-office-app);
-  border-color: rgb(255 255 255 / 30%);
+  border-color: var(--mos-office-app);
   color: #ffffff;
 }
 
@@ -2282,7 +2350,7 @@
 }
 
 .mos-runner[data-mos-version='365'] .mos-splitter {
-  background: #0b2242;
+  background: #e2e8f0;
 }
 
 .mos-runner[data-mos-version='365'] .mos-console {
@@ -2291,33 +2359,90 @@
 
 .mos-runner[data-mos-version='365'] .mos-compass-bar {
   height: 40px;
-  background: linear-gradient(180deg, #102a52 0%, #0b2242 100%);
+  background: linear-gradient(180deg, #ffffff 0%, #f1f5fb 100%);
+  color: #0f172a;
+  border-bottom: 1px solid #dce4f0;
   padding: 0 14px;
 }
 
 .mos-runner[data-mos-version='365'] .mos-compass-ver {
   background: var(--mos-office-app);
+  color: #ffffff;
   border-radius: 999px;
   padding: 2px 9px;
 }
 
-.mos-runner[data-mos-version='365'] .mos-compass-icon-btn,
+.mos-runner[data-mos-version='365'] .mos-compass-proj {
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.mos-runner[data-mos-version='365'] .mos-compass-code {
+  background: #e8eef8;
+  color: #1e40af;
+}
+
+.mos-runner[data-mos-version='365'] .mos-compass-icon-btn {
+  border-radius: 6px;
+  color: #475569;
+}
+
+.mos-runner[data-mos-version='365'] .mos-compass-icon-btn:hover,
+.mos-runner[data-mos-version='365'] .mos-compass-icon-btn[aria-pressed='true'] {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
 .mos-runner[data-mos-version='365'] .mos-compass-lang {
   border-radius: 6px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #1e293b;
+}
+
+.mos-runner[data-mos-version='365'] .mos-compass-lang:hover {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
 }
 
 .mos-runner[data-mos-version='365'] .mos-compass-timer {
-  background: rgb(255 255 255 / 12%);
-  border: 1px solid rgb(255 255 255 / 20%);
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #0f172a;
   border-radius: 999px;
   padding: 3px 12px;
   font-size: 13.5px;
+}
+
+.mos-runner[data-mos-version='365'] .mos-compass-timer.is-warn {
+  background: #fef3c7;
+  border-color: #f59e0b;
+  color: #92400e;
+}
+
+.mos-runner[data-mos-version='365'] .mos-compass-timer.is-urgent {
+  background: #fee2e2;
+  border-color: #ef4444;
+  color: #991b1b;
+}
+
+.mos-runner[data-mos-version='365'] .mos-compass-progress-pill {
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  color: #3730a3;
 }
 
 .mos-runner[data-mos-version='365'] .mos-compass-link {
   border-radius: 6px;
   height: 28px;
   padding: 0 11px;
+  color: #334155;
+}
+
+.mos-runner[data-mos-version='365'] .mos-compass-link:hover:not(:disabled) {
+  background: #e2e8f0;
+  color: #0f172a;
 }
 
 .mos-runner[data-mos-version='365'] .mos-compass-link.is-grade {
@@ -2329,6 +2454,7 @@
 
 .mos-runner[data-mos-version='365'] .mos-compass-link.is-grade:hover:not(:disabled) {
   background: #1d4ed8;
+  color: #ffffff;
 }
 
 .mos-runner[data-mos-version='365'] .mos-task-tabs-bar {
@@ -2342,6 +2468,7 @@
 .mos-runner[data-mos-version='365'] .mos-task-tab {
   min-width: 82px;
   height: 34px;
+  border: 0;
   background: transparent;
   color: #475569;
   font-weight: 600;
@@ -2501,11 +2628,11 @@
   gap: 22px;
   padding: 24px 26px;
   border-radius: 16px;
-  border: 1px solid rgb(255 255 255 / 12%);
-  background: linear-gradient(135deg, #0b1830 0%, #122647 58%, #16325c 100%);
-  color: #ffffff;
+  border: 1px solid var(--ws-line);
+  background: linear-gradient(135deg, #ffffff 0%, color-mix(in srgb, var(--mos-accent, #2563eb) 5%, #f8fafc) 60%, color-mix(in srgb, var(--mos-accent, #2563eb) 11%, #f1f5f9) 100%);
+  color: #0f172a;
   overflow: hidden;
-  box-shadow: 0 14px 36px rgb(11 24 48 / 16%);
+  box-shadow: 0 10px 30px rgb(15 23 42 / 5%), 0 1px 2px rgb(15 23 42 / 4%);
   animation: mosEnterUp 260ms var(--mos-ease-out) both;
 }
 
@@ -2515,7 +2642,7 @@
   width: 440px;
   height: 440px;
   border-radius: 999px;
-  background: radial-gradient(circle, color-mix(in srgb, var(--mos-accent, #2563eb) 36%, transparent) 0%, transparent 68%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--mos-accent, #2563eb) 16%, transparent) 0%, transparent 68%);
   pointer-events: none;
   transition: background 260ms var(--mos-ease-out);
 }
@@ -2550,7 +2677,7 @@
   font-weight: 700;
   line-height: 1.18;
   letter-spacing: -0.025em;
-  color: #ffffff;
+  color: #0f172a;
 }
 
 .mos-hero-code {
@@ -2558,9 +2685,9 @@
   align-items: center;
   padding: 3px 10px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--mos-accent, #2563eb) 32%, rgb(255 255 255 / 12%));
-  border: 1px solid rgb(255 255 255 / 22%);
-  color: #ffffff;
+  background: color-mix(in srgb, var(--mos-accent, #2563eb) 12%, #ffffff);
+  border: 1px solid color-mix(in srgb, var(--mos-accent, #2563eb) 28%, transparent);
+  color: var(--mos-accent, #1d4ed8);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.03em;
@@ -2569,7 +2696,7 @@
 
 .mos-hero-title-row p {
   margin: 0;
-  color: #c5d6f2;
+  color: #475569;
   font-size: 13.5px;
   line-height: 1.45;
 }
@@ -2582,15 +2709,16 @@
 }
 
 .mos-seg.is-glass {
-  background: rgb(255 255 255 / 8%);
-  border-color: rgb(255 255 255 / 15%);
+  background: rgb(255 255 255 / 88%);
+  border-color: #dbe3ef;
   padding: 3px;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
 }
 
 .mos-seg.is-glass button {
   min-height: 31px;
   padding: 0 11px;
-  color: #d6e4fa;
+  color: #475569;
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -2598,14 +2726,15 @@
 }
 
 .mos-seg.is-glass button:hover {
-  background: rgb(255 255 255 / 14%);
-  color: #ffffff;
+  background: #f1f5f9;
+  color: #0f172a;
 }
 
 .mos-seg.is-glass button.is-active {
-  background: #ffffff;
-  color: #0f172a;
+  background: var(--mos-accent, #2563eb);
+  color: #ffffff;
   font-weight: 700;
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--mos-accent, #2563eb) 28%, transparent);
 }
 
 .mos-hero-ghost-btn {
@@ -2615,17 +2744,18 @@
   gap: 7px;
   padding: 0 13px;
   border-radius: 10px;
-  border: 1px solid rgb(255 255 255 / 20%);
-  background: rgb(255 255 255 / 9%);
-  color: #eef5ff;
+  border: 1px solid #d5dfec;
+  background: #ffffff;
+  color: #334155;
   font-size: 13px;
   font-weight: 600;
-  transition: background-color 150ms var(--mos-ease-out), border-color 150ms var(--mos-ease-out), transform 120ms var(--mos-ease-out);
+  transition: background-color 150ms var(--mos-ease-out), border-color 150ms var(--mos-ease-out), color 150ms var(--mos-ease-out), transform 120ms var(--mos-ease-out);
 }
 
 .mos-hero-ghost-btn:hover {
-  background: rgb(255 255 255 / 17%);
-  border-color: rgb(255 255 255 / 34%);
+  background: #f8fafc;
+  border-color: var(--mos-accent, #2563eb);
+  color: var(--mos-accent, #1d4ed8);
 }
 
 .mos-hero-ctas {
@@ -2647,12 +2777,12 @@
   color: #ffffff;
   font-size: 14px;
   font-weight: 700;
-  box-shadow: 0 6px 20px color-mix(in srgb, var(--mos-accent, #2563eb) 42%, transparent);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--mos-accent, #2563eb) 28%, transparent);
   transition: filter 150ms var(--mos-ease-out), transform 130ms var(--mos-ease-out), box-shadow 180ms var(--mos-ease-out);
 }
 
 .mos-hero-cta-primary:hover {
-  filter: brightness(1.08);
+  filter: brightness(1.06);
 }
 
 .mos-hero-cta-secondary {
@@ -2662,17 +2792,17 @@
   gap: 8px;
   padding: 0 16px;
   border-radius: 10px;
-  border: 1px solid rgb(255 255 255 / 22%);
-  background: rgb(255 255 255 / 10%);
-  color: #ffffff;
+  border: 1px solid color-mix(in srgb, var(--mos-accent, #2563eb) 30%, #cbd5e1);
+  background: #ffffff;
+  color: var(--mos-accent, #1d4ed8);
   font-size: 13.5px;
   font-weight: 600;
   transition: background-color 150ms var(--mos-ease-out), border-color 150ms var(--mos-ease-out), transform 130ms var(--mos-ease-out);
 }
 
 .mos-hero-cta-secondary:hover {
-  background: rgb(255 255 255 / 18%);
-  border-color: rgb(255 255 255 / 34%);
+  background: color-mix(in srgb, var(--mos-accent, #2563eb) 7%, #ffffff);
+  border-color: var(--mos-accent, #2563eb);
 }
 
 .mos-hero-side {
@@ -2690,8 +2820,9 @@
   gap: 14px;
   padding: 12px 14px;
   border-radius: 12px;
-  background: rgb(255 255 255 / 7%);
-  border: 1px solid rgb(255 255 255 / 12%);
+  background: rgb(255 255 255 / 90%);
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 8px rgb(15 23 42 / 4%);
 }
 
 .mos-hero-ring {
@@ -2709,13 +2840,13 @@
 
 .mos-hero-ring-track {
   fill: none;
-  stroke: rgb(255 255 255 / 14%);
+  stroke: #e2e8f0;
   stroke-width: 6.5;
 }
 
 .mos-hero-ring-fill {
   fill: none;
-  stroke: color-mix(in srgb, var(--mos-accent, #3b82f6) 80%, #ffffff);
+  stroke: var(--mos-accent, #2563eb);
   stroke-width: 6.5;
   stroke-linecap: round;
   transition: stroke-dashoffset 480ms var(--mos-ease-out), stroke 220ms var(--mos-ease-out);
@@ -2725,7 +2856,7 @@
   position: absolute;
   font-size: 16px;
   font-weight: 800;
-  color: #ffffff;
+  color: #0f172a;
   font-variant-numeric: tabular-nums;
 }
 
@@ -2740,14 +2871,14 @@
 .mos-hero-metrics span {
   display: block;
   font-size: 11px;
-  color: #a9c1e6;
+  color: #64748b;
   margin-bottom: 2px;
 }
 
 .mos-hero-metrics strong {
   font-size: 13.5px;
   font-weight: 700;
-  color: #ffffff;
+  color: #0f172a;
   white-space: nowrap;
 }
 
@@ -2755,10 +2886,10 @@
   display: flex;
   flex-direction: column;
   border-radius: 10px;
-  border: 1px solid rgb(255 255 255 / 18%);
+  border: 1px solid #cbd5e1;
   overflow: hidden;
-  background: #e5e7eb;
-  box-shadow: 0 8px 20px rgb(0 0 0 / 26%);
+  background: #f1f5f9;
+  box-shadow: 0 6px 18px rgb(15 23 42 / 8%);
   transition: border-color 200ms var(--mos-ease-out);
 }
 
@@ -2875,11 +3006,16 @@
 }
 
 .mos-mini-preview[data-preview-version='2016'] .mos-mini-console-bar {
-  background: #363c42;
+  background: #e2e8f0;
+  color: #1e293b;
+  border-bottom: 1.5px solid var(--mos-office, #2b579a);
 }
 
 .mos-mini-preview[data-preview-version='365'] .mos-mini-console-bar {
-  background: #0b2242;
+  background: #eef4fc;
+  color: #1e3a8a;
+  border-top: 1px solid #dbeafe;
+  border-bottom: 1px solid #dbeafe;
 }
 
 .mos-mini-console-tabs {
@@ -2917,21 +3053,6 @@
 .mos-track-btn:nth-child(1) { animation-delay: 35ms; }
 .mos-track-btn:nth-child(2) { animation-delay: 65ms; }
 .mos-track-btn:nth-child(3) { animation-delay: 90ms; }
-
-.mos-track-btn::before {
-  content: '';
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 3px;
-  background: var(--mos-accent);
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform 220ms var(--mos-ease-out);
-}
-
-.mos-track-btn.is-active::before {
-  transform: scaleX(1);
-}
 
 .mos-launch-panel {
   animation: mosEnterUp 250ms var(--mos-ease-out) 110ms both;
@@ -3093,21 +3214,32 @@
   justify-content: space-between;
   gap: 10px;
   padding: 13px 16px;
-  background: linear-gradient(135deg, #16325c 0%, #1e40af 100%);
-  color: #ffffff;
+  background: linear-gradient(180deg, #f0f7ff 0%, #ffffff 100%);
+  border-bottom: 1px solid #dbeafe;
+  color: #0f172a;
 }
 
 .mos-solution-drawer-head strong {
   display: block;
   font-size: 13.5px;
   font-weight: 700;
+  color: #0f172a;
 }
 
 .mos-solution-drawer-head span {
   display: block;
   font-size: 12px;
-  color: #dbeafe;
+  color: #475569;
   margin-top: 2px;
+}
+
+.mos-solution-drawer-head .mos-modal-close {
+  color: #475569;
+}
+
+.mos-solution-drawer-head .mos-modal-close:hover {
+  background: #e2e8f0;
+  color: #0f172a;
 }
 
 .mos-solution-drawer-body {
@@ -3201,8 +3333,9 @@
   border-radius: 999px;
   display: inline-grid;
   place-items: center;
-  background: #16325c;
-  color: #ffffff;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
   font-size: 11.5px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -3215,8 +3348,9 @@
   gap: 12px;
   padding: 10px 12px;
   border-radius: 9px;
-  background: #0f172a;
-  color: #f8fafc;
+  border: 1px solid #bfdbfe;
+  background: linear-gradient(180deg, #f8fbff 0%, #eff6ff 100%);
+  color: #0f172a;
 }
 
 .mos-sol-value-text {
@@ -3227,16 +3361,17 @@
 .mos-sol-value-text span {
   display: block;
   font-size: 11px;
-  color: #94a3b8;
+  font-weight: 600;
+  color: #475569;
   margin-bottom: 2px;
 }
 
 .mos-sol-value-text code {
   display: block;
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-size: 13px;
-  font-weight: 600;
-  color: #7dd3fc;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #1e3a8a;
   word-break: break-word;
 }
 
@@ -3248,21 +3383,22 @@
   gap: 5px;
   padding: 0 11px;
   border-radius: 7px;
-  border: 1px solid rgb(255 255 255 / 18%);
-  background: rgb(255 255 255 / 10%);
-  color: #ffffff;
+  border: 1px solid #93c5fd;
+  background: #ffffff;
+  color: #1d4ed8;
   font-size: 12px;
   font-weight: 600;
 }
 
 .mos-sol-copy-btn:hover {
-  background: rgb(255 255 255 / 20%);
+  background: #dbeafe;
+  border-color: #60a5fa;
 }
 
 .mos-sol-copy-btn.is-copied {
-  background: #16a34a;
-  border-color: #16a34a;
-  color: #ffffff;
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #166534;
 }
 
 .mos-sol-trap {
@@ -3339,8 +3475,9 @@
   flex: none;
   padding: 3px 9px;
   border-radius: 7px;
-  background: #16325c;
-  color: #ffffff;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
   font-size: 12px;
   font-weight: 700;
 }
@@ -3538,10 +3675,81 @@
   padding: 0 14px 14px 42px;
 }
 
+:root[data-theme='dark'] .mos-hero {
+  background: linear-gradient(135deg, #131c2e 0%, #18253d 100%);
+  border-color: #283652;
+  color: #f1f5f9;
+}
+
+:root[data-theme='dark'] .mos-hero-heading h1,
+:root[data-theme='dark'] .mos-hero-ring strong,
+:root[data-theme='dark'] .mos-hero-metrics strong {
+  color: #f8fafc;
+}
+
+:root[data-theme='dark'] .mos-hero-title-row p,
+:root[data-theme='dark'] .mos-hero-metrics span {
+  color: #94a3b8;
+}
+
+:root[data-theme='dark'] .mos-hero-readiness,
+:root[data-theme='dark'] .mos-seg.is-glass,
+:root[data-theme='dark'] .mos-hero-ghost-btn,
+:root[data-theme='dark'] .mos-hero-cta-secondary {
+  background: #1a2438;
+  border-color: #2d3d5c;
+  color: #e2e8f0;
+}
+
+:root[data-theme='dark'] .mos-hero-ring-track {
+  stroke: rgb(255 255 255 / 14%);
+}
+
+:root[data-theme='dark'] .mos-mode-item.is-primary {
+  background: linear-gradient(145deg, color-mix(in srgb, var(--mos-accent, #2563eb) 18%, #162033) 0%, #162033 80%);
+  border-color: color-mix(in srgb, var(--mos-accent, #2563eb) 52%, #2d3d5c);
+}
+
+:root[data-theme='dark'] .mos-modal-head {
+  background: #141c2d;
+  color: #f8fafc;
+}
+
+:root[data-theme='dark'] .mos-modal-head h2 {
+  color: #f8fafc;
+}
+
 :root[data-theme='dark'] .mos-sol-card {
   background: #141c2d;
   border-color: #28344d;
   color: #e2e8f0;
+}
+
+:root[data-theme='dark'] .mos-sol-value-box {
+  background: #0f172a;
+  border-color: #283652;
+  color: #f1f5f9;
+}
+
+:root[data-theme='dark'] .mos-sol-value-text span {
+  color: #94a3b8;
+}
+
+:root[data-theme='dark'] .mos-sol-value-text code {
+  color: #7dd3fc;
+}
+
+:root[data-theme='dark'] .mos-sol-copy-btn {
+  background: #1e293b;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+
+:root[data-theme='dark'] .mos-sol-num,
+:root[data-theme='dark'] .mos-sol-task-badge {
+  background: #172742;
+  border-color: #2c4a7c;
+  color: #93c5fd;
 }
 
 :root[data-theme='dark'] .mos-sol-step {
