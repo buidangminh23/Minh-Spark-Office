@@ -23,11 +23,13 @@ import {
   saveMosDraft,
   trackReadiness,
 } from '../src/lib/mos/progress.ts';
+import { solutionForTask, totalAuthoredSolutions } from '../src/lib/mos/solutions.ts';
 import { emptySheet } from '../src/lib/workbookBasics.ts';
 import type { DocContent, FileContent, SheetContent, SlideContent } from '../src/lib/storage.ts';
 
 test('all 36 built-in MOS projects (180 tasks) have bilingual text and starters score 0/5', () => {
   assert.equal(ALL_MOS_PROJECTS.length, 36);
+  assert.equal(totalAuthoredSolutions(), 180);
   for (const track of ['word', 'excel', 'powerpoint'] as const) {
     assert.equal(projectsForTrack(track, 'associate').length, 7);
     assert.equal(projectsForTrack(track, 'expert').length, 5);
@@ -41,6 +43,9 @@ test('all 36 built-in MOS projects (180 tasks) have bilingual text and starters 
     assert.equal(graded.totalCount, 5, `${project.id} must have 5 tasks`);
     for (const task of project.tasks) {
       assert.ok(task.titleEn && task.instructionEn, `${task.id} missing English translation`);
+      const sol = solutionForTask(task, project);
+      assert.ok(sol.steps.length >= 3, `${task.id} solution must have >= 3 steps`);
+      assert.ok(sol.verifyTip.length >= 8, `${task.id} solution missing verifyTip`);
     }
     assert.equal(
       graded.passedCount,

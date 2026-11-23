@@ -44,6 +44,15 @@ export type MosTaskCheckResult = {
   detail: string;
 };
 
+export type MosTaskSolution = {
+  ribbonPath: string;
+  steps: string[];
+  formulaOrValue?: string;
+  shortcut?: string;
+  examTrap?: string;
+  verifyTip: string;
+};
+
 export type MosTask<C extends FileContent = FileContent> = {
   id: string;
   domainId: string;

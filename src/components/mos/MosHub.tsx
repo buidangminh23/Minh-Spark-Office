@@ -3,6 +3,7 @@ import {
   ArrowRight,
   Award,
   BookOpen,
+  BookOpenCheck,
   Clock,
   FolderOpen,
   GraduationCap,
@@ -43,6 +44,7 @@ import {
   saveMosProgress,
   trackReadiness,
 } from '../../lib/mos/progress';
+import { solutionForTask } from '../../lib/mos/solutions';
 import type {
   MosAttemptRecord,
   MosDrillMode,
@@ -51,6 +53,7 @@ import type {
   MosLevel,
   MosMode,
   MosProgress,
+  MosProject,
   MosSavedDraft,
   MosSessionConfig,
   MosTrackId,
@@ -63,7 +66,11 @@ import { useUi } from '../ui';
 import { MosDrillModal } from './MosDrillModal';
 import { MosExamRunner } from './MosExamRunner';
 import { MosScoreReport } from './MosScoreReport';
+import { MosSolutionCard } from './MosSolutionCard';
 import './mos.css';
+
+const HERO_RING_R = 34;
+const HERO_RING_C = 2 * Math.PI * HERO_RING_R;
 
 export function MosHub() {
   const { user } = useAccount();
@@ -100,6 +107,7 @@ export function MosHub() {
   const [importedPacks, setImportedPacks] = useState<ImportedMosPack[]>([]);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importingPack, setImportingPack] = useState(false);
+  const [solutionModalProject, setSolutionModalProject] = useState<MosProject | null>(null);
   const zipInputRef = useRef<HTMLInputElement | null>(null);
   const folderInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -234,6 +242,7 @@ export function MosHub() {
 
   const totalVisibleTasks = visibleProjects.reduce((sum, p) => sum + p.tasks.length, 0);
   const weakCount = readiness.weakTaskIds.length;
+  const heroDashOffset = HERO_RING_C * (1 - readiness.percent / 100);
 
   const handleSaveCopyToWorkspace = (name: string, content: FileContent) => {
     const now = Date.now();
@@ -256,49 +265,151 @@ export function MosHub() {
   };
 
   return (
-    <div className="mos-page" style={{ ['--mos-accent' as string]: currentTrack.accent }}>
-      <header className="mos-head">
-        <div>
-          <h1>Ôn thi MOS</h1>
-          <p>Phòng thi mô phỏng đúng từng phiên bản MOS 365, 2019, 2016 trực tiếp trên 23 Docs, 23 Sheets và 23 Slides.</p>
-        </div>
-
-        <div className="mos-head-controls">
-          <div className="mos-seg" role="tablist" aria-label="Phiên bản kỳ thi MOS">
-            {MOS_VERSIONS.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                role="tab"
-                aria-selected={version === item.id}
-                className={version === item.id ? 'is-active' : ''}
-                onClick={() => setVersion(item.id)}
-              >
-                {item.short}
-              </button>
-            ))}
+    <div
+      className="mos-page"
+      style={{
+        ['--mos-accent' as string]: currentTrack.accent,
+        ['--mos-office' as string]: currentTrack.officeColor,
+      }}
+    >
+      <section className="mos-hero" aria-label="Trung tâm luyện thi chứng chỉ MOS">
+        <div className="mos-hero-glow" aria-hidden="true" />
+        <div className="mos-hero-main">
+          <div className="mos-hero-title-row">
+            <SuiteLogo kind={currentTrack.editorKind} size={50} />
+            <div>
+              <div className="mos-hero-heading">
+                <h1>Ôn thi MOS · {currentTrack.title}</h1>
+                <span className="mos-hero-code">{examCode}</span>
+              </div>
+              <p>
+                {currentVersion.label} · {level === 'expert' ? 'Expert chuyên sâu' : 'Associate chuẩn'} · {visibleProjects.length} dự án / {totalVisibleTasks} nhiệm vụ có đáp án chi tiết từng bước
+              </p>
+            </div>
           </div>
 
-          <div className="mos-seg" role="tablist" aria-label="Cấp độ kỳ thi MOS">
-            {MOS_LEVELS.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                role="tab"
-                aria-selected={level === item.id}
-                className={level === item.id ? 'is-active' : ''}
-                onClick={() => setLevel(item.id)}
-              >
-                {item.label}
+          <div className="mos-hero-controls">
+            <div className="mos-seg is-glass" role="tablist" aria-label="Phiên bản kỳ thi MOS">
+              {MOS_VERSIONS.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={version === item.id}
+                  className={version === item.id ? 'is-active' : ''}
+                  onClick={() => setVersion(item.id)}
+                >
+                  {item.short}
+                </button>
+              ))}
+            </div>
+
+            <div className="mos-seg is-glass" role="tablist" aria-label="Cấp độ kỳ thi MOS">
+              {MOS_LEVELS.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={level === item.id}
+                  className={level === item.id ? 'is-active' : ''}
+                  onClick={() => setLevel(item.id)}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="mos-seg is-glass" role="tablist" aria-label="Ngôn ngữ đề thi">
+              <button type="button" role="tab" aria-selected={lang === 'vi'} className={lang === 'vi' ? 'is-active' : ''} onClick={() => setLang('vi')}>
+                <Languages size={13} /> VI
               </button>
-            ))}
+              <button type="button" role="tab" aria-selected={lang === 'en'} className={lang === 'en' ? 'is-active' : ''} onClick={() => setLang('en')}>
+                EN
+              </button>
+            </div>
+
+            <button type="button" className="mos-hero-ghost-btn" onClick={() => setImportModalOpen(true)}>
+              <Upload size={14} /> Nhập bộ đề từ máy
+            </button>
           </div>
 
-          <button type="button" className="mos-btn" onClick={() => setImportModalOpen(true)}>
-            <Upload size={15} /> Nhập bộ đề từ máy
-          </button>
+          <div className="mos-hero-ctas">
+            <button
+              type="button"
+              className="mos-hero-cta-primary"
+              onClick={() => launchSession(buildPresetSession('certiport-exam', { track, version, level, lang }))}
+            >
+              <Award size={16} />
+              <span>Vào phòng thi {currentVersion.short} ({visibleProjects.length} dự án · 50p)</span>
+              <ArrowRight size={15} className="mos-arrow-glide" />
+            </button>
+            <button
+              type="button"
+              className="mos-hero-cta-secondary"
+              onClick={() => launchSession(buildPresetSession('guided-training', { track, version, level, lang }))}
+            >
+              <BookOpenCheck size={16} />
+              <span>Luyện tập + Đáp án từng bước</span>
+            </button>
+          </div>
         </div>
-      </header>
+
+        <div className="mos-hero-side">
+          <div className="mos-hero-readiness">
+            <div className="mos-hero-ring" aria-label={`Tiến độ ${readiness.percent}%`}>
+              <svg viewBox="0 0 84 84" width="76" height="76">
+                <circle className="mos-hero-ring-track" cx="42" cy="42" r={HERO_RING_R} />
+                <circle
+                  className="mos-hero-ring-fill"
+                  cx="42"
+                  cy="42"
+                  r={HERO_RING_R}
+                  strokeDasharray={HERO_RING_C}
+                  strokeDashoffset={heroDashOffset}
+                />
+              </svg>
+              <strong>{readiness.percent}%</strong>
+            </div>
+            <div className="mos-hero-metrics">
+              <div>
+                <span>Điểm cao nhất</span>
+                <strong>{readiness.bestMock !== null ? `${readiness.bestMock} / 1000` : 'Chưa thi'}</strong>
+              </div>
+              <div>
+                <span>Đã hoàn thành</span>
+                <strong>{readiness.passedTasks}/{readiness.totalTasks} câu</strong>
+              </div>
+              <div>
+                <span>Trắc nghiệm</span>
+                <strong>{drillInfo ? `${Math.round((drillInfo.correct / Math.max(1, drillInfo.total)) * 100)}%` : `${drillCount} câu`}</strong>
+              </div>
+            </div>
+          </div>
+
+          <div className="mos-mini-preview" data-preview-version={version} aria-label={`Xem trước giao diện ${currentVersion.short}`}>
+            <div className="mos-mini-titlebar">
+              <span className="mos-mini-dot" />
+              <span className="mos-mini-file">{visibleProjects[0]?.fileName ?? 'Exam.docx'}</span>
+              <span className="mos-mini-ver-tag">{currentVersion.short}</span>
+            </div>
+            <div className="mos-mini-ribbon">
+              <span className="mos-mini-ribbon-card" />
+            </div>
+            <div className="mos-mini-stage">
+              <span className="mos-mini-doc-sheet" />
+            </div>
+            <div className="mos-mini-console">
+              <div className="mos-mini-console-bar">
+                <span>{currentVersion.projectFormat === 'slash' ? `Project 1 / ${visibleProjects.length}` : `Project 1 of ${visibleProjects.length}`}</span>
+                <span>00:50:00</span>
+              </div>
+              <div className="mos-mini-console-tabs">
+                <i className="is-on" /><i /><i /><i />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {savedDraft && draftPlayable && (
         <div className="mos-draft-banner" role="region" aria-label="Bài thi đang tạm dừng">
@@ -358,52 +469,6 @@ export function MosHub() {
       </div>
 
       <section className="mos-launch-panel" aria-label="Chọn hình thức ôn luyện và thi thử">
-        <div className="mos-launch-top">
-          <div className="mos-launch-title">
-            <SuiteLogo kind={currentTrack.editorKind} size={42} />
-            <div>
-              <h2>{currentTrack.title} · Mã đề {examCode}</h2>
-              <p>
-                {currentVersion.label} · {level === 'expert' ? 'Cấp độ Expert chuyên sâu' : 'Cấp độ Associate chuẩn'} · {visibleProjects.length} dự án ({totalVisibleTasks} nhiệm vụ)
-              </p>
-            </div>
-          </div>
-
-          <div className="mos-readiness-strip">
-            <div className="mos-stat">
-              <span>Điểm thi thử cao nhất</span>
-              <strong>{readiness.bestMock !== null ? `${readiness.bestMock} / 1000` : 'Chưa thi'}</strong>
-            </div>
-            <div className="mos-stat">
-              <span>Tiến độ {level === 'expert' ? 'Expert' : 'Associate'}</span>
-              <strong>{readiness.percent}% ({readiness.passedTasks}/{readiness.totalTasks})</strong>
-            </div>
-            <div className="mos-stat">
-              <span>Trắc nghiệm nhanh</span>
-              <strong>{drillInfo ? `${Math.round((drillInfo.correct / Math.max(1, drillInfo.total)) * 100)}% (${drillInfo.runs} lượt)` : 'Chưa làm'}</strong>
-            </div>
-          </div>
-        </div>
-
-        <div className="mos-version-strip">
-          <div className="mos-version-preview">
-            <span className="mos-version-dot" style={{ background: currentTrack.officeColor }} />
-            <span className="mos-version-badge">{currentVersion.short}</span>
-            <span>Giao diện phòng thi: <strong>{currentVersion.uiSummary}</strong></span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Languages size={15} color="var(--ws-muted)" />
-            <div className="mos-seg" role="tablist" aria-label="Ngôn ngữ đề thi">
-              <button type="button" role="tab" aria-selected={lang === 'vi'} className={lang === 'vi' ? 'is-active' : ''} onClick={() => setLang('vi')}>
-                Tiếng Việt
-              </button>
-              <button type="button" role="tab" aria-selected={lang === 'en'} className={lang === 'en' ? 'is-active' : ''} onClick={() => setLang('en')}>
-                English
-              </button>
-            </div>
-          </div>
-        </div>
-
         <div className="mos-modes-grid">
           <button
             type="button"
@@ -416,11 +481,11 @@ export function MosHub() {
             </div>
             <div className="mos-mode-body">
               <strong>Thi thử chuẩn Certiport</strong>
-              <p>Đề thi hoàn chỉnh {visibleProjects.length} dự án / {totalVisibleTasks} nhiệm vụ, giao diện đúng {currentVersion.short}, đếm ngược 50 phút, xuất Phiếu điểm 1000 điểm.</p>
+              <p>Đề thi hoàn chỉnh {visibleProjects.length} dự án / {totalVisibleTasks} nhiệm vụ, giao diện đúng {currentVersion.short}, đếm ngược 50 phút, xuất Phiếu điểm kèm đáp án chi tiết.</p>
             </div>
             <div className="mos-mode-foot">
               <span>Vào phòng thi {currentVersion.short}</span>
-              <ArrowRight size={15} />
+              <ArrowRight size={15} className="mos-arrow-glide" />
             </div>
           </button>
 
@@ -431,15 +496,15 @@ export function MosHub() {
           >
             <div className="mos-mode-head">
               <span className="mos-mode-icon"><BookOpen size={18} /></span>
-              <span className="mos-mode-tag">Gợi ý + Chấm ngay</span>
+              <span className="mos-mode-tag">Đáp án từng bước + Chấm ngay</span>
             </div>
             <div className="mos-mode-body">
               <strong>Luyện tập có hướng dẫn</strong>
-              <p>Không giới hạn thời gian, xem đường dẫn thẻ Ribbon từng bước, sao chép nhanh Click-to-Copy và bấm kiểm tra đúng/sai ngay.</p>
+              <p>Không giới hạn thời gian, mở ngăn Đáp án từng bước song song tài liệu, sao chép công thức Click-to-Copy và chấm đúng/sai ngay.</p>
             </div>
             <div className="mos-mode-foot">
               <span>Mở chế độ luyện tập</span>
-              <ArrowRight size={15} />
+              <ArrowRight size={15} className="mos-arrow-glide" />
             </div>
           </button>
 
@@ -458,7 +523,7 @@ export function MosHub() {
             </div>
             <div className="mos-mode-foot">
               <span>Bắt đầu thi nhanh</span>
-              <ArrowRight size={15} />
+              <ArrowRight size={15} className="mos-arrow-glide" />
             </div>
           </button>
 
@@ -473,7 +538,7 @@ export function MosHub() {
             </div>
             <div className="mos-mode-foot">
               <span>Chọn miền kỹ năng</span>
-              <ArrowRight size={15} />
+              <ArrowRight size={15} className="mos-arrow-glide" />
             </div>
           </button>
 
@@ -488,7 +553,7 @@ export function MosHub() {
             </div>
             <div className="mos-mode-foot">
               <span>Mở bộ trắc nghiệm</span>
-              <ArrowRight size={15} />
+              <ArrowRight size={15} className="mos-arrow-glide" />
             </div>
           </button>
 
@@ -503,7 +568,7 @@ export function MosHub() {
             </div>
             <div className="mos-mode-foot">
               <span>Thiết lập đề riêng</span>
-              <ArrowRight size={15} />
+              <ArrowRight size={15} className="mos-arrow-glide" />
             </div>
           </button>
         </div>
@@ -579,9 +644,12 @@ export function MosHub() {
               const doneInProject = project.tasks.filter((t) => passedTaskSet.has(t.id)).length;
               return (
                 <div key={project.id} className="mos-project-row">
+                  <div className="mos-project-num" aria-hidden="true">
+                    {String(project.order).padStart(2, '0')}
+                  </div>
                   <div className="mos-project-main">
                     <div className="mos-project-title">
-                      <strong>Dự án {project.order}: {lang === 'en' ? (project.titleEn ?? project.title) : project.title}</strong>
+                      <strong>{lang === 'en' ? (project.titleEn ?? project.title) : project.title}</strong>
                       <span className={`mos-level-pill ${project.level === 'expert' ? 'is-expert' : ''}`}>
                         {project.level === 'expert' ? 'Expert' : project.difficulty}
                       </span>
@@ -590,10 +658,23 @@ export function MosHub() {
                     <div className="mos-project-meta">
                       <code>{project.fileName}</code>
                       <span><Clock size={12} style={{ verticalAlign: '-2px', marginRight: 4 }} />~{project.minutes} phút</span>
-                      <span>Đã đạt {doneInProject}/{project.tasks.length} câu</span>
+                      <span className="mos-task-dots" title={`Đã đạt ${doneInProject}/${project.tasks.length} câu`}>
+                        {project.tasks.map((task) => (
+                          <i key={task.id} className={passedTaskSet.has(task.id) ? 'is-done' : ''} />
+                        ))}
+                        <span>{doneInProject}/{project.tasks.length}</span>
+                      </span>
                     </div>
                   </div>
                   <div className="mos-project-actions">
+                    <button
+                      type="button"
+                      className="mos-btn"
+                      title="Xem đáp án chi tiết 5 nhiệm vụ của dự án này"
+                      onClick={() => setSolutionModalProject(project)}
+                    >
+                      <BookOpenCheck size={13} /> Đáp án
+                    </button>
                     <button
                       type="button"
                       className="mos-btn"
@@ -675,6 +756,61 @@ export function MosHub() {
           </section>
         </div>
       </div>
+
+      {solutionModalProject && (
+        <div className="mos-modal-backdrop" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) setSolutionModalProject(null); }}>
+          <section className="mos-modal mos-modal-lg" role="dialog" aria-modal="true" aria-label="Đáp án chi tiết dự án">
+            <header className="mos-modal-head">
+              <h2>Đáp án chi tiết · Dự án {solutionModalProject.order}: {solutionModalProject.title}</h2>
+              <button type="button" className="mos-modal-close" aria-label="Đóng" onClick={() => setSolutionModalProject(null)}>
+                <X size={18} />
+              </button>
+            </header>
+            <div className="mos-modal-body">
+              <div className="mos-sol-sheet-intro">
+                <code>{solutionModalProject.fileName}</code>
+                <span>{solutionModalProject.scenario}</span>
+              </div>
+              <div className="mos-sol-sheet-list">
+                {solutionModalProject.tasks.map((task, idx) => (
+                  <div key={task.id} className="mos-sol-sheet-item">
+                    <div className="mos-sol-sheet-head">
+                      <span className="mos-sol-task-badge">Task {idx + 1}</span>
+                      <div>
+                        <strong>{task.title}</strong>
+                        <p>{task.instruction}</p>
+                      </div>
+                    </div>
+                    <MosSolutionCard
+                      solution={solutionForTask(task, solutionModalProject)}
+                      onCopy={(val) => {
+                        if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                          void navigator.clipboard.writeText(val).catch(() => undefined);
+                        }
+                        ui.toast(`Đã sao chép: ${val}`);
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+            <footer className="mos-modal-foot">
+              <button type="button" className="mos-btn" onClick={() => setSolutionModalProject(null)}>Đóng</button>
+              <button
+                type="button"
+                className="mos-btn mos-btn-primary"
+                onClick={() => {
+                  const target = solutionModalProject;
+                  setSolutionModalProject(null);
+                  launchSession(buildPresetSession('single-project', { track, version, level, lang, projectId: target.id }));
+                }}
+              >
+                <Play size={14} /> Thực hành dự án này ngay
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
 
       {importModalOpen && (
         <div className="mos-modal-backdrop" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) setImportModalOpen(false); }}>
@@ -855,7 +991,7 @@ export function MosHub() {
                   <div className="mos-toggle-row" style={{ paddingTop: 6 }}>
                     <label className="mos-toggle">
                       <input type="checkbox" checked={customHints} onChange={(e) => setCustomHints(e.target.checked)} />
-                      <span>Cho phép xem gợi ý</span>
+                      <span>Cho phép gợi ý & đáp án</span>
                     </label>
                     <label className="mos-toggle">
                       <input type="checkbox" checked={customLiveCheck} onChange={(e) => setCustomLiveCheck(e.target.checked)} />
@@ -926,6 +1062,7 @@ export function MosHub() {
       {report && (
         <MosScoreReport
           attempt={report}
+          customProjects={allCustomProjects}
           onClose={() => setReport(null)}
           onRetryProject={(projectId) => {
             setReport(null);

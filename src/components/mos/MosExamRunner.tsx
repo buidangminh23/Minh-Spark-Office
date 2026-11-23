@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   AlertTriangle,
+  BookOpenCheck,
   Check,
   CheckCircle2,
   Circle,
@@ -27,6 +28,7 @@ import {
   trackMeta,
   versionMeta,
 } from '../../lib/mos/grader';
+import { solutionForTask } from '../../lib/mos/solutions';
 import type {
   MosAttemptRecord,
   MosLang,
@@ -37,6 +39,7 @@ import type {
 } from '../../lib/mos/types';
 import type { DocContent, FileContent, FileMeta, SheetContent, SlideContent } from '../../lib/storage';
 import { useUi } from '../ui';
+import { MosSolutionCard } from './MosSolutionCard';
 
 const FONT_STEPS = [14, 16, 18] as const;
 
@@ -141,9 +144,11 @@ export function MosExamRunner({
   const [editorError, setEditorError] = useState('');
   const [projectIndex, setProjectIndex] = useState(() => Math.min(initialDraft?.projectIndex ?? 0, Math.max(0, projects.length - 1)));
   const [activeTab, setActiveTab] = useState<'overview' | number>(initialDraft?.activeTab ?? 0);
+  const [taskSlideDir, setTaskSlideDir] = useState<'none' | 'next' | 'prev'>('none');
   const [consoleHeight, setConsoleHeight] = useState(config.version === '365' ? 236 : 220);
   const [fontIndex, setFontIndex] = useState(0);
   const [showHint, setShowHint] = useState(false);
+  const [solutionDrawerOpen, setSolutionDrawerOpen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [completedTasks, setCompletedTasks] = useState<Record<string, boolean>>(initialDraft?.completedTasks ?? {});
   const [reviewTasks, setReviewTasks] = useState<Record<string, boolean>>(initialDraft?.reviewTasks ?? {});
@@ -272,6 +277,18 @@ export function MosExamRunner({
     }, 1600);
   }, [ui]);
 
+  const selectTabWithDir = useCallback((nextTab: 'overview' | number, animate = true) => {
+    if (!animate) {
+      setTaskSlideDir('none');
+    } else {
+      const curRank = activeTab === 'overview' ? -1 : activeTab;
+      const nextRank = nextTab === 'overview' ? -1 : nextTab;
+      setTaskSlideDir(nextRank > curRank ? 'next' : nextRank < curRank ? 'prev' : 'none');
+    }
+    setActiveTab(nextTab);
+    setShowHint(false);
+  }, [activeTab]);
+
   const switchProject = useCallback(async (nextIndex: number, nextTab: 'overview' | number = 0) => {
     if (nextIndex < 0 || nextIndex >= projects.length) return;
     await saveActiveDocumentForExit().catch(() => false);
@@ -279,10 +296,11 @@ export function MosExamRunner({
       const savedCopy = structuredClone(docsRef.current[currentProject.id]);
       setInitialDocs((prev) => ({ ...prev, [currentProject.id]: savedCopy }));
     }
+    setTaskSlideDir(nextIndex > projectIndex ? 'next' : 'prev');
     setProjectIndex(nextIndex);
     setActiveTab(nextTab);
     setShowHint(false);
-  }, [currentProject, projects.length]);
+  }, [currentProject, projectIndex, projects.length]);
 
   const handleRestartProject = async () => {
     if (!currentProject) return;
@@ -375,24 +393,21 @@ export function MosExamRunner({
   const isLastTaskInProject = typeof activeTab === 'number' && activeTab >= currentTasks.length - 1;
   const isLastProject = projectIndex >= projects.length - 1;
 
-  const goPrevTask = useCallback(() => {
+  const goPrevTask = useCallback((animate = true) => {
     if (typeof activeTab === 'number') {
-      setActiveTab(activeTab === 0 ? 'overview' : activeTab - 1);
-      setShowHint(false);
+      selectTabWithDir(activeTab === 0 ? 'overview' : activeTab - 1, animate);
     }
-  }, [activeTab]);
+  }, [activeTab, selectTabWithDir]);
 
-  const goNextTask = useCallback(() => {
+  const goNextTask = useCallback((animate = true) => {
     if (activeTab === 'overview') {
-      setActiveTab(0);
-      setShowHint(false);
+      selectTabWithDir(0, animate);
     } else if (!isLastTaskInProject) {
-      setActiveTab(activeTab + 1);
-      setShowHint(false);
+      selectTabWithDir(activeTab + 1, animate);
     } else if (!isLastProject) {
       void switchProject(projectIndex + 1, 0);
     }
-  }, [activeTab, isLastProject, isLastTaskInProject, projectIndex, switchProject]);
+  }, [activeTab, isLastProject, isLastTaskInProject, projectIndex, selectTabWithDir, switchProject]);
 
   useEffect(() => {
     if (!started || summaryOpen) return;
@@ -401,10 +416,10 @@ export function MosExamRunner({
       const key = event.key.toLowerCase();
       if (key === 'arrowleft') {
         event.preventDefault();
-        goPrevTask();
+        goPrevTask(false);
       } else if (key === 'arrowright') {
         event.preventDefault();
-        goNextTask();
+        goNextTask(false);
       } else if (key === 'm' && currentTask) {
         event.preventDefault();
         setCompletedTasks((prev) => ({ ...prev, [currentTask.id]: !prev[currentTask.id] }));
@@ -447,6 +462,10 @@ export function MosExamRunner({
     (sum, p) => sum + tasksForProjectInSession(p, config.focusTaskIds).filter((t) => completedTasks[t.id] || liveChecks[t.id]?.passed).length,
     0,
   );
+  const currentSolution = useMemo(
+    () => (currentTask ? solutionForTask(currentTask, currentProject) : null),
+    [currentTask, currentProject],
+  );
 
   const DocEditor = loadedEditors.doc;
   const SheetEditor = loadedEditors.sheet;
@@ -488,7 +507,7 @@ export function MosExamRunner({
                 <li>Khung soạn thảo <strong>{track.appName}</strong> và thanh câu hỏi phía dưới được cấu hình đúng giao diện <strong>{versionInfo.uiSummary}</strong>.</li>
                 <li>Bấm trực tiếp vào các cụm chữ gạch chân chấm (Click-to-Copy) trong đề bài để sao chép chính xác tên cột, công thức, nhãn chân trang hoặc URL.</li>
                 <li>Phím tắt điều hướng nhanh: <strong>Alt + ←/→</strong> chuyển câu, <strong>Alt + M</strong> đánh dấu hoàn thành, <strong>Alt + R</strong> cắm cờ xem lại.</li>
-                <li>{config.allowHints ? 'Chế độ này bật nút ? (Gợi ý Ribbon) và Kiểm tra câu ngay lập tức.' : 'Chế độ thi thử ẩn gợi ý; bấm Summary để rà soát toàn bộ dự án trước khi Finish Exam.'}</li>
+                <li>{config.allowHints ? 'Chế độ này bật nút ? (Gợi ý Ribbon), ngăn Đáp án chi tiết từng bước và Kiểm tra câu ngay.' : 'Chế độ thi thử ẩn gợi ý khi làm bài; sau khi nộp bài sẽ mở khoá toàn bộ Đáp án chi tiết từng bước trên Phiếu điểm.'}</li>
               </ul>
             </div>
           </div>
@@ -540,13 +559,15 @@ export function MosExamRunner({
     ? `Project ${projectIndex + 1} / ${projects.length}`
     : `Project ${projectIndex + 1} of ${projects.length}`;
   const timerString = remainingSec !== null ? formatHms(remainingSec) : formatHms(elapsedSec);
+  const taskSwapKey = `${currentProject?.id ?? 'none'}:${String(activeTab)}`;
+  const taskAnimClass = taskSlideDir === 'next' ? 'is-slide-next' : taskSlideDir === 'prev' ? 'is-slide-prev' : '';
 
   const prevButton = (
     <button
       type="button"
       className="mos-real-btn is-nav"
       disabled={activeTab === 'overview'}
-      onClick={goPrevTask}
+      onClick={() => goPrevTask(true)}
     >
       {config.version === '2016' ? '◀ Previous' : config.version === '365' ? '← Previous Task' : 'Previous Task'}
     </button>
@@ -557,7 +578,7 @@ export function MosExamRunner({
       type="button"
       className="mos-real-btn is-nav"
       disabled={isLastTaskInProject && isLastProject}
-      onClick={goNextTask}
+      onClick={() => goNextTask(true)}
     >
       {isLastTaskInProject && !isLastProject
         ? (config.version === '2016' ? 'Next Project ▶' : 'Next Project')
@@ -596,6 +617,17 @@ export function MosExamRunner({
       {config.version === '2019' ? 'Mark for review' : 'Mark for Review'}
     </button>
   );
+
+  const solutionButton = config.allowHints && currentTask ? (
+    <button
+      type="button"
+      className={`mos-real-btn is-solution ${solutionDrawerOpen ? 'is-on' : ''}`}
+      aria-pressed={solutionDrawerOpen}
+      onClick={() => setSolutionDrawerOpen((v) => !v)}
+    >
+      <BookOpenCheck size={14} /> {lang === 'en' ? 'Solution' : 'Đáp án'}
+    </button>
+  ) : null;
 
   const checkButton = config.allowLiveCheck && currentTask ? (
     <button
@@ -649,6 +681,32 @@ export function MosExamRunner({
           />
         ) : (
           <div className="mos-editor-loading">Đang tải trình soạn thảo…</div>
+        )}
+
+        {config.allowHints && currentSolution && currentTask && (
+          <aside
+            className={`mos-solution-drawer ${solutionDrawerOpen ? 'is-open' : ''}`}
+            aria-label="Đáp án chi tiết từng bước"
+            aria-hidden={!solutionDrawerOpen}
+          >
+            <div className="mos-solution-drawer-head">
+              <div>
+                <strong>Đáp án chi tiết · Task {(typeof activeTab === 'number' ? activeTab : 0) + 1}</strong>
+                <span>{activeTaskTitle}</span>
+              </div>
+              <button
+                type="button"
+                className="mos-modal-close"
+                aria-label="Đóng đáp án chi tiết"
+                onClick={() => setSolutionDrawerOpen(false)}
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="mos-solution-drawer-body">
+              <MosSolutionCard solution={currentSolution} onCopy={handleCopyToken} />
+            </div>
+          </aside>
         )}
       </div>
 
@@ -750,7 +808,7 @@ export function MosExamRunner({
                 role="tab"
                 aria-selected={activeTab === 'overview'}
                 className={`mos-task-tab ${activeTab === 'overview' ? 'is-active' : ''}`}
-                onClick={() => { setActiveTab('overview'); setShowHint(false); }}
+                onClick={() => selectTabWithDir('overview', true)}
               >
                 Overview
               </button>
@@ -770,7 +828,7 @@ export function MosExamRunner({
                     role="tab"
                     aria-selected={activeTab === idx}
                     className={tabCls}
-                    onClick={() => { setActiveTab(idx); setShowHint(false); }}
+                    onClick={() => selectTabWithDir(idx, true)}
                   >
                     {(check?.passed || done) && <Check size={13} className="mos-tab-status-done" />}
                     {!done && check && !check.passed && <XCircle size={13} className="mos-tab-status-fail" />}
@@ -782,7 +840,7 @@ export function MosExamRunner({
             </div>
 
             <div className="mos-task-body" style={{ fontSize }}>
-              <div className="mos-task-inner">
+              <div key={taskSwapKey} className={`mos-task-inner ${taskAnimClass}`}>
                 {activeTab === 'overview' || !currentTask ? (
                   <>
                     <div className="mos-task-meta-line">
@@ -814,7 +872,7 @@ export function MosExamRunner({
                             className={`mos-copy-chip ${copiedToken === token ? 'is-copied' : ''}`}
                             onClick={() => handleCopyToken(token)}
                           >
-                            <Copy size={11} /> {token}
+                            {copiedToken === token ? <Check size={11} /> : <Copy size={11} />} {token}
                           </button>
                         ))}
                       </div>
@@ -845,6 +903,7 @@ export function MosExamRunner({
                   {completeButton}
                   {reviewButton}
                   {nextButton}
+                  {solutionButton}
                   {checkButton}
                 </>
               ) : (
@@ -856,6 +915,7 @@ export function MosExamRunner({
                   <div className="mos-foot-group">
                     {completeButton}
                     {reviewButton}
+                    {solutionButton}
                     {checkButton}
                   </div>
                 </>
