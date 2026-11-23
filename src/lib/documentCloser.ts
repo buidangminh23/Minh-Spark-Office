@@ -3,16 +3,19 @@ import { useLayoutEffect, useRef } from 'react';
 type Closer = (close: boolean) => Promise<boolean>;
 
 export function createDocumentCloseRegistry() {
-  let active: Closer | null = null;
+  const closers: Closer[] = [];
   let pending: Promise<boolean> | null = null;
   return {
     register(closer: Closer) {
-      active = closer;
-      return () => { if (active === closer) active = null; };
+      closers.push(closer);
+      return () => {
+        const index = closers.lastIndexOf(closer);
+        if (index >= 0) closers.splice(index, 1);
+      };
     },
     save(close: boolean, allowEmpty = false): Promise<boolean> {
       if (pending) return pending;
-      const closer = active;
+      const closer = closers[closers.length - 1] ?? null;
       if (!closer) return Promise.resolve(allowEmpty);
       pending = Promise.resolve().then(() => closer(close)).catch(() => false).finally(() => { pending = null; });
       return pending;
