@@ -1,11 +1,14 @@
 import type { FileContent } from '../storage';
-import { MOS_EXCEL_PROJECTS } from './excelProjects';
-import { MOS_PPT_PROJECTS } from './pptProjects';
+import { MOS_EXCEL_EXPERT_PROJECTS } from './excelExpertProjects';
+import { MOS_EXCEL_ASSOCIATE_PROJECTS } from './excelProjects';
+import { MOS_PPT_EXPERT_PROJECTS } from './pptExpertProjects';
+import { MOS_PPT_ASSOCIATE_PROJECTS } from './pptProjects';
 import type {
   MosAttemptRecord,
   MosDomain,
   MosDomainScore,
   MosExamFormat,
+  MosLang,
   MosLevel,
   MosProject,
   MosProjectGrade,
@@ -14,21 +17,48 @@ import type {
   MosTrackId,
   MosTrackMeta,
   MosVersion,
+  MosVersionMeta,
 } from './types';
-import { MOS_WORD_PROJECTS } from './wordProjects';
+import { MOS_WORD_EXPERT_PROJECTS } from './wordExpertProjects';
+import { MOS_WORD_ASSOCIATE_PROJECTS } from './wordProjects';
 
 export const MOS_MAX_SCORE = 1000;
 export const MOS_PASSING_SCORE = 700;
 
-export const MOS_VERSIONS: ReadonlyArray<{ id: MosVersion; label: string; short: string }> = [
-  { id: '365', label: 'Microsoft 365 Apps', short: 'MOS 365' },
-  { id: '2019', label: 'Office 2019', short: 'MOS 2019' },
-  { id: '2016', label: 'Office 2016', short: 'MOS 2016' },
+export const MOS_VERSIONS: ReadonlyArray<MosVersionMeta> = [
+  {
+    id: '365',
+    label: 'Microsoft 365 Apps',
+    short: 'MOS 365',
+    uiSummary: 'Office 365 Fluent UI + Compass 365 Navy',
+    submitLabel: 'Submit Project',
+    projectFormat: 'of',
+  },
+  {
+    id: '2019',
+    label: 'Office 2019',
+    short: 'MOS 2019',
+    uiSummary: 'Office 2019 Colorful + Thanh xanh chuẩn phòng thi',
+    submitLabel: 'Grade Project',
+    projectFormat: 'slash',
+  },
+  {
+    id: '2016',
+    label: 'Office 2016',
+    short: 'MOS 2016',
+    uiSummary: 'Office 2016 Colorful + Thanh xám thép cổ điển',
+    submitLabel: 'Submit Project',
+    projectFormat: 'of',
+  },
 ];
 
+export function versionMeta(version: MosVersion): MosVersionMeta {
+  return MOS_VERSIONS.find((item) => item.id === version) ?? MOS_VERSIONS[0];
+}
+
 export const MOS_LEVELS: ReadonlyArray<{ id: MosLevel; label: string; detail: string }> = [
-  { id: 'associate', label: 'Associate', detail: 'Chuẩn năng lực phổ thông (3 dự án)' },
-  { id: 'expert', label: 'Expert / Chuyên sâu', detail: 'Đầy đủ + dự án chuyên sâu (4 dự án)' },
+  { id: 'associate', label: 'Associate', detail: 'Đề chuẩn 7 dự án · 35 nhiệm vụ (50 phút)' },
+  { id: 'expert', label: 'Expert', detail: 'Đề chuyên sâu 5 dự án · 25 nhiệm vụ (50 phút)' },
 ];
 
 export const MOS_FORMAT_LABELS: Record<MosExamFormat, string> = {
@@ -66,7 +96,7 @@ export function examCodeFor(track: MosTrackId, version: MosVersion, level: MosLe
 export const MOS_TRACKS: ReadonlyArray<MosTrackMeta> = [
   {
     id: 'word',
-    examCode: 'MO-110 / MO-100',
+    examCode: 'MO-110 / MO-100 / 77-725',
     title: 'MOS Word',
     subtitle: 'Thực hành trực tiếp trên 23 Docs',
     editorKind: 'doc',
@@ -74,11 +104,12 @@ export const MOS_TRACKS: ReadonlyArray<MosTrackMeta> = [
     examMinutes: 50,
     passingScore: MOS_PASSING_SCORE,
     accent: '#2563eb',
+    officeColor: '#2b579a',
     supportsExpert: true,
   },
   {
     id: 'excel',
-    examCode: 'MO-210 / MO-200',
+    examCode: 'MO-210 / MO-200 / 77-727',
     title: 'MOS Excel',
     subtitle: 'Thực hành trực tiếp trên 23 Sheets',
     editorKind: 'sheet',
@@ -86,11 +117,12 @@ export const MOS_TRACKS: ReadonlyArray<MosTrackMeta> = [
     examMinutes: 50,
     passingScore: MOS_PASSING_SCORE,
     accent: '#16a34a',
+    officeColor: '#217346',
     supportsExpert: true,
   },
   {
     id: 'powerpoint',
-    examCode: 'MO-310 / MO-300',
+    examCode: 'MO-310 / MO-300 / 77-729',
     title: 'MOS PowerPoint',
     subtitle: 'Thực hành trực tiếp trên 23 Slides',
     editorKind: 'slide',
@@ -98,29 +130,33 @@ export const MOS_TRACKS: ReadonlyArray<MosTrackMeta> = [
     examMinutes: 50,
     passingScore: MOS_PASSING_SCORE,
     accent: '#ea580c',
+    officeColor: '#b7472a',
     supportsExpert: true,
   },
 ];
 
 export const MOS_DOMAINS: ReadonlyArray<MosDomain> = [
-  { id: 'word-manage', track: 'word', code: '1.0', name: 'Quản lý tài liệu & Thiết lập trang' },
-  { id: 'word-format', track: 'word', code: '2.0', name: 'Định dạng văn bản, đoạn văn & kiểu' },
-  { id: 'word-tables', track: 'word', code: '3.0', name: 'Bảng biểu, danh sách & đối tượng' },
-  { id: 'word-refs', track: 'word', code: '4.0', name: 'Tham chiếu, mục lục & kiểm duyệt' },
-  { id: 'excel-manage', track: 'excel', code: '1.0', name: 'Quản lý sổ tính & trang tính' },
-  { id: 'excel-format', track: 'excel', code: '2.0', name: 'Định dạng dữ liệu, gộp ô & in ấn' },
-  { id: 'excel-formulas', track: 'excel', code: '3.0', name: 'Công thức thống kê & tính có điều kiện' },
-  { id: 'excel-lookup', track: 'excel', code: '4.0', name: 'Hàm logic, chuỗi & tra cứu nâng cao' },
-  { id: 'ppt-manage', track: 'powerpoint', code: '1.0', name: 'Quản lý bài thuyết trình & trang chiếu' },
-  { id: 'ppt-content', track: 'powerpoint', code: '2.0', name: 'Chèn bảng, biểu đồ, SmartArt & hình' },
-  { id: 'ppt-motion', track: 'powerpoint', code: '3.0', name: 'Hiệu ứng chuyển tiếp & hoạt hình' },
-  { id: 'ppt-deliver', track: 'powerpoint', code: '4.0', name: 'Trình chiếu, Slide Master & kiểm duyệt' },
+  { id: 'word-manage', track: 'word', code: '1.0', name: 'Quản lý tài liệu & Thiết lập trang', nameEn: 'Manage Documents' },
+  { id: 'word-format', track: 'word', code: '2.0', name: 'Định dạng văn bản, đoạn văn & kiểu', nameEn: 'Insert & Format Text, Paragraphs, and Sections' },
+  { id: 'word-tables', track: 'word', code: '3.0', name: 'Bảng biểu, danh sách & đối tượng', nameEn: 'Manage Tables and Lists' },
+  { id: 'word-refs', track: 'word', code: '4.0', name: 'Tham chiếu, mục lục & kiểm duyệt', nameEn: 'Create and Manage References & Review' },
+  { id: 'excel-manage', track: 'excel', code: '1.0', name: 'Quản lý sổ tính & trang tính', nameEn: 'Manage Worksheets and Workbooks' },
+  { id: 'excel-format', track: 'excel', code: '2.0', name: 'Định dạng dữ liệu, gộp ô & in ấn', nameEn: 'Manage Data Cells and Ranges' },
+  { id: 'excel-formulas', track: 'excel', code: '3.0', name: 'Công thức thống kê & tính có điều kiện', nameEn: 'Perform Operations by Using Formulas and Functions' },
+  { id: 'excel-lookup', track: 'excel', code: '4.0', name: 'Hàm logic, chuỗi & tra cứu nâng cao', nameEn: 'Advanced Logic, Text, and Lookup Functions' },
+  { id: 'ppt-manage', track: 'powerpoint', code: '1.0', name: 'Quản lý bài thuyết trình & trang chiếu', nameEn: 'Manage Presentations and Slides' },
+  { id: 'ppt-content', track: 'powerpoint', code: '2.0', name: 'Chèn bảng, biểu đồ, SmartArt & hình', nameEn: 'Insert Tables, Charts, SmartArt, and Shapes' },
+  { id: 'ppt-motion', track: 'powerpoint', code: '3.0', name: 'Hiệu ứng chuyển tiếp & hoạt hình', nameEn: 'Apply Transitions and Animations' },
+  { id: 'ppt-deliver', track: 'powerpoint', code: '4.0', name: 'Trình chiếu, Slide Master & kiểm duyệt', nameEn: 'Manage Slide Shows, Masters, and Review' },
 ];
 
 export const ALL_MOS_PROJECTS: ReadonlyArray<MosProject> = [
-  ...MOS_WORD_PROJECTS,
-  ...MOS_EXCEL_PROJECTS,
-  ...MOS_PPT_PROJECTS,
+  ...MOS_WORD_ASSOCIATE_PROJECTS,
+  ...MOS_WORD_EXPERT_PROJECTS,
+  ...MOS_EXCEL_ASSOCIATE_PROJECTS,
+  ...MOS_EXCEL_EXPERT_PROJECTS,
+  ...MOS_PPT_ASSOCIATE_PROJECTS,
+  ...MOS_PPT_EXPERT_PROJECTS,
 ];
 
 export function trackMeta(track: MosTrackId): MosTrackMeta {
@@ -134,10 +170,15 @@ export function domainsForTrack(track: MosTrackId): MosDomain[] {
 export function projectsForTrack(track: MosTrackId, level?: MosLevel): MosProject[] {
   const list = ALL_MOS_PROJECTS.filter((project) => project.track === track);
   if (level === 'associate') return list.filter((project) => project.level === 'associate');
+  if (level === 'expert') return list.filter((project) => project.level === 'expert');
   return list;
 }
 
-export function projectById(id: string): MosProject | undefined {
+export function projectById(id: string, customProjects?: ReadonlyArray<MosProject>): MosProject | undefined {
+  if (customProjects) {
+    const found = customProjects.find((project) => project.id === id);
+    if (found) return found;
+  }
   return ALL_MOS_PROJECTS.find((project) => project.id === id);
 }
 
@@ -147,12 +188,15 @@ export function buildPresetSession(
     track: MosTrackId;
     version: MosVersion;
     level: MosLevel;
+    lang?: MosLang;
     projectId?: string;
     domainIds?: string[];
     weakTaskIds?: string[];
+    customProjects?: ReadonlyArray<MosProject>;
   },
 ): MosSessionConfig {
-  const { track, version, level } = options;
+  const { track, version, level, customProjects } = options;
+  const lang: MosLang = options.lang ?? 'vi';
   const available = projectsForTrack(track, level);
   const allTrack = projectsForTrack(track);
 
@@ -163,8 +207,9 @@ export function buildPresetSession(
       level,
       format,
       mode: 'exam',
+      lang,
       projectIds: available.map((p) => p.id),
-      timeLimitSec: (level === 'expert' ? 50 : 50) * 60,
+      timeLimitSec: 50 * 60,
       allowHints: false,
       allowLiveCheck: false,
       passingScore: MOS_PASSING_SCORE,
@@ -179,6 +224,7 @@ export function buildPresetSession(
       level,
       format,
       mode: 'training',
+      lang,
       projectIds: available.map((p) => p.id),
       timeLimitSec: null,
       allowHints: true,
@@ -189,13 +235,14 @@ export function buildPresetSession(
   }
 
   if (format === 'speed-sprint') {
-    const picked = (options.projectId ? projectById(options.projectId) : available[0]) ?? available[0];
+    const picked = (options.projectId ? projectById(options.projectId, customProjects) : available[0]) ?? available[0];
     return {
       track,
       version,
       level,
       format,
       mode: 'exam',
+      lang,
       projectIds: [picked.id],
       timeLimitSec: 15 * 60,
       allowHints: false,
@@ -208,15 +255,17 @@ export function buildPresetSession(
   if (format === 'domain-focus') {
     const selectedDomains = options.domainIds && options.domainIds.length > 0 ? options.domainIds : [domainsForTrack(track)[0].id];
     const domainSet = new Set(selectedDomains);
-    const matching = allTrack.filter((project) => project.tasks.some((task) => domainSet.has(task.domainId)));
-    const focusTasks = matching.flatMap((p) => p.tasks.filter((t) => domainSet.has(t.domainId)).map((t) => t.id));
+    const matching = available.filter((project) => project.tasks.some((task) => domainSet.has(task.domainId)));
+    const source = matching.length > 0 ? matching : allTrack.filter((project) => project.tasks.some((task) => domainSet.has(task.domainId)));
+    const focusTasks = source.flatMap((p) => p.tasks.filter((t) => domainSet.has(t.domainId)).map((t) => t.id));
     return {
       track,
       version,
       level,
       format,
       mode: 'training',
-      projectIds: matching.map((p) => p.id),
+      lang,
+      projectIds: source.map((p) => p.id),
       timeLimitSec: null,
       allowHints: true,
       allowLiveCheck: true,
@@ -229,7 +278,8 @@ export function buildPresetSession(
 
   if (format === 'weak-review') {
     const weakSet = new Set(options.weakTaskIds ?? []);
-    const matching = allTrack.filter((project) => project.tasks.some((task) => weakSet.has(task.id)));
+    const pool = [...allTrack, ...(customProjects ?? []).filter((p) => p.track === track)];
+    const matching = pool.filter((project) => project.tasks.some((task) => weakSet.has(task.id)));
     const targetProjects = matching.length > 0 ? matching : [available[0]];
     const targetTaskIds = matching.length > 0
       ? targetProjects.flatMap((p) => p.tasks.filter((t) => weakSet.has(t.id)).map((t) => t.id))
@@ -240,6 +290,7 @@ export function buildPresetSession(
       level,
       format,
       mode: 'training',
+      lang,
       projectIds: targetProjects.map((p) => p.id),
       timeLimitSec: null,
       allowHints: true,
@@ -250,13 +301,14 @@ export function buildPresetSession(
     };
   }
 
-  const single = (options.projectId ? projectById(options.projectId) : available[0]) ?? available[0];
+  const single = (options.projectId ? projectById(options.projectId, customProjects) : available[0]) ?? available[0];
   return {
     track,
     version,
     level,
     format: 'single-project',
     mode: 'training',
+    lang,
     projectIds: [single.id],
     timeLimitSec: null,
     allowHints: true,
@@ -318,10 +370,11 @@ export function gradeExamAttempt(params: {
   config: MosSessionConfig;
   contentsByProjectId: Record<string, FileContent>;
   durationSec: number;
+  customProjects?: ReadonlyArray<MosProject>;
 }): MosAttemptRecord {
-  const { config, contentsByProjectId, durationSec } = params;
+  const { config, contentsByProjectId, durationSec, customProjects } = params;
   const targetProjects = config.projectIds
-    .map((id) => projectById(id))
+    .map((id) => projectById(id, customProjects))
     .filter((item): item is MosProject => Boolean(item));
 
   const projects = targetProjects.map((project) => {

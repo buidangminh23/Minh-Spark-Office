@@ -1,12 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   AlertTriangle,
   Check,
   CheckCircle2,
   Circle,
+  Copy,
   Flag,
   HelpCircle,
   PanelBottom,
+  Pause,
   Play,
   Send,
   ShieldCheck,
@@ -23,10 +25,13 @@ import {
   projectById,
   tasksForProjectInSession,
   trackMeta,
+  versionMeta,
 } from '../../lib/mos/grader';
 import type {
   MosAttemptRecord,
+  MosLang,
   MosProject,
+  MosSavedDraft,
   MosSessionConfig,
   MosTaskGrade,
 } from '../../lib/mos/types';
@@ -59,49 +64,109 @@ function makeTempMeta(project: MosProject): FileMeta {
   };
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function renderInstructionWithCopyTokens(
+  text: string,
+  tokens: string[] | undefined,
+  copiedToken: string | null,
+  onCopy: (token: string) => void,
+): { nodes: ReactNode; matchedCount: number } {
+  const unique = [...new Set((tokens ?? []).map((t) => t.trim()).filter((t) => t.length >= 2))]
+    .sort((a, b) => b.length - a.length);
+  if (unique.length === 0) return { nodes: text, matchedCount: 0 };
+
+  const pattern = new RegExp(`(${unique.map(escapeRegExp).join('|')})`, 'g');
+  const parts = text.split(pattern);
+  if (parts.length === 1) return { nodes: text, matchedCount: 0 };
+
+  const tokenSet = new Set(unique);
+  let matchedCount = 0;
+  const nodes = parts.map((part, idx) => {
+    if (tokenSet.has(part)) {
+      matchedCount += 1;
+      const isCopied = copiedToken === part;
+      return (
+        <button
+          key={`${idx}-${part}`}
+          type="button"
+          className={`mos-copy-token ${isCopied ? 'is-copied' : ''}`}
+          title="Bấm để sao chép nhanh (Click-to-Copy)"
+          onClick={() => onCopy(part)}
+        >
+          {part}
+        </button>
+      );
+    }
+    return <Fragment key={idx}>{part}</Fragment>;
+  });
+  return { nodes, matchedCount };
+}
+
 export function MosExamRunner({
   config,
+  initialDraft,
+  customProjects,
+  onSaveDraft,
+  onClearDraft,
   onCancel,
   onFinish,
   onSaveCopyToWorkspace,
 }: {
   config: MosSessionConfig;
+  initialDraft?: MosSavedDraft | null;
+  customProjects?: ReadonlyArray<MosProject>;
+  onSaveDraft?: (draft: MosSavedDraft) => void;
+  onClearDraft?: () => void;
   onCancel: () => void;
   onFinish: (attempt: MosAttemptRecord) => void;
   onSaveCopyToWorkspace: (name: string, content: FileContent) => void;
 }) {
   const ui = useUi();
   const track = trackMeta(config.track);
+  const versionInfo = versionMeta(config.version);
   const examCode = examCodeFor(config.track, config.version, config.level);
   const domains = useMemo(() => domainsForTrack(config.track), [config.track]);
 
   const projects = useMemo(
-    () => config.projectIds.map((id) => projectById(id)).filter((p): p is MosProject => Boolean(p)),
-    [config.projectIds],
+    () => config.projectIds.map((id) => projectById(id, customProjects)).filter((p): p is MosProject => Boolean(p)),
+    [config.projectIds, customProjects],
   );
 
-  const [started, setStarted] = useState(config.mode !== 'exam');
+  const [started, setStarted] = useState(Boolean(initialDraft) || config.mode !== 'exam');
+  const [lang, setLang] = useState<MosLang>(initialDraft?.config.lang ?? config.lang ?? 'vi');
   const [editorReady, setEditorReady] = useState(() => Boolean(loadedEditors[track.editorKind]));
   const [editorError, setEditorError] = useState('');
-  const [projectIndex, setProjectIndex] = useState(0);
-  const [activeTab, setActiveTab] = useState<'overview' | number>(0);
-  const [consoleHeight, setConsoleHeight] = useState(218);
+  const [projectIndex, setProjectIndex] = useState(() => Math.min(initialDraft?.projectIndex ?? 0, Math.max(0, projects.length - 1)));
+  const [activeTab, setActiveTab] = useState<'overview' | number>(initialDraft?.activeTab ?? 0);
+  const [consoleHeight, setConsoleHeight] = useState(config.version === '365' ? 236 : 220);
   const [fontIndex, setFontIndex] = useState(0);
   const [showHint, setShowHint] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
-  const [completedTasks, setCompletedTasks] = useState<Record<string, boolean>>({});
-  const [reviewTasks, setReviewTasks] = useState<Record<string, boolean>>({});
+  const [completedTasks, setCompletedTasks] = useState<Record<string, boolean>>(initialDraft?.completedTasks ?? {});
+  const [reviewTasks, setReviewTasks] = useState<Record<string, boolean>>(initialDraft?.reviewTasks ?? {});
   const [liveChecks, setLiveChecks] = useState<Record<string, MosTaskGrade>>({});
   const [resetEpochs, setResetEpochs] = useState<Record<string, number>>({});
-  const [elapsedSec, setElapsedSec] = useState(0);
+  const [elapsedSec, setElapsedSec] = useState(initialDraft?.elapsedSec ?? 0);
   const [submitting, setSubmitting] = useState(false);
+  const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [initialDocs, setInitialDocs] = useState<Record<string, FileContent>>(() =>
-    Object.fromEntries(projects.map((p) => [p.id, p.createStarter()])),
+    Object.fromEntries(projects.map((p) => [p.id, initialDraft?.docs[p.id] ? structuredClone(initialDraft.docs[p.id]) : p.createStarter()])),
   );
 
   const docsRef = useRef<Record<string, FileContent>>({});
-  const elapsedRef = useRef(0);
+  const elapsedRef = useRef(initialDraft?.elapsedSec ?? 0);
   const submittedRef = useRef(false);
+
+  useEffect(() => {
+    for (const project of projects) {
+      if (!docsRef.current[project.id] && initialDocs[project.id]) {
+        docsRef.current[project.id] = initialDocs[project.id];
+      }
+    }
+  }, [projects, initialDocs]);
 
   useEffect(() => {
     elapsedRef.current = elapsedSec;
@@ -131,27 +196,48 @@ export function MosExamRunner({
     return () => { alive = false; };
   }, [track.editorKind]);
 
+  useEffect(() => {
+    if (!started || !editorReady || currentProject?.kind !== 'doc') return;
+    const resetScroll = () => {
+      const ws = document.querySelector('.mos-runner .doc-workspace, .mos-runner .doc-canvas');
+      if (ws) ws.scrollTop = 0;
+    };
+    const t1 = setTimeout(resetScroll, 120);
+    const t2 = setTimeout(resetScroll, 420);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [started, editorReady, currentProject?.id, currentProject?.kind, currentResetEpoch]);
+
+  const buildSnapshot = useCallback((): Record<string, FileContent> => {
+    const snapshot: Record<string, FileContent> = {};
+    for (const project of projects) {
+      snapshot[project.id] = docsRef.current[project.id] ?? initialDocs[project.id] ?? project.createStarter();
+    }
+    return snapshot;
+  }, [projects, initialDocs]);
+
   const submitExam = useCallback(async (autoByTimeout = false) => {
     if (submittedRef.current) return;
     submittedRef.current = true;
     setSubmitting(true);
     try {
       await saveActiveDocumentForExit().catch(() => false);
-      const snapshot: Record<string, FileContent> = {};
-      for (const project of projects) {
-        snapshot[project.id] = docsRef.current[project.id] ?? project.createStarter();
-      }
+      const snapshot = buildSnapshot();
       const attempt = gradeExamAttempt({
-        config,
+        config: { ...config, lang },
         contentsByProjectId: snapshot,
         durationSec: Math.max(1, elapsedRef.current),
+        customProjects,
       });
+      onClearDraft?.();
       if (autoByTimeout) ui.toast('Hết thời gian làm bài. Hệ thống đã tự động nộp bài và chấm điểm.');
       onFinish(attempt);
     } finally {
       setSubmitting(false);
     }
-  }, [config, onFinish, projects, ui]);
+  }, [buildSnapshot, config, customProjects, lang, onClearDraft, onFinish, ui]);
 
   useEffect(() => {
     if (!started || submitting) return;
@@ -175,7 +261,18 @@ export function MosExamRunner({
     return true;
   }, [currentProject]);
 
-  const switchProject = async (nextIndex: number, nextTab: 'overview' | number = 0) => {
+  const handleCopyToken = useCallback((token: string) => {
+    setCopiedToken(token);
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      void navigator.clipboard.writeText(token).catch(() => undefined);
+    }
+    ui.toast(`Đã sao chép: ${token}`);
+    setTimeout(() => {
+      setCopiedToken((prev) => (prev === token ? null : prev));
+    }, 1600);
+  }, [ui]);
+
+  const switchProject = useCallback(async (nextIndex: number, nextTab: 'overview' | number = 0) => {
     if (nextIndex < 0 || nextIndex >= projects.length) return;
     await saveActiveDocumentForExit().catch(() => false);
     if (currentProject && docsRef.current[currentProject.id]) {
@@ -185,7 +282,7 @@ export function MosExamRunner({
     setProjectIndex(nextIndex);
     setActiveTab(nextTab);
     setShowHint(false);
-  };
+  }, [currentProject, projects.length]);
 
   const handleRestartProject = async () => {
     if (!currentProject) return;
@@ -210,14 +307,35 @@ export function MosExamRunner({
   const handleSaveProject = async () => {
     if (!currentProject) return;
     await saveActiveDocumentForExit().catch(() => false);
-    const content = docsRef.current[currentProject.id] ?? currentProject.createStarter();
+    const content = docsRef.current[currentProject.id] ?? initialDocs[currentProject.id] ?? currentProject.createStarter();
     onSaveCopyToWorkspace(currentProject.fileName, structuredClone(content));
   };
 
-  const handleCheckCurrentTask = async () => {
+  const handlePauseAndSaveDraft = async () => {
+    if (!onSaveDraft) {
+      onCancel();
+      return;
+    }
+    await saveActiveDocumentForExit().catch(() => false);
+    const snapshot = buildSnapshot();
+    onSaveDraft({
+      config: { ...config, lang },
+      projectIndex,
+      activeTab,
+      elapsedSec: elapsedRef.current,
+      completedTasks,
+      reviewTasks,
+      docs: snapshot,
+      savedAt: Date.now(),
+    });
+    ui.toast('Đã lưu tạm bài thi MOS. Bạn có thể bấm Tiếp tục bất cứ lúc nào.');
+    onCancel();
+  };
+
+  const handleCheckCurrentTask = useCallback(async () => {
     if (!currentProject || !currentTask) return;
     await saveActiveDocumentForExit().catch(() => false);
-    const content = docsRef.current[currentProject.id] ?? currentProject.createStarter();
+    const content = docsRef.current[currentProject.id] ?? initialDocs[currentProject.id] ?? currentProject.createStarter();
     const result = gradeSingleTask(currentProject, currentTask.id, content);
     setLiveChecks((prev) => ({ ...prev, [currentTask.id]: result }));
     if (result.passed) {
@@ -226,37 +344,84 @@ export function MosExamRunner({
     } else {
       ui.toast(result.detail, true);
     }
-  };
+  }, [currentProject, currentTask, initialDocs, ui]);
 
   const handleGradeProject = async () => {
     await saveActiveDocumentForExit().catch(() => false);
     if (projectIndex + 1 < projects.length) {
+      const nextLabel = versionInfo.projectFormat === 'slash'
+        ? `${projectIndex + 1} / ${projects.length}`
+        : `${projectIndex + 1} of ${projects.length}`;
       const ok = await ui.confirm(
-        `Grade Project ${projectIndex + 1} / ${projects.length}`,
+        `${versionInfo.submitLabel} · Project ${nextLabel}`,
         `Lưu bài làm dự án “${currentProject?.title}” và chuyển sang Dự án ${projectIndex + 2}? Bạn vẫn có thể quay lại từ nút Summary.`,
         false,
       );
       if (ok) void switchProject(projectIndex + 1, 0);
       return;
     }
-    const total = projects.reduce((sum, p) => sum + tasksForProjectInSession(p, config.focusTaskIds).length, 0);
-    const done = Object.values(completedTasks).filter(Boolean).length;
-    const review = Object.values(reviewTasks).filter(Boolean).length;
-    const msg = review > 0
-      ? `Đã đánh dấu hoàn thành ${done}/${total} nhiệm vụ (còn ${review} câu Mark for review). Xác nhận nộp toàn bộ bài thi để chấm điểm MOS?`
-      : `Đã đánh dấu hoàn thành ${done}/${total} nhiệm vụ. Xác nhận nộp bài và xem Phiếu điểm MOS (thang 1000 điểm)?`;
-    const ok = await ui.confirm('Nộp bài & Chấm điểm MOS', msg, false);
-    if (ok) void submitExam(false);
+    setSummaryOpen(true);
   };
 
   const handleExit = async () => {
     const ok = await ui.confirm(
       'Thoát phòng thi MOS',
-      'Bài làm chưa nộp sẽ không được lưu vào lịch sử điểm. Bạn có muốn quay về trang Ôn thi MOS?',
+      'Bài làm chưa lưu tạm sẽ không được chấm điểm. Dùng nút Tạm dừng (Pause) nếu muốn giữ bài làm tiếp sau. Xác nhận thoát?',
       false,
     );
     if (ok) onCancel();
   };
+
+  const isLastTaskInProject = typeof activeTab === 'number' && activeTab >= currentTasks.length - 1;
+  const isLastProject = projectIndex >= projects.length - 1;
+
+  const goPrevTask = useCallback(() => {
+    if (typeof activeTab === 'number') {
+      setActiveTab(activeTab === 0 ? 'overview' : activeTab - 1);
+      setShowHint(false);
+    }
+  }, [activeTab]);
+
+  const goNextTask = useCallback(() => {
+    if (activeTab === 'overview') {
+      setActiveTab(0);
+      setShowHint(false);
+    } else if (!isLastTaskInProject) {
+      setActiveTab(activeTab + 1);
+      setShowHint(false);
+    } else if (!isLastProject) {
+      void switchProject(projectIndex + 1, 0);
+    }
+  }, [activeTab, isLastProject, isLastTaskInProject, projectIndex, switchProject]);
+
+  useEffect(() => {
+    if (!started || summaryOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!event.altKey || event.ctrlKey || event.metaKey) return;
+      const key = event.key.toLowerCase();
+      if (key === 'arrowleft') {
+        event.preventDefault();
+        goPrevTask();
+      } else if (key === 'arrowright') {
+        event.preventDefault();
+        goNextTask();
+      } else if (key === 'm' && currentTask) {
+        event.preventDefault();
+        setCompletedTasks((prev) => ({ ...prev, [currentTask.id]: !prev[currentTask.id] }));
+      } else if (key === 'r' && currentTask) {
+        event.preventDefault();
+        setReviewTasks((prev) => ({ ...prev, [currentTask.id]: !prev[currentTask.id] }));
+      } else if (key === 'h' && config.allowHints) {
+        event.preventDefault();
+        setShowHint((v) => !v);
+      } else if (key === 'k' && config.allowLiveCheck && currentTask) {
+        event.preventDefault();
+        void handleCheckCurrentTask();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [started, summaryOpen, goPrevTask, goNextTask, currentTask, config.allowHints, config.allowLiveCheck, handleCheckCurrentTask]);
 
   const startResize = (event: React.MouseEvent) => {
     event.preventDefault();
@@ -264,7 +429,7 @@ export function MosExamRunner({
     const startHeight = consoleHeight;
     const onMove = (moveEvent: MouseEvent) => {
       const delta = startY - moveEvent.clientY;
-      setConsoleHeight(Math.max(168, Math.min(420, startHeight + delta)));
+      setConsoleHeight(Math.max(176, Math.min(440, startHeight + delta)));
     };
     const onUp = () => {
       window.removeEventListener('mousemove', onMove);
@@ -278,6 +443,10 @@ export function MosExamRunner({
   const timerWarn = remainingSec !== null && remainingSec <= 300 && remainingSec > 60;
   const timerUrgent = remainingSec !== null && remainingSec <= 60;
   const totalSessionTasks = projects.reduce((sum, p) => sum + tasksForProjectInSession(p, config.focusTaskIds).length, 0);
+  const completedSessionCount = projects.reduce(
+    (sum, p) => sum + tasksForProjectInSession(p, config.focusTaskIds).filter((t) => completedTasks[t.id] || liveChecks[t.id]?.passed).length,
+    0,
+  );
 
   const DocEditor = loadedEditors.doc;
   const SheetEditor = loadedEditors.sheet;
@@ -288,7 +457,7 @@ export function MosExamRunner({
       <div className="mos-modal-backdrop" role="presentation">
         <section className="mos-modal" role="dialog" aria-modal="true" aria-label="Hướng dẫn trước khi bắt đầu bài thi MOS">
           <header className="mos-modal-head">
-            <h2>Phòng thi mô phỏng MOS · {track.title} ({examCode})</h2>
+            <h2>Phòng thi mô phỏng {versionInfo.short} · {track.title} ({examCode})</h2>
             <button type="button" className="mos-modal-close" aria-label="Huỷ" onClick={onCancel}>
               <X size={18} />
             </button>
@@ -297,7 +466,7 @@ export function MosExamRunner({
             <div className="mos-briefing-grid">
               <div className="mos-briefing-cell">
                 <span>Mã kỳ thi</span>
-                <strong>{examCode} · MOS {config.version}</strong>
+                <strong>{examCode} · {versionInfo.short}</strong>
               </div>
               <div className="mos-briefing-cell">
                 <span>Thời gian làm bài</span>
@@ -314,12 +483,12 @@ export function MosExamRunner({
             </div>
 
             <div>
-              <h3 style={{ margin: '0 0 8px', fontSize: 15 }}>Quy chế giao diện thi thật</h3>
+              <h3 style={{ margin: '0 0 8px', fontSize: 15 }}>Giao diện đúng phiên bản {versionInfo.label}</h3>
               <ul className="mos-rules-list">
-                <li>3/4 màn hình phía trên là phần mềm <strong>{track.appName}</strong> thực tế; 1/4 phía dưới là khung câu hỏi chuẩn MOS (thanh xanh dương, thẻ <strong>Overview / Task 1..5</strong> và 4 nút <strong>Previous Task / Mark Completed / Mark for review / Next Task</strong>).</li>
-                <li>Bấm <strong>Summary</strong> trên thanh xanh để xem tổng quan mọi dự án và nhảy tới bất kỳ câu nào.</li>
-                <li>Bấm <strong>Restart Project</strong> để khôi phục tệp gốc dự án hiện tại; bấm <strong>Grade Project</strong> để chuyển dự án tiếp theo hoặc nộp bài chấm điểm.</li>
-                <li>{config.allowHints ? 'Chế độ này bật nút ? (Gợi ý Ribbon) và Check Task (kiểm tra đúng/sai ngay lập tức).' : 'Chế độ thi thử ẩn gợi ý và tự động chấm điểm khi nộp bài hoặc hết giờ.'}</li>
+                <li>Khung soạn thảo <strong>{track.appName}</strong> và thanh câu hỏi phía dưới được cấu hình đúng giao diện <strong>{versionInfo.uiSummary}</strong>.</li>
+                <li>Bấm trực tiếp vào các cụm chữ gạch chân chấm (Click-to-Copy) trong đề bài để sao chép chính xác tên cột, công thức, nhãn chân trang hoặc URL.</li>
+                <li>Phím tắt điều hướng nhanh: <strong>Alt + ←/→</strong> chuyển câu, <strong>Alt + M</strong> đánh dấu hoàn thành, <strong>Alt + R</strong> cắm cờ xem lại.</li>
+                <li>{config.allowHints ? 'Chế độ này bật nút ? (Gợi ý Ribbon) và Kiểm tra câu ngay lập tức.' : 'Chế độ thi thử ẩn gợi ý; bấm Summary để rà soát toàn bộ dự án trước khi Finish Exam.'}</li>
               </ul>
             </div>
           </div>
@@ -340,12 +509,112 @@ export function MosExamRunner({
   const isReview = currentTask ? Boolean(reviewTasks[currentTask.id]) : false;
   const fontSize = FONT_STEPS[fontIndex];
 
-  const isLastTaskInProject = typeof activeTab === 'number' && activeTab >= currentTasks.length - 1;
-  const isLastProject = projectIndex >= projects.length - 1;
-  const effectiveConsoleHeight = Math.max(consoleHeight, (config.allowHints && showHint) || (config.allowLiveCheck && currentCheck) ? 276 : consoleHeight);
+  const activeProjectTitle = currentProject
+    ? (lang === 'en' ? (currentProject.titleEn ?? currentProject.title) : currentProject.title)
+    : '';
+  const activeProjectScenario = currentProject
+    ? (lang === 'en' ? (currentProject.scenarioEn ?? currentProject.scenario) : currentProject.scenario)
+    : '';
+  const activeTaskTitle = currentTask
+    ? (lang === 'en' ? (currentTask.titleEn ?? currentTask.title) : currentTask.title)
+    : '';
+  const activeTaskInstruction = currentTask
+    ? (lang === 'en' ? (currentTask.instructionEn ?? currentTask.instruction) : currentTask.instruction)
+    : '';
+  const activeDomain = currentTask ? domainMap.get(currentTask.domainId) : undefined;
+  const activeDomainLabel = activeDomain ? (lang === 'en' ? activeDomain.nameEn : activeDomain.name) : '';
+
+  const renderedInstruction = currentTask
+    ? renderInstructionWithCopyTokens(activeTaskInstruction, currentTask.copyTokens, copiedToken, handleCopyToken)
+    : { nodes: '', matchedCount: 0 };
+
+  const hasFeedbackOverlay = Boolean((config.allowHints && showHint) || (config.allowLiveCheck && currentCheck));
+  const hasCopyBar = Boolean(currentTask?.copyTokens && currentTask.copyTokens.length > 0);
+  const minConsoleHeight = hasFeedbackOverlay
+    ? (config.version === '365' ? 328 : 294)
+    : hasCopyBar
+      ? (config.version === '365' ? 258 : 238)
+      : consoleHeight;
+  const effectiveConsoleHeight = Math.max(consoleHeight, minConsoleHeight);
+  const projectCounter = versionInfo.projectFormat === 'slash'
+    ? `Project ${projectIndex + 1} / ${projects.length}`
+    : `Project ${projectIndex + 1} of ${projects.length}`;
+  const timerString = remainingSec !== null ? formatHms(remainingSec) : formatHms(elapsedSec);
+
+  const prevButton = (
+    <button
+      type="button"
+      className="mos-real-btn is-nav"
+      disabled={activeTab === 'overview'}
+      onClick={goPrevTask}
+    >
+      {config.version === '2016' ? '◀ Previous' : config.version === '365' ? '← Previous Task' : 'Previous Task'}
+    </button>
+  );
+
+  const nextButton = (
+    <button
+      type="button"
+      className="mos-real-btn is-nav"
+      disabled={isLastTaskInProject && isLastProject}
+      onClick={goNextTask}
+    >
+      {isLastTaskInProject && !isLastProject
+        ? (config.version === '2016' ? 'Next Project ▶' : 'Next Project')
+        : (config.version === '2016' ? 'Next ▶' : config.version === '365' ? 'Next Task →' : 'Next Task')}
+    </button>
+  );
+
+  const completeButton = (
+    <button
+      type="button"
+      className={`mos-real-btn is-complete ${isDone ? 'is-on' : ''}`}
+      disabled={!currentTask}
+      aria-pressed={isDone}
+      onClick={() => {
+        if (!currentTask) return;
+        setCompletedTasks((prev) => ({ ...prev, [currentTask.id]: !prev[currentTask.id] }));
+      }}
+    >
+      {isDone && <Check size={14} />}
+      {config.version === '365' ? 'Mark as Complete' : 'Mark Completed'}
+    </button>
+  );
+
+  const reviewButton = (
+    <button
+      type="button"
+      className={`mos-real-btn is-review ${isReview ? 'is-on' : ''}`}
+      disabled={!currentTask}
+      aria-pressed={isReview}
+      onClick={() => {
+        if (!currentTask) return;
+        setReviewTasks((prev) => ({ ...prev, [currentTask.id]: !prev[currentTask.id] }));
+      }}
+    >
+      {isReview && <Flag size={13} />}
+      {config.version === '2019' ? 'Mark for review' : 'Mark for Review'}
+    </button>
+  );
+
+  const checkButton = config.allowLiveCheck && currentTask ? (
+    <button
+      type="button"
+      className="mos-real-btn is-check"
+      onClick={() => void handleCheckCurrentTask()}
+    >
+      <ShieldCheck size={14} /> {lang === 'en' ? 'Check Task' : 'Kiểm tra câu'}
+    </button>
+  ) : null;
 
   return (
-    <div className="mos-runner" role="application" aria-label={`Phòng thi ${track.title}`}>
+    <div
+      className="mos-runner"
+      data-mos-version={config.version}
+      data-mos-app={config.track}
+      role="application"
+      aria-label={`Phòng thi ${track.title} ${versionInfo.short}`}
+    >
       <div className="mos-runner-stage">
         {editorError ? (
           <div className="mos-editor-loading">{editorError}</div>
@@ -385,15 +654,17 @@ export function MosExamRunner({
 
       <div className="mos-splitter" onMouseDown={startResize} title="Kéo để chỉnh chiều cao khung đề thi" />
 
-      <section className="mos-console" style={{ height: effectiveConsoleHeight }} aria-label="Khung câu hỏi MOS chuẩn phòng thi">
+      <section className="mos-console" style={{ height: effectiveConsoleHeight }} aria-label={`Khung câu hỏi ${versionInfo.short}`}>
         <div className="mos-compass-bar">
           <div className="mos-compass-left">
+            {config.version === '365' && <span className="mos-compass-ver">MOS 365</span>}
+            {config.version === '2016' && <span className="mos-compass-ver">MOS 2016</span>}
             <button
               type="button"
               className="mos-compass-icon-btn"
               aria-label={config.allowHints ? 'Gợi ý thao tác' : 'Hướng dẫn phòng thi'}
               aria-pressed={showHint}
-              title={config.allowHints ? 'Bật/tắt gợi ý đường dẫn Ribbon' : 'Xem hướng dẫn phòng thi'}
+              title={config.allowHints ? 'Bật/tắt gợi ý đường dẫn Ribbon (Alt+H)' : 'Hướng dẫn phòng thi'}
               onClick={() => {
                 if (config.allowHints) setShowHint((v) => !v);
                 else ui.toast('Đang ở chế độ Thi thử: gợi ý được ẩn giống phòng thi Certiport.');
@@ -419,28 +690,51 @@ export function MosExamRunner({
             >
               <PanelBottom size={15} />
             </button>
-            <span className="mos-compass-proj">Project {projectIndex + 1} / {projects.length}</span>
+            <span className="mos-compass-proj">{projectCounter}</span>
             <span className="mos-compass-code">{examCode}</span>
+            <button
+              type="button"
+              className="mos-compass-lang"
+              title="Chuyển ngôn ngữ đề bài Tiếng Việt / English"
+              onClick={() => setLang((prev) => (prev === 'vi' ? 'en' : 'vi'))}
+            >
+              {lang === 'vi' ? 'VI' : 'EN'}
+            </button>
           </div>
 
           <div className="mos-compass-center">
             <span className={`mos-compass-timer ${timerUrgent ? 'is-urgent' : timerWarn ? 'is-warn' : ''}`} aria-live="off">
-              {remainingSec !== null ? formatHms(remainingSec) : formatHms(elapsedSec)}
+              {config.version === '2016' ? `${remainingSec !== null ? 'Time Remaining: ' : 'Elapsed: '}${timerString}` : timerString}
             </span>
+            {config.version === '365' && (
+              <span className="mos-compass-progress-pill">
+                {completedSessionCount}/{totalSessionTasks} Tasks
+              </span>
+            )}
           </div>
 
           <div className="mos-compass-right">
             <button type="button" className="mos-compass-link" onClick={() => setSummaryOpen(true)}>
-              Summary
+              {config.version === '365' ? 'Go To Summary' : 'Summary'}
             </button>
             <button type="button" className="mos-compass-link" onClick={() => void handleRestartProject()}>
               Restart Project
             </button>
+            {onSaveDraft && (
+              <button
+                type="button"
+                className="mos-compass-link"
+                title="Tạm dừng và lưu bản nháp để làm tiếp sau"
+                onClick={() => void handlePauseAndSaveDraft()}
+              >
+                <Pause size={13} /> {config.version === '365' ? 'Pause' : 'Tạm dừng'}
+              </button>
+            )}
             <button type="button" className="mos-compass-link" onClick={() => void handleSaveProject()}>
-              Save Project
+              {config.version === '2019' ? 'Save Project' : 'Save'}
             </button>
             <button type="button" className="mos-compass-link is-grade" disabled={submitting} onClick={() => void handleGradeProject()}>
-              {isLastProject ? 'Finish Exam' : 'Grade Project'}
+              {isLastProject ? 'Finish Exam' : versionInfo.submitLabel}
             </button>
             <button type="button" className="mos-compass-icon-btn" aria-label="Thoát phòng thi" title="Thoát phòng thi" onClick={() => void handleExit()}>
               <X size={15} />
@@ -492,23 +786,39 @@ export function MosExamRunner({
                 {activeTab === 'overview' || !currentTask ? (
                   <>
                     <div className="mos-task-meta-line">
-                      <strong>Project {projectIndex + 1}: {currentProject.title}</strong>
+                      <strong>Project {projectIndex + 1}: {activeProjectTitle}</strong>
                       <span className="mos-task-domain">{currentProject.fileName}</span>
                       <span>{currentTasks.length} Tasks</span>
                     </div>
-                    <p className="mos-task-instruction">{currentProject.scenario}</p>
+                    <p className="mos-task-instruction">{activeProjectScenario}</p>
                   </>
                 ) : (
                   <>
                     <div className="mos-task-meta-line">
-                      <strong>Task {(typeof activeTab === 'number' ? activeTab : 0) + 1} · {currentTask.title}</strong>
-                      {domainMap.get(currentTask.domainId) && (
+                      <strong>Task {(typeof activeTab === 'number' ? activeTab : 0) + 1} · {activeTaskTitle}</strong>
+                      {activeDomain && (
                         <span className="mos-task-domain">
-                          {domainMap.get(currentTask.domainId)?.code} · {domainMap.get(currentTask.domainId)?.name}
+                          {activeDomain.code} · {activeDomainLabel}
                         </span>
                       )}
                     </div>
-                    <p className="mos-task-instruction">{currentTask.instruction}</p>
+                    <p className="mos-task-instruction">{renderedInstruction.nodes}</p>
+
+                    {currentTask.copyTokens && currentTask.copyTokens.length > 0 && (
+                      <div className="mos-copy-bar">
+                        <span className="mos-copy-bar-label">{lang === 'en' ? 'Click to copy:' : 'Sao chép nhanh:'}</span>
+                        {currentTask.copyTokens.map((token) => (
+                          <button
+                            key={token}
+                            type="button"
+                            className={`mos-copy-chip ${copiedToken === token ? 'is-copied' : ''}`}
+                            onClick={() => handleCopyToken(token)}
+                          >
+                            <Copy size={11} /> {token}
+                          </button>
+                        ))}
+                      </div>
+                    )}
 
                     {config.allowHints && showHint && (
                       <div className="mos-hint-box">
@@ -529,75 +839,26 @@ export function MosExamRunner({
             </div>
 
             <div className="mos-console-foot">
-              <button
-                type="button"
-                className="mos-real-btn is-nav"
-                disabled={activeTab === 'overview'}
-                onClick={() => {
-                  if (typeof activeTab === 'number') {
-                    setActiveTab(activeTab === 0 ? 'overview' : activeTab - 1);
-                    setShowHint(false);
-                  }
-                }}
-              >
-                Previous Task
-              </button>
-
-              <button
-                type="button"
-                className={`mos-real-btn is-complete ${isDone ? 'is-on' : ''}`}
-                disabled={!currentTask}
-                aria-pressed={isDone}
-                onClick={() => {
-                  if (!currentTask) return;
-                  setCompletedTasks((prev) => ({ ...prev, [currentTask.id]: !prev[currentTask.id] }));
-                }}
-              >
-                {isDone && <Check size={14} />}
-                Mark Completed
-              </button>
-
-              <button
-                type="button"
-                className={`mos-real-btn is-review ${isReview ? 'is-on' : ''}`}
-                disabled={!currentTask}
-                aria-pressed={isReview}
-                onClick={() => {
-                  if (!currentTask) return;
-                  setReviewTasks((prev) => ({ ...prev, [currentTask.id]: !prev[currentTask.id] }));
-                }}
-              >
-                {isReview && <Flag size={13} />}
-                Mark for review
-              </button>
-
-              <button
-                type="button"
-                className="mos-real-btn is-nav"
-                disabled={isLastTaskInProject && isLastProject}
-                onClick={() => {
-                  if (activeTab === 'overview') {
-                    setActiveTab(0);
-                    setShowHint(false);
-                  } else if (!isLastTaskInProject) {
-                    setActiveTab(activeTab + 1);
-                    setShowHint(false);
-                  } else if (!isLastProject) {
-                    void switchProject(projectIndex + 1, 0);
-                  }
-                }}
-              >
-                {isLastTaskInProject && !isLastProject ? 'Next Project' : 'Next Task'}
-              </button>
-
-              {config.allowLiveCheck && currentTask && (
-                <button
-                  type="button"
-                  className="mos-real-btn is-check"
-                  onClick={() => void handleCheckCurrentTask()}
-                >
-                  <ShieldCheck size={14} /> Kiểm tra câu
-                </button>
+              {config.version === '2019' ? (
+                <>
+                  {prevButton}
+                  {completeButton}
+                  {reviewButton}
+                  {nextButton}
+                  {checkButton}
+                </>
+              ) : (
+                <>
+                  <div className="mos-foot-group">
+                    {prevButton}
+                    {nextButton}
+                  </div>
+                  <div className="mos-foot-group">
+                    {completeButton}
+                    {reviewButton}
+                    {checkButton}
+                  </div>
+                </>
               )}
             </div>
           </>
@@ -608,7 +869,7 @@ export function MosExamRunner({
         <div className="mos-modal-backdrop" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) setSummaryOpen(false); }}>
           <section className="mos-modal mos-modal-lg" role="dialog" aria-modal="true" aria-label="Summary — Tổng quan bài thi">
             <header className="mos-modal-head">
-              <h2>Summary · {track.title} ({examCode})</h2>
+              <h2>Summary · {track.title} ({examCode} · {versionInfo.short})</h2>
               <button type="button" className="mos-modal-close" aria-label="Đóng Summary" onClick={() => setSummaryOpen(false)}>
                 <X size={18} />
               </button>
@@ -620,7 +881,7 @@ export function MosExamRunner({
                 return (
                   <div key={proj.id} className="mos-summary-proj">
                     <div className="mos-summary-proj-head">
-                      <span>Project {pIdx + 1}: {proj.title} ({proj.fileName})</span>
+                      <span>Project {pIdx + 1}: {lang === 'en' ? (proj.titleEn ?? proj.title) : proj.title} ({proj.fileName})</span>
                       <span>{doneCount}/{tasks.length} Completed</span>
                     </div>
                     <div className="mos-summary-tasks">
@@ -642,7 +903,7 @@ export function MosExamRunner({
                               : flagged
                                 ? <Flag size={14} className="mos-tab-status-review" style={{ flex: 'none' }} />
                                 : <Circle size={14} color="#94a3b8" style={{ flex: 'none' }} />}
-                            <span>Task {tIdx + 1}: {task.title}</span>
+                            <span>Task {tIdx + 1}: {lang === 'en' ? (task.titleEn ?? task.title) : task.title}</span>
                           </button>
                         );
                       })}
@@ -653,7 +914,7 @@ export function MosExamRunner({
             </div>
             <footer className="mos-modal-foot">
               <button type="button" className="mos-btn" onClick={() => setSummaryOpen(false)}>Quay lại bài thi</button>
-              <button type="button" className="mos-btn mos-btn-primary" onClick={() => { setSummaryOpen(false); void submitExam(false); }}>
+              <button type="button" className="mos-btn mos-btn-primary" disabled={submitting} onClick={() => { setSummaryOpen(false); void submitExam(false); }}>
                 <Send size={14} /> Finish Exam & Chấm điểm
               </button>
             </footer>

@@ -4,6 +4,7 @@ export type MosTrackId = 'word' | 'excel' | 'powerpoint';
 export type MosVersion = '365' | '2019' | '2016';
 export type MosLevel = 'associate' | 'expert';
 export type MosMode = 'training' | 'exam';
+export type MosLang = 'vi' | 'en';
 export type MosExamFormat =
   | 'certiport-exam'
   | 'guided-training'
@@ -19,6 +20,7 @@ export type MosSessionConfig = {
   level: MosLevel;
   format: MosExamFormat;
   mode: MosMode;
+  lang: MosLang;
   projectIds: string[];
   timeLimitSec: number | null;
   allowHints: boolean;
@@ -34,6 +36,7 @@ export type MosDomain = {
   track: MosTrackId;
   code: string;
   name: string;
+  nameEn: string;
 };
 
 export type MosTaskCheckResult = {
@@ -45,7 +48,10 @@ export type MosTask<C extends FileContent = FileContent> = {
   id: string;
   domainId: string;
   title: string;
+  titleEn?: string;
   instruction: string;
+  instructionEn?: string;
+  copyTokens?: string[];
   ribbonPath: string;
   hint: string;
   points: number;
@@ -59,8 +65,10 @@ export type MosProjectBase<K extends 'doc' | 'sheet' | 'slide', C extends FileCo
   kind: K;
   order: number;
   title: string;
+  titleEn?: string;
   fileName: string;
   scenario: string;
+  scenarioEn?: string;
   minutes: number;
   difficulty: 'Cơ bản' | 'Trung bình' | 'Nâng cao';
   createStarter: () => C;
@@ -82,7 +90,17 @@ export type MosTrackMeta = {
   examMinutes: number;
   passingScore: number;
   accent: string;
+  officeColor: string;
   supportsExpert: boolean;
+};
+
+export type MosVersionMeta = {
+  id: MosVersion;
+  label: string;
+  short: string;
+  uiSummary: string;
+  submitLabel: string;
+  projectFormat: 'slash' | 'of';
 };
 
 export type MosTaskGrade = {
@@ -138,6 +156,7 @@ export type MosAttemptRecord = {
 export type MosDrillQuestion = {
   id: string;
   track: MosTrackId;
+  level: MosLevel;
   domainId: string;
   prompt: string;
   options: [string, string, string, string];
@@ -153,6 +172,17 @@ export type MosDrillSummary = {
   correct: number;
   total: number;
   completedAt: number;
+};
+
+export type MosSavedDraft = {
+  config: MosSessionConfig;
+  projectIndex: number;
+  activeTab: 'overview' | number;
+  elapsedSec: number;
+  completedTasks: Record<string, boolean>;
+  reviewTasks: Record<string, boolean>;
+  docs: Record<string, FileContent>;
+  savedAt: number;
 };
 
 export type MosProgress = {

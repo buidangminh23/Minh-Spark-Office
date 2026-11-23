@@ -1640,3 +1640,804 @@
   border-color: #ef4444;
   color: #fecaca;
 }
+
+.mos-draft-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 18px;
+  border: 1px solid #93c5fd;
+  border-radius: 12px;
+  background: #eff6ff;
+  color: #1e3a8a;
+}
+
+.mos-draft-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.mos-draft-info strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.mos-draft-info small {
+  font-size: 12.5px;
+  color: #1e40af;
+}
+
+.mos-draft-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+.mos-version-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--ws-line);
+  border-radius: 10px;
+  background: var(--ws-page);
+  font-size: 13px;
+}
+
+.mos-version-preview {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: var(--ws-ink-2);
+}
+
+.mos-version-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  flex: none;
+}
+
+.mos-version-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  background: var(--ws-surface);
+  border: 1px solid var(--ws-line);
+  color: var(--ws-ink);
+}
+
+.mos-import-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 22px 18px;
+  border: 2px dashed var(--ws-line);
+  border-radius: 12px;
+  background: var(--ws-page);
+  text-align: center;
+}
+
+.mos-import-drop strong {
+  font-size: 15px;
+  color: var(--ws-ink);
+}
+
+.mos-import-drop p {
+  margin: 0;
+  max-width: 520px;
+  font-size: 13px;
+  color: var(--ws-muted);
+  line-height: 1.45;
+}
+
+.mos-import-btns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.mos-imported-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--ws-line);
+  border-radius: 10px;
+  background: var(--ws-page);
+}
+
+.mos-imported-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mos-imported-head strong {
+  font-size: 14px;
+  color: var(--ws-ink);
+}
+
+.mos-imported-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mos-copy-token {
+  display: inline;
+  padding: 0 3px;
+  margin: 0 1px;
+  border: 0;
+  border-bottom: 1.5px dotted #1d4ed8;
+  border-radius: 3px;
+  background: rgb(37 99 235 / 8%);
+  color: #1e3a8a;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.mos-copy-token:hover {
+  background: rgb(37 99 235 / 16%);
+}
+
+.mos-copy-token.is-copied {
+  background: #dcfce7;
+  border-bottom-color: #16a34a;
+  color: #166534;
+}
+
+.mos-copy-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.mos-copy-bar-label {
+  font-size: 11.5px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.mos-copy-chip {
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  border: 1px dashed #94a3b8;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #1e3a8a;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mos-copy-chip:hover {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.mos-copy-chip.is-copied {
+  border-style: solid;
+  border-color: #16a34a;
+  background: #dcfce7;
+  color: #166534;
+}
+
+.mos-compass-lang {
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 7px;
+  border-radius: 3px;
+  border: 1px solid rgb(255 255 255 / 26%);
+  background: rgb(255 255 255 / 10%);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.mos-compass-lang:hover {
+  background: rgb(255 255 255 / 22%);
+}
+
+.mos-compass-ver {
+  padding: 2px 7px;
+  border-radius: 3px;
+  background: rgb(255 255 255 / 16%);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.mos-compass-progress-pill {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 14%);
+  color: #e2e8f0;
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.mos-runner[data-mos-app='word'] {
+  --mos-office-app: #2b579a;
+  --mos-office-dark: #1e3f73;
+}
+
+.mos-runner[data-mos-app='excel'] {
+  --mos-office-app: #217346;
+  --mos-office-dark: #165131;
+}
+
+.mos-runner[data-mos-app='powerpoint'] {
+  --mos-office-app: #b7472a;
+  --mos-office-dark: #8c331c;
+}
+
+:root .mos-runner[data-mos-version='2016'][data-mos-app] :is(.editor-top, .ppt-titlebar) {
+  background: var(--mos-office-app);
+  color: #ffffff;
+  border-bottom: 0;
+}
+
+:root .mos-runner[data-mos-version='2016'][data-mos-app] :is(.editor-top, .ppt-titlebar) :is(.editor-title-input, .ppt-file-name-input, .icon-btn, .ppt-back-btn, .ppt-save-badge) {
+  color: #ffffff;
+  background: transparent;
+}
+
+:root .mos-runner[data-mos-version='2016'][data-mos-app] .editor-top :is(.btn, .command-search, .save-pill) {
+  background: rgb(255 255 255 / 13%);
+  color: #ffffff;
+  border-color: rgb(255 255 255 / 24%);
+  border-radius: 0;
+}
+
+:root .mos-runner[data-mos-version='2016'][data-mos-app] :is(.ribbon-tabs-bar, .ppt-ribbon-tabs) {
+  background: var(--mos-office-app);
+  border-bottom: 0;
+  box-shadow: inset 0 -1px 0 #d4d4d4;
+}
+
+:root .mos-runner[data-mos-version='2016'][data-mos-app] :is(.ribbon-tab, .ppt-ribbon-tab) {
+  color: #ffffff;
+  border-radius: 0;
+  border-bottom-color: transparent;
+}
+
+:root .mos-runner[data-mos-version='2016'][data-mos-app] :is(.ribbon-tab, .ppt-ribbon-tab):hover {
+  background: rgb(255 255 255 / 15%);
+  color: #ffffff;
+}
+
+:root .mos-runner[data-mos-version='2016'][data-mos-app] :is(.ribbon-tab.active, .ppt-ribbon-tab.is-active),
+:root .mos-runner[data-mos-version='2016'][data-mos-app] :is(.ribbon-tab.active, .ppt-ribbon-tab.is-active):hover {
+  background: #f1f1f1;
+  color: var(--mos-office-app);
+  font-weight: 600;
+  border-radius: 0;
+  box-shadow: inset 1px 0 0 #d4d4d4, inset -1px 0 0 #d4d4d4, inset 0 1px 0 #d4d4d4;
+}
+
+:root .mos-runner[data-mos-version='2016'][data-mos-app] .ppt-ribbon-tab.is-active::after {
+  display: none;
+}
+
+:root .mos-runner[data-mos-version='2016'][data-mos-app] :is(.ribbon-tab.file-tab, .ribbon-tab.oc-file-tab, .ppt-file-tab-btn) {
+  background: var(--mos-office-dark);
+  color: #ffffff;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+:root .mos-runner[data-mos-version='2016'][data-mos-app] :is(.ribbon, .ribbon-body, .ppt-ribbon-body) {
+  background: #f1f1f1;
+  color: #262626;
+  border-bottom-color: #c8c8c8;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+:root .mos-runner[data-mos-version='2016'][data-mos-app] :is(.ribbon-btn-large, .ribbon-btn-small, .ribbon-btn-compact, .ppt-tool-btn, .ppt-tool-btn-large) {
+  border-radius: 0;
+  color: #262626;
+}
+
+:root .mos-runner[data-mos-version='2016'][data-mos-app] :is(.editor-status, .sheet-status-bar, .ppt-statusbar) {
+  background: var(--mos-office-app);
+  color: #ffffff;
+  border-top-color: var(--mos-office-dark);
+}
+
+:root .mos-runner[data-mos-version='2016'][data-mos-app] :is(.editor-status, .sheet-status-bar, .ppt-statusbar) :is(span, button, label, strong, small, div) {
+  color: inherit;
+}
+
+:root .mos-runner[data-mos-version='2016'][data-mos-app] :is(.doc-workspace, .doc-canvas, .ppt-canvas-container) {
+  background: #e6e6e6;
+}
+
+.mos-runner[data-mos-version='2016'] .mos-splitter {
+  background: #2c3136;
+}
+
+.mos-runner[data-mos-version='2016'] .mos-console {
+  background: #ffffff;
+}
+
+.mos-runner[data-mos-version='2016'] .mos-compass-bar {
+  height: 38px;
+  background: linear-gradient(180deg, #434950 0%, #31363c 100%);
+  border-bottom: 2px solid var(--mos-office-app);
+}
+
+.mos-runner[data-mos-version='2016'] .mos-compass-timer {
+  background: #22262b;
+  border: 1px solid #555d66;
+  padding: 2px 10px;
+  border-radius: 2px;
+  font-size: 13px;
+}
+
+.mos-runner[data-mos-version='2016'] .mos-compass-link {
+  border: 1px solid rgb(255 255 255 / 18%);
+  background: rgb(255 255 255 / 7%);
+  border-radius: 2px;
+  height: 26px;
+}
+
+.mos-runner[data-mos-version='2016'] .mos-compass-link.is-grade {
+  background: var(--mos-office-app);
+  border-color: rgb(255 255 255 / 30%);
+  color: #ffffff;
+}
+
+.mos-runner[data-mos-version='2016'] .mos-task-tabs-bar {
+  justify-content: flex-start;
+  padding: 5px 16px 0;
+  gap: 4px;
+  background: #dfe4ea;
+  border-bottom: 1px solid #b8c2ce;
+}
+
+.mos-runner[data-mos-version='2016'] .mos-task-tab {
+  min-width: 82px;
+  height: 28px;
+  border: 1px solid #b8c2ce;
+  border-bottom: 0;
+  border-radius: 2px 2px 0 0;
+  background: #eef1f5;
+  color: #2c3440;
+}
+
+.mos-runner[data-mos-version='2016'] .mos-task-tab:hover {
+  background: #f8fafc;
+}
+
+.mos-runner[data-mos-version='2016'] .mos-task-tab.is-active {
+  background: #ffffff;
+  color: #111827;
+  font-weight: 700;
+  box-shadow: inset 0 2px 0 var(--mos-office-app), 0 1px 0 #ffffff;
+}
+
+.mos-runner[data-mos-version='2016'] .mos-task-tab.is-marked-done:not(.is-active) {
+  background: #e4f4ec;
+  color: #14532d;
+  border-color: #9ed4b8;
+}
+
+.mos-runner[data-mos-version='2016'] .mos-task-tab.is-marked-review:not(.is-active) {
+  background: #fef5e0;
+  color: #92400e;
+  border-color: #e9c675;
+}
+
+.mos-runner[data-mos-version='2016'] .mos-task-body {
+  background: #ffffff;
+  align-items: flex-start;
+  padding: 14px 20px 10px;
+}
+
+.mos-runner[data-mos-version='2016'] .mos-task-inner {
+  width: min(980px, 100%);
+}
+
+.mos-runner[data-mos-version='2016'] .mos-console-foot {
+  justify-content: space-between;
+  padding: 7px 16px;
+  background: #e6eaef;
+  border-top: 1px solid #c2cbd6;
+  gap: 8px;
+}
+
+.mos-runner[data-mos-version='2016'] .mos-real-btn {
+  border-radius: 2px;
+  height: 29px;
+}
+
+.mos-runner[data-mos-version='2016'] .mos-real-btn.is-nav {
+  background: #f5f7fa;
+  color: #1f2937;
+  border: 1px solid #adb8c6;
+}
+
+.mos-runner[data-mos-version='2016'] .mos-real-btn.is-nav:hover:not(:disabled) {
+  background: #ffffff;
+  filter: none;
+}
+
+:root .mos-runner[data-mos-version='2019'][data-mos-app] :is(.editor-top, .ppt-titlebar) {
+  background: var(--mos-office-app);
+  color: #ffffff;
+  border-bottom: 0;
+}
+
+:root .mos-runner[data-mos-version='2019'][data-mos-app] :is(.editor-top, .ppt-titlebar) :is(.editor-title-input, .ppt-file-name-input, .icon-btn, .ppt-back-btn, .ppt-save-badge) {
+  color: #ffffff;
+  background: transparent;
+}
+
+:root .mos-runner[data-mos-version='2019'][data-mos-app] .editor-top :is(.btn, .command-search, .save-pill) {
+  background: rgb(255 255 255 / 14%);
+  color: #ffffff;
+  border-color: rgb(255 255 255 / 22%);
+}
+
+:root .mos-runner[data-mos-version='2019'][data-mos-app] :is(.ribbon-tabs-bar, .ppt-ribbon-tabs) {
+  background: var(--mos-office-app);
+  border-bottom: 0;
+  box-shadow: inset 0 -1px 0 #e1dfdd;
+}
+
+:root .mos-runner[data-mos-version='2019'][data-mos-app] :is(.ribbon-tab, .ppt-ribbon-tab) {
+  color: #ffffff;
+  border-radius: 0;
+  border-bottom-color: transparent;
+}
+
+:root .mos-runner[data-mos-version='2019'][data-mos-app] :is(.ribbon-tab, .ppt-ribbon-tab):hover {
+  background: rgb(255 255 255 / 16%);
+  color: #ffffff;
+}
+
+:root .mos-runner[data-mos-version='2019'][data-mos-app] :is(.ribbon-tab.active, .ppt-ribbon-tab.is-active),
+:root .mos-runner[data-mos-version='2019'][data-mos-app] :is(.ribbon-tab.active, .ppt-ribbon-tab.is-active):hover {
+  background: #f3f2f1;
+  color: var(--mos-office-app);
+  font-weight: 600;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+:root .mos-runner[data-mos-version='2019'][data-mos-app] .ppt-ribbon-tab.is-active::after {
+  display: none;
+}
+
+:root .mos-runner[data-mos-version='2019'][data-mos-app] :is(.ribbon-tab.file-tab, .ribbon-tab.oc-file-tab, .ppt-file-tab-btn) {
+  background: var(--mos-office-dark);
+  color: #ffffff;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+:root .mos-runner[data-mos-version='2019'][data-mos-app] :is(.ribbon, .ribbon-body, .ppt-ribbon-body) {
+  background: #f3f2f1;
+  color: #323130;
+  border-bottom-color: #d2d0ce;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+:root .mos-runner[data-mos-version='2019'][data-mos-app] :is(.editor-status, .sheet-status-bar, .ppt-statusbar) {
+  background: #f3f2f1;
+  color: #484644;
+  border-top-color: #e1dfdd;
+}
+
+:root .mos-runner[data-mos-version='2019'][data-mos-app] :is(.doc-workspace, .doc-canvas, .ppt-canvas-container) {
+  background: #e6e6e6;
+}
+
+:root .mos-runner[data-mos-version='365'][data-mos-app] :is(.editor-top, .ppt-titlebar) {
+  background: #f5f5f5;
+  color: #242424;
+  border-bottom: 0;
+}
+
+:root .mos-runner[data-mos-version='365'][data-mos-app] :is(.editor-top, .ppt-titlebar) :is(.editor-title-input, .ppt-file-name-input, .icon-btn, .ppt-back-btn, .ppt-save-badge) {
+  color: #242424;
+  background: transparent;
+}
+
+:root .mos-runner[data-mos-version='365'][data-mos-app] .editor-top :is(.btn, .command-search, .save-pill) {
+  background: #ffffff;
+  color: #242424;
+  border-color: #e0e0e0;
+  border-radius: 6px;
+}
+
+:root .mos-runner[data-mos-version='365'][data-mos-app] .editor-top :is(.btn-doc, .btn-sheet, .btn-primary),
+:root .mos-runner[data-mos-version='365'][data-mos-app] .ppt-present-top-btn {
+  background: var(--mos-office-app);
+  color: #ffffff;
+  border-color: transparent;
+}
+
+:root .mos-runner[data-mos-version='365'][data-mos-app] .ribbon {
+  background: #f5f5f5;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 6px;
+}
+
+:root .mos-runner[data-mos-version='365'][data-mos-app] :is(.ribbon-tabs-bar, .ppt-ribbon-tabs) {
+  background: #f5f5f5;
+  border-bottom: 0;
+  box-shadow: none;
+  padding-left: 8px;
+}
+
+:root .mos-runner[data-mos-version='365'][data-mos-app] :is(.ribbon-tab, .ppt-ribbon-tab) {
+  color: #3b3a39;
+  border-radius: 6px;
+  border-bottom-color: transparent;
+}
+
+:root .mos-runner[data-mos-version='365'][data-mos-app] :is(.ribbon-tab, .ppt-ribbon-tab):hover {
+  background: rgb(0 0 0 / 5%);
+  color: #111827;
+}
+
+:root .mos-runner[data-mos-version='365'][data-mos-app] :is(.ribbon-tab.active, .ppt-ribbon-tab.is-active),
+:root .mos-runner[data-mos-version='365'][data-mos-app] :is(.ribbon-tab.active, .ppt-ribbon-tab.is-active):hover {
+  background: transparent;
+  color: var(--mos-office-app);
+  font-weight: 700;
+  box-shadow: inset 0 -2.5px 0 var(--mos-office-app);
+  border-radius: 6px 6px 0 0;
+}
+
+:root .mos-runner[data-mos-version='365'][data-mos-app] .ppt-ribbon-tab.is-active::after {
+  display: none;
+}
+
+:root .mos-runner[data-mos-version='365'][data-mos-app] :is(.ribbon-tab.file-tab, .ribbon-tab.oc-file-tab, .ppt-file-tab-btn) {
+  background: var(--mos-office-app);
+  color: #ffffff;
+  border-radius: 6px;
+  margin-right: 4px;
+  box-shadow: none;
+}
+
+:root .mos-runner[data-mos-version='365'][data-mos-app] :is(.ribbon-body, .ppt-ribbon-body) {
+  background: #ffffff;
+  color: #242424;
+  margin: 4px 10px 0;
+  border: 1px solid #e2e5ea;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgb(15 23 42 / 6%);
+}
+
+:root .mos-runner[data-mos-version='365'][data-mos-app] :is(.ribbon-btn-large, .ribbon-btn-small, .ribbon-btn-compact, .ppt-tool-btn, .ppt-tool-btn-large) {
+  border-radius: 6px;
+  color: #242424;
+}
+
+:root .mos-runner[data-mos-version='365'][data-mos-app] :is(.editor-status, .sheet-status-bar, .ppt-statusbar) {
+  background: #f5f5f5;
+  color: #424a53;
+  border-top-color: #e5e7eb;
+}
+
+:root .mos-runner[data-mos-version='365'][data-mos-app] :is(.doc-workspace, .doc-canvas, .ppt-canvas-container) {
+  background: #f0f2f5;
+}
+
+.mos-runner[data-mos-version='365'] .mos-splitter {
+  background: #0b2242;
+}
+
+.mos-runner[data-mos-version='365'] .mos-console {
+  background: #f8fafc;
+}
+
+.mos-runner[data-mos-version='365'] .mos-compass-bar {
+  height: 40px;
+  background: linear-gradient(180deg, #102a52 0%, #0b2242 100%);
+  padding: 0 14px;
+}
+
+.mos-runner[data-mos-version='365'] .mos-compass-ver {
+  background: var(--mos-office-app);
+  border-radius: 999px;
+  padding: 2px 9px;
+}
+
+.mos-runner[data-mos-version='365'] .mos-compass-icon-btn,
+.mos-runner[data-mos-version='365'] .mos-compass-lang {
+  border-radius: 6px;
+}
+
+.mos-runner[data-mos-version='365'] .mos-compass-timer {
+  background: rgb(255 255 255 / 12%);
+  border: 1px solid rgb(255 255 255 / 20%);
+  border-radius: 999px;
+  padding: 3px 12px;
+  font-size: 13.5px;
+}
+
+.mos-runner[data-mos-version='365'] .mos-compass-link {
+  border-radius: 6px;
+  height: 28px;
+  padding: 0 11px;
+}
+
+.mos-runner[data-mos-version='365'] .mos-compass-link.is-grade {
+  background: #2563eb;
+  color: #ffffff;
+  font-weight: 700;
+  margin-left: 4px;
+}
+
+.mos-runner[data-mos-version='365'] .mos-compass-link.is-grade:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.mos-runner[data-mos-version='365'] .mos-task-tabs-bar {
+  justify-content: flex-start;
+  gap: 2px;
+  padding: 0 16px;
+  background: #ffffff;
+  border-bottom: 1px solid #dde3ec;
+}
+
+.mos-runner[data-mos-version='365'] .mos-task-tab {
+  min-width: 82px;
+  height: 34px;
+  background: transparent;
+  color: #475569;
+  font-weight: 600;
+  border-radius: 0;
+  padding: 0 14px;
+}
+
+.mos-runner[data-mos-version='365'] .mos-task-tab:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.mos-runner[data-mos-version='365'] .mos-task-tab.is-active {
+  background: #f8fafc;
+  color: var(--mos-office-app);
+  box-shadow: inset 0 -3px 0 var(--mos-office-app);
+}
+
+.mos-runner[data-mos-version='365'] .mos-task-tab.is-marked-done:not(.is-active) {
+  background: transparent;
+  color: #15803d;
+}
+
+.mos-runner[data-mos-version='365'] .mos-task-tab.is-marked-review:not(.is-active) {
+  background: transparent;
+  color: #b45309;
+}
+
+.mos-runner[data-mos-version='365'] .mos-task-body {
+  background: #f8fafc;
+  padding: 12px 20px 10px;
+}
+
+.mos-runner[data-mos-version='365'] .mos-task-inner {
+  width: min(980px, 100%);
+  padding: 12px 16px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.mos-runner[data-mos-version='365'] .mos-console-foot {
+  justify-content: space-between;
+  padding: 8px 18px;
+  background: #ffffff;
+  border-top: 1px solid #dde3ec;
+}
+
+.mos-runner[data-mos-version='365'] .mos-real-btn {
+  border-radius: 7px;
+  height: 32px;
+  padding: 0 15px;
+}
+
+.mos-runner[data-mos-version='365'] .mos-real-btn.is-nav {
+  background: #f1f5f9;
+  color: #0f172a;
+  border: 1px solid #cbd5e1;
+}
+
+.mos-runner[data-mos-version='365'] .mos-real-btn.is-nav:hover:not(:disabled) {
+  background: #e2e8f0;
+  filter: none;
+}
+
+.mos-foot-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+:root[data-theme='dark'] .mos-draft-banner {
+  background: #172742;
+  border-color: #294673;
+  color: #dbeafe;
+}
+
+:root[data-theme='dark'] .mos-draft-info small {
+  color: #93c5fd;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .mos-report-modal,
+  .mos-report-modal * {
+    visibility: visible;
+  }
+
+  .mos-modal-backdrop {
+    position: static;
+    padding: 0;
+    background: #ffffff;
+  }
+
+  .mos-report-modal {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-height: none;
+    border: 0;
+    box-shadow: none;
+    overflow: visible;
+  }
+
+  .mos-report-modal .mos-modal-body {
+    overflow: visible;
+  }
+
+  .mos-report-modal .mos-modal-foot,
+  .mos-report-modal .mos-modal-close,
+  .mos-report-modal .mos-audit-proj-head button {
+    display: none !important;
+  }
+}

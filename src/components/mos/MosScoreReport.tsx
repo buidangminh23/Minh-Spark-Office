@@ -1,4 +1,4 @@
-import { Award, CheckCircle2, Printer, RotateCcw, X, XCircle } from 'lucide-react';
+import { Award, CheckCircle2, Printer, RotateCcw, Target, X, XCircle } from 'lucide-react';
 import { MOS_MAX_SCORE, trackMeta } from '../../lib/mos/grader';
 import type { MosAttemptRecord } from '../../lib/mos/types';
 
@@ -12,20 +12,23 @@ export function MosScoreReport({
   attempt,
   onClose,
   onRetryProject,
+  onReviewFailed,
   onRetake,
 }: {
   attempt: MosAttemptRecord;
   onClose: () => void;
   onRetryProject: (projectId: string) => void;
+  onReviewFailed?: (failedTaskIds: string[]) => void;
   onRetake: () => void;
 }) {
   const track = trackMeta(attempt.track);
   const scorePct = Math.max(0, Math.min(100, (attempt.score / MOS_MAX_SCORE) * 100));
   const passPct = Math.max(0, Math.min(100, (attempt.passingScore / MOS_MAX_SCORE) * 100));
+  const failedTaskIds = attempt.projects.flatMap((p) => p.tasks.filter((t) => !t.passed).map((t) => t.taskId));
 
   return (
     <div className="mos-modal-backdrop" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <section className="mos-modal mos-modal-lg" role="dialog" aria-modal="true" aria-label="Phiếu điểm bài thi MOS">
+      <section className="mos-modal mos-modal-lg mos-report-modal" role="dialog" aria-modal="true" aria-label="Phiếu điểm bài thi MOS">
         <header className="mos-modal-head">
           <h2>Phiếu điểm MOS · {track.title} ({attempt.examCode})</h2>
           <button type="button" className="mos-modal-close" aria-label="Đóng phiếu điểm" onClick={onClose}>
@@ -42,7 +45,7 @@ export function MosScoreReport({
               <div>
                 <h3>{attempt.passed ? 'ĐẠT CHUẨN CHỨNG CHỈ MOS' : 'CHƯA ĐẠT NGƯỠNG ĐIỂM CHUẨN'}</h3>
                 <p>
-                  {attempt.formatLabel} · Phiên bản {attempt.version} · Hoàn thành {attempt.passedTasks}/{attempt.totalTasks} nhiệm vụ trong {formatDuration(attempt.durationSec)}
+                  {attempt.formatLabel} · Phiên bản MOS {attempt.version} · Hoàn thành {attempt.passedTasks}/{attempt.totalTasks} nhiệm vụ trong {formatDuration(attempt.durationSec)}
                 </p>
               </div>
             </div>
@@ -116,6 +119,11 @@ export function MosScoreReport({
           <button type="button" className="mos-btn" onClick={() => window.print()}>
             <Printer size={15} /> In phiếu điểm
           </button>
+          {failedTaskIds.length > 0 && onReviewFailed && (
+            <button type="button" className="mos-btn" onClick={() => onReviewFailed(failedTaskIds)}>
+              <Target size={15} /> Ôn ngay {failedTaskIds.length} câu vừa sai
+            </button>
+          )}
           <button type="button" className="mos-btn" onClick={onRetake}>
             <RotateCcw size={15} /> Thi lại bài này
           </button>

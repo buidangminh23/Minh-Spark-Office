@@ -1,7 +1,15 @@
 import { projectsForTrack } from './grader';
-import type { MosAttemptRecord, MosDrillSummary, MosProgress, MosTrackId } from './types';
+import type {
+  MosAttemptRecord,
+  MosDrillSummary,
+  MosLevel,
+  MosProgress,
+  MosSavedDraft,
+  MosTrackId,
+} from './types';
 
 const STORAGE_PREFIX = 'office23-mos-progress';
+const DRAFT_PREFIX = 'office23-mos-draft';
 const MAX_ATTEMPTS = 40;
 
 export function emptyProgress(): MosProgress {
@@ -16,6 +24,10 @@ export function emptyProgress(): MosProgress {
 
 function storageKey(uid: string | null): string {
   return `${STORAGE_PREFIX}:${uid ?? 'guest'}`;
+}
+
+function draftKey(uid: string | null): string {
+  return `${DRAFT_PREFIX}:${uid ?? 'guest'}`;
 }
 
 export function loadMosProgress(uid: string | null): MosProgress {
@@ -40,6 +52,47 @@ export function saveMosProgress(uid: string | null, progress: MosProgress): void
   if (typeof localStorage === 'undefined') return;
   try {
     localStorage.setItem(storageKey(uid), JSON.stringify(progress));
+  } catch {
+    return;
+  }
+}
+
+export function saveMosDraft(uid: string | null, draft: MosSavedDraft): boolean {
+  if (typeof localStorage === 'undefined') return false;
+  try {
+    localStorage.setItem(draftKey(uid), JSON.stringify(draft));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function loadMosDraft(uid: string | null): MosSavedDraft | null {
+  if (typeof localStorage === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(draftKey(uid));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<MosSavedDraft>;
+    if (!parsed.config || !Array.isArray(parsed.config.projectIds) || parsed.config.projectIds.length === 0) return null;
+    return {
+      config: parsed.config,
+      projectIndex: typeof parsed.projectIndex === 'number' ? parsed.projectIndex : 0,
+      activeTab: parsed.activeTab === 'overview' || typeof parsed.activeTab === 'number' ? parsed.activeTab : 0,
+      elapsedSec: typeof parsed.elapsedSec === 'number' ? parsed.elapsedSec : 0,
+      completedTasks: parsed.completedTasks && typeof parsed.completedTasks === 'object' ? parsed.completedTasks : {},
+      reviewTasks: parsed.reviewTasks && typeof parsed.reviewTasks === 'object' ? parsed.reviewTasks : {},
+      docs: parsed.docs && typeof parsed.docs === 'object' ? parsed.docs : {},
+      savedAt: typeof parsed.savedAt === 'number' ? parsed.savedAt : Date.now(),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function clearMosDraft(uid: string | null): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.removeItem(draftKey(uid));
   } catch {
     return;
   }
@@ -87,14 +140,14 @@ export function recordMosDrill(current: MosProgress, summary: MosDrillSummary): 
   };
 }
 
-export function trackReadiness(progress: MosProgress, track: MosTrackId): {
+export function trackReadiness(progress: MosProgress, track: MosTrackId, level?: MosLevel): {
   passedTasks: number;
   totalTasks: number;
   percent: number;
   bestMock: number | null;
   weakTaskIds: string[];
 } {
-  const projects = projectsForTrack(track);
+  const projects = projectsForTrack(track, level);
   const allIds = projects.flatMap((p) => p.tasks.map((t) => t.id));
   const passedSet = new Set(progress.passedTaskIds);
   const failedSet = new Set(progress.failedTaskIds);
