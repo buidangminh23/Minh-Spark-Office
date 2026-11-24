@@ -9,6 +9,7 @@ import {
   Files,
   Folder,
   Funnel,
+  GraduationCap,
   HardDrive,
   House,
   LayoutGrid,
@@ -80,11 +81,12 @@ interface HomeProps {
   onOpenShared: SharedOpen;
 }
 
-type View = 'home' | 'all' | 'starred' | FileKind | 'trash' | 'team';
+type View = 'home' | 'all' | 'starred' | FileKind | 'trash' | 'team' | 'mos';
 type KindTab = 'all' | FileKind;
 type SortOrder = 'recent' | 'oldest' | 'name';
 
 const TeamsPage = lazy(() => import('./teams/TeamsPage').then((module) => ({ default: module.TeamsPage })));
+const MosHub = lazy(() => import('./mos/MosHub').then((module) => ({ default: module.MosHub })));
 const FilePartsDialog = lazy(() => import('./FilePartsDialog').then((module) => ({ default: module.FilePartsDialog })));
 const FEATURED_TEMPLATES = 4;
 const IMPORT_ACCEPT = '.docx,.txt,.md,.html,.htm,.xlsx,.xlsm,.xls,.csv,.tsv,.pdf,.pptx,.ppt,.png,.jpg,.jpeg,.jfif,.jpe,.webp,.gif,.svg,.svgz,.bmp,.dib,.ico,.avif,.tiff,.tif,.heic,.heif';
@@ -101,6 +103,7 @@ const VIEW_TITLE: Record<Exclude<View, 'home'>, string> = {
   image: '23 Photos',
   trash: 'Thùng rác',
   team: 'Nhóm',
+  mos: 'Ôn thi MOS',
 };
 const SORT_LABEL: Record<SortOrder, string> = { recent: 'Mới cập nhật', oldest: 'Cũ nhất', name: 'Tên A → Z' };
 
@@ -239,6 +242,7 @@ export default function Home(props: HomeProps) {
 
   const showDashboard = view === 'home' && !isSearching;
   const showTeams = view === 'team' && !isSearching;
+  const showMos = view === 'mos' && !isSearching;
   const finishInvite = useCallback(() => {
     setInviteToken(null);
     const url = new URL(window.location.href);
@@ -342,6 +346,7 @@ export default function Home(props: HomeProps) {
           ))}
           <NavItem active={conversion !== null || conversionAnchor !== null} menuOpen={conversionAnchor !== null} onClick={(event) => { const anchor = event.currentTarget; setConversionAnchor((current) => current ? null : anchor); }} icon={<ConvertLogo size={26} />}>Chuyển định dạng</NavItem>
           <button className="ws-nav-item" aria-haspopup="dialog" onClick={() => setFilePartsOpen(true)}><span className="ws-nav-icon" aria-hidden="true"><Files size={22} /></span><span className="ws-nav-label">Gộp và tách tệp</span></button>
+          <NavItem active={view === 'mos' && !isSearching} onClick={() => goTo('mos')} icon={<GraduationCap size={22} />}>Ôn thi MOS</NavItem>
           <NavItem active={view === 'team' && !isSearching} onClick={() => goTo('team')} icon={<Users size={22} />}>Nhóm</NavItem>
           <hr />
           <NavItem active={view === 'trash' && !isSearching} onClick={() => goTo('trash')} icon={<Trash2 size={20} />} badge={trashCount || undefined}>Thùng rác</NavItem>
@@ -374,7 +379,11 @@ export default function Home(props: HomeProps) {
         </header>
 
         <div className="ws-content">
-          {showTeams ? (
+          {showMos ? (
+            <Suspense fallback={<p className="tm-muted" role="status">Đang tải không gian ôn thi MOS…</p>}>
+              <MosHub />
+            </Suspense>
+          ) : showTeams ? (
             <Suspense fallback={<p className="tm-muted" role="status">Đang tải nhóm…</p>}>
               <TeamsPage files={files} inviteToken={inviteToken} onInviteDone={finishInvite} onCreateFromContent={props.onCreateFromContent} onOpenShared={props.onOpenShared} shareRequest={shareRequest} onShareHandled={clearShareRequest} />
             </Suspense>
