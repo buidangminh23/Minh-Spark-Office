@@ -762,3 +762,14 @@ test('document close registry keeps a LIFO stack so embedded MOS editors restore
   offParent();
   assert.equal(await reg.save(false, true), true);
 });
+
+test('app dialogs, popovers, busy overlay and toasts stay above the MOS exam runner', async () => {
+  const { readFileSync } = await import('node:fs');
+  const css = readFileSync(new URL('../src/components/mos/mos.css', import.meta.url), 'utf8');
+  const runnerZ = Number(/\.mos-runner\s*\{[^}]*?z-index:\s*(\d+)/.exec(css)?.[1]);
+  assert.ok(runnerZ > 0);
+  for (const selector of ['dialog-backdrop', 'sheet-popover-backdrop', 'sheet-popover', 'busy-overlay', 'toasts']) {
+    const lifted = new RegExp(`body:has\(\.mos-runner\) \.${selector} \{ z-index: (\d+); \}`).exec(css);
+    assert.ok(lifted && Number(lifted[1]) > runnerZ, selector);
+  }
+});
