@@ -130,7 +130,7 @@ const optional = (value: string) => value || undefined;
 
 export function toNumber(value: unknown) {
   if (typeof value === 'number') return value;
-  const raw = String(value ?? '').replace(/\s/g, '');
+  const raw = (/-?\d[\d.,\s]*/.exec(String(value ?? ''))?.[0] ?? '').replace(/\s/g, '').replace(/[.,]+$/, '');
   if (/^-?\d+,\d+$/.test(raw)) return Number(raw.replace(',', '.'));
   if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(raw)) return Number(raw.replace(/\./g, '').replace(',', '.'));
   return Number(raw.replace(/,/g, '').replace(/[^\d.-]/g, ''));

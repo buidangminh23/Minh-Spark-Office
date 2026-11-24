@@ -90,4 +90,10 @@ test('toNumber reads Vietnamese and English number formats', () => {
   assert.equal(toNumber('1.234,5'), 1234.5);
   assert.equal(toNumber('1,234.5'), 1234.5);
   assert.equal(toNumber('23%'), 23);
+  assert.equal(toNumber('2,5 tỷ'), 2.5);
+  assert.equal(toNumber('1.234,5 đồng'), 1234.5);
+  assert.equal(toNumber('$1,234.5'), 1234.5);
+  assert.equal(toNumber('-3,2%'), -3.2);
+  assert.equal(toNumber('12 345'), 12345);
+  assert.equal(toNumber('không rõ'), 0);
 });
