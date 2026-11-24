@@ -74,7 +74,7 @@
     if (document.visibilityState === 'visible') refresh();
   });
 
-  const tabs = [...document.querySelectorAll('.lp-tab')];
+  const tabs = [...document.querySelectorAll('.tab')];
   const select = (tab) => {
     tabs.forEach((other) => {
       const active = other === tab;
@@ -97,9 +97,8 @@
   const platform = /Mac/.test(navigator.platform) && !/iPhone|iPad/.test(navigator.userAgent)
     ? 'macos'
     : /Linux/.test(navigator.userAgent) && !/Android/.test(navigator.userAgent) ? 'linux' : 'windows';
-  for (const name of ['windows', 'macos', 'linux']) {
-    const button = document.getElementById(`hero-${name}`);
-    button.classList.toggle('lp-btn-primary', name === platform);
-    button.classList.toggle('lp-btn-ghost', name !== platform);
-  }
+  const LABELS = { windows: 'Tải cho Windows', macos: 'Tải cho macOS', linux: 'Tải cho Linux' };
+  const download = document.getElementById('hero-download');
+  download.href = `#${platform}`;
+  download.querySelector('span').textContent = LABELS[platform];
 })();

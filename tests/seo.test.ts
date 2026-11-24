@@ -20,7 +20,7 @@ test('public URLs expose unique metadata, readable content and matching canonica
   const titles = new Set<string>();
   const descriptions = new Set<string>();
   for (const page of pages) {
-    assert.match(page.html, /<html lang="vi">/);
+    assert.match(page.html, /<html lang="vi"[ >]/);
     assert.match(page.html, /<meta name="viewport" content="width=device-width, initial-scale=1\.0"/);
     const title = page.html.match(/<title>([^<]+)<\/title>/)?.[1];
     const description = page.html.match(/<meta name="description" content="([^"]+)"/)?.[1];

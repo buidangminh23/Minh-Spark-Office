@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="vi">
+<html lang="vi" data-launch-mode="expressive">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -24,408 +24,502 @@
   <meta name="twitter:image" content="https://office.minhspark.com/logo.jpg" />
   <meta name="twitter:image:alt" content="Logo Office 23" />
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","@id":"https://office.minhspark.com/gioi-thieu.html#webpage","url":"https://office.minhspark.com/gioi-thieu.html","name":"Office 23 — Bộ văn phòng miễn phí cho người Việt","description":"Office 23 gồm 23 Docs, 23 Sheets, 23 Slides và 23 PDF. Dùng trên trình duyệt hoặc cài cho Windows, macOS và Linux.","inLanguage":"vi","isPartOf":{"@id":"https://office.minhspark.com/#website"}}</script>
-  <style>
-    :root {
-      --ink: #121826; --ink-2: #566074; --line: #e3e7ee; --paper: #fff; --bg: #f6f7fb;
-      --blue: #2563eb; --blue-ink: #1d4ed8; --blue-soft: #eef3fe;
-      --s1: 8px; --s2: 16px; --s3: 24px; --s4: 32px; --s6: 48px; --s8: 64px; --s12: 96px;
-      --section: clamp(4rem, 2.67rem + 5.93vw, 8rem);
-      --gutter: clamp(1rem, 0.5rem + 2.5vw, 2rem);
-      --radius: 16px;
-      --ease: cubic-bezier(0.23, 1, 0.32, 1);
-    }
-    *, *::before, *::after { box-sizing: border-box; }
-    html { scroll-padding-block-start: 88px; scroll-behavior: smooth; }
-    body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.7 'Segoe UI', -apple-system, BlinkMacSystemFont, Arial, sans-serif; -webkit-font-smoothing: antialiased; }
-    img { max-width: 100%; height: auto; }
-    a { color: var(--blue-ink); text-underline-offset: 4px; }
-    a:focus-visible, button:focus-visible, summary:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; border-radius: 8px; }
-    h1, h2, h3 { margin: 0; line-height: 1.2; letter-spacing: -.02em; }
-    p { margin: 0; }
-    .lp-wrap { width: 100%; max-width: 1180px; margin-inline: auto; padding-inline: var(--gutter); }
-    .lp-skip { position: absolute; left: -9999px; }
-    .lp-skip:focus { left: var(--s2); top: var(--s2); z-index: 10; padding: var(--s1) var(--s2); background: var(--paper); }
-
-    .lp-header { position: sticky; top: 0; z-index: 5; background: rgba(246, 247, 251, 0.86); backdrop-filter: saturate(1.4) blur(12px); border-bottom: 1px solid var(--line); }
-    .lp-header .lp-wrap { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); min-height: 72px; }
-    .lp-brand { display: inline-flex; align-items: center; gap: 12px; color: var(--ink); font-size: 17px; font-weight: 750; text-decoration: none; white-space: nowrap; }
-    .lp-brand img { width: 36px; height: 36px; object-fit: contain; }
-    .lp-nav { display: flex; align-items: center; gap: var(--s1); }
-    .lp-nav { flex: none; }
-    .lp-nav a { display: inline-flex; align-items: center; min-height: 44px; white-space: nowrap; padding-inline: 12px; border-radius: 8px; color: var(--ink-2); font-size: 15px; font-weight: 600; text-decoration: none; }
-    .lp-nav a:hover { color: var(--ink); background: rgba(18, 24, 38, 0.05); }
-    .lp-nav .lp-nav-cta { margin-left: var(--s1); background: var(--ink); color: #fff; }
-    .lp-nav .lp-nav-cta:hover { background: #262f42; color: #fff; }
-
-    .lp-btn { display: inline-flex; align-items: center; justify-content: center; gap: 12px; min-height: 52px; padding: 12px 24px; border-radius: 12px; font-weight: 650; line-height: 1.3; text-decoration: none; transition: transform 160ms var(--ease), box-shadow 160ms var(--ease), background-color 160ms var(--ease); }
-    .lp-btn:active { transform: scale(0.98); }
-    .lp-btn svg { flex: none; width: 20px; height: 20px; }
-    .lp-btn-primary { background: var(--blue); color: #fff; box-shadow: 0 10px 24px rgba(37, 99, 235, 0.28); }
-    .lp-btn-primary:hover { background: var(--blue-ink); color: #fff; }
-    .lp-btn-ghost { border: 1px solid var(--line); background: var(--paper); color: var(--ink); }
-    .lp-btn-ghost:hover { border-color: #cfd5e1; color: var(--ink); }
-
-    .lp-hero { padding-block: var(--s8) 0; text-align: center; }
-    .lp-pill { display: inline-flex; align-items: center; gap: var(--s1); padding: 4px 12px; border-radius: 999px; background: var(--blue-soft); color: var(--blue-ink); font-size: 13px; font-weight: 650; }
-    .lp-pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--blue); }
-    .lp-hero h1 { max-width: 19ch; margin: var(--s3) auto var(--s3); font-size: clamp(2.25rem, 1.4rem + 3.8vw, 4.25rem); line-height: 1.12; letter-spacing: -.035em; text-wrap: balance; }
-    .lp-hero h1 span { color: var(--blue); }
-    .lp-lead { max-width: 640px; margin-inline: auto; color: var(--ink-2); font-size: clamp(1.0625rem, 1rem + 0.3vw, 1.25rem); text-wrap: pretty; }
-    .lp-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: var(--s4); }
-    .lp-hero-note { margin-top: var(--s2); color: var(--ink-2); font-size: 14px; }
-
-    .lp-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); max-width: 840px; margin: var(--s6) auto 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); box-shadow: 0 8px 24px rgba(18, 24, 38, 0.06); }
-    .lp-stat { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; padding: var(--s3) var(--s2); text-align: center; }
-    .lp-stat + .lp-stat { border-left: 1px solid var(--line); }
-    .lp-stat-value { font-size: clamp(1.625rem, 1.2rem + 1.8vw, 2.5rem); font-weight: 750; line-height: 1.15; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-    .lp-stat-label { display: inline-flex; align-items: center; gap: var(--s1); color: var(--ink-2); font-size: 14px; font-weight: 600; line-height: 1.4; }
-    .lp-stat-label svg { flex: none; width: 16px; height: 16px; }
-    .lp-live { display: flex; align-items: center; justify-content: center; gap: var(--s1); margin-top: 12px; color: var(--ink-2); font-size: 13px; }
-    .lp-live-dot { width: 8px; height: 8px; border-radius: 50%; background: #16a34a; box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.45); animation: lp-pulse 2s var(--ease) infinite; }
-    .lp-live[data-state="off"] .lp-live-dot { background: #9aa3b2; animation: none; }
-    @keyframes lp-pulse { 70% { box-shadow: 0 0 0 8px rgba(22, 163, 74, 0); } 100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); } }
-
-    .lp-shot { margin: var(--s6) auto 0; max-width: 1080px; }
-    .lp-window { overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); box-shadow: 0 32px 72px rgba(18, 24, 38, 0.16); }
-    .lp-window-bar { display: flex; align-items: center; gap: var(--s1); padding: 12px var(--s2); border-bottom: 1px solid var(--line); background: #f3f5f9; }
-    .lp-window-bar span { width: 12px; height: 12px; border-radius: 50%; background: #dde1e8; }
-    .lp-window-bar b { flex: 1; margin-right: 52px; color: var(--ink-2); font-size: 12px; font-weight: 600; text-align: center; }
-    .lp-window img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; object-position: top left; }
-
-    .lp-section { padding-block: var(--section) 0; }
-    .lp-head { max-width: 680px; margin: 0 auto var(--s6); text-align: center; }
-    .lp-kicker { color: var(--blue-ink); font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-    .lp-head h2 { margin: 12px 0 var(--s2); font-size: clamp(1.75rem, 1.3rem + 2vw, 2.75rem); text-wrap: balance; }
-    .lp-head p { color: var(--ink-2); font-size: 17px; text-wrap: pretty; }
-
-    .lp-tabs { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--s1); margin-bottom: var(--s4); }
-    .lp-tab { display: inline-flex; align-items: center; gap: 12px; min-height: 52px; padding: 8px 20px 8px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--paper); color: var(--ink); font: inherit; font-weight: 650; cursor: pointer; transition: border-color 160ms var(--ease), box-shadow 160ms var(--ease); }
-    .lp-tab img { width: 32px; height: 32px; object-fit: contain; }
-    .lp-tab:hover { border-color: #cfd5e1; }
-    .lp-tab[aria-selected="true"] { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-soft); }
-    .lp-panel { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.6fr); gap: var(--s6); align-items: center; }
-    .lp-panel[hidden] { display: none; }
-    .lp-panel h3 { font-size: clamp(1.5rem, 1.2rem + 1vw, 2rem); }
-    .lp-panel-text > p { margin-top: 12px; color: var(--ink-2); }
-    .lp-checks { display: grid; gap: 12px; margin: var(--s3) 0 0; padding: 0; list-style: none; }
-    .lp-checks li { display: flex; gap: 12px; }
-    .lp-checks li::before { content: ""; flex: none; width: 20px; height: 20px; margin-top: 4px; border-radius: 50%; background: var(--blue-soft) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M6 10.5l2.5 2.5L14 7.5' fill='none' stroke='%231d4ed8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 20px no-repeat; }
-    .lp-panel-link { display: inline-block; margin-top: var(--s3); font-weight: 650; }
-
-    .lp-features { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s3); }
-    .lp-feature { display: flex; flex-direction: column; gap: 12px; padding: var(--s4); border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); }
-    .lp-feature-icon { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 12px; background: var(--blue-soft); color: var(--blue-ink); }
-    .lp-feature-icon svg { width: 24px; height: 24px; }
-    .lp-feature h3 { margin-top: 4px; font-size: 18px; }
-    .lp-feature p { color: var(--ink-2); }
-
-    .lp-flow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s3); margin: 0; padding: 0; list-style: none; counter-reset: flow; }
-    .lp-flow li { position: relative; padding: var(--s4); border-radius: var(--radius); background: var(--paper); border: 1px solid var(--line); counter-increment: flow; }
-    .lp-flow li::before { content: counter(flow); display: grid; place-items: center; width: 40px; height: 40px; margin-bottom: var(--s2); border-radius: 50%; background: var(--ink); color: #fff; font-weight: 700; }
-    .lp-flow h3 { margin-bottom: var(--s1); font-size: 18px; }
-    .lp-flow p { color: var(--ink-2); }
-
-    .lp-downloads { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s3); max-width: 1120px; margin-inline: auto; }
-    .lp-dl { display: flex; flex-direction: column; align-items: center; gap: var(--s3); padding: var(--s6) var(--s4) var(--s4); border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); text-align: center; }
-    .lp-os { display: grid; place-items: center; width: 72px; height: 72px; border-radius: 20px; background: var(--bg); }
-    .lp-os svg { width: 36px; height: 36px; }
-    .lp-os-apple svg { transform: translateY(-1px); }
-    .lp-dl h3 { font-size: 22px; }
-    .lp-dl-sub { margin-top: 4px; color: var(--ink-2); font-size: 14px; }
-    .lp-dl-count { display: inline-flex; align-items: baseline; gap: 6px; padding: 4px 12px; border-radius: 999px; background: var(--bg); color: var(--ink-2); font-size: 14px; }
-    .lp-dl-count strong { color: var(--ink); font-size: 15px; font-variant-numeric: tabular-nums; }
-    .lp-dl .lp-btn { width: 100%; }
-    .lp-dl-more { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 16px; font-size: 14px; }
-    .lp-dl-foot { max-width: 920px; margin: var(--s3) auto 0; color: var(--ink-2); font-size: 14px; text-align: center; }
-
-    .lp-faq { display: grid; gap: 12px; max-width: 820px; margin-inline: auto; }
-    .lp-faq details { border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }
-    .lp-faq summary { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); min-height: 56px; padding: var(--s2) var(--s3); font-weight: 650; cursor: pointer; list-style: none; }
-    .lp-faq summary::-webkit-details-marker { display: none; }
-    .lp-faq summary::after { content: "+"; flex: none; color: var(--ink-2); font-size: 22px; font-weight: 400; line-height: 1; transition: transform 200ms var(--ease); }
-    .lp-faq details[open] summary::after { transform: rotate(45deg); }
-    .lp-faq details p { padding: 0 var(--s3) var(--s3); color: var(--ink-2); }
-
-    .lp-band { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s3); margin-top: var(--section); padding: var(--s6); border-radius: 20px; background: var(--ink); color: #fff; }
-    .lp-band h2 { font-size: clamp(1.5rem, 1.2rem + 1.2vw, 2.25rem); }
-    .lp-band p { margin-top: var(--s1); color: #c4cad6; }
-    .lp-band .lp-actions { margin-top: 0; }
-    .lp-band .lp-btn-ghost { border-color: rgba(255, 255, 255, 0.24); background: transparent; color: #fff; }
-    .lp-band .lp-btn-ghost:hover { border-color: rgba(255, 255, 255, 0.5); color: #fff; }
-
-    .lp-footer { margin-top: var(--s8); padding-block: var(--s4) var(--s6); border-top: 1px solid var(--line); color: var(--ink-2); font-size: 14px; }
-    .lp-footer .lp-wrap { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s2); }
-    .lp-footer nav { display: flex; flex-wrap: wrap; gap: 4px var(--s3); }
-    .lp-footer a { display: inline-flex; align-items: center; min-height: 44px; color: var(--ink-2); }
-
-    @media (prefers-reduced-motion: reduce) {
-      html { scroll-behavior: auto; }
-      .lp-live-dot { animation: none; }
-      .lp-btn, .lp-tab, .lp-faq summary::after { transition: none; }
-    }
-    @media (max-width: 960px) {
-      .lp-panel { grid-template-columns: 1fr; gap: var(--s4); }
-      .lp-features { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .lp-flow { grid-template-columns: 1fr; }
-    }
-    @media (max-width: 760px) {
-      .lp-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .lp-stat + .lp-stat:nth-of-type(odd) { border-left: 0; }
-      .lp-stat:nth-of-type(-n+2) { border-bottom: 1px solid var(--line); }
-      .lp-nav a:not(.lp-nav-cta) { display: none; }
-      .lp-downloads { grid-template-columns: 1fr; }
-      .lp-features { grid-template-columns: 1fr; }
-      .lp-band { padding: var(--s4); }
-    }
-    @media (max-width: 520px) {
-      .lp-hero { padding-top: var(--s6); }
-      .lp-actions .lp-btn { width: 100%; }
-      .lp-stat { padding: var(--s2) var(--s1); }
-      .lp-stat-label svg { display: none; }
-      .lp-tab { padding-right: var(--s2); font-size: 15px; }
-      .lp-tab img { width: 28px; height: 28px; }
-      .lp-feature, .lp-flow li { padding: var(--s3); }
-      .lp-dl { padding: var(--s4) var(--s3) var(--s3); }
-      .lp-window-bar b { display: none; }
-      .lp-faq summary { padding: var(--s2); }
-      .lp-faq details p { padding: 0 var(--s2) var(--s2); }
-    }
-    @media (max-width: 340px) {
-      .lp-brand span { display: none; }
-    }
-    .platform-logo { flex: none; width: 24px; height: 24px; object-fit: contain; }
-    .lp-btn-primary .platform-logo { background: transparent; border-radius: 0; padding: 0; width: 24px; height: 24px; }
-    .lp-btn-primary .platform-logo[src="/platforms/windows.svg"] { background: #fff; mask: url("/platforms/windows.svg") center / contain no-repeat; object-position: -9999px; }
-    .lp-btn-primary .platform-logo[src="/platforms/apple.svg"] { background: #fff; mask: url("/platforms/apple-glyph.svg") center / contain no-repeat; object-position: -9999px; }
-    .lp-os .platform-logo { width: 36px; height: 36px; }
-    .lp-stat-label .platform-logo { width: 20px; height: 20px; }
-  </style>
+  <link rel="stylesheet" href="/launch/tokens.css" />
+  <link rel="stylesheet" href="/launch/landing.css" />
+  <script type="module" src="/launch/landing.js"></script>
 </head>
 <body>
-  <a class="lp-skip" href="#noi-dung">Bỏ qua đến nội dung</a>
+  <a class="skip" href="#noi-dung">Bỏ qua đến nội dung</a>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
     <symbol id="i-users" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></g></symbol>
     <symbol id="i-globe" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></g></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></g></symbol>
     <symbol id="i-file" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 15l2 2 4-4"/></g></symbol>
     <symbol id="i-type" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></g></symbol>
     <symbol id="i-cloud" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9z"/><path d="M12 12v6M9 15l3 3 3-3"/></g></symbol>
     <symbol id="i-wifi-off" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 2l20 20M8.5 16.5a5 5 0 0 1 7 0M2 8.82a15 15 0 0 1 4.17-2.65M10.66 5c4.01-.36 8.14.9 11.34 3.76M16.85 11.25a10 10 0 0 1 2.22 1.68M5 13a10 10 0 0 1 5.24-2.76M12 20h.01"/></g></symbol>
     <symbol id="i-monitor" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></g></symbol>
     <symbol id="i-gift" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7M7.5 8a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 0 1 0 5"/></g></symbol>
+    <symbol id="i-team" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></g></symbol>
+    <symbol id="i-convert" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></g></symbol>
+    <symbol id="i-scan" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 9h10M7 13h10M7 17h6"/></g></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.4z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></g></symbol>
+    <symbol id="i-cap" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10L12 5 2 10l10 5 10-5z"/><path d="M6 12v5c3 2 9 2 12 0v-5"/></g></symbol>
   </svg>
 
-  <header class="lp-header">
-    <div class="lp-wrap">
-      <a class="lp-brand" href="/gioi-thieu.html"><img src="/logo-icon.png" width="36" height="36" alt="" /><span>Office<img src="/brand-23.png" alt="23" width="49" height="24" style="height:1.1em;width:auto;vertical-align:-0.18em;margin-left:0.22em" /></span></a>
-      <nav class="lp-nav" aria-label="Mục trên trang">
-        <a href="#ung-dung">Ứng dụng</a>
-        <a href="#tinh-nang">Tính năng</a>
-        <a href="#tai-ve">Tải về</a>
-        <a href="#cau-hoi">Hỏi đáp</a>
-        <a class="lp-nav-cta" href="/">Dùng bản web</a>
-      </nav>
+    <header class="nav">
+    <div class="wrap nav-row">
+      <a class="brand" href="/gioi-thieu.html"><img class="brand-mark" src="/logo-icon.png" width="32" height="32" alt="" /><span class="brand-name">Office<img class="brand-23" src="/brand-23.png" alt="23" width="49" height="24" /></span></a>
+      <ul class="nav-links" aria-label="Mục trên trang">
+        <li><a href="#ung-dung">Ứng dụng</a></li>
+        <li><a href="#tat-ca">Tính năng</a></li>
+        <li><a href="#tai-ve">Tải về</a></li>
+        <li><a href="#cau-hoi">Hỏi đáp</a></li>
+        <li><a class="button button--small" href="/" data-cta>Dùng bản web</a></li>
+      </ul>
     </div>
   </header>
 
   <main id="noi-dung">
-    <section class="lp-hero lp-wrap" aria-labelledby="hero-title">
-      <p class="lp-pill">Miễn phí · Web, Windows, macOS và Linux</p>
-      <h1 id="hero-title">Bộ văn phòng <span>cho người Việt</span>, mở là dùng</h1>
-      <p class="lp-lead">Soạn văn bản, làm bảng tính, dựng trình chiếu và sửa PDF trong một không gian. Mở thẳng tệp Word, Excel, PowerPoint đang có, không cần cài bộ Office.</p>
-      <div class="lp-actions">
-        <a class="lp-btn lp-btn-primary" id="hero-windows" href="#windows"><img class="platform-logo" src="/platforms/windows.svg" alt="" aria-hidden="true"><span>Tải cho Windows</span></a>
-        <a class="lp-btn lp-btn-ghost" id="hero-macos" href="#macos"><img class="platform-logo" src="/platforms/apple.svg" alt="" aria-hidden="true"><span>Tải cho macOS</span></a>
-        <a class="lp-btn lp-btn-ghost" id="hero-linux" href="#linux"><img class="platform-logo" src="/platforms/linux.svg" alt="" aria-hidden="true"><span>Tải cho Linux</span></a>
-        <a class="lp-btn lp-btn-ghost" href="/"><svg aria-hidden="true"><use href="#i-globe" /></svg><span>Dùng ngay trên web</span></a>
-      </div>
-      <p class="lp-hero-note">Bản web không cần đăng nhập. Đăng nhập Google khi muốn đồng bộ giữa các máy.</p>
-
-      <div class="lp-stats" aria-labelledby="stats-title">
-        <h2 id="stats-title" hidden>Số liệu sử dụng</h2>
-        <div class="lp-stat">
-          <span class="lp-stat-value" data-stat="users">—</span>
-          <span class="lp-stat-label"><svg aria-hidden="true"><use href="#i-users" /></svg>Người dùng</span>
+    <section class="hero night" aria-labelledby="hero-title">
+      <div class="wrap">
+        <div class="section-head section-head--center">
+          <p class="pill t-caption"><b>Phiên bản 0.3.8</b>Miễn phí trên web, Windows, macOS và Linux</p>
+          <h1 class="t-hero" id="hero-title">Cả bộ văn phòng, <span class="hl">mở là dùng</span></h1>
+          <p class="t-lede" data-lede>Văn bản, bảng tính, trình chiếu, PDF và ảnh trong một không gian làm việc tiếng Việt. Mở thẳng tệp Word, Excel, PowerPoint đang có, không cần cài bộ Office.</p>
         </div>
-        <div class="lp-stat">
-          <span class="lp-stat-value" data-stat="downloadsWindows">—</span>
-          <span class="lp-stat-label"><img class="platform-logo" src="/platforms/windows.svg" alt="" aria-hidden="true">Lượt tải Windows</span>
+        <div class="ctas">
+          <a class="button button--light" href="/" data-cta><svg aria-hidden="true"><use href="#i-globe" /></svg><span>Dùng ngay trên web</span></a>
+          <a class="button button--ghost" id="hero-download" href="#tai-ve" data-cta><svg aria-hidden="true"><use href="#i-download" /></svg><span>Tải ứng dụng máy tính</span></a>
         </div>
-        <div class="lp-stat">
-          <span class="lp-stat-value" data-stat="downloadsMac">—</span>
-          <span class="lp-stat-label"><img class="platform-logo" src="/platforms/apple.svg" alt="" aria-hidden="true">Lượt tải macOS</span>
-        </div>
-        <div class="lp-stat">
-          <span class="lp-stat-value" data-stat="downloadsLinux">—</span>
-          <span class="lp-stat-label"><img class="platform-logo" src="/platforms/linux.svg" alt="" aria-hidden="true">Lượt tải Linux</span>
-        </div>
-      </div>
-      <p class="lp-live" id="stats-live" data-state="off" aria-live="polite"><span class="lp-live-dot" aria-hidden="true"></span><span id="stats-status">Đang tải số liệu…</span></p>
-
-      <figure class="lp-shot">
-        <div class="lp-window">
-          <div class="lp-window-bar" aria-hidden="true"><span></span><span></span><span></span><b>office.minhspark.com</b></div>
-          <img src="/gioi-thieu/home.webp" width="1440" height="900" alt="Không gian làm việc Office 23 với 23 Docs, Sheets, Slides, PDF và danh sách tài liệu gần đây" fetchpriority="high" />
-        </div>
-      </figure>
-    </section>
-
-    <section class="lp-section lp-wrap" id="ung-dung" aria-labelledby="apps-title">
-      <div class="lp-head">
-        <p class="lp-kicker">Ứng dụng</p>
-        <h2 id="apps-title">Bốn công cụ cho công việc hằng ngày</h2>
-        <p>Cùng một thanh công cụ dạng ribbon quen thuộc, cùng một kho tài liệu. Chọn công cụ để xem giao diện thật.</p>
-      </div>
-      <div class="lp-tabs" role="tablist" aria-label="Chọn ứng dụng">
-        <button class="lp-tab" role="tab" id="tab-docs" aria-controls="panel-docs" aria-selected="true"><img src="/logos/minh-docs.png" width="32" height="32" alt="" />23 Docs</button>
-        <button class="lp-tab" role="tab" id="tab-sheets" aria-controls="panel-sheets" aria-selected="false" tabindex="-1"><img src="/logos/minh-sheets.png" width="32" height="32" alt="" />23 Sheets</button>
-        <button class="lp-tab" role="tab" id="tab-slides" aria-controls="panel-slides" aria-selected="false" tabindex="-1"><img src="/logos/minh-slides.png" width="32" height="32" alt="" />23 Slides</button>
-        <button class="lp-tab" role="tab" id="tab-pdf" aria-controls="panel-pdf" aria-selected="false" tabindex="-1"><img src="/logos/minh-pdf.png" width="32" height="32" alt="" />23 PDF</button>
-      </div>
-
-      <div class="lp-panel" role="tabpanel" id="panel-docs" aria-labelledby="tab-docs">
-        <div class="lp-panel-text">
-          <h3>23 Docs</h3>
-          <p>Soạn báo cáo, công văn, kế hoạch với tiêu đề, mục lục và bảng biểu.</p>
-          <ul class="lp-checks">
-            <li>Mở và lưu tệp DOCX, giữ định dạng khi gửi cho người dùng Word</li>
-            <li>Ngăn điều hướng theo tiêu đề, kiểu chữ dựng sẵn, chèn bảng và hình</li>
-            <li>Đọc to văn bản và nhập chữ bằng giọng nói</li>
-          </ul>
-          <a class="lp-panel-link" href="/minh-docs.html">Tìm hiểu 23 Docs</a>
-        </div>
-        <div class="lp-window"><img src="/gioi-thieu/docs.webp" width="1440" height="900" loading="lazy" alt="23 Docs đang mở tệp Kế hoạch hoạt động quý IV với ribbon và ngăn điều hướng" /></div>
-      </div>
-      <div class="lp-panel" role="tabpanel" id="panel-sheets" aria-labelledby="tab-sheets" hidden>
-        <div class="lp-panel-text">
-          <h3>23 Sheets</h3>
-          <p>Theo dõi ngân sách, chấm công, báo cáo số liệu bằng công thức quen thuộc.</p>
-          <ul class="lp-checks">
-            <li>Mở tệp Excel và CSV, chỉnh sửa rồi xuất lại XLSX</li>
-            <li>Hàm tính như SUM, VLOOKUP, IF và định dạng số kiểu Việt Nam</li>
-            <li>Gõ xong bấm Tab hoặc Enter, cột tự giãn cho đủ nội dung</li>
-          </ul>
-          <a class="lp-panel-link" href="/minh-sheets.html">Tìm hiểu 23 Sheets</a>
-        </div>
-        <div class="lp-window"><img src="/gioi-thieu/sheets.webp" width="1440" height="900" loading="lazy" alt="23 Sheets đang mở bảng Ngân sách hoạt động quý IV" /></div>
-      </div>
-      <div class="lp-panel" role="tabpanel" id="panel-slides" aria-labelledby="tab-slides" hidden>
-        <div class="lp-panel-text">
-          <h3>23 Slides</h3>
-          <p>Dựng bài thuyết trình, ghi chú cho người nói và trình chiếu toàn màn hình.</p>
-          <ul class="lp-checks">
-            <li>Mở và lưu tệp PPTX</li>
-            <li>Danh sách trang chiếu, ghi chú diễn giả và chế độ trình chiếu</li>
-            <li>Hình khối, biểu tượng, hiệu ứng chuyển trang</li>
-          </ul>
-        </div>
-        <div class="lp-window"><img src="/gioi-thieu/slides.webp" width="1440" height="900" loading="lazy" alt="23 Slides đang mở bài Chiến lược kinh doanh và tăng trưởng 2026" /></div>
-      </div>
-      <div class="lp-panel" role="tabpanel" id="panel-pdf" aria-labelledby="tab-pdf" hidden>
-        <div class="lp-panel-text">
-          <h3>23 PDF</h3>
-          <p>Xem, đánh dấu, ký và chuyển đổi PDF ngay trong trình duyệt.</p>
-          <ul class="lp-checks">
-            <li>Gộp, tách, nén và sắp xếp lại trang</li>
-            <li>Chuyển PDF sang Word, Excel, ảnh</li>
-            <li>Ký tên, vẽ và chèn hình lên trang</li>
-          </ul>
-        </div>
-        <div class="lp-window"><img src="/gioi-thieu/pdf.webp" width="1440" height="900" loading="lazy" alt="23 PDF đang mở văn bản Quy chuẩn văn phòng số" /></div>
+        <ul class="hero-apps t-caption" aria-label="Các ứng dụng">
+          <li><img src="/logos/minh-docs.png" width="28" height="28" alt="" />23 Docs</li>
+          <li><img src="/logos/minh-sheets.png" width="28" height="28" alt="" />23 Sheets</li>
+          <li><img src="/logos/minh-slides.png" width="28" height="28" alt="" />23 Slides</li>
+          <li><img src="/logos/minh-pdf.png" width="28" height="28" alt="" />23 PDF</li>
+          <li><img src="/logos/minh-photos.png" width="28" height="28" alt="" />23 Photos</li>
+        </ul>
+        <figure class="hero-shot">
+          <div class="window">
+            <div class="window-bar" aria-hidden="true"><span></span><span></span><span></span><b class="t-caption">office.minhspark.com</b></div>
+            <img src="/gioi-thieu/home.webp" width="1440" height="900" alt="Không gian làm việc Office 23 với 23 Docs, Sheets, Slides, PDF, Photos và danh sách tài liệu gần đây" fetchpriority="high" />
+          </div>
+        </figure>
       </div>
     </section>
 
-    <section class="lp-section lp-wrap" id="tinh-nang" aria-labelledby="features-title">
-      <div class="lp-head">
-        <p class="lp-kicker">Tính năng</p>
-        <h2 id="features-title">Quen tay từ ngày đầu</h2>
-        <p>Không phải học lại cách làm việc. Những thứ hay dùng nằm đúng chỗ bạn tìm.</p>
-      </div>
-      <div class="lp-features">
-        <article class="lp-feature"><span class="lp-feature-icon"><svg aria-hidden="true"><use href="#i-file" /></svg></span><h3>Tệp quen, làm tiếp ngay</h3><p>Mở DOCX, XLSX, PPTX, PDF và CSV đang có. Xuất lại đúng định dạng để gửi cho người khác.</p></article>
-        <article class="lp-feature"><span class="lp-feature-icon"><svg aria-hidden="true"><use href="#i-type" /></svg></span><h3>Tiếng Việt từ gốc</h3><p>Giao diện, định dạng số và ngày tháng theo tiếng Việt. Gõ có dấu bằng bộ gõ quen dùng, không lỗi bảng mã.</p></article>
-        <article class="lp-feature"><span class="lp-feature-icon"><svg aria-hidden="true"><use href="#i-cloud" /></svg></span><h3>Đồng bộ qua tài khoản Google</h3><p>Đăng nhập cùng tài khoản trên web và ứng dụng máy tính để thấy cùng một kho tài liệu.</p></article>
-        <article class="lp-feature"><span class="lp-feature-icon"><svg aria-hidden="true"><use href="#i-wifi-off" /></svg></span><h3>Vẫn làm khi mất mạng</h3><p>Bản nháp lưu ngay trên máy. Thay đổi chờ sẵn và tự gửi khi có mạng trở lại.</p></article>
-        <article class="lp-feature"><span class="lp-feature-icon"><svg aria-hidden="true"><use href="#i-monitor" /></svg></span><h3>Web, Windows, macOS, Linux</h3><p>Dùng trên trình duyệt hoặc cài ứng dụng. Windows, macOS và Linux hỗ trợ cập nhật trong ứng dụng.</p></article>
-        <article class="lp-feature"><span class="lp-feature-icon"><svg aria-hidden="true"><use href="#i-gift" /></svg></span><h3>Miễn phí</h3><p>Soạn văn bản, bảng tính và trình chiếu và xử lý PDF không mất phí.</p></article>
-      </div>
-    </section>
-
-    <section class="lp-section lp-wrap" aria-labelledby="flow-title">
-      <div class="lp-head">
-        <p class="lp-kicker">Cách dùng</p>
-        <h2 id="flow-title">Một kho tài liệu, mọi thiết bị</h2>
-      </div>
-      <ol class="lp-flow">
-        <li><h3>Mở trên trình duyệt</h3><p>Vào office.minhspark.com, tạo tài liệu mới hoặc kéo tệp có sẵn vào.</p></li>
-        <li><h3>Đăng nhập Google</h3><p>Lưu tài liệu vào kho riêng của tài khoản để mở lại từ máy khác.</p></li>
-        <li><h3>Cài ứng dụng khi cần</h3><p>Ứng dụng cho Windows, macOS và Linux mở cùng kho, chạy như phần mềm trên máy.</p></li>
-      </ol>
-    </section>
-
-    <section class="lp-section lp-wrap" id="tai-ve" aria-labelledby="downloads-title">
-      <div class="lp-head">
-        <p class="lp-kicker">Tải về</p>
-        <h2 id="downloads-title">Bộ văn phòng trên máy tính</h2>
-        <p>Phiên bản 0.3.8. Windows, macOS và Linux hỗ trợ cập nhật trong ứng dụng. Gói DEB có thể yêu cầu quyền quản trị khi cập nhật.</p>
-      </div>
-      <div class="lp-downloads">
-        <article class="lp-dl" id="windows">
-          <span class="lp-os"><img class="platform-logo" src="/platforms/windows.svg" alt="" aria-hidden="true"></span>
-          <div><h3>Windows</h3><p class="lp-dl-sub">Windows 10 và 11, 64-bit</p></div>
-          <p class="lp-dl-count"><strong data-stat="downloadsWindows">—</strong> lượt tải</p>
-          <a class="lp-btn lp-btn-primary" href="/api/download?file=MinhSparkOffice-0.3.8-windows-x64-vi-Setup.exe" download><img class="platform-logo" src="/platforms/windows.svg" alt="" aria-hidden="true">Tải bộ cài cho Windows</a>
-          <p class="lp-dl-more"><a href="/api/download?file=MinhSparkOffice-0.3.8-windows-x64-en-US.msi" download>Bộ cài MSI (tiếng Anh)</a><a href="/tai-ung-dung.html#win-setup">Hướng dẫn cài từng bước</a></p>
-        </article>
-        <article class="lp-dl" id="macos">
-          <span class="lp-os lp-os-apple"><img class="platform-logo" src="/platforms/apple.svg" alt="" aria-hidden="true"></span>
-          <div><h3>macOS</h3><p class="lp-dl-sub">Chip Apple (M1 trở lên), macOS 13.3+</p></div>
-          <p class="lp-dl-count"><strong data-stat="downloadsMac">—</strong> lượt tải</p>
-          <a class="lp-btn lp-btn-primary" href="/api/download?file=MinhSparkOffice-0.3.8-macos-arm64.dmg" download><img class="platform-logo" src="/platforms/apple.svg" alt="" aria-hidden="true">Tải file DMG</a>
-          <p class="lp-dl-more"><a href="/tai-ung-dung.html#mac-dmg">Cách mở lần đầu trên Mac</a></p>
-        </article>
-        <article class="lp-dl" id="linux">
-          <span class="lp-os"><img class="platform-logo" src="/platforms/linux.svg" alt="" aria-hidden="true"></span>
-          <div><h3>Linux</h3><p class="lp-dl-sub">x64 · Ubuntu 22.04+ / Debian 12+</p></div>
-          <p class="lp-dl-count"><strong data-stat="downloadsLinux">—</strong> lượt tải</p>
-          <a class="lp-btn lp-btn-primary" href="/api/download?file=MinhSparkOffice-0.3.8-linux-x64.deb" download><img class="platform-logo" src="/platforms/linux.svg" alt="" aria-hidden="true">Tải gói DEB</a>
-          <p class="lp-dl-more"><a href="/api/download?file=MinhSparkOffice-0.3.8-linux-x64.AppImage" download>Tải AppImage</a><a href="/tai-ung-dung.html#linux-setup">Hướng dẫn cài Linux</a></p>
-        </article>
-      </div>
-      <p class="lp-dl-foot">Không muốn cài? <a href="/">Dùng bản web</a> với đầy đủ công cụ trên trình duyệt.</p>
-    </section>
-
-    <section class="lp-section lp-wrap" id="cau-hoi" aria-labelledby="faq-title">
-      <div class="lp-head">
-        <p class="lp-kicker">Hỏi đáp</p>
-        <h2 id="faq-title">Câu hỏi thường gặp</h2>
-      </div>
-      <div class="lp-faq">
-        <details><summary>Office 23 có phải Microsoft Office không?</summary><p>Không. Đây là sản phẩm riêng, không liên quan đến Microsoft. Office 23 mở và lưu được tệp DOCX, XLSX, PPTX nên vẫn trao đổi được với người dùng Word, Excel, PowerPoint.</p></details>
-        <details><summary>Có mất phí không?</summary><p>Soạn văn bản, làm bảng tính, trình chiếu và lưu tài liệu đều miễn phí trên web lẫn ứng dụng máy tính.</p></details>
-        <details><summary>Tài liệu của tôi được lưu ở đâu?</summary><p>Khi chưa đăng nhập, bản nháp lưu trên chính thiết bị đang dùng. Khi đăng nhập Google, tài liệu lưu vào kho riêng của tài khoản và đồng bộ giữa web với ứng dụng. Nên xuất tệp hoặc sao lưu trước khi xoá dữ liệu trình duyệt hay đổi máy.</p></details>
-        <details><summary>Bản web và ứng dụng khác nhau thế nào?</summary><p>Cùng công cụ, cùng kho tài liệu. Ứng dụng chạy trong cửa sổ riêng và mở tệp trên máy. Windows, macOS và Linux hỗ trợ cập nhật trong ứng dụng; gói DEB có thể yêu cầu quyền quản trị.</p></details>
-        <details><summary>Windows báo “Windows protected your PC” khi cài?</summary><p>Bấm “More info” rồi “Run anyway”. Hướng dẫn có ảnh từng bước nằm ở <a href="/tai-ung-dung.html#win-setup">trang tải ứng dụng</a>.</p></details>
-      </div>
-    </section>
-
-    <div class="lp-wrap">
-      <section class="lp-band" aria-labelledby="band-title">
-        <div>
-          <h2 id="band-title">Bắt đầu tài liệu đầu tiên</h2>
-          <p>Mở trình duyệt là dùng được, không cần tài khoản.</p>
+    <section class="proof" aria-label="Số liệu và định dạng">
+      <div class="wrap">
+        <div class="stats" role="group" aria-label="Số liệu sử dụng">
+          <div class="stat"><span class="stat-value t-title" data-stat="users">—</span><span class="stat-label t-caption"><svg aria-hidden="true"><use href="#i-users" /></svg>Người dùng</span></div>
+          <div class="stat"><span class="stat-value t-title" data-stat="downloadsWindows">—</span><span class="stat-label t-caption"><img src="/platforms/windows.svg" alt="" aria-hidden="true" />Lượt tải Windows</span></div>
+          <div class="stat"><span class="stat-value t-title" data-stat="downloadsMac">—</span><span class="stat-label t-caption"><img src="/platforms/apple.svg" alt="" aria-hidden="true" />Lượt tải macOS</span></div>
+          <div class="stat"><span class="stat-value t-title" data-stat="downloadsLinux">—</span><span class="stat-label t-caption"><img src="/platforms/linux.svg" alt="" aria-hidden="true" />Lượt tải Linux</span></div>
         </div>
-        <div class="lp-actions">
-          <a class="lp-btn lp-btn-primary" href="/">Dùng bản web</a>
-          <a class="lp-btn lp-btn-ghost" href="#tai-ve">Tải ứng dụng</a>
+        <p class="live t-caption" id="stats-live" data-state="off" aria-live="polite"><span class="live-dot" aria-hidden="true"></span><span id="stats-status">Đang tải số liệu…</span></p>
+        <ul class="formats t-caption" aria-label="Định dạng mở được"><li>DOCX</li><li>XLSX</li><li>XLSM</li><li>PPTX</li><li>PDF</li><li>CSV</li><li>ODT</li><li>ODS</li><li>ODP</li><li>RTF</li><li>EPUB</li><li>HEIC</li></ul>
+      </div>
+    </section>
+
+    <section class="section section--lead" id="ung-dung" aria-labelledby="apps-title">
+      <div class="wrap">
+        <div class="section-head section-head--center" data-reveal>
+          <p class="kicker">Ứng dụng</p>
+          <h2 class="t-heading" id="apps-title">Năm công cụ, một kho tài liệu</h2>
+          <p class="t-lede">Cùng thanh công cụ dạng ribbon quen tay, cùng cách mở, lưu và chia sẻ. Đây là giao diện thật của từng ứng dụng.</p>
         </div>
-      </section>
+        <ul class="jump" aria-label="Đi tới ứng dụng">
+          <li><a href="#docs"><img src="/logos/minh-docs.png" width="32" height="32" alt="" />23 Docs</a></li>
+          <li><a href="#sheets"><img src="/logos/minh-sheets.png" width="32" height="32" alt="" />23 Sheets</a></li>
+          <li><a href="#slides"><img src="/logos/minh-slides.png" width="32" height="32" alt="" />23 Slides</a></li>
+          <li><a href="#pdf"><img src="/logos/minh-pdf.png" width="32" height="32" alt="" />23 PDF</a></li>
+          <li><a href="#photos"><img src="/logos/minh-photos.png" width="32" height="32" alt="" />23 Photos</a></li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section app" id="docs" data-app="docs" aria-labelledby="docs-title">
+      <div class="wrap">
+        <div class="app-row">
+          <div class="app-text" data-reveal>
+            <p class="app-title"><img src="/logos/minh-docs.png" width="56" height="56" alt="" /><span class="kicker">23 Docs · Soạn thảo văn bản</span></p>
+            <h2 class="t-display" id="docs-title">Công văn, báo cáo, hợp đồng đúng chuẩn trình bày</h2>
+            <p class="t-lede">Ribbon đủ thẻ như Word, từ Chèn, Thiết kế, Bố cục, Tham chiếu tới Thư tín và Xem lại.</p>
+            <ul class="checks">
+              <li>Mở và lưu DOCX, giữ nguyên các khối Word gốc chưa sửa khi xuất lại</li>
+              <li>Theo dõi thay đổi, chú thích, so sánh và gộp hai phiên bản</li>
+              <li>Mục lục, chú thích cuối trang, trích dẫn, chỉ mục và trộn thư</li>
+            </ul>
+            <a class="app-link" href="/minh-docs.html">Tìm hiểu 23 Docs</a>
+          </div>
+          <div class="app-visual" data-reveal>
+            <div class="window"><img src="/gioi-thieu/docs.webp" width="1440" height="900" loading="lazy" alt="23 Docs đang mở tệp Kế hoạch hoạt động quý IV với ribbon và ngăn điều hướng" /></div>
+          </div>
+        </div>
+        <ul class="app-more t-caption" aria-label="Thêm trong 23 Docs">
+          <li>Khoảng 33 kiểu biểu đồ, SmartArt, WordArt, mô hình 3D</li>
+          <li>Công thức toán sửa trực tiếp</li>
+          <li>Vẽ tay bằng bút và bút dạ quang</li>
+          <li>Đọc to và nhập bằng giọng nói</li>
+          <li>Dịch cả tài liệu, xem song ngữ</li>
+          <li>Ký tay và trường ký cho từng người</li>
+          <li>Ghi và phát lại macro</li>
+          <li>Xuất 18 định dạng, từ PDF tới EPUB</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section app band" id="sheets" data-app="sheets" aria-labelledby="sheets-title">
+      <div class="wrap">
+        <div class="app-row app-row--flip">
+          <div class="app-text" data-reveal>
+            <p class="app-title"><img src="/logos/minh-sheets.png" width="56" height="56" alt="" /><span class="kicker">23 Sheets · Bảng tính</span></p>
+            <h2 class="t-display" id="sheets-title">Bảng tính cho kế toán, chấm công, báo cáo</h2>
+            <p class="t-lede">Công thức quen thuộc, định dạng số kiểu Việt Nam, và những công cụ dành riêng cho dân văn phòng Việt.</p>
+            <ul class="checks">
+              <li>PivotTable, slicer, định dạng có điều kiện, xác thực dữ liệu, Goal Seek</li>
+              <li>Chạy VBA trong tệp .xlsm, kể cả sự kiện và UserForm, rồi lưu lại cho Excel</li>
+              <li>Đọc số tiền thành chữ, đánh số dòng, xoá dòng trống chỉ một lần bấm</li>
+            </ul>
+            <a class="app-link" href="/minh-sheets.html">Tìm hiểu 23 Sheets</a>
+          </div>
+          <div class="app-visual" data-reveal>
+            <div class="window"><img src="/gioi-thieu/sheets.webp" width="1440" height="900" loading="lazy" alt="23 Sheets đang mở bảng Ngân sách hoạt động quý IV" /></div>
+          </div>
+        </div>
+        <ul class="app-more t-caption" aria-label="Thêm trong 23 Sheets">
+          <li>Giá chứng khoán, vàng SJC, tỷ giá trực tiếp</li>
+          <li>Mã VietQR chuyển khoản kèm chữ ký và dấu đỏ</li>
+          <li>Làm sạch dữ liệu, đối chiếu sao kê ngân hàng</li>
+          <li>Truy vấn SQL trên dữ liệu trong bảng</li>
+          <li>Bản đồ tỉnh thành Việt Nam</li>
+          <li>So sánh hai sổ, thu gọn tệp nặng</li>
+          <li>Ghi macro và gắn vào nút</li>
+          <li>Tách mỗi trang tính thành một tệp, gộp nhiều sổ</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section app" id="slides" data-app="slides" aria-labelledby="slides-title">
+      <div class="wrap">
+        <div class="app-row">
+          <div class="app-text" data-reveal>
+            <p class="app-title"><img src="/logos/minh-slides.png" width="56" height="56" alt="" /><span class="kicker">23 Slides · Trình chiếu</span></p>
+            <h2 class="t-display" id="slides-title">Dựng bài thuyết trình và đứng trình bày tự tin</h2>
+            <p class="t-lede">Đọc ghi tệp .pptx thật, hiệu ứng chuyển trang và hoạt ảnh chạy đúng như khi trình chiếu.</p>
+            <ul class="checks">
+              <li>Chế độ người thuyết trình, bút laser, kính lúp, đồng hồ đếm ngược</li>
+              <li>Phụ đề tiếng Việt trực tiếp, máy nhắc chữ, gợi ý tốc độ nói</li>
+              <li>Quay bài thuyết trình kèm webcam và micro ra MP4</li>
+            </ul>
+            <a class="app-link" href="/trinh-chieu-online.html">Tìm hiểu 23 Slides</a>
+          </div>
+          <div class="app-visual" data-reveal>
+            <div class="window"><img src="/gioi-thieu/slides.webp" width="1440" height="900" loading="lazy" alt="23 Slides đang mở bài Chiến lược kinh doanh và tăng trưởng 2026" /></div>
+          </div>
+        </div>
+        <ul class="app-more t-caption" aria-label="Thêm trong 23 Slides">
+          <li>Tạo bài trình chiếu từ chủ đề hoặc văn bản</li>
+          <li>Sửa trang bằng lệnh trò chuyện, dịch cả bài</li>
+          <li>18 phong cách dàn trang dựng sẵn</li>
+          <li>Trang chiếu cái và trình chiếu tuỳ chỉnh</li>
+          <li>Ngăn hoạt ảnh và âm thanh chuyển trang</li>
+          <li>Dữ liệu sống liên kết từ 23 Sheets</li>
+          <li>Bảng màu thương hiệu lấy từ logo</li>
+          <li>Xuất PPTX, PDF, bản phát tay, một tệp HTML</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section app band" id="pdf" data-app="pdf" aria-labelledby="pdf-title">
+      <div class="wrap">
+        <div class="app-row app-row--flip">
+          <div class="app-text" data-reveal>
+            <p class="app-title"><img src="/logos/minh-pdf.png" width="56" height="56" alt="" /><span class="kicker">23 PDF · PDF</span></p>
+            <h2 class="t-display" id="pdf-title">Ký, gộp, tách và nhận dạng chữ trên PDF</h2>
+            <p class="t-lede">Mọi thao tác hằng ngày với PDF, chạy ngay trên máy, không cần tải tệp lên dịch vụ lạ.</p>
+            <ul class="checks">
+              <li>Ký tên, gộp, tách, xoay, cắt, nén và sắp xếp lại trang</li>
+              <li>Nhận dạng chữ trên bản quét rồi bấm vào chữ để sửa</li>
+              <li>Dựng lại bản quét thành PDF chỉnh sửa được, giữ hình nền trang</li>
+            </ul>
+            <a class="app-link" href="/pdf-online.html">Tìm hiểu 23 PDF</a>
+          </div>
+          <div class="app-visual" data-reveal>
+            <div class="window"><img src="/gioi-thieu/pdf.webp" width="1440" height="900" loading="lazy" alt="23 PDF đang mở văn bản Quy chuẩn văn phòng số" /></div>
+          </div>
+        </div>
+        <ul class="app-more t-caption" aria-label="Thêm trong 23 PDF">
+          <li>Đánh số trang và đóng dấu chìm</li>
+          <li>Ghi chú và bình luận</li>
+          <li>Sửa tiêu đề, tác giả, từ khoá</li>
+          <li>Xuất chữ ra TXT, trang ra PNG hoặc JPG</li>
+          <li>Lưu PDF làm phẳng chỉ còn hình</li>
+          <li>Trình chiếu PDF toàn màn hình</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section app" id="photos" data-app="photos" aria-labelledby="photos-title">
+      <div class="wrap">
+        <div class="app-row">
+          <div class="app-text" data-reveal>
+            <p class="app-title"><img src="/logos/minh-photos.png" width="56" height="56" alt="" /><span class="kicker">23 Photos · Ảnh</span></p>
+            <h2 class="t-display" id="photos-title">Sửa nhanh ảnh rồi đưa thẳng vào tài liệu</h2>
+            <p class="t-lede">Mở được HEIC, AVIF, TIFF, SVG và hàng chục định dạng ảnh khác.</p>
+            <ul class="checks">
+              <li>Xoay, lật, cắt, bộ lọc và chỉnh sáng màu</li>
+              <li>Đánh dấu bằng bút, mũi tên, khung, chữ; làm mờ thông tin nhạy cảm</li>
+              <li>Gửi ảnh sang tài liệu Word, bài trình chiếu, PDF hoặc bảng tính mới</li>
+            </ul>
+          </div>
+          <div class="app-visual" data-reveal>
+            <div class="window"><img src="/gioi-thieu/photos.webp" width="1440" height="900" loading="lazy" alt="23 Photos đang mở ảnh với thẻ Vẽ và Che thông tin" /></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section band" id="vi-sao" aria-labelledby="why-title">
+      <div class="wrap">
+        <div class="section-head" data-reveal>
+          <p class="kicker">Vì sao Office 23</p>
+          <h2 class="t-heading" id="why-title">Làm việc như ở văn phòng, ở bất cứ đâu</h2>
+        </div>
+        <div class="bento" data-reveal-group>
+          <article class="tile tile--wide" data-tile data-reveal><span class="tile-icon"><svg aria-hidden="true"><use href="#i-type" /></svg></span><h3 class="t-title">Tiếng Việt và giao diện quen tay</h3><p class="muted">Ribbon kiểu Office với giao diện 2007 tới 2019, chế độ sáng tối, định dạng số và ngày theo tiếng Việt. Có cả bản tiếng Anh.</p></article>
+          <article class="tile tile--wide tile--dark" data-tile data-reveal><span class="tile-icon"><svg aria-hidden="true"><use href="#i-team" /></svg></span><h3 class="t-title">Làm việc nhóm thời gian thực</h3><p class="muted">Tạo nhóm với vai trò chủ, quản trị, biên tập, chỉ xem. Cùng soạn Docs, Sheets, Slides và thấy con trỏ của từng người.</p></article>
+          <article class="tile" data-tile data-reveal><span class="tile-icon"><svg aria-hidden="true"><use href="#i-wifi-off" /></svg></span><h3 class="t-title">Vẫn làm khi mất mạng</h3><p class="muted">Bản nháp lưu ngay trên máy. Thay đổi chờ sẵn và tự gửi khi có mạng.</p></article>
+          <article class="tile" data-tile data-reveal><span class="tile-icon"><svg aria-hidden="true"><use href="#i-cloud" /></svg></span><h3 class="t-title">Đồng bộ không ghi đè</h3><p class="muted">Sửa cùng tệp ở hai nơi, Office 23 giữ thêm một bản riêng thay vì xoá mất thay đổi.</p></article>
+          <article class="tile" data-tile data-reveal><span class="tile-icon"><svg aria-hidden="true"><use href="#i-convert" /></svg></span><h3 class="t-title">Chuyển đổi ngay trên máy</h3><p class="muted">Đổi tới 20 tệp mỗi lần giữa Word, Excel, PowerPoint, PDF và ảnh, tải về từng tệp hoặc ZIP.</p></article>
+          <article class="tile" data-tile data-reveal><span class="tile-icon"><svg aria-hidden="true"><use href="#i-scan" /></svg></span><h3 class="t-title">Nhận dạng chữ tiếng Việt</h3><p class="muted">OCR tiếng Việt và tiếng Anh chạy trên máy, biến bản quét thành Word, Excel, PowerPoint sửa được.</p></article>
+          <article class="tile" data-tile data-reveal><span class="tile-icon"><svg aria-hidden="true"><use href="#i-spark" /></svg></span><h3 class="t-title">23 AI</h3><p class="muted">Viết lại, tóm tắt, sửa lỗi, phân tích bảng tính, dựng slide. Miễn phí 30 lượt mỗi ngày.</p></article>
+          <article class="tile tile--dark" data-tile data-reveal><span class="tile-icon"><svg aria-hidden="true"><use href="#i-cap" /></svg></span><h3 class="t-title">Ôn thi MOS</h3><p class="muted">Luyện Word, Excel, PowerPoint cấp Associate và Expert theo giao diện phòng thi, chấm điểm tự động.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="tat-ca" aria-labelledby="all-title">
+      <div class="wrap">
+        <div class="section-head" data-reveal>
+          <p class="kicker">Tất cả tính năng</p>
+          <h2 class="t-heading" id="all-title">Mọi thứ có trong Office 23</h2>
+          <p class="t-lede">Danh sách đầy đủ những gì làm được hôm nay, xếp theo ứng dụng và theo việc.</p>
+        </div>
+        <div class="catalog">
+          <section class="catalog-group" data-reveal>
+            <h3 class="t-title">Không gian làm việc</h3>
+            <ul>
+              <li>Năm ứng dụng trên một màn hình chính</li>
+              <li>Gần đây, gắn sao, thùng rác, lọc và tìm kiếm</li>
+              <li>12 mẫu dựng sẵn: báo cáo, biên bản, hợp đồng, bảng lương, sổ quỹ</li>
+              <li>Mở nhiều tài liệu cùng lúc theo thẻ, mở lại sau khi khởi động</li>
+              <li>Lịch sử phiên bản và khôi phục</li>
+              <li>Bật tắt tự động lưu</li>
+              <li>Sao lưu cả không gian làm việc</li>
+              <li>Gộp và tách tệp có xem trước trang</li>
+              <li>Dùng được trên điện thoại và máy tính bảng</li>
+            </ul>
+          </section>
+          <section class="catalog-group app" data-app="docs" data-reveal>
+            <h3 class="t-title"><img src="/logos/minh-docs.png" width="28" height="28" alt="" />23 Docs</h3>
+            <ul>
+              <li>Ribbon đủ 11 thẻ như Word</li>
+              <li>Danh sách nhiều cấp, viền đoạn, chổi định dạng</li>
+              <li>Bảng: gộp tách ô, tự giãn, lặp dòng tiêu đề, kiểu bảng</li>
+              <li>Xoá nền ảnh, đổ bóng, phản chiếu, nén ảnh</li>
+              <li>Biểu đồ, SmartArt, WordArt, biểu tượng, mô hình 3D</li>
+              <li>Ảnh Wikimedia kèm ghi nguồn, chèn video</li>
+              <li>Công thức toán, mã QR, khối mã</li>
+              <li>Mục lục, chú thích, trích dẫn, chỉ mục</li>
+              <li>Trộn thư, phong bì, nhãn</li>
+              <li>Theo dõi thay đổi, so sánh, gộp bản sửa</li>
+              <li>Chính tả, từ đồng nghĩa, kiểm tra trợ năng</li>
+              <li>Hạn chế chỉnh sửa, khoá đoạn</li>
+              <li>Chế độ đọc, tập trung, đọc chìm đắm</li>
+              <li>Xem song song hai cửa sổ cuộn cùng nhau</li>
+              <li>Tách tài liệu theo khoảng trang</li>
+            </ul>
+          </section>
+          <section class="catalog-group app" data-app="sheets" data-reveal>
+            <h3 class="t-title"><img src="/logos/minh-sheets.png" width="28" height="28" alt="" />23 Sheets</h3>
+            <ul>
+              <li>Ribbon 11 thẻ như Excel</li>
+              <li>PivotTable, slicer, tổng phụ, lọc nâng cao</li>
+              <li>Bảng dữ liệu, Goal Seek, Go To Special, quản lý tên</li>
+              <li>Nhóm dòng cột, ngắt trang thủ công, phím tắt Excel</li>
+              <li>Hàm mở rộng như PIVOTBY, FORECAST.ETS</li>
+              <li>VBA, sự kiện, UserForm trong tệp .xlsm</li>
+              <li>Giữ nguyên ảnh, tên, xác thực của sổ gốc khi lưu</li>
+              <li>Hàng loạt macro kế toán một lần bấm</li>
+              <li>Python với pandas và numpy trong bảng tính</li>
+              <li>Xuất PDF, PNG, HTML để in</li>
+            </ul>
+          </section>
+          <section class="catalog-group app" data-app="slides" data-reveal>
+            <h3 class="t-title"><img src="/logos/minh-slides.png" width="28" height="28" alt="" />23 Slides</h3>
+            <ul>
+              <li>Ribbon 10 thẻ kèm thẻ ngữ cảnh cho hình, ảnh, bảng, biểu đồ</li>
+              <li>Bộ dựng bài theo phong cách và gợi ý thiết kế</li>
+              <li>Sắp xếp trang, kéo thả thu nhỏ</li>
+              <li>Tìm và thay thế, so sánh hai bản</li>
+              <li>Bút, bút dạ, tiêu điểm, màn hình đen trắng khi chiếu</li>
+              <li>Nhạc nền tự giảm khi bạn nói</li>
+              <li>Lưu thời gian từng trang khi quay</li>
+              <li>Trộn thư từ Excel hoặc CSV, mã QR, đếm ngược</li>
+            </ul>
+          </section>
+          <section class="catalog-group app" data-app="pdf" data-reveal>
+            <h3 class="t-title"><img src="/logos/minh-pdf.png" width="28" height="28" alt="" />23 PDF</h3>
+            <ul>
+              <li>Ký, gộp, tách, trích trang</li>
+              <li>Chèn trang trắng hoặc trang ảnh</li>
+              <li>Xoay, cắt, nén</li>
+              <li>Số trang, dấu chìm, ghi chú</li>
+              <li>OCR và sửa chữ trên bản quét</li>
+              <li>Chia sẻ qua bảng chia sẻ của hệ thống</li>
+            </ul>
+          </section>
+          <section class="catalog-group app" data-app="photos" data-reveal>
+            <h3 class="t-title"><img src="/logos/minh-photos.png" width="28" height="28" alt="" />23 Photos</h3>
+            <ul>
+              <li>Xoay, lật, cắt, bộ lọc</li>
+              <li>Bút, mũi tên, khung, chữ, làm mờ</li>
+              <li>Gửi ảnh sang Docs, Slides, PDF, Sheets</li>
+              <li>Sao chép vào bộ nhớ tạm và in</li>
+              <li>HEIC, AVIF, TIFF, SVG</li>
+            </ul>
+          </section>
+          <section class="catalog-group" data-reveal>
+            <h3 class="t-title">Chuyển đổi định dạng</h3>
+            <ul>
+              <li>Tới 20 tệp mỗi lần, tải về từng tệp hoặc ZIP</li>
+              <li>Văn bản: DOCX, DOC, ODT, RTF, TXT, MD, HTML, EPUB</li>
+              <li>Bảng tính: XLSX, XLS, XLSB, ODS, CSV, JSON, XML, Numbers</li>
+              <li>Trình chiếu: PPTX, PPT, PPS, ODP</li>
+              <li>PDF hoặc ảnh quét sang Word, PowerPoint, Excel</li>
+              <li>Tạo PDF tìm kiếm được</li>
+              <li>Chạy trên máy bằng bộ chuyển đổi giữ bố cục</li>
+            </ul>
+          </section>
+          <section class="catalog-group" data-reveal>
+            <h3 class="t-title">Làm việc nhóm và đồng bộ</h3>
+            <ul>
+              <li>Đăng nhập Google, không bắt buộc</li>
+              <li>Nhóm với bốn vai trò, mời qua email hoặc liên kết</li>
+              <li>Thư viện chung và xuất bản mẫu cho nhóm</li>
+              <li>Cùng soạn thời gian thực có con trỏ màu</li>
+              <li>Gửi PDF cho nhóm, mỗi người một bản</li>
+              <li>Đồng bộ tệp, thùng rác và 30 mốc lịch sử</li>
+              <li>Hàng đợi khi mất mạng, bản riêng khi xung đột</li>
+            </ul>
+          </section>
+          <section class="catalog-group" data-reveal>
+            <h3 class="t-title">Ứng dụng máy tính</h3>
+            <ul>
+              <li>Windows, macOS chip Apple, Linux DEB và AppImage</li>
+              <li>Tự cập nhật có chữ ký, kiểm tra mỗi 15 phút</li>
+              <li>Mục "Mở bằng" cho DOCX, XLSX, PDF, CSV, TXT, MD</li>
+              <li>Chờ lưu xong mới đóng ứng dụng</li>
+              <li>In thẳng ra máy in đã chọn</li>
+              <li>Gửi thư trộn qua Outlook trên Windows</li>
+            </ul>
+          </section>
+          <section class="catalog-group" data-reveal>
+            <h3 class="t-title">AI, OCR và tự động hoá</h3>
+            <ul>
+              <li>23 AI: viết lại, tóm tắt, sửa lỗi, mở rộng, dàn ý</li>
+              <li>Phân tích bảng tính, soát công thức và số bất thường</li>
+              <li>Dựng và dịch bài trình chiếu</li>
+              <li>Dùng khoá API Claude riêng hoặc AI có sẵn trong Chrome</li>
+              <li>OCR tiếng Việt và tiếng Anh chạy trên máy</li>
+              <li>Ghi macro trong Docs và Sheets</li>
+            </ul>
+          </section>
+          <section class="catalog-group" data-reveal>
+            <h3 class="t-title">In ấn</h3>
+            <ul>
+              <li>Màn hình in kiểu Word, chọn máy in</li>
+              <li>Thư viện lề, thiết lập trang, xem trước</li>
+              <li>Vùng in và co vừa trang trong Sheets</li>
+            </ul>
+          </section>
+          <section class="catalog-group" data-reveal>
+            <h3 class="t-title">Ôn thi MOS</h3>
+            <ul>
+              <li>Word, Excel, PowerPoint cấp Associate và Expert</li>
+              <li>Giao diện phòng thi bản 2016, 2019 và 365</li>
+              <li>Thi thử, luyện có hướng dẫn, chạy nước rút</li>
+              <li>Ngân hàng đề kèm lời giải từng bước</li>
+              <li>Chấm tự động theo thang 1000, đạt từ 700</li>
+            </ul>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <section class="section band" aria-labelledby="flow-title">
+      <div class="wrap">
+        <div class="section-head" data-reveal>
+          <p class="kicker">Cách dùng</p>
+          <h2 class="t-heading" id="flow-title">Bắt đầu trong ba bước</h2>
+        </div>
+        <ol class="steps" data-reveal-group>
+          <li data-reveal><h3 class="t-title">Mở trên trình duyệt</h3><p class="muted">Vào office.minhspark.com, tạo tài liệu mới hoặc kéo tệp có sẵn vào.</p></li>
+          <li data-reveal><h3 class="t-title">Đăng nhập Google</h3><p class="muted">Lưu tài liệu vào kho riêng của tài khoản để mở lại từ máy khác.</p></li>
+          <li data-reveal><h3 class="t-title">Cài ứng dụng khi cần</h3><p class="muted">Ứng dụng cho Windows, macOS và Linux mở cùng kho, chạy như phần mềm trên máy.</p></li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="section" id="tai-ve" aria-labelledby="downloads-title">
+      <div class="wrap">
+        <div class="section-head section-head--center" data-reveal>
+          <p class="kicker">Tải về</p>
+          <h2 class="t-heading" id="downloads-title">Bộ văn phòng trên máy tính</h2>
+          <p class="t-lede">Phiên bản 0.3.8. Windows, macOS và Linux hỗ trợ cập nhật trong ứng dụng. Gói DEB có thể yêu cầu quyền quản trị khi cập nhật.</p>
+        </div>
+        <div class="downloads">
+          <article class="dl" id="windows" data-tile>
+            <span class="dl-os"><img src="/platforms/windows.svg" alt="" aria-hidden="true" /></span>
+            <div><h3 class="t-title">Windows</h3><p class="muted">Windows 10 và 11, 64-bit</p></div>
+            <p class="dl-count t-caption"><strong data-stat="downloadsWindows">—</strong> lượt tải</p>
+            <a class="button" href="/api/download?file=MinhSparkOffice-0.3.8-windows-x64-vi-Setup.exe" download data-cta><img class="on-fill" style="--glyph:url(/platforms/windows.svg)" src="/platforms/windows.svg" alt="" aria-hidden="true" />Tải bộ cài cho Windows</a>
+            <p class="dl-more"><a href="/api/download?file=MinhSparkOffice-0.3.8-windows-x64-en-US.msi" download>Bộ cài MSI (tiếng Anh)</a><a href="/tai-ung-dung.html#win-setup">Hướng dẫn cài từng bước</a></p>
+          </article>
+          <article class="dl" id="macos" data-tile>
+            <span class="dl-os"><img src="/platforms/apple.svg" alt="" aria-hidden="true" /></span>
+            <div><h3 class="t-title">macOS</h3><p class="muted">Chip Apple (M1 trở lên), macOS 13.3+</p></div>
+            <p class="dl-count t-caption"><strong data-stat="downloadsMac">—</strong> lượt tải</p>
+            <a class="button" href="/api/download?file=MinhSparkOffice-0.3.8-macos-arm64.dmg" download data-cta><img class="on-fill" style="--glyph:url(/platforms/apple-glyph.svg)" src="/platforms/apple.svg" alt="" aria-hidden="true" />Tải file DMG</a>
+            <p class="dl-more"><a href="/tai-ung-dung.html#mac-dmg">Cách mở lần đầu trên Mac</a></p>
+          </article>
+          <article class="dl" id="linux" data-tile>
+            <span class="dl-os"><img src="/platforms/linux.svg" alt="" aria-hidden="true" /></span>
+            <div><h3 class="t-title">Linux</h3><p class="muted">x64 · Ubuntu 22.04+ / Debian 12+</p></div>
+            <p class="dl-count t-caption"><strong data-stat="downloadsLinux">—</strong> lượt tải</p>
+            <a class="button" href="/api/download?file=MinhSparkOffice-0.3.8-linux-x64.deb" download data-cta><img src="/platforms/linux.svg" alt="" aria-hidden="true" />Tải gói DEB</a>
+            <p class="dl-more"><a href="/api/download?file=MinhSparkOffice-0.3.8-linux-x64.AppImage" download>Tải AppImage</a><a href="/tai-ung-dung.html#linux-setup">Hướng dẫn cài Linux</a></p>
+          </article>
+        </div>
+        <p class="muted" style="text-align:center">Không muốn cài? <a href="/">Dùng bản web</a> với đầy đủ công cụ trên trình duyệt.</p>
+      </div>
+    </section>
+
+    <section class="section" id="cau-hoi" aria-labelledby="faq-title">
+      <div class="wrap">
+        <div class="section-head section-head--center" data-reveal>
+          <p class="kicker">Hỏi đáp</p>
+          <h2 class="t-heading" id="faq-title">Câu hỏi thường gặp</h2>
+        </div>
+        <div class="faq">
+          <details><summary>Office 23 có phải Microsoft Office không?</summary><p>Không. Đây là sản phẩm riêng, không liên quan đến Microsoft. Office 23 mở và lưu được tệp DOCX, XLSX, PPTX nên vẫn trao đổi được với người dùng Word, Excel, PowerPoint.</p></details>
+          <details><summary>Có mất phí không?</summary><p>Soạn văn bản, làm bảng tính, trình chiếu và lưu tài liệu đều miễn phí trên web lẫn ứng dụng máy tính.</p></details>
+          <details><summary>Tài liệu của tôi được lưu ở đâu?</summary><p>Khi chưa đăng nhập, bản nháp lưu trên chính thiết bị đang dùng. Khi đăng nhập Google, tài liệu lưu vào kho riêng của tài khoản và đồng bộ giữa web với ứng dụng. Nên xuất tệp hoặc sao lưu trước khi xoá dữ liệu trình duyệt hay đổi máy.</p></details>
+          <details><summary>Bản web và ứng dụng khác nhau thế nào?</summary><p>Cùng công cụ, cùng kho tài liệu. Ứng dụng chạy trong cửa sổ riêng và mở tệp trên máy. Windows, macOS và Linux hỗ trợ cập nhật trong ứng dụng; gói DEB có thể yêu cầu quyền quản trị.</p></details>
+          <details><summary>Windows báo “Windows protected your PC” khi cài?</summary><p>Bấm “More info” rồi “Run anyway”. Hướng dẫn có ảnh từng bước nằm ở <a href="/tai-ung-dung.html#win-setup">trang tải ứng dụng</a>.</p></details>
+        </div>
+      </div>
+    </section>
+
+    <div class="section" style="padding-block-start:0">
+      <div class="wrap">
+        <section class="closing night" aria-labelledby="band-title" data-reveal>
+          <h2 class="t-display" id="band-title">Bắt đầu tài liệu đầu tiên</h2>
+          <p class="t-lede">Mở trình duyệt là dùng được, không cần tài khoản.</p>
+          <div class="ctas">
+            <a class="button button--light" href="/" data-cta>Dùng bản web</a>
+            <a class="button button--ghost" href="#tai-ve" data-cta>Tải ứng dụng</a>
+          </div>
+        </section>
+      </div>
     </div>
   </main>
 
-  <footer class="lp-footer">
-    <div class="lp-wrap">
-      <p>© 2026 Minh Spark · Bộ văn phòng trên trình duyệt và máy tính</p>
-      <nav aria-label="Liên kết cuối trang">
+  <footer class="footer">
+    <div class="wrap">
+      <p class="t-caption">© 2026 Minh Spark · Bộ văn phòng trên trình duyệt và máy tính</p>
+      <nav class="t-caption" aria-label="Liên kết cuối trang">
         <a href="/">Không gian làm việc</a>
         <a href="/tai-ung-dung.html">Tải ứng dụng</a>
         <a href="/minh-docs.html">23 Docs</a>
