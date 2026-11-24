@@ -769,7 +769,9 @@ test('app dialogs, popovers, busy overlay and toasts stay above the MOS exam run
   const runnerZ = Number(/\.mos-runner\s*\{[^}]*?z-index:\s*(\d+)/.exec(css)?.[1]);
   assert.ok(runnerZ > 0);
   for (const selector of ['dialog-backdrop', 'sheet-popover-backdrop', 'sheet-popover', 'busy-overlay', 'toasts']) {
-    const lifted = new RegExp(`body:has\(\.mos-runner\) \.${selector} \{ z-index: (\d+); \}`).exec(css);
-    assert.ok(lifted && Number(lifted[1]) > runnerZ, selector);
+    const prefix = `body:has(.mos-runner) .${selector} { z-index: `;
+    const at = css.indexOf(prefix);
+    assert.ok(at >= 0, selector);
+    assert.ok(Number.parseInt(css.slice(at + prefix.length), 10) > runnerZ, selector);
   }
 });
