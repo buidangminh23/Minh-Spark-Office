@@ -292,6 +292,7 @@ html[data-motion="ok"] [data-reveal]:not([data-revealed]) { opacity: 0; translat
 .product-hero { padding-block: var(--space-12) var(--space-8); }
 .product-logo { width: 96px; height: 96px; overflow: hidden; position: relative; border-radius: var(--radius-tile); background: rgba(255, 255, 255, 0.06); }
 .product-logo img { position: absolute; width: 150%; height: 150%; max-width: none; left: 50%; top: 50%; transform: translate(-50%, -47%); object-fit: contain; }
+.product-logo--suite img { width: 84%; height: 84%; transform: translate(-50%, -50%); }
 .prose { display: grid; gap: var(--space-6); }
 .seo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: var(--tile-gap); }
 .seo-card { display: grid; align-content: start; gap: var(--space-1-5); padding: var(--space-4); border: 1px solid var(--color-line); border-radius: var(--radius-tile); background: var(--color-surface); }
