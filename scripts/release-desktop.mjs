@@ -228,7 +228,7 @@ function buildMac(version) {
   temporaryPaths.push(work);
   const bundleName = `src-${version}.tar`;
   const bundle = join(work, bundleName);
-  run('git', ['archive', '--format=tar', '-o', bundle, 'HEAD', 'src-tauri', 'scripts', 'package.json', 'package-lock.json']);
+  run('git', ['archive', '--format=tar', '-o', bundle, 'HEAD', 'src-tauri', ':(exclude)src-tauri/gen', 'scripts', 'package.json', 'package-lock.json']);
   run(WINDOWS_TAR, ['-rf', bundle, 'dist']);
   run(SCP, ['-q', bundleName, `${MAC_HOST}:${MAC_BUILD_DIR}/${bundleName}`], { cwd: work });
   const script = [
@@ -258,7 +258,7 @@ function buildLinux(version) {
   const work = mkdtempSync(join(tmpdir(), 'mso-linux-'));
   temporaryPaths.push(work);
   const bundle = join(work, 'source.tar');
-  run('git', ['archive', '--format=tar', '-o', bundle, 'HEAD', 'src-tauri', 'scripts', 'package.json', 'package-lock.json']);
+  run('git', ['archive', '--format=tar', '-o', bundle, 'HEAD', 'src-tauri', ':(exclude)src-tauri/gen', 'scripts', 'package.json', 'package-lock.json']);
   run(WINDOWS_TAR, ['-rf', bundle, 'dist']);
   const linuxPath = (path) => capture('wsl.exe', ['-d', LINUX_DISTRO, '--', 'wslpath', '-a', '-u', path.replace(/\\/g, '/')]);
   const source = linuxPath(bundle);
