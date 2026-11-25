@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { GoogleAuthProvider, signInWithPopup, type Auth } from 'firebase/auth';
+import { getRedirectResult, GoogleAuthProvider, signInWithPopup, signInWithRedirect, type Auth, type UserCredential } from 'firebase/auth';
 import { CheckCircle2, Loader2, Lock } from 'lucide-react';
-import { authenticationError, initializeAuthentication } from '../lib/auth';
+import { authenticationError, initializeAuthentication, usesSameOriginAuth } from '../lib/auth';
 import { DESKTOP_LOGIN_COLLECTION, DESKTOP_LOGIN_TTL_MS, desktopLoginDocumentId, desktopSignInRequest, sealForDesktop } from '../lib/desktopAuth';
 
 export { isDesktopSignInRequest } from '../lib/desktopAuth';
@@ -44,12 +44,32 @@ export function DesktopSignIn() {
   useEffect(() => {
     if (!publicKey) return;
     let active = true;
-    initializeAuthentication().then((value) => { if (active) setAuth(value); }).catch((failure: unknown) => {
+    initializeAuthentication().then(async (value) => {
+      if (!active) return;
+      setAuth(value);
+      if (!usesSameOriginAuth()) return;
+      setPending(true);
+      try {
+        const result = await getRedirectResult(value);
+        if (result && active) await complete(value, result);
+      } catch (failure) {
+        if (active) setError(deliveryError(failure));
+      } finally {
+        if (active) setPending(false);
+      }
+    }).catch((failure: unknown) => {
       if (active) setError(authenticationError(failure));
     });
     const timer = window.setTimeout(() => setExpired(true), DESKTOP_LOGIN_TTL_MS);
     return () => { active = false; window.clearTimeout(timer); };
   }, [publicKey]);
+
+  const complete = async (current: Auth, result: UserCredential) => {
+    const token = GoogleAuthProvider.credentialFromResult(result)?.idToken;
+    if (!token) throw new Error('auth/invalid-credential');
+    await deliver(current, publicKey, token);
+    setSentTo(result.user.email || result.user.displayName || 'Tài khoản Google');
+  };
 
   const signIn = async () => {
     if (!auth || !publicKey || pending || expired || sentTo) return;
@@ -58,11 +78,11 @@ export function DesktopSignIn() {
     try {
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: 'select_account' });
-      const result = await signInWithPopup(auth, provider);
-      const token = GoogleAuthProvider.credentialFromResult(result)?.idToken;
-      if (!token) throw new Error('auth/invalid-credential');
-      await deliver(auth, publicKey, token);
-      setSentTo(result.user.email || result.user.displayName || 'Tài khoản Google');
+      if (usesSameOriginAuth()) {
+        await signInWithRedirect(auth, provider);
+        return;
+      }
+      await complete(auth, await signInWithPopup(auth, provider));
     } catch (failure) {
       setError(deliveryError(failure));
     } finally {

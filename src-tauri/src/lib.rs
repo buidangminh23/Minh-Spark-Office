@@ -209,6 +209,7 @@ pub fn run() {
                     .initialization_script(DESKTOP_MARKER_SCRIPT)
                     .inner_size(1440.0, 940.0)
                     .min_inner_size(1024.0, 680.0)
+                    .maximized(true)
                     .disable_drag_drop_handler()
                     .on_web_resource_request(correct_asset_content_type)
                     .on_navigation(is_app_url)

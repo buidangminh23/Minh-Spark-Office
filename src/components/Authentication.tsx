@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { GoogleAuthProvider, onAuthStateChanged, signInWithCredential, signInWithPopup, signOut, type Auth, type User } from 'firebase/auth';
-import { authenticationError, authConfigured, initializeAuthentication } from '../lib/auth';
+import { GoogleAuthProvider, onAuthStateChanged, getRedirectResult, signInWithCredential, signInWithPopup, signInWithRedirect, signOut, type Auth, type User } from 'firebase/auth';
+import { authenticationError, authConfigured, initializeAuthentication, isTouchBrowser, usesSameOriginAuth } from '../lib/auth';
 import { CheckCircle2, Cloud, Loader2, Lock, MonitorSmartphone, X } from 'lucide-react';
 import { isDesktop } from '../lib/desktop';
 import { beginDesktopLogin } from '../lib/desktopLogin';
@@ -70,6 +70,11 @@ export function Authentication({ children }: { children: (user: User | null, ses
         setUser(null);
         setReady(true);
       });
+      if (usesSameOriginAuth()) {
+        getRedirectResult(auth).catch((failure: unknown) => {
+          if (active) setError(authenticationError(failure));
+        });
+      }
     }).catch((failure: unknown) => {
       if (!active) return;
       setError(authenticationError(failure));
@@ -136,6 +141,10 @@ export function Authentication({ children }: { children: (user: User | null, ses
       } else {
         const provider = new GoogleAuthProvider();
         provider.setCustomParameters({ prompt: 'select_account' });
+        if (usesSameOriginAuth() && isTouchBrowser()) {
+          await signInWithRedirect(authRef.current, provider);
+          return;
+        }
         finish((await signInWithPopup(authRef.current, provider)).user);
       }
     } catch (failure) {

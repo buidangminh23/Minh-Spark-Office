@@ -2,9 +2,24 @@ import { getApp, getApps, initializeApp } from 'firebase/app';
 import { browserLocalPersistence, browserPopupRedirectResolver, browserSessionPersistence, connectAuthEmulator, getAuth, indexedDBLocalPersistence, initializeAuth, type Auth } from 'firebase/auth';
 import { isDesktop } from './desktop';
 
+export const HOSTED_ORIGIN = 'https://office.minhspark.com';
+
+function hostedAuthDomain() {
+  return typeof window !== 'undefined' && window.location.origin === HOSTED_ORIGIN ? window.location.host : undefined;
+}
+
+export function usesSameOriginAuth() {
+  return Boolean(hostedAuthDomain());
+}
+
+export function isTouchBrowser() {
+  if (typeof navigator === 'undefined') return false;
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
+}
+
 const config = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  authDomain: hostedAuthDomain() ?? import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
