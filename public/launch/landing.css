@@ -239,6 +239,7 @@ a { color: var(--color-accent); text-underline-offset: 4px; }
 .dl .button { width: 100%; }
 .dl-more { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 var(--space-2); }
 .dl-more a { display: inline-flex; align-items: center; min-height: 44px; }
+.glyph-ink { background: var(--color-ink); mask: var(--glyph) center / contain no-repeat; object-position: -9999px; }
 .on-fill { background: #ffffff; mask: var(--glyph) center / contain no-repeat; object-position: -9999px; }
 
 .faq { display: grid; width: min(100%, 50rem); margin-inline: auto; border-block-start: 1px solid var(--color-line); }
