@@ -79,7 +79,7 @@ async function main() {
   if (runs('commit')) commitRelease(target);
   if (runs('deploy')) deploy(target);
   if (runs('verify')) await verify(target);
-  if (runs('push')) push();
+  if (runs('push')) push(target);
   heading(`Released ${target}: web and installers are live and verified`);
 }
 
@@ -400,10 +400,12 @@ async function verify(version) {
   console.log(`Mac curl install: ${version}, codesign OK, nothing quarantined`);
 }
 
-function push() {
+function push(version) {
   heading('Push release commits to main');
   requireOriginMain('origin/main moved after the deploy; rebase the release commits onto it, push by hand, then redeploy so production includes those commits');
   run('git', ['push', 'origin', 'HEAD:main']);
+  run('git', ['tag', '-f', `npm-v${version}`]);
+  run('git', ['push', 'origin', `refs/tags/npm-v${version}`]);
 }
 
 function cleanup() {

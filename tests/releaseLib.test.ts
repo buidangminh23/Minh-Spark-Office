@@ -114,3 +114,9 @@ test('release refuses to build a desktop app without Firebase sign-in config', (
   assert.deepEqual(firebaseBuildConfig([], {}).missing, ['VITE_FIREBASE_API_KEY', 'VITE_FIREBASE_AUTH_DOMAIN', 'VITE_FIREBASE_PROJECT_ID', 'VITE_FIREBASE_APP_ID']);
   assert.deepEqual(firebaseBuildConfig(['VITE_FIREBASE_API_KEY='], { VITE_FIREBASE_AUTH_DOMAIN: 'x', VITE_FIREBASE_PROJECT_ID: 'p', VITE_FIREBASE_APP_ID: 'i' }).missing, ['VITE_FIREBASE_API_KEY']);
 });
+
+test('the npm installer package is bumped together with the desktop app', () => {
+  const pkg = JSON.stringify({ name: '@minhspark/minh-spark-office', version: '0.3.9', bin: {} }, null, 2);
+  assert.ok(VERSION_FILES.some((entry) => entry.path === 'npm/package.json'));
+  assert.match(bumpVersionText(pkg, file('npm/package.json'), '0.3.9', '0.3.10'), /"version": "0\.3\.10"/);
+});

@@ -1,5 +1,6 @@
 export const VERSION_FILES = [
   { path: 'package.json', pattern: (v) => new RegExp(`"version": "${escape(v)}"`), count: 1 },
+  { path: 'npm/package.json', pattern: (v) => new RegExp(`"version": "${escape(v)}"`), count: 1 },
   { path: 'package-lock.json', pattern: (v) => new RegExp(`"version": "${escape(v)}"`, 'g'), count: 2 },
   { path: 'src-tauri/tauri.conf.json', pattern: (v) => new RegExp(`"version": "${escape(v)}"`), count: 1 },
   { path: 'src-tauri/Cargo.toml', pattern: (v) => new RegExp(`^version = "${escape(v)}"`, 'm'), count: 1 },
