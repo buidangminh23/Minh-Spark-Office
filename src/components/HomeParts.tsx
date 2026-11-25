@@ -225,4 +225,12 @@ export function TemplateThumb({ variant, title }: { variant: ThumbVariant; title
   );
 }
 
+export function TemplateImageThumb({ src }: { src: string }) {
+  return (
+    <div className="tt-page tt-image" aria-hidden="true">
+      <img src={src} alt="" loading="lazy" decoding="async" />
+    </div>
+  );
+}
+
 export type { ThumbVariant };

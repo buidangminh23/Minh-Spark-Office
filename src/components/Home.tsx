@@ -30,7 +30,7 @@ import { ConversionDialog } from './ConversionDialog';
 import { ConversionMenu } from './ConversionPicker';
 import { ConvertLogo } from './ConvertLogo';
 import type { ConversionPreset } from '../lib/conversionPresets';
-import { AccountMenu, Popover, SyncButton, TemplateThumb, type ThumbVariant } from './HomeParts';
+import { AccountMenu, Popover, SyncButton, TemplateImageThumb, TemplateThumb, type ThumbVariant } from './HomeParts';
 import { SettingsDialog } from './settings/SettingsDialog';
 import { useSettings } from '../lib/appSettings';
 import { updateNeedsAttention, useUpdaterStatus } from '../lib/updaterStatus';
@@ -107,7 +107,38 @@ const VIEW_TITLE: Record<Exclude<View, 'home'>, string> = {
 };
 const SORT_LABEL: Record<SortOrder, string> = { recent: 'Mới cập nhật', oldest: 'Cũ nhất', name: 'Tên A → Z' };
 
-type Template = { id: string; title: string; kind: FileKind; thumb: ThumbVariant; create: (props: HomeProps) => void };
+type Template = { id: string; title: string; kind: FileKind; thumb: ThumbVariant; image?: string; create: (props: HomeProps) => void };
+
+const PPTX_TYPE = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+
+function openDeckTemplate(props: HomeProps, slug: string, title: string) {
+  const url = `${import.meta.env.BASE_URL}templates/slides/${slug}.pptx`;
+  void fetch(url)
+    .then((response) => {
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.blob();
+    })
+    .then((blob) => props.onImportFile(new globalThis.File([blob], `${title}.pptx`, { type: PPTX_TYPE })))
+    .catch((error) => {
+      console.error('Template download failed', url, error);
+      window.alert('Không tải được mẫu. Kiểm tra kết nối mạng rồi thử lại.');
+    });
+}
+
+const DECK_TEMPLATES: Array<[slug: string, title: string]> = [
+  ['pastel-gingham', 'Slide nhóm pastel kẻ caro'],
+  ['app-stream', 'Slide nhóm kiểu app xem phim'],
+  ['game-show', 'Slide nhóm kiểu game show'],
+  ['app-music', 'Slide nhóm kiểu app nghe nhạc'],
+  ['app-social', 'Slide nhóm kiểu mạng xã hội'],
+  ['space-crew', 'Slide nhóm không gian'],
+  ['cartoon-pop', 'Slide nhóm hoạt hình'],
+  ['vietnam-red', 'Slide nhóm Việt Nam đỏ vàng'],
+  ['minimal-bw', 'Slide nhóm tối giản đen trắng'],
+  ['business-gradient', 'Slide doanh nghiệp hiện đại'],
+  ['vintage-collage', 'Slide nhóm vintage cắt dán'],
+  ['eco-editorial', 'Slide nhóm môi trường'],
+];
 
 const TEMPLATES: Template[] = [
   { id: 'report', title: 'Báo cáo hoạt động quý', kind: 'doc', thumb: 'report', create: (p) => p.onCreateDoc(sampleDocHtml()) },
@@ -122,6 +153,14 @@ const TEMPLATES: Template[] = [
   { id: 'pitch', title: 'Chiến lược kinh doanh 2026', kind: 'slide', thumb: 'pitch', create: (p) => p.onCreateSlide(businessPitchPresentation()) },
   { id: 'product-launch', title: 'Ra mắt sản phẩm mới', kind: 'slide', thumb: 'product-launch', create: (p) => p.onCreateSlide(productLaunchPresentation()) },
   { id: 'blank-slide', title: 'Bài thuyết trình trống', kind: 'slide', thumb: 'blank-slide', create: (p) => p.onCreateSlide(blankPresentation()) },
+  ...DECK_TEMPLATES.map(([slug, title]): Template => ({
+    id: `deck-${slug}`,
+    title,
+    kind: 'slide',
+    thumb: 'blank-slide',
+    image: `${import.meta.env.BASE_URL}templates/slides/${slug}.webp`,
+    create: (p) => openDeckTemplate(p, slug, title),
+  })),
 ];
 
 function sortFiles(files: FileMeta[], order: SortOrder) {
@@ -432,7 +471,7 @@ export default function Home(props: HomeProps) {
                   <div className="ws-templates">
                     {(showAllTemplates ? TEMPLATES : TEMPLATES.slice(0, FEATURED_TEMPLATES)).map((template) => (
                       <button key={template.id} className="ws-template" onClick={() => template.create(props)}>
-                        <TemplateThumb variant={template.thumb} title={template.title} />
+                        {template.image ? <TemplateImageThumb src={template.image} /> : <TemplateThumb variant={template.thumb} title={template.title} />}
                         <span className="ws-template-meta">
                           <SuiteLogo kind={template.kind} size={32} />
                           <span><strong>{template.title}</strong><small>{KIND_LABEL[template.kind]}</small></span>

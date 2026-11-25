@@ -1061,6 +1061,21 @@
   flex-shrink: 0;
 }
 
+.tt-page.tt-image {
+  justify-content: center;
+  padding: 0 8px;
+  background: #f3f4f6;
+}
+
+.tt-image img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 4px;
+  box-shadow: 0 1px 4px rgb(24 32 51 / 12%);
+  object-fit: cover;
+}
+
 .tt-title {
   color: var(--ws-ink);
   font-size: 13px;
