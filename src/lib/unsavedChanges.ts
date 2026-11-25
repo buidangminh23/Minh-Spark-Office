@@ -50,6 +50,23 @@ export function sameContent(a: unknown, b: unknown): boolean {
   return leftKeys.every((key) => Object.prototype.hasOwnProperty.call(b, key) && sameContent((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]));
 }
 
+const DERIVED_FIELDS: Partial<Record<FileContent['kind'], readonly string[]>> = { pdf: ['pageCount'] };
+
+export function comparableContent(content: FileContent): Record<string, unknown> {
+  const derived = DERIVED_FIELDS[content.kind] ?? [];
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(content)) {
+    if (derived.includes(key) || value === undefined || (Array.isArray(value) && value.length === 0)) continue;
+    result[key] = value;
+  }
+  return result;
+}
+
+export function sameDocument(a: FileContent | null | undefined, b: FileContent | null | undefined) {
+  if (!a || !b) return a === b;
+  return a.kind === b.kind && sameContent(comparableContent(a), comparableContent(b));
+}
+
 export function hasRealUnsavedChanges(copy: UnsavedCopy | null, meta: FileMeta, saved: FileContent) {
-  return isNewerThanSaved(copy, meta) && !sameContent(copy?.content, saved);
+  return isNewerThanSaved(copy, meta) && !sameDocument(copy?.content, saved);
 }

@@ -43,7 +43,7 @@ import type { FileKind } from './lib/storage';
 import { loadEditor, loadedEditors, preloadEditor, type EditorKind } from './lib/editorModules';
 import { importTargetOf, isOleContainer } from './lib/importTarget';
 import { getSettings } from './lib/appSettings';
-import { discardUnsaved, hasRealUnsavedChanges, isNewerThanSaved, keepUnsaved, readUnsaved } from './lib/unsavedChanges';
+import { discardUnsaved, hasRealUnsavedChanges, isNewerThanSaved, keepUnsaved, readUnsaved, sameDocument } from './lib/unsavedChanges';
 import { SettingsHost } from './components/settings/SettingsHost';
 import { registerBackupActions } from './components/settings/settingsShared';
 import type { DesktopFileBatch } from './lib/desktopFileQueue';
@@ -960,6 +960,11 @@ function MainApp({ onEditing, frameId }: { onEditing: (editing: boolean) => void
     const scope = user?.uid ?? null;
     if (!explicit && !force && !getSettings().autoSave) {
       try {
+        const stored = await loadContent(meta.id).catch(() => undefined);
+        if (sameDocument(content, stored)) {
+          await discardUnsaved(scope, meta.id).catch(() => undefined);
+          return true;
+        }
         await keepUnsaved(scope, meta, content);
         return true;
       } catch {
