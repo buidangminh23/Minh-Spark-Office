@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Keep open document tabs across restarts, including the restart after an automatic update: when sign-in finished after the workspace loaded, the app saved an empty tab list over the real one and reopened on the home screen.
 - PDFs opened in a tab no longer ask "Mở lại thay đổi chưa lưu?" when nothing changed: the comparison ignores the page count and an empty comment list that the viewer adds on its own, and a copy is no longer kept while the content matches the saved file.
 - Fix automatic updates in the desktop app: a downloaded update now installs by itself even when documents are open, once you have not typed or clicked for 2 minutes (never during a slideshow). It saves every open tab first and reopens them after the restart. Before, any open tab (and tabs are restored at every start) kept the update waiting forever. "Để sau" now postpones for 30 minutes instead of until the app is closed.
 - Fix document tabs that spun on the loading screen forever: the "Mở lại thay đổi chưa lưu?" question was drawn underneath the loading screen, so the tab waited for an answer nobody could see. The loading screen now sits below dialogs.

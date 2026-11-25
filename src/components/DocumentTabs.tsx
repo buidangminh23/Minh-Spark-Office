@@ -74,7 +74,7 @@ function startOnHome() {
 function useTabState(uid: string | null, ready: boolean) {
   const storage = useWorkspace();
   const [state, setState] = useState<TabState>({ tabs: [], active: null });
-  const [restored, setRestored] = useState(false);
+  const [restoredFor, setRestoredFor] = useState<string | null | undefined>(undefined);
   useEffect(() => {
     if (!ready) return;
     let alive = true;
@@ -86,12 +86,12 @@ function useTabState(uid: string | null, ready: boolean) {
       const known = (id: string) => live.has(id) || Boolean(restoredSharedMeta(id));
       const active = session.active && known(session.active) && !startOnHome() ? session.active : null;
       setState((current) => ({ tabs: tabs.reduce(withTab, current.tabs), active: current.active ?? active }));
-    }).catch(() => undefined).finally(() => { if (alive) setRestored(true); });
+    }).catch(() => undefined).finally(() => { if (alive) setRestoredFor(uid); });
     return () => { alive = false; };
   }, [ready, uid, storage]);
   useEffect(() => {
-    if (restored) writeTabSession(uid, { ids: state.tabs.map((tab) => tab.id), active: state.active });
-  }, [restored, uid, state]);
+    if (restoredFor === uid) writeTabSession(uid, { ids: state.tabs.map((tab) => tab.id), active: state.active });
+  }, [restoredFor, uid, state]);
   return [state, setState] as const;
 }
 
