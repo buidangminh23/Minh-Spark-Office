@@ -15,9 +15,8 @@ import { DesktopSignIn, isDesktopSignInRequest } from './components/DesktopSignI
 import { isDesktop } from './lib/desktop';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { lazy, Suspense, useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import Home from './components/Home';
-import { SharedFrame } from './components/teams/SharedFrame';
 import { isSharedTabId, rememberSharedMeta, sharedMeta } from './lib/live/sharedTabs';
 import type { SharedOpen } from './components/teams/TeamsPage';
 import { formatFileSize } from './lib/imageFormatNames';
@@ -47,6 +46,8 @@ import { discardUnsaved, isNewerThanSaved, keepUnsaved, readUnsaved } from './li
 import { SettingsHost } from './components/settings/SettingsHost';
 import { registerBackupActions } from './components/settings/settingsShared';
 import type { DesktopFileBatch } from './lib/desktopFileQueue';
+
+const SharedFrame = lazy(() => import('./components/teams/SharedFrame').then((module) => ({ default: module.SharedFrame })));
 
 const STARTUP_KEY = 'office-startup-done';
 const LAUNCH_FILE_WAIT_MS = 4000;
@@ -1249,7 +1250,7 @@ function Workspace({ userId, onEditing, editing }: { userId: string | null; onEd
     <WorkspaceContext value={workspace}>
       <UiProvider>
         {frameId ? (
-          <div className={`workspace-frame ${editing ? 'is-editing' : ''}`}><div className="workspace-content">{isSharedTabId(frameId) ? <SharedFrame frameId={frameId} onEditing={onEditing} /> : <MainApp onEditing={onEditing} frameId={frameId} />}</div><WorkspaceStatus /><SettingsHost /></div>
+          <div className={`workspace-frame ${editing ? 'is-editing' : ''}`}><div className="workspace-content">{isSharedTabId(frameId) ? <Suspense fallback={null}><SharedFrame frameId={frameId} onEditing={onEditing} /></Suspense> : <MainApp onEditing={onEditing} frameId={frameId} />}</div><WorkspaceStatus /><SettingsHost /></div>
         ) : (
           <>
             <DesktopCloseGuard />

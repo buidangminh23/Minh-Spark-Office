@@ -31,7 +31,6 @@ import { ConversionMenu } from './ConversionPicker';
 import { ConvertLogo } from './ConvertLogo';
 import type { ConversionPreset } from '../lib/conversionPresets';
 import { AccountMenu, Popover, SyncButton, TemplateImageThumb, TemplateThumb, type ThumbVariant } from './HomeParts';
-import { SettingsDialog } from './settings/SettingsDialog';
 import { useSettings } from '../lib/appSettings';
 import { updateNeedsAttention, useUpdaterStatus } from '../lib/updaterStatus';
 import './home.css';
@@ -55,6 +54,8 @@ import {
   cashbookWorkbook,
   projectEstimateWorkbook,
 } from '../lib/templates';
+
+const SettingsDialog = lazy(() => import('./settings/SettingsDialog').then((module) => ({ default: module.SettingsDialog })));
 
 interface HomeProps {
   files: FileMeta[];
@@ -504,7 +505,7 @@ export default function Home(props: HomeProps) {
         </div>
       </main>
 
-      {settingsOpen && <SettingsDialog onClose={closeSettings} onExportBackup={onExportBackup} onImportBackup={onImportBackup} />}
+      {settingsOpen && <Suspense fallback={null}><SettingsDialog onClose={closeSettings} onExportBackup={onExportBackup} onImportBackup={onImportBackup} /></Suspense>}
       {filePartsOpen && <Suspense fallback={null}><FilePartsDialog onClose={() => setFilePartsOpen(false)} onOpenFile={onImportFile} /></Suspense>}
       {conversionAnchor && <ConversionMenu anchor={conversionAnchor} onPick={(preset) => { setConversionAnchor(null); setConversion(preset); }} onAll={() => { setConversionAnchor(null); setConversion('all'); }} onClose={() => setConversionAnchor(null)} />}
       {conversion !== null && <ConversionDialog key={conversion === 'all' ? 'all' : conversion.id} preset={conversion === 'all' ? undefined : conversion} onClose={() => setConversion(null)} />}

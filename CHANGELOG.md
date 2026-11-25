@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Open the web app faster: Settings and shared team documents (with their live-sync and cloud libraries) now load only when opened, so the first-screen script drops from 1.5 MB to 472 KB (147 KB compressed).
 - Desktop builds for every common system: macOS now ships for Intel Macs as well as Apple Silicon (`macos-x64` DMG and in-app updates; the curl installer picks the right one), and Linux adds an RPM package for Fedora and openSUSE next to DEB and AppImage, also updatable in the app.
 - The web app tells an open tab when a newer version is live ("Tải lại") instead of staying on the old build until the next reload.
 - Load about 2.6 MB less on the first screen: the suite logos and app icon are served as small WebP files (the artwork is unchanged), and the browser tab icon is a 64 px PNG. Lighthouse page weight went from 3.6 MB to 1.0 MB.

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
-import { SettingsDialog } from './SettingsDialog';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { getBackupActions, OPEN_SETTINGS_EVENT } from './settingsShared';
+
+const SettingsDialog = lazy(() => import('./SettingsDialog').then((module) => ({ default: module.SettingsDialog })));
 
 export function SettingsHost() {
   const [category, setCategory] = useState<string | null>(null);
@@ -13,5 +14,5 @@ export function SettingsHost() {
   const exportBackup = useCallback(() => getBackupActions()?.exportBackup(), []);
   const importBackup = useCallback((file: File) => getBackupActions()?.importBackup(file), []);
   if (!category) return null;
-  return <SettingsDialog initialCategory={category} onClose={close} onExportBackup={exportBackup} onImportBackup={importBackup} />;
+  return <Suspense fallback={null}><SettingsDialog initialCategory={category} onClose={close} onExportBackup={exportBackup} onImportBackup={importBackup} /></Suspense>;
 }
