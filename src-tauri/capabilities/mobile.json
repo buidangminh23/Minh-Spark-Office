@@ -1,0 +1,7 @@
+{
+  "identifier": "mobile",
+  "description": "Android and iOS app window",
+  "windows": ["main"],
+  "platforms": ["android", "iOS"],
+  "permissions": ["core:default"]
+}

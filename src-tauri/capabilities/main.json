@@ -2,5 +2,6 @@
   "identifier": "main",
   "description": "Local desktop window",
   "windows": ["main"],
+  "platforms": ["windows", "macOS", "linux"],
   "permissions": ["core:default", "core:window:allow-set-progress-bar", "core:window:allow-request-user-attention", "updater:allow-check", "updater:allow-download", "updater:allow-install", "updater:allow-download-and-install", "process:allow-restart"]
 }

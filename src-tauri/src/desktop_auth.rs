@@ -17,20 +17,25 @@ fn sign_in_url(public_key: &str) -> Result<String, String> {
 }
 
 fn bring_to_front(window: &tauri::WebviewWindow) {
-    let _ = window.show();
-    let _ = window.unminimize();
-    let _ = window.set_always_on_top(true);
-    let _ = window.set_focus();
-    let _ = window.set_always_on_top(false);
-    if !window.is_focused().unwrap_or(false) {
-        let _ = window.request_user_attention(Some(tauri::UserAttentionType::Informational));
+    #[cfg(mobile)]
+    let _ = window;
+    #[cfg(desktop)]
+    {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_always_on_top(true);
+        let _ = window.set_focus();
+        let _ = window.set_always_on_top(false);
+        if !window.is_focused().unwrap_or(false) {
+            let _ = window.request_user_attention(Some(tauri::UserAttentionType::Informational));
+        }
     }
 }
 
 #[tauri::command]
 pub fn desktop_google_sign_in(public_key: String) -> Result<(), String> {
     let url = sign_in_url(&public_key)?;
-    open::that_detached(url).map_err(|_| "auth/desktop-browser".to_string())
+    crate::open_url(&url).map_err(|_| "auth/desktop-browser".to_string())
 }
 
 #[tauri::command]

@@ -38,7 +38,8 @@ dist-ssr
 /public/downloads/*.rpm
 /src-tauri/icons/icon.icns
 /src-tauri/target
-/src-tauri/gen
+/src-tauri/gen/*
+!/src-tauri/gen/android/
 /release
 /.firebase
 

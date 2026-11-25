@@ -4,6 +4,10 @@ export function isDesktop() {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
+export function isMobileApp() {
+  return isDesktop() && /Android|iPhone|iPad/i.test(navigator.userAgent);
+}
+
 export async function openWebApp() {
   await invoke<void>('open_web_app');
 }

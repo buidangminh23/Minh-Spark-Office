@@ -3,7 +3,7 @@ import { flushSync } from 'react-dom';
 import { check, type Update } from '@tauri-apps/plugin-updater';
 import { getVersion } from '@tauri-apps/api/app';
 import { relaunch } from '@tauri-apps/plugin-process';
-import { isDesktop } from '../lib/desktop';
+import { isDesktop, isMobileApp } from '../lib/desktop';
 import { saveActiveDocumentForExit } from '../lib/documentCloser';
 import { installAfterDocumentSave, relaunchesAfterInstall, withTimeout } from '../lib/desktopClose';
 import { acquireWorkspaceExit } from '../lib/workspaceLifecycle';
@@ -58,7 +58,7 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
   const failedDownload = useRef<{ version: string; at: number } | null>(null);
   const checkFromSettings = useRef<() => void>(() => undefined);
   useEffect(() => {
-    if (!isDesktop()) return;
+    if (!isDesktop() || isMobileApp()) return;
     const onCheck = () => checkFromSettings.current();
     const onAuto = (event: Event) => {
       const value = Boolean((event as CustomEvent<boolean>).detail);
@@ -103,7 +103,7 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
     } finally { busy.current = false; }
   };
   useEffect(() => {
-    if (!isDesktop()) return;
+    if (!isDesktop() || isMobileApp()) return;
     mounted.current = true;
     void getVersion().then(setVersion);
     return () => { mounted.current = false; if (!busy.current) void closeQuietly(update.current); };
@@ -201,7 +201,7 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
   const latestActions = useRef({ autoUpdate, install });
   useEffect(() => { latestActions.current = { autoUpdate, install }; });
   useEffect(() => {
-    if (!isDesktop() || !automatic) return;
+    if (!isDesktop() || isMobileApp() || !automatic) return;
     const timer = setTimeout(() => void latestActions.current.autoUpdate(), FIRST_CHECK_MS);
     const interval = setInterval(() => void latestActions.current.autoUpdate(), AUTO_CHECK_MS);
     let lastFocusCheck = Date.now();
@@ -252,7 +252,7 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
   }, [phase, percent]);
   useEffect(() => () => clearDockProgress(), []);
   useEffect(() => { publishUpdaterStatus({ phase, version, nextVersion, percent }); }, [phase, version, nextVersion, percent]);
-  if (!isDesktop()) return null;
+  if (!isDesktop() || isMobileApp()) return null;
   const working = ['checking', 'downloading', 'installing'].includes(phase);
   const ringMode: RingMode = phase === 'downloading' && percent === null ? 'spinning' : ringModes[phase];
   const title = ({ idle: 'Cập nhật Office 23', checking: 'Đang kiểm tra phiên bản', current: 'Đang dùng phiên bản mới nhất', available: `Đã có phiên bản ${nextVersion}`, downloading: 'Đang tải bản cập nhật', downloaded: `Bản ${nextVersion} đã sẵn sàng`, installing: 'Đang cài đặt bản cập nhật', error: 'Chưa kiểm tra được cập nhật' })[phase];
