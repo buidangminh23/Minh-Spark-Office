@@ -19,3 +19,4 @@ keystore.properties
 /.tauri
 /tauri.settings.gradle/app/src/main/jniLibs/
 /app/tauri.properties
+/app/src/main/assets/

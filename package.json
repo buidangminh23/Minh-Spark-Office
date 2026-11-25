@@ -11,6 +11,7 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "node --import tsx --test tests/*.test.ts",
+    "tauri": "tauri",
     "desktop:build": "pwsh -NoProfile -File scripts/build-desktop.ps1",
     "desktop:stage": "pwsh -NoProfile -File scripts/build-desktop.ps1 -StageWeb",
     "release:desktop": "node scripts/release-desktop.mjs",
