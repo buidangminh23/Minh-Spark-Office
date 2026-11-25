@@ -76,14 +76,21 @@ pub async fn default_printer() -> Option<String> {
         .flatten()
 }
 
+fn system_print<R: tauri::Runtime>(window: &tauri::WebviewWindow<R>) -> Result<(), String> {
+    #[cfg(desktop)]
+    return window.print().map_err(|error| error.to_string());
+    #[cfg(mobile)]
+    return window.eval("window.print()").map_err(|error| error.to_string());
+}
+
 #[tauri::command]
 pub async fn print_window(window: tauri::WebviewWindow, request: Option<PrintRequest>) -> Result<PrintOutcome, String> {
     let Some(request) = request else {
-        window.print().map_err(|error| error.to_string())?;
+        system_print(&window)?;
         return Ok(PrintOutcome::dialog());
     };
     if matches!(request.target, PrintTarget::System) && !cfg!(target_os = "macos") {
-        window.print().map_err(|error| error.to_string())?;
+        system_print(&window)?;
         return Ok(PrintOutcome::dialog());
     }
     if let PrintTarget::Printer { name, installed, .. } = &request.target {
