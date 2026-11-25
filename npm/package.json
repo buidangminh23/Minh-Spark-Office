@@ -1,6 +1,6 @@
 {
   "name": "@minhspark/minh-spark-office",
-  "version": "0.3.14",
+  "version": "0.3.15",
   "description": "Install Minh Spark Office, the free Docs, Sheets, Slides and PDF office suite, on Windows, Linux or macOS",
   "type": "module",
   "bin": {
