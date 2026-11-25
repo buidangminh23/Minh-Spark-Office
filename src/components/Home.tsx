@@ -26,6 +26,7 @@ import {
 import { useAccount } from './Authentication';
 import { SuiteLogo } from './SuiteLogo';
 import { DownloadMenu } from './DownloadMenu';
+import { isMobileApp } from '../lib/desktop';
 import { ConversionDialog } from './ConversionDialog';
 import { ConversionMenu } from './ConversionPicker';
 import { ConvertLogo } from './ConvertLogo';
@@ -407,13 +408,17 @@ export default function Home(props: HomeProps) {
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Escape') setSearchQuery(''); }}
             />
-            <kbd>{isMac ? '⌘ K' : 'Ctrl K'}</kbd>
+            {!isMobileApp() && <kbd>{isMac ? '⌘ K' : 'Ctrl K'}</kbd>}
           </label>
           <div className="ws-top-actions">
             <SyncButton />
             <span className="ws-divider" aria-hidden="true" />
-            <DownloadMenu />
-            <span className="ws-divider" aria-hidden="true" />
+            {!isMobileApp() && (
+              <>
+                <DownloadMenu />
+                <span className="ws-divider" aria-hidden="true" />
+              </>
+            )}
             <AccountMenu />
           </div>
         </header>

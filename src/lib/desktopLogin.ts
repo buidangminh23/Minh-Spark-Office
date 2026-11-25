@@ -4,7 +4,6 @@ import {
   DESKTOP_LOGIN_TTL_MS,
   createDesktopKeyPair,
   desktopLoginDocumentId,
-  desktopPairingCode,
   exportDesktopPublicKey,
   googleTokenAccount,
   openFromBrowser,
@@ -16,7 +15,7 @@ const CLOCK_SKEW_MS = 60_000;
 
 export type DesktopLoginResult = { idToken: string; email: string };
 
-export type DesktopLogin = { code: string; result: Promise<DesktopLoginResult> };
+export type DesktopLogin = { result: Promise<DesktopLoginResult> };
 
 function pause(ms: number, signal: AbortSignal) {
   return new Promise<void>((resolve, reject) => {
@@ -28,7 +27,7 @@ function pause(ms: number, signal: AbortSignal) {
 export async function beginDesktopLogin(auth: Auth, signal: AbortSignal): Promise<DesktopLogin> {
   const keys = await createDesktopKeyPair();
   const publicKey = await exportDesktopPublicKey(keys.publicKey);
-  const [id, code] = await Promise.all([desktopLoginDocumentId(publicKey), desktopPairingCode(publicKey)]);
+  const id = await desktopLoginDocumentId(publicKey);
   const firestore = await import('firebase/firestore');
   const reference = firestore.doc(firestore.getFirestore(auth.app), DESKTOP_LOGIN_COLLECTION, id);
   const started = Date.now();
@@ -53,5 +52,5 @@ export async function beginDesktopLogin(auth: Auth, signal: AbortSignal): Promis
     }
     throw new Error('auth/desktop-timeout');
   })();
-  return { code, result };
+  return { result };
 }

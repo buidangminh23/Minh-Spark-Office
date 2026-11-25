@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { GoogleAuthProvider, signInWithPopup, type Auth } from 'firebase/auth';
+import { CheckCircle2, Loader2, Lock } from 'lucide-react';
 import { authenticationError, initializeAuthentication } from '../lib/auth';
-import { DESKTOP_LOGIN_COLLECTION, DESKTOP_LOGIN_TTL_MS, desktopLoginDocumentId, desktopPairingCode, desktopSignInRequest, sealForDesktop } from '../lib/desktopAuth';
+import { DESKTOP_LOGIN_COLLECTION, DESKTOP_LOGIN_TTL_MS, desktopLoginDocumentId, desktopSignInRequest, sealForDesktop } from '../lib/desktopAuth';
 
 export { isDesktopSignInRequest } from '../lib/desktopAuth';
 
@@ -33,7 +34,6 @@ function deliveryError(failure: unknown) {
 
 export function DesktopSignIn() {
   const [request] = useState(readRequest);
-  const [code, setCode] = useState('');
   const [auth, setAuth] = useState<Auth | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
@@ -44,7 +44,6 @@ export function DesktopSignIn() {
   useEffect(() => {
     if (!publicKey) return;
     let active = true;
-    desktopPairingCode(publicKey).then((value) => { if (active) setCode(value); }).catch(() => { if (active) setError('Trình duyệt này không hỗ trợ mã hoá cần cho đăng nhập.'); });
     initializeAuthentication().then((value) => { if (active) setAuth(value); }).catch((failure: unknown) => {
       if (active) setError(authenticationError(failure));
     });
@@ -76,7 +75,7 @@ export function DesktopSignIn() {
       ? 'Ứng dụng Office 23 trên máy tính đang dùng bản cũ.'
       : 'Yêu cầu đăng nhập không hợp lệ.'
     : expired ? 'Yêu cầu đăng nhập đã hết hạn.'
-    : 'Đăng nhập cùng tài khoản Google để mở chung kho tài liệu trên web và ứng dụng máy tính.';
+    : 'Chọn tài khoản Google để ứng dụng tự đăng nhập và đồng bộ tài liệu.';
 
   return (
     <main className="auth-page">
@@ -92,29 +91,27 @@ export function DesktopSignIn() {
           <p className="auth-error" role="alert">
             {request.failure === 'outdated'
               ? 'Hãy mở ứng dụng, đợi ứng dụng tự cập nhật lên bản mới rồi bấm đăng nhập lại.'
-              : 'Hãy quay lại ứng dụng trên máy tính và bấm đăng nhập lại.'}
+              : 'Hãy quay lại ứng dụng Office 23 và bấm đăng nhập lại.'}
           </p>
         ) : expired && !sentTo ? (
-          <p className="auth-error" role="alert">Hãy quay lại ứng dụng trên máy tính và bấm đăng nhập lại.</p>
+          <p className="auth-error" role="alert">Hãy quay lại ứng dụng Office 23 và bấm đăng nhập lại.</p>
         ) : sentTo ? (
-          <div className="auth-body">
-            <p className="auth-status" role="status">Đã gửi {sentTo} về ứng dụng. Hãy xác nhận trong cửa sổ Office 23, rồi có thể đóng tab này.</p>
+          <div className="auth-done" role="status">
+            <CheckCircle2 size={40} aria-hidden="true" />
+            <strong>Đã đăng nhập</strong>
+            <span>{sentTo} đang đồng bộ trong ứng dụng Office 23. Có thể đóng tab này.</span>
           </div>
         ) : (
-          <div className="auth-body">
-            <div className="auth-pairing" aria-live="polite">
-              <span>Mã xác nhận</span>
-              <strong>{code || '··· ···'}</strong>
-            </div>
-            <p className="auth-disclosure">Chỉ tiếp tục nếu cửa sổ Office 23 trên máy tính đang hiện đúng mã này. Nếu ứng dụng không hiện mã, hoặc mã khác, hãy đóng tab này.</p>
+          <>
             {error && <p className="auth-error" role="alert">{error}</p>}
             <div className="auth-buttons">
-              <button className="btn auth-google google-signin" disabled={!auth || !code || pending} onClick={() => void signIn()}>
-                <img src="/google.svg" width="20" height="20" alt="" />{pending ? 'Đang chờ Google…' : 'Mã khớp, đăng nhập bằng Google'}
+              <button className="btn auth-google google-signin" type="button" disabled={!auth || pending} onClick={() => void signIn()}>
+                {pending ? <Loader2 className="auth-spin" size={20} aria-hidden="true" /> : <img src="/google.svg" width="20" height="20" alt="" />}
+                {pending ? 'Đang chờ Google…' : 'Đăng nhập bằng Google'}
               </button>
             </div>
-            <p className="auth-disclosure">Tài khoản được mã hoá trước khi gửi, chỉ ứng dụng đã mở trang này mới giải mã được. Không yêu cầu quyền đọc Gmail hoặc Google Drive.</p>
-          </div>
+            <p className="auth-privacy"><Lock size={14} aria-hidden="true" />Tài khoản được mã hoá trước khi gửi về ứng dụng. Chỉ dùng tên, email và ảnh đại diện.</p>
+          </>
         )}
       </section>
     </main>
