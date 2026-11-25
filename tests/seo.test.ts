@@ -100,3 +100,18 @@ test('JSON-LD describes the public website without unsupported review or offer c
     }
   }
 });
+
+test('every public sub page declares a breadcrumb and the home page lists them as site navigation', () => {
+  const subPages = pages.filter((page) => page.path !== '/');
+  for (const page of subPages) {
+    const nodes = JSON.parse(page.html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)![1])['@graph'];
+    const crumb = nodes.find((node: Record<string, unknown>) => node['@type'] === 'BreadcrumbList');
+    const webPage = nodes.find((node: Record<string, unknown>) => node['@type'] === 'WebPage');
+    assert.ok(crumb, page.path);
+    assert.equal(webPage.breadcrumb['@id'], crumb['@id']);
+    assert.deepEqual(crumb.itemListElement.map((item: { item: string }) => item.item), [`${origin}/`, origin + page.path]);
+  }
+  const home = JSON.parse(pages[0].html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)![1])['@graph'];
+  const navigation = home.find((node: Record<string, unknown>) => node['@id'] === `${origin}/#site-navigation`);
+  assert.deepEqual(navigation.itemListElement.map((item: { url: string }) => item.url).sort(), subPages.map((page) => origin + page.path).sort());
+});
