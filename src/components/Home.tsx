@@ -26,7 +26,7 @@ import {
 import { useAccount } from './Authentication';
 import { SuiteLogo } from './SuiteLogo';
 import { DownloadMenu } from './DownloadMenu';
-import { isMobileApp } from '../lib/desktop';
+import { isInstalledApp, isMobileApp } from '../lib/desktop';
 import { ConversionDialog } from './ConversionDialog';
 import { ConversionMenu } from './ConversionPicker';
 import { ConvertLogo } from './ConvertLogo';
@@ -413,7 +413,7 @@ export default function Home(props: HomeProps) {
           <div className="ws-top-actions">
             <SyncButton />
             <span className="ws-divider" aria-hidden="true" />
-            {!isMobileApp() && (
+            {!isInstalledApp() && (
               <>
                 <DownloadMenu />
                 <span className="ws-divider" aria-hidden="true" />

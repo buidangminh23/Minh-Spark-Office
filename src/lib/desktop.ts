@@ -8,6 +8,13 @@ export function isMobileApp() {
   return isDesktop() && /Android|iPhone|iPad/i.test(navigator.userAgent);
 }
 
+export function isInstalledApp() {
+  if (isDesktop()) return true;
+  if (typeof window === 'undefined') return false;
+  const standalone = ['standalone', 'fullscreen', 'minimal-ui', 'window-controls-overlay'].some((mode) => window.matchMedia?.(`(display-mode: ${mode})`).matches);
+  return standalone || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+}
+
 export async function openWebApp() {
   await invoke<void>('open_web_app');
 }
