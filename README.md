@@ -1,8 +1,88 @@
-# Office 23
+<p align="center">
+  <a href="https://office.minhspark.com"><img src="public/logo-icon.png" width="112" height="112" alt="Office 23" /></a>
+</p>
 
-<p align="center"><a href="https://www.npmjs.com/package/@minhspark/minh-spark-office"><img src="https://img.shields.io/npm/v/@minhspark/minh-spark-office?logo=npm&amp;color=CB3837" height="20" alt="npm" /></a></p>
+<h1 align="center">Office 23</h1>
 
-Browser-based documents, spreadsheets and PDF workspace with Google sign-in through Firebase Authentication.
+<p align="center">
+  <a href="https://www.npmjs.com/package/@minhspark/minh-spark-office"><img src="https://img.shields.io/npm/v/@minhspark/minh-spark-office?logo=npm&amp;color=CB3837" height="20" alt="npm version" /></a>
+  <a href="https://www.npmjs.com/package/@minhspark/minh-spark-office"><img src="https://raw.githubusercontent.com/buidangminh23/Minh-Spark-Office/badges/npm-downloads.svg" height="20" alt="npm downloads" /></a>
+  <a href="https://www.npmjs.com/package/@minhspark/minh-spark-office"><img src="https://raw.githubusercontent.com/buidangminh23/Minh-Spark-Office/badges/npm-downloads-month.svg" height="20" alt="npm downloads in the last 30 days" /></a>
+  <br />
+  <a href="https://libraries.io/npm/@minhspark%2Fminh-spark-office"><img src="https://img.shields.io/librariesio/dependents/npm/@minhspark/minh-spark-office?label=used%20by" height="20" alt="Used by" /></a>
+  <a href="https://github.com/buidangminh23/Minh-Spark-Office/actions/workflows/ci.yml"><img src="https://github.com/buidangminh23/Minh-Spark-Office/actions/workflows/ci.yml/badge.svg" height="20" alt="CI" /></a>
+  <a href="https://office.minhspark.com/tai-ung-dung.html"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Foffice.minhspark.com%2Fupdates%2Flatest.json&amp;query=%24.version&amp;label=desktop&amp;color=E8572A" height="20" alt="Desktop version" /></a>
+  <a href="https://office.minhspark.com"><img src="https://img.shields.io/badge/web-office.minhspark.com-2563EB" height="20" alt="Website" /></a>
+</p>
+
+<p align="center">
+  <b>A free office suite for Vietnamese users.</b><br />
+  Documents, spreadsheets, presentations, PDF and photos in one workspace. Open the Word, Excel and PowerPoint files you already have, on the web, Windows, macOS and Linux.
+</p>
+
+<p align="center">
+  <a href="https://office.minhspark.com"><b>Open the web app</b></a> ·
+  <a href="https://office.minhspark.com/tai-ung-dung.html"><b>Download</b></a> ·
+  <a href="https://office.minhspark.com/gioi-thieu.html"><b>Product tour</b></a>
+</p>
+
+<p align="center">
+  <img src="public/gioi-thieu/thiet-bi.webp" width="860" alt="Office 23 on a laptop, a tablet and a phone" />
+</p>
+
+## Contents
+
+- [Apps](#apps)
+- [Why Office 23](#why-office-23)
+- [Install](#install)
+- [Formats](#formats)
+- [Built with](#built-with)
+- [Development](#development)
+- [File conversion and OCR](#file-conversion-and-ocr)
+- [Google authentication](#google-authentication)
+- [Storage and account boundaries](#storage-and-account-boundaries)
+- [Verification](#verification)
+- [Deployment](#deployment)
+- [Desktop releases](#windows-releases-and-updates)
+
+## Apps
+
+| | App | What it does |
+| --- | --- | --- |
+| <img src="public/logos/minh-docs.png" width="36" height="36" alt="" /> | **23 Docs** | Word-style ribbon. Opens and saves DOCX and keeps untouched Word blocks on export. Track changes, comments, compare and merge, table of contents, citations, mail merge, equations, ink, read-aloud and dictation, translation, signature fields, macros, 18 export formats. |
+| <img src="public/logos/minh-sheets.png" width="36" height="36" alt="" /> | **23 Sheets** | Vietnamese number formats, PivotTables, slicers, conditional formatting, data validation and Goal Seek. Runs VBA in `.xlsm` files, including events and UserForms, and saves them back for Excel. Amount-in-words, VietQR codes, live stock, SJC gold and exchange rates, SQL over sheet data. |
+| <img src="public/logos/minh-slides.png" width="36" height="36" alt="" /> | **23 Slides** | Reads and writes real `.pptx`, with Morph and object animations from PowerPoint. Presenter view, laser pointer, live Vietnamese captions, teleprompter, recording with webcam to MP4, and ready-made group presentation templates. |
+| <img src="public/logos/minh-pdf.png" width="36" height="36" alt="" /> | **23 PDF** | Sign, merge, split, rotate, crop, compress and reorder pages on the device. OCR scanned pages and click the text to edit it, rebuild scans into editable PDFs, page numbers and watermarks, comments, metadata, export to TXT/PNG/JPG, flatten, full-screen presenting. |
+| <img src="public/logos/minh-photos.png" width="36" height="36" alt="" /> | **23 Photos** | Opens HEIC, AVIF, TIFF, SVG and dozens of other image formats. Rotate, flip, crop, filters and colour adjustments, markup with pens, arrows, boxes and text, blur sensitive details, then send the image to a new document, presentation, PDF or spreadsheet. |
+
+### Why Office 23
+
+- **Familiar Office ribbon** with 2007 to 2019 looks, light and dark modes, Vietnamese number and date formats, and an English interface.
+- **Work together:** groups with owner, admin, editor and viewer roles; co-edit Docs, Sheets and Slides and see each person's cursor.
+- **Never lose work:** drafts are saved on the device, offline changes wait and sync when the network returns, and a conflicting edit is kept as its own copy.
+- **Convert and OCR on the device:** up to 20 files at a time between Word, Excel, PowerPoint, PDF and images; Vietnamese and English OCR without uploading.
+- **AI assistant:** rewrite, summarise, fix, analyse sheets and build slides, free for 30 requests a day.
+- **MOS practice:** Word, Excel and PowerPoint Associate and Expert exams with an exam-room interface and automatic scoring.
+
+## Install
+
+| Platform | How |
+| --- | --- |
+| **Web** | Open [office.minhspark.com](https://office.minhspark.com). Nothing to install. |
+| **Windows x64** | Download the installer from [tai-ung-dung.html](https://office.minhspark.com/tai-ung-dung.html). |
+| **macOS (Apple Silicon)** | `curl -fsSL https://office.minhspark.com/install-macos.sh \| bash` |
+| **Ubuntu / Debian x64** | `sudo apt install ./MinhSparkOffice-<version>-linux-x64.deb`, or use the AppImage. |
+| **Any of the above** | `npx @minhspark/minh-spark-office` downloads the right build, checks its SHA-256 and installs it. |
+
+Desktop apps update themselves: they check at start-up and every 15 minutes and install signed updates.
+
+## Formats
+
+DOCX · XLSX · XLSM · XLSB · XLS · PPTX · PPSX · POTX · PDF · CSV · TSV · ODT · ODS · ODP · RTF · EPUB · Markdown · HTML · TXT · PNG · JPEG · WebP · HEIC
+
+## Built with
+
+React · TypeScript · Vite · Tauri · Tiptap · Univer · pdf-lib · LibreOffice WASM · Tesseract · Firebase Authentication and Cloud Firestore · Vercel
 
 ## Development
 
