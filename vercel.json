@@ -67,7 +67,7 @@
       ]
     },
     {
-      "source": "/updates/latest.json",
+      "source": "/(updates/latest|version)\\.json",
       "headers": [
         { "key": "Cache-Control", "value": "no-cache" }
       ]

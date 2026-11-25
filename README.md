@@ -70,8 +70,9 @@
 | --- | --- |
 | **Web** | Open [office.minhspark.com](https://office.minhspark.com). Nothing to install. |
 | **Windows x64** | Download the installer from [tai-ung-dung.html](https://office.minhspark.com/tai-ung-dung.html). |
-| **macOS (Apple Silicon)** | `curl -fsSL https://office.minhspark.com/install-macos.sh \| bash` |
+| **macOS (Apple Silicon và Intel)** | `curl -fsSL https://office.minhspark.com/install-macos.sh \| bash` |
 | **Ubuntu / Debian x64** | `sudo apt install ./MinhSparkOffice-<version>-linux-x64.deb`, or use the AppImage. |
+| **Fedora / openSUSE x64** | `sudo dnf install ./MinhSparkOffice-<version>-linux-x64.rpm` (or `zypper install`). |
 | **Any of the above** | `npx @minhspark/minh-spark-office` downloads the right build, checks its SHA-256 and installs it. |
 
 Desktop apps update themselves: they check at start-up and every 15 minutes and install signed updates.
@@ -159,7 +160,7 @@ Native Google login uses the system browser at `https://office.minhspark.com/`, 
 
 ## macOS releases
 
-Run `scripts/build-macos.sh` on an Apple Silicon Mac using the prepared web `dist` directory. The script produces an arm64 DMG and updater `.app.tar.gz`, verifies the disk image and application signature, and requires macOS 13.3 or newer. Copy both artifacts into `release/` on the signing workstation, then run `node scripts/package-macos.mjs` after staging the matching Windows release. This verifies the updater signature and merges the `darwin-aarch64` target into the shared manifest without moving the private key to the Mac.
+Run `scripts/build-macos.sh` on an Apple Silicon Mac using the prepared web `dist` directory. The script cross-builds arm64 and x64, producing a DMG and updater `.app.tar.gz` for each, verifies the disk image and application signature, and requires macOS 13.3 or newer. Copy both artifacts into `release/` on the signing workstation, then run `node scripts/package-macos.mjs` after staging the matching Windows release. This verifies the updater signature and merges the `darwin-aarch64` and `darwin-x86_64` targets into the shared manifest without moving the private key to the Mac.
 
 The current Mac app has an ad-hoc signature; it has no Apple Developer ID or notarization. An Intel native build is not included. The web app remains available on Intel Macs.
 
@@ -179,8 +180,8 @@ Windows installers register Open With entries and Default Apps capabilities for 
 
 ## Linux releases
 
-The Linux x86_64 release includes a Debian package and an AppImage, built in Ubuntu 22.04 for Ubuntu 22.04+ and Debian 12+. The release orchestrator uses Docker in WSL (`MINHSPARK_LINUX_DISTRO`, default `Ubuntu-26.04`) and keeps its isolated build cache in `~/.cache/minh-spark-office/linux-build`. Run `npm run release:desktop` on the signing workstation to build and publish Windows, macOS and Linux together.
+The Linux x86_64 release includes a Debian package, an RPM package and an AppImage, built in Ubuntu 22.04 for Ubuntu 22.04+ and Debian 12+. The release orchestrator uses Docker in WSL (`MINHSPARK_LINUX_DISTRO`, default `Ubuntu-26.04`) and keeps its isolated build cache in `~/.cache/minh-spark-office/linux-build`. Run `npm run release:desktop` on the signing workstation to build and publish Windows, macOS and Linux together.
 
-For a standalone Linux build, prepare the frontend with `npm run build` and `node scripts/prepare-desktop.mjs`, then run `bash scripts/build-linux.sh` in the environment defined by `scripts/linux-build.Dockerfile`. Transfer the two artifacts and verify `SHA256SUMS-linux.txt` before running `node scripts/package-linux.mjs` on the signing workstation. Signing keys stay on Windows. The shared update manifest has separate `linux-x86_64-deb` and `linux-x86_64-appimage` targets; the generic Linux target uses AppImage.
+For a standalone Linux build, prepare the frontend with `npm run build` and `node scripts/prepare-desktop.mjs`, then run `bash scripts/build-linux.sh` in the environment defined by `scripts/linux-build.Dockerfile`. Transfer the three artifacts and verify `SHA256SUMS-linux.txt` before running `node scripts/package-linux.mjs` on the signing workstation. Signing keys stay on Windows. The shared update manifest has separate `linux-x86_64-deb`, `linux-x86_64-rpm` and `linux-x86_64-appimage` targets; the generic Linux target uses AppImage.
 
 Install the Debian package with `sudo apt install ./MinhSparkOffice-<version>-linux-x64.deb`; apt resolves system WebKitGTK dependencies. Debian updates may request administrator authorization through polkit. For AppImage, grant executable permission and launch it from a writable directory. Systems without FUSE can use `--appimage-extract-and-run`. AppImage bundles WebKitGTK and media support but still requires a compatible Linux desktop and glibc. Linux printing uses the system print dialog. Document handlers are offered in Open With and do not replace existing defaults.

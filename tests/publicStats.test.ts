@@ -9,6 +9,8 @@ describe('download and usage counters', () => {
     assert.equal(installerCounter('MinhSparkOffice-0.2.32-macos-arm64.dmg'), 'downloadsMac');
     assert.equal(installerCounter('MinhSparkOffice-0.2.32-linux-x64.deb'), 'downloadsLinux');
     assert.equal(installerCounter('MinhSparkOffice-0.2.32-linux-x64.AppImage'), 'downloadsLinux');
+    assert.equal(installerCounter('MinhSparkOffice-0.3.10-linux-x64.rpm'), 'downloadsLinux');
+    assert.equal(installerCounter('MinhSparkOffice-0.3.10-macos-x64.dmg'), 'downloadsMac');
     assert.equal(installerCounter('MinhSparkOffice-0.2.32-linux-x64.AppImage.sig'), null);
     assert.equal(installerCounter('MinhSparkOffice-0.2.32-linux-arm64.deb'), null);
     assert.equal(installerCounter('MinhSparkOffice-0.2.32-macos-arm64.app.tar.gz'), null);

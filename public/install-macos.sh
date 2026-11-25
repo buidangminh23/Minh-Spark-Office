@@ -71,7 +71,15 @@ main() {
   done
 
   [ "$(uname -s)" = Darwin ] || die "trình cài này chỉ dành cho macOS"
-  [ "$(uname -m)" = arm64 ] || die "bản macOS chỉ chạy trên máy Mac chip Apple Silicon; máy Intel hãy dùng bản web tại $BASE_URL"
+  local arch
+  case "$(uname -m)" in
+    arm64) arch=arm64 ;;
+    x86_64) arch=x64 ;;
+    *) die "chưa có bản Office 23 cho kiến trúc $(uname -m); hãy dùng bản web tại $BASE_URL" ;;
+  esac
+  if [ "$arch" = x64 ] && [ "$(sysctl -in sysctl.proc_translated 2>/dev/null)" = 1 ]; then
+    arch=arm64
+  fi
   version_at_least "$(sw_vers -productVersion)" "$MINIMUM_MACOS" || die "cần macOS $MINIMUM_MACOS trở lên"
 
   if [ -z "$target_dir" ]; then
@@ -99,11 +107,11 @@ main() {
   curl -fsSL "$BASE_URL/downloads/SHA256SUMS.txt" -o "$work/SHA256SUMS.raw" || die "không đọc được danh sách phiên bản từ $BASE_URL"
   tr -d '\r' < "$work/SHA256SUMS.raw" > "$work/SHA256SUMS.txt"
   local archive expected
-  archive="$(awk '$2 ~ /^MinhSparkOffice-[0-9.]+-macos-arm64\.app\.tar\.gz$/ { print $2; exit }' "$work/SHA256SUMS.txt")"
-  [ -n "$archive" ] || die "chưa có bản macOS trên máy chủ"
+  archive="$(awk -v suffix="-macos-$arch.app.tar.gz" '$2 ~ /^MinhSparkOffice-[0-9.]+-macos-/ && substr($2, length($2) - length(suffix) + 1) == suffix { print $2; exit }' "$work/SHA256SUMS.txt")"
+  [ -n "$archive" ] || die "chưa có bản macOS ($arch) trên máy chủ"
   expected="$(awk -v name="$archive" '$2 == name { print $1; exit }' "$work/SHA256SUMS.txt")"
   local version="${archive#MinhSparkOffice-}"
-  version="${version%-macos-arm64.app.tar.gz}"
+  version="${version%-macos-$arch.app.tar.gz}"
 
   say "Đang tải Office 23 ${version}…"
   curl -fL --progress-bar "$BASE_URL/downloads/$archive" -o "$work/$archive" || die "tải $archive không thành công"

@@ -4,6 +4,7 @@ import { createDraftWorkspaceStorage, WorkspaceContext, useWorkspace } from './l
 import { accountWorkspace, syncedWorkspace } from './lib/workspaces';
 import { WorkspaceStatus } from './components/WorkspaceStatus';
 import { DesktopUpdater } from './components/DesktopUpdater';
+import { WebUpdateNotice } from './components/WebUpdateNotice';
 import { DesktopCloseGuard } from './components/DesktopCloseGuard';
 import { DocumentTabs, useDocumentTabs } from './components/DocumentTabs';
 import { addToTabSession, createTabBootGuard, readTabSession, tabFrameId, tabHost } from './lib/documentTabs';
@@ -72,7 +73,7 @@ function EditorLoading({ kind }: { kind?: FileKind }) {
       <div className="desktop-splash-content">
         <div className="desktop-splash-mark">
           <svg className="desktop-splash-ring" viewBox="0 0 132 132"><circle className="desktop-splash-track" cx="66" cy="66" r="64" /><circle className="desktop-splash-arc" cx="66" cy="66" r="64" /></svg>
-          <div className="desktop-splash-tile"><img src={kind ? suiteLogos[kind] : '/logo-icon.png'} alt="" width="62" height="62" /></div>
+          <div className="desktop-splash-tile"><img src={kind ? suiteLogos[kind] : '/logo-icon-256.webp'} alt="" width="62" height="62" /></div>
         </div>
         <p className="desktop-splash-name">Office<img src="/brand-23.png" alt="23" style={{ height: '1.1em', width: 'auto', verticalAlign: '-0.18em', marginLeft: '0.22em' }} /></p>
       </div>
@@ -1264,5 +1265,5 @@ function Workspace({ userId, onEditing, editing }: { userId: string | null; onEd
 export default function App() {
   const [editing, setEditing] = useState(false);
   if (isDesktopSignInRequest()) return <DesktopSignIn />;
-  return <><Authentication>{(user, session) => <Workspace key={`${session}:${user?.uid ?? 'guest'}`} userId={user?.uid ?? null} onEditing={setEditing} editing={editing} />}</Authentication>{!frameId && <DesktopUpdater editing={editing} />}</>;
+  return <><Authentication>{(user, session) => <Workspace key={`${session}:${user?.uid ?? 'guest'}`} userId={user?.uid ?? null} onEditing={setEditing} editing={editing} />}</Authentication>{!frameId && <DesktopUpdater editing={editing} />}{!frameId && <WebUpdateNotice editing={editing} />}</>;
 }

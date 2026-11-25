@@ -5,7 +5,7 @@ import { useUi } from './ui';
 import { WorkspaceStatus } from './WorkspaceStatus';
 import { useWorkspace, type FileContent, type FileMeta } from '../lib/storage';
 import { syncedWorkspace } from '../lib/workspaces';
-import { suiteLogos } from '../lib/suiteBranding';
+import { suiteFavicons, suiteLogos } from '../lib/suiteBranding';
 import { useDocumentCloser } from '../lib/documentCloser';
 import { printFrameDocument } from '../lib/print/tabPrint';
 import { getSettings } from '../lib/appSettings';
@@ -42,7 +42,7 @@ type TabsApi = {
 
 type TabState = { tabs: DocumentTab[]; active: string | null };
 
-const HOME_ICON = '/logo-icon.png';
+const HOME_ICON = '/logo-icon-64.png';
 const SAVE_FAILED = 'Chưa lưu được tài liệu nên tab vẫn mở. Hãy thử lưu lại rồi đóng tab.';
 const REOPEN_FAILED = 'Tài liệu vừa đóng không còn, có thể đã bị xoá hoặc chuyển vào thùng rác.';
 const CLOSED_HISTORY = 20;
@@ -295,7 +295,7 @@ export function DocumentTabs({ onEditing, children }: { onEditing: (editing: boo
   const activeTab = state.tabs.find((tab) => tab.id === state.active) ?? null;
   const baseTitle = useRef(document.title);
   useEffect(() => {
-    setFavicon(activeTab ? suiteLogos[activeTab.kind] : HOME_ICON);
+    setFavicon(activeTab ? suiteFavicons[activeTab.kind] : HOME_ICON);
     document.title = activeTab ? `${activeTab.name} - ${baseTitle.current}` : baseTitle.current;
   }, [activeTab]);
   useEffect(() => {

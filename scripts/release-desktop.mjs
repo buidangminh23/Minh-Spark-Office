@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  MAC_ARCHES,
   MAC_INSTALL_COMMAND,
   PREFLIGHT_CHECKS,
   VERSION_FILES,
@@ -242,7 +243,7 @@ function buildMac(version) {
   run(SSH, [...SSH_OPTIONS, MAC_HOST, remoteBash(script)]);
   mkdirSync(join(root, 'release'), { recursive: true });
   const remote = `${MAC_HOST}:${MAC_BUILD_DIR}/release`;
-  run(SCP, ['-q', `${remote}/MinhSparkOffice-${version}-macos-arm64.dmg`, `${remote}/MinhSparkOffice-${version}-macos-arm64.app.tar.gz`, `${remote}/SHA256SUMS-macos.txt`, '.'], { cwd: join(root, 'release') });
+  run(SCP, ['-q', ...MAC_ARCHES.flatMap((arch) => [`${remote}/MinhSparkOffice-${version}-macos-${arch}.dmg`, `${remote}/MinhSparkOffice-${version}-macos-${arch}.app.tar.gz`]), `${remote}/SHA256SUMS-macos.txt`, '.'], { cwd: join(root, 'release') });
   for (const { hash, file } of parseChecksums(readFileSync(join(root, 'release/SHA256SUMS-macos.txt'), 'utf8'))) {
     if (sha256(readFileSync(join(root, 'release', file))) !== hash) throw new Error(`${file} changed in transfer`);
   }
@@ -274,7 +275,7 @@ function buildLinux(version) {
     'docker run --rm --init --memory=10g --cpus=4 -v "$build:/build" -v minh-spark-office-cargo:/root/.cargo/registry -v minh-spark-office-tauri-cache:/root/.cache minh-spark-office-linux:22.04',
     'cd release',
     'sha256sum -c SHA256SUMS-linux.txt',
-    'cp "MinhSparkOffice-$3-linux-x64.deb" "MinhSparkOffice-$3-linux-x64.AppImage" SHA256SUMS-linux.txt "$2/"',
+    'cp "MinhSparkOffice-$3-linux-x64.deb" "MinhSparkOffice-$3-linux-x64.rpm" "MinhSparkOffice-$3-linux-x64.AppImage" SHA256SUMS-linux.txt "$2/"',
   ].join('\n');
   const quote = (value) => "'" + value.replaceAll("'", "'\"'\"'") + "'";
   const command = `set -- ${[source, output, version].map(quote).join(' ')}\n${script}`;
@@ -381,8 +382,11 @@ async function verify(version) {
   }
   const page = await (await fetchLive('/tai-ung-dung.html')).text();
   if (!page.includes(`MinhSparkOffice-${version}-windows-x64-vi-Setup.exe`)) throw new Error('Download page does not link this version');
-  for (const extension of ['deb', 'AppImage']) {
+  for (const extension of ['deb', 'rpm', 'AppImage']) {
     if (!page.includes(`MinhSparkOffice-${version}-linux-x64.${extension}`)) throw new Error(`Download page is missing Linux ${extension}`);
+  }
+  for (const arch of MAC_ARCHES) {
+    if (!page.includes(`MinhSparkOffice-${version}-macos-${arch}.dmg`)) throw new Error(`Download page is missing the macOS ${arch} DMG`);
   }
   if (!page.includes(MAC_INSTALL_COMMAND)) throw new Error('Download page lost the macOS curl installer');
   const probe = [

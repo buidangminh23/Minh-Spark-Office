@@ -16,8 +16,8 @@ export function SuiteLogo({ kind, size = 28, decorative = true }: { kind: FileKi
       <img
         src={suiteLogos[kind]}
         alt={decorative ? '' : suiteNames[kind]}
-        width={1280}
-        height={1280}
+        width={256}
+        height={256}
         draggable={false}
       />
     </span>

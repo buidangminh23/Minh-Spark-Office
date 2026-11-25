@@ -45,6 +45,19 @@ function officeLayoutEngine(): Plugin {
   };
 }
 
+const appBuild = `${appVersion}-${Date.now().toString(36)}`
+
+function webBuildInfo(): Plugin {
+  return {
+    name: 'web-build-info',
+    apply: 'build',
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: 'version.json', source: `${JSON.stringify({ build: appBuild, version: appVersion })}
+` })
+    },
+  }
+}
+
 function marketApiInDev(): Plugin {
   return {
     name: 'market-api-dev',
@@ -69,8 +82,8 @@ function marketApiInDev(): Plugin {
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), marketApiInDev(), officeLayoutEngine()],
+  plugins: [react(), marketApiInDev(), officeLayoutEngine(), webBuildInfo()],
   build: { rollupOptions: { input: { index: 'index.html', layout: 'office-layout.html' } } },
-  define: { __APP_VERSION__: JSON.stringify(appVersion) },
+  define: { __APP_VERSION__: JSON.stringify(appVersion), __APP_BUILD__: JSON.stringify(appBuild) },
   resolve: { conditions: ['onnxruntime-web-use-extern-wasm', ...defaultClientConditions] },
 })

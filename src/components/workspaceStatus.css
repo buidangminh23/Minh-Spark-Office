@@ -17,3 +17,26 @@
 @media(prefers-reduced-motion:reduce){.progress-ring-spinning{animation:sync-pulse 1.6s ease-in-out infinite}.progress-ring-fill{transition:stroke 200ms ease}.update-ring-check,.update-phase,.update-dialog{animation:update-fade-in 200ms ease}.update-ring-check path{animation:none;stroke-dashoffset:0}.update-launcher-downloaded{animation:none}}
 
 :root[data-theme='dark'] .workspace-status{background:#131926;border-top-color:#2a3346;color:#c3cad8}:root[data-theme='dark'] .workspace-help{color:#c3cad8}:root[data-theme='dark'] .workspace-status button{color:#8db2ff}:root[data-theme='dark'] .sync-dialog{background:#182030;border-color:#2a3346;color:#e8edf6}:root[data-theme='dark'] .sync-dialog p{color:#94a0b4}:root[data-theme='dark'] .update-launcher{background:#182030;border-color:#2a3346;color:#c3d4ff}
+
+.web-update-notice {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: 2147483000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(640px, calc(100vw - 32px));
+  padding: 12px 16px;
+  transform: translateX(-50%);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+  color: var(--ink, #1f2328);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 8px 24px rgba(0, 0, 0, 0.16);
+  font-size: 14px;
+  animation: web-update-in 180ms ease-out;
+}
+.web-update-notice span { flex: 1; }
+@keyframes web-update-in { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translateX(-50%); } }
+@media (prefers-reduced-motion: reduce) { .web-update-notice { animation: none; } }
+@media (max-width: 560px) { .web-update-notice { flex-wrap: wrap; bottom: calc(16px + env(safe-area-inset-bottom)); } }

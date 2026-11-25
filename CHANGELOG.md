@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Desktop builds for every common system: macOS now ships for Intel Macs as well as Apple Silicon (`macos-x64` DMG and in-app updates; the curl installer picks the right one), and Linux adds an RPM package for Fedora and openSUSE next to DEB and AppImage, also updatable in the app.
+- The web app tells an open tab when a newer version is live ("Tải lại") instead of staying on the old build until the next reload.
+- Load about 2.6 MB less on the first screen: the suite logos and app icon are served as small WebP files (the artwork is unchanged), and the browser tab icon is a 64 px PNG. Lighthouse page weight went from 3.6 MB to 1.0 MB.
+- Update the `url` and `cookie` Rust crates for RUSTSEC-2026-0592 and RUSTSEC-2026-0594.
 - Rebrand to Office 23: new cube logo and app icon, the suite apps become 23 Docs, 23 Sheets, 23 Slides, 23 PDF, 23 Photos and 23 AI. The installed app is renamed after updating: Windows keeps the existing install folder and replaces the old Start menu and desktop shortcuts, the macOS curl installer replaces "Minh Spark Office.app" with "Office 23.app". The Linux package keeps its old name so updates install over it.
 - Fix the app freezing after sitting idle: cloud sync no longer calls `ReadableStreamDefaultReader.releaseLock()`, which can deadlock WebKit's garbage collector on macOS and leave the whole window unclickable.
 - Share from the editors: the Docs "Chia sẻ" button opens the Share pane directly, and Docs, Sheets and PDF can send the current file to a team in one click.

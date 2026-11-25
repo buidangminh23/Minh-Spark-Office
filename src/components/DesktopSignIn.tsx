@@ -82,7 +82,7 @@ export function DesktopSignIn() {
     <main className="auth-page">
       <section className="auth-card" aria-labelledby="desktop-login-title" aria-describedby="desktop-login-intro">
         <header className="auth-head">
-          <img className="auth-logo" src="/logo-icon.png" alt="" width="64" height="64" />
+          <img className="auth-logo" src="/logo-icon-256.webp" alt="" width="64" height="64" />
           <div className="auth-title">
             <h1 id="desktop-login-title">Đăng nhập Office 23</h1>
             <p className="auth-intro" id="desktop-login-intro">{intro}</p>

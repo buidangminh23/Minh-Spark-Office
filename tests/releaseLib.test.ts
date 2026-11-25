@@ -56,10 +56,10 @@ test('parseChecksums accepts CRLF and binary markers', () => {
 });
 
 test('releaseArtifactNames and missingPlatforms describe a complete release', () => {
-  assert.equal(releaseArtifactNames('0.2.13').length, 6);
-  const full = { platforms: { 'windows-x86_64-nsis': { signature: 's' }, 'windows-x86_64': { signature: 's' }, 'windows-x86_64-msi': { signature: 's' }, 'darwin-aarch64': { signature: 's' }, 'linux-x86_64': { signature: 's' }, 'linux-x86_64-deb': { signature: 's' }, 'linux-x86_64-appimage': { signature: 's' } } };
+  assert.equal(releaseArtifactNames('0.2.13').length, 9);
+  const full = { platforms: { 'windows-x86_64-nsis': { signature: 's' }, 'windows-x86_64': { signature: 's' }, 'windows-x86_64-msi': { signature: 's' }, 'darwin-aarch64': { signature: 's' }, 'darwin-x86_64': { signature: 's' }, 'linux-x86_64': { signature: 's' }, 'linux-x86_64-deb': { signature: 's' }, 'linux-x86_64-rpm': { signature: 's' }, 'linux-x86_64-appimage': { signature: 's' } } };
   assert.deepEqual(missingPlatforms(full), []);
-  assert.deepEqual(missingPlatforms({ platforms: {} }).length, 7);
+  assert.deepEqual(missingPlatforms({ platforms: {} }).length, 9);
 });
 
 test('retainedUpdaterFiles keeps the updater files of the last releases before this one', () => {

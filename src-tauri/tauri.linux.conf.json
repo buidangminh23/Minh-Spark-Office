@@ -2,7 +2,7 @@
   "productName": "Minh Spark Office",
   "build": { "beforeBuildCommand": "" },
   "bundle": {
-    "targets": ["deb", "appimage"],
+    "targets": ["deb", "rpm", "appimage"],
     "createUpdaterArtifacts": false,
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png"],
     "fileAssociations": [
@@ -24,6 +24,10 @@
         "desktopTemplate": "src/linux.desktop",
         "depends": ["xdg-utils"],
         "recommends": ["pkexec", "cups-client"]
+      },
+      "rpm": {
+        "depends": ["xdg-utils"],
+        "desktopTemplate": "src/linux.desktop"
       },
       "appimage": {
         "bundleMediaFramework": true

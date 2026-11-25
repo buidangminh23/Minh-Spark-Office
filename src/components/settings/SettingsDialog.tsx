@@ -118,7 +118,7 @@ export function SettingsDialog({ onClose, onExportBackup, onImportBackup, initia
         <section className="st-dialog" role="dialog" aria-modal="true" aria-labelledby="st-title" ref={dialog} tabIndex={-1}>
           <aside className="st-nav">
             <div className="st-brand">
-              <img src="/logo-icon.png" alt="" width="40" height="40" />
+              <img src="/logo-icon-256.webp" alt="" width="40" height="40" />
               <span>Minh Spark<br />Office</span>
             </div>
             <nav aria-label="Mục cài đặt">

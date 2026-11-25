@@ -33,7 +33,7 @@ export function DesktopFileSettings() {
           >
             <img
               className="sync-brand"
-              src="/logo-icon.png"
+              src="/logo-icon-256.webp"
               alt="Office 23"
             />
             <h2 id="default-app-title">

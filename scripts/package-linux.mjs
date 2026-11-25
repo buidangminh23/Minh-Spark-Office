@@ -14,7 +14,7 @@ const key = process.env.MINHSPARK_UPDATER_KEY_PATH || join(process.env.LOCALAPPD
 const downloads = join(root, 'public/downloads');
 const checksumsFile = join(downloads, 'SHA256SUMS.txt');
 const checksums = (await readFile(checksumsFile, 'utf8')).split(/\r?\n/).filter((line) => line && !line.includes('-linux-'));
-for (const [extension, target] of [['deb', 'linux-x86_64-deb'], ['AppImage', 'linux-x86_64-appimage']]) {
+for (const [extension, target] of [['deb', 'linux-x86_64-deb'], ['rpm', 'linux-x86_64-rpm'], ['AppImage', 'linux-x86_64-appimage']]) {
   const name = `MinhSparkOffice-${version}-linux-x64.${extension}`;
   const source = join(root, 'release', name);
   const signed = spawnSync(process.execPath, [join(root, 'node_modules/@tauri-apps/cli/tauri.js'), 'signer', 'sign', '--private-key-path', key, '--app-version', version, source], { cwd: root, windowsHide: true, stdio: 'inherit', env: { ...process.env, TAURI_SIGNING_PRIVATE_KEY_PASSWORD: process.env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' } });

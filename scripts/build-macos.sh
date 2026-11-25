@@ -31,24 +31,33 @@ for size in 16 32 128 256 512; do
 done
 iconutil --convert icns "$iconset" --output src-tauri/icons/icon.icns
 
-"$tools_directory/node_modules/.bin/tauri" build --target aarch64-apple-darwin --config src-tauri/tauri.macos.conf.json --bundles app
-
-app="$root/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Office 23.app"
-test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")" = "$version"
-test "$(lipo -archs "$app/Contents/MacOS/minh-spark-office")" = arm64
-codesign --verify --deep --strict --verbose=2 "$app"
-codesign --display --verbose=2 "$app" 2>&1
-file "$app/Contents/MacOS/minh-spark-office"
 output="$root/release"
 mkdir -p "$output"
-updater="MinhSparkOffice-$version-macos-arm64.app.tar.gz"
-dmg="MinhSparkOffice-$version-macos-arm64.dmg"
-COPYFILE_DISABLE=1 tar -czf "$output/$updater" -C "$(dirname "$app")" 'Office 23.app'
-stage="$(mktemp -d "$tools_directory/dmg-stage.XXXXXX")"
-ditto "$app" "$stage/Office 23.app"
-ln -s /Applications "$stage/Applications"
-hdiutil create -volname 'Office 23' -srcfolder "$stage" -ov -format UDZO "$output/$dmg"
-hdiutil verify "$output/$dmg"
-(cd "$output" && shasum -a 256 "$dmg" "$updater" > SHA256SUMS-macos.txt)
-printf '%s\n' 'Apple Silicon artifacts built with ad-hoc code signing; no Apple notarization. Publish the curl installer (public/install-macos.sh) as the primary macOS install path; browser-downloaded DMGs are quarantined and blocked by Gatekeeper.'
+rustup target add aarch64-apple-darwin x86_64-apple-darwin >/dev/null
+checksums=()
+for arch in arm64 x64; do
+  case "$arch" in
+    arm64) rust_target=aarch64-apple-darwin lipo_arch=arm64 ;;
+    x64) rust_target=x86_64-apple-darwin lipo_arch=x86_64 ;;
+  esac
+  "$tools_directory/node_modules/.bin/tauri" build --target "$rust_target" --config src-tauri/tauri.macos.conf.json --bundles app
+  app="$root/src-tauri/target/$rust_target/release/bundle/macos/Office 23.app"
+  test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")" = "$version"
+  test "$(lipo -archs "$app/Contents/MacOS/minh-spark-office")" = "$lipo_arch"
+  codesign --verify --deep --strict --verbose=2 "$app"
+  codesign --display --verbose=2 "$app" 2>&1
+  file "$app/Contents/MacOS/minh-spark-office"
+  updater="MinhSparkOffice-$version-macos-$arch.app.tar.gz"
+  dmg="MinhSparkOffice-$version-macos-$arch.dmg"
+  COPYFILE_DISABLE=1 tar -czf "$output/$updater" -C "$(dirname "$app")" 'Office 23.app'
+  stage="$(mktemp -d "$tools_directory/dmg-stage.XXXXXX")"
+  ditto "$app" "$stage/Office 23.app"
+  ln -s /Applications "$stage/Applications"
+  hdiutil create -volname 'Office 23' -srcfolder "$stage" -ov -format UDZO "$output/$dmg"
+  hdiutil verify "$output/$dmg"
+  rm -rf "$stage"
+  checksums+=("$dmg" "$updater")
+done
+(cd "$output" && shasum -a 256 "${checksums[@]}" > SHA256SUMS-macos.txt)
+printf '%s\n' 'Apple Silicon and Intel artifacts built with ad-hoc code signing; no Apple notarization. Publish the curl installer (public/install-macos.sh) as the primary macOS install path; browser-downloaded DMGs are quarantined and blocked by Gatekeeper.'
 cat "$output/SHA256SUMS-macos.txt"

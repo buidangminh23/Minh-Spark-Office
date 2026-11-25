@@ -307,7 +307,7 @@ export function AboutPanel() {
   const version = useAppVersion();
   return (
     <div className="st-about">
-      <img src="/logo-icon.png" alt="" width="44" height="44" />
+      <img src="/logo-icon-256.webp" alt="" width="44" height="44" />
       <span className="st-row-text">
         <span className="st-row-label">Office 23 {version && `· Phiên bản ${version}`}</span>
         <span className="st-row-hint">{isDesktop() ? 'Ứng dụng máy tính' : 'Bản web'} · © {YEAR} Minh Spark</span>

@@ -258,7 +258,7 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
     }}>
       <div className="update-ring" role={working ? 'progressbar' : undefined} aria-label={working ? title : undefined} aria-valuemin={working ? 0 : undefined} aria-valuemax={working ? 100 : undefined} aria-valuenow={ringMode === 'progress' && percent !== null ? percent : undefined}>
         <UpdateProgressRing mode={ringMode} percent={percent ?? 0} size={104} stroke={4} />
-        <div className="update-brand-ring"><img className="sync-brand" src="/logo-icon.png" alt="Office 23" /></div>
+        <div className="update-brand-ring"><img className="sync-brand" src="/logo-icon-256.webp" alt="Office 23" /></div>
         {ringMode === 'complete' && <span className="update-ring-check"><CheckMark /></span>}
       </div>
       <div className="update-phase" key={phase}>

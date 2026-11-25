@@ -2,7 +2,7 @@ export const COUNTERS = ['downloadsWindows', 'downloadsMac', 'downloadsLinux', '
 export type Counter = (typeof COUNTERS)[number];
 export type Stats = Record<Counter, number | null>;
 
-const INSTALLER = /^MinhSparkOffice-\d+\.\d+\.\d+-(windows-x64-vi-Setup\.exe|windows-x64-en-US\.msi|macos-arm64\.dmg|linux-x64\.deb|linux-x64\.AppImage)$/;
+const INSTALLER = /^MinhSparkOffice-\d+\.\d+\.\d+-(windows-x64-vi-Setup\.exe|windows-x64-en-US\.msi|macos-(?:arm64|x64)\.dmg|linux-x64\.deb|linux-x64\.rpm|linux-x64\.AppImage)$/;
 const BOT = /bot|crawl|spider|slurp|preview|facebookexternalhit|headless|monitor|curl\/|wget|python-requests|go-http-client/i;
 const TIMEOUT_MS = 1500;
 const READ_TIMEOUT_MS = 3500;
