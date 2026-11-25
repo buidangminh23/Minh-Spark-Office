@@ -14,6 +14,7 @@ import type {
 } from './slideTypes';
 import { createSlideFromLayout } from './slideTemplates';
 import { child, childrenOf, descendants, localName, parseXml, path, type XmlNode } from './miniXml';
+import { morphModeOf, readSlideAnimations, shapeIdOf } from './pptxAnimations';
 import { shapeFromPrst } from './slideShapes';
 import { safeSlideLinkUrl } from './slideTextLinks';
 import { SLIDE_ASPECTS, slideBaseWidth } from './settings/slideOptions';
@@ -115,6 +116,7 @@ interface SlideEnv {
   mediaCache: Map<string, Promise<string | null>>;
   mediaLimit?: number;
   diagramDrawings: string[];
+  shapeIds?: Map<string, SlideElement>;
 }
 
 const EMU_PER_PT = 12700;
@@ -1314,6 +1316,14 @@ async function frameElements(
   return [];
 }
 
+function rememberShape(node: XmlNode, element: SlideElement, env: SlideEnv): SlideElement {
+  const { id, name } = shapeIdOf(node);
+  if (!env.shapeIds) return element;
+  if (id) env.shapeIds.set(id, element);
+  if (name?.startsWith('!!') && !element.name) element.name = name;
+  return element;
+}
+
 async function treeElements(
   tree: XmlNode | undefined,
   env: SlideEnv,
@@ -1331,12 +1341,14 @@ async function treeElements(
     for (const node of nodes) {
       if (node.name === 'p:sp' || node.name === 'p:cxnSp') {
         const element = await shapeElement(node, env, transform, groupId, skipPlaceholders);
-        if (element) elements.push(element);
+        if (element) elements.push(rememberShape(node, element, env));
       } else if (node.name === 'p:pic') {
         const element = await pictureElement(node, env, transform, groupId);
-        if (element) elements.push(element);
+        if (element) elements.push(rememberShape(node, element, env));
       } else if (node.name === 'p:graphicFrame') {
-        elements.push(...(await frameElements(node, env, transform, groupId)));
+        const frames = await frameElements(node, env, transform, groupId);
+        if (frames[0]) rememberShape(node, frames[0], env);
+        elements.push(...frames);
       } else if (node.name === 'p:grpSp') {
         const xfrmNode = path(node, 'p:grpSpPr', 'a:xfrm');
         const outer = readXfrm(xfrmNode);
@@ -1396,6 +1408,7 @@ function readTransition(root: XmlNode | undefined): SlideTransition {
   if (direction) transition.direction = direction;
   if (node.attrs.advTm) transition.advanceAfterSeconds = parseInt(node.attrs.advTm, 10) / 1000;
   if (node.attrs.advClick === '0') transition.advanceOnClick = false;
+  if (transition.type === 'morph') transition.morphMode = morphModeOf(effect?.attrs.option);
   return transition;
 }
 
@@ -1545,11 +1558,14 @@ export async function importPptxDetailed(
     }
     env.rels = rels;
     env.mediaLimit = undefined;
+    env.shapeIds = new Map();
     env.diagramDrawings = [...rels.values()].filter((rel) => rel.type.endsWith('/diagramDrawing')).map((rel) => rel.target);
     const slideTree = path(slideNode, 'p:cSld', 'p:spTree');
     const slideWatermark = await takeWatermark(slideTree, env);
     if (slideWatermark && !watermark) watermark = slideWatermark;
     elements.push(...(await treeElements(slideTree, env, IDENTITY, undefined, false)));
+    readSlideAnimations(root, env.shapeIds);
+    env.shapeIds = undefined;
 
     const background =
       (await readBackground(root, env, rels)) ??

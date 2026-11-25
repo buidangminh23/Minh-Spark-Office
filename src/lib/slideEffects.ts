@@ -1569,6 +1569,7 @@ export function matchMorphElements(from: SlideElement[], to: SlideElement[]): Re
   for (const target of to) {
     const source =
       take((candidate) => candidate.id === target.id) ??
+      (target.name?.startsWith('!!') ? take((candidate) => candidate.name === target.name) : undefined) ??
       take((candidate) => morphKey(candidate) === morphKey(target)) ??
       undefined;
     if (!source) continue;
