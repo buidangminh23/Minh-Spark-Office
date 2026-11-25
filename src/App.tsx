@@ -13,6 +13,7 @@ import { createDesktopFileQueue } from './lib/desktopFileQueue';
 import { workspaceLifecycle } from './lib/workspaceLifecycle';
 import { DesktopSignIn, isDesktopSignInRequest } from './components/DesktopSignIn';
 import { isDesktop } from './lib/desktop';
+import { EDITOR_LOADING_Z_INDEX } from './lib/layers';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { lazy, Suspense, useEffect, useState, useCallback, useMemo, useRef } from 'react';
@@ -42,7 +43,7 @@ import type { FileKind } from './lib/storage';
 import { loadEditor, loadedEditors, preloadEditor, type EditorKind } from './lib/editorModules';
 import { importTargetOf, isOleContainer } from './lib/importTarget';
 import { getSettings } from './lib/appSettings';
-import { discardUnsaved, isNewerThanSaved, keepUnsaved, readUnsaved } from './lib/unsavedChanges';
+import { discardUnsaved, hasRealUnsavedChanges, isNewerThanSaved, keepUnsaved, readUnsaved } from './lib/unsavedChanges';
 import { SettingsHost } from './components/settings/SettingsHost';
 import { registerBackupActions } from './components/settings/settingsShared';
 import type { DesktopFileBatch } from './lib/desktopFileQueue';
@@ -70,7 +71,7 @@ const BOOT_FAILED = 'Chưa mở được tài liệu. Hãy thử mở lại từ
 
 function EditorLoading({ kind }: { kind?: FileKind }) {
   return (
-    <div role="status" aria-label="Đang tải trình soạn thảo" style={{ position: 'fixed', inset: 0, display: 'grid', placeItems: 'center', background: '#f6f7fb', zIndex: 1000 }}>
+    <div role="status" aria-label="Đang tải trình soạn thảo" style={{ position: 'fixed', inset: 0, display: 'grid', placeItems: 'center', background: '#f6f7fb', zIndex: EDITOR_LOADING_Z_INDEX }}>
       <div className="desktop-splash-content">
         <div className="desktop-splash-mark">
           <svg className="desktop-splash-ring" viewBox="0 0 132 132"><circle className="desktop-splash-track" cx="66" cy="66" r="64" /><circle className="desktop-splash-arc" cx="66" cy="66" r="64" /></svg>
@@ -173,7 +174,8 @@ function MainApp({ onEditing, frameId }: { onEditing: (editing: boolean) => void
       const kept = await readUnsaved(scope, meta.id).catch(() => null);
       let opened = content;
       let unsaved = false;
-      if (kept && isNewerThanSaved(kept, meta)) {
+      if (kept && isNewerThanSaved(kept, meta) && !hasRealUnsavedChanges(kept, meta, content)) await discardUnsaved(scope, meta.id).catch(() => undefined);
+      if (kept && hasRealUnsavedChanges(kept, meta, content)) {
         guard.finish();
         const at = new Date(kept.at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
         const restore = Boolean(await ui.ask({

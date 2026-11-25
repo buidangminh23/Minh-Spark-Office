@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Fix document tabs that spun on the loading screen forever: the "Mở lại thay đổi chưa lưu?" question was drawn underneath the loading screen, so the tab waited for an answer nobody could see. The loading screen now sits below dialogs.
+- Stop asking about unsaved changes that are identical to the saved file (for example a copy kept while the app updated); the copy is dropped and the file opens straight away.
+- The desktop app no longer starts the Google sign-in popup helper, which it never uses (desktop sign-in goes through the browser); on macOS this removed an iframe load from every start and every tab.
 - Open the web app faster: Settings and shared team documents (with their live-sync and cloud libraries) now load only when opened, so the first-screen script drops from 1.5 MB to 472 KB (147 KB compressed).
 - Desktop builds for every common system: macOS now ships for Intel Macs as well as Apple Silicon (`macos-x64` DMG and in-app updates; the curl installer picks the right one), and Linux adds an RPM package for Fedora and openSUSE next to DEB and AppImage, also updatable in the app.
 - The web app tells an open tab when a newer version is live ("Tải lại") instead of staying on the old build until the next reload.

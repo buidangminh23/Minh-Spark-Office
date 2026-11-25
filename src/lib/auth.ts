@@ -1,5 +1,6 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
 import { browserLocalPersistence, browserPopupRedirectResolver, browserSessionPersistence, connectAuthEmulator, getAuth, indexedDBLocalPersistence, initializeAuth, type Auth } from 'firebase/auth';
+import { isDesktop } from './desktop';
 
 const config = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -45,7 +46,8 @@ export function initializeAuthentication(): Promise<Auth> {
     const emulated = Boolean(devEmulator('auth'));
     let auth: Auth;
     try {
-      auth = initializeAuth(app, { persistence: emulated ? [browserSessionPersistence] : [browserLocalPersistence, indexedDBLocalPersistence], popupRedirectResolver: browserPopupRedirectResolver });
+      const persistence = emulated ? [browserSessionPersistence] : [browserLocalPersistence, indexedDBLocalPersistence];
+      auth = initializeAuth(app, isDesktop() ? { persistence } : { persistence, popupRedirectResolver: browserPopupRedirectResolver });
     } catch {
       auth = getAuth(app);
     }
