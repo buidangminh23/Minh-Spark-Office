@@ -27,7 +27,7 @@
 </p>
 
 <p align="center">
-  <img src="public/gioi-thieu/thiet-bi.webp" width="860" alt="Office 23 on a laptop, a tablet and a phone" />
+  <img src="docs/readme-devices.webp" width="860" alt="Office 23 on a laptop, a tablet and a phone" />
 </p>
 
 ## Contents
