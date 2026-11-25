@@ -12,6 +12,7 @@ import { UpdateProgressRing, type RingMode } from './UpdateProgressRing';
 import './workspaceStatus.css';
 import { UPDATE_EVENTS } from './settings/settingsShared';
 import { publishUpdaterStatus } from '../lib/updaterStatus';
+import { AUTO_INSTALL_POSTPONE_MS, activitySnapshot, autoInstallDecision } from '../lib/userActivity';
 
 type Phase = 'idle' | 'checking' | 'current' | 'available' | 'downloading' | 'downloaded' | 'installing' | 'error';
 const bytes = (value: number) => `${(value / 1048576).toFixed(1)} MB`;
@@ -24,6 +25,7 @@ const DOWNLOAD_TIMEOUT_MS = 30 * 60 * 1000;
 const AUTO_RETRY_AFTER_FAILURE_MS = 60 * 60 * 1000;
 const CLOSE_TIMEOUT_MS = 3000;
 const BUSY_WAIT_MS = 25_000;
+const AUTO_INSTALL_POLL_MS = 15_000;
 const closeQuietly = (target: Update | null | undefined) => (target ? withTimeout(target.close(), CLOSE_TIMEOUT_MS, undefined) : Promise.resolve());
 const waitUntilIdle = async (busy: { current: boolean }) => {
   const until = Date.now() + BUSY_WAIT_MS;
@@ -42,7 +44,8 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
   const [error, setError] = useState('');
   const [automatic, setAutomatic] = useState(() => localStorage.getItem('office-auto-check') !== 'false');
   const [countdown, setCountdown] = useState<number | null>(null);
-  const [postponed, setPostponed] = useState(false);
+  const postponedUntil = useRef(0);
+  const setPostponed = (value: boolean) => { postponedUntil.current = value ? Date.now() + AUTO_INSTALL_POSTPONE_MS : 0; };
   const update = useRef<Update | null>(null);
   const ready = useRef(false);
   const busy = useRef(false);
@@ -148,7 +151,7 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
   const install = async (run?: number) => {
     if (!update.current) return;
     const automaticRun = run !== undefined;
-    const stillWanted = () => !automaticRun || (run === autoRun.current && !editingNow.current);
+    const stillWanted = () => !automaticRun || (run === autoRun.current && !activitySnapshot().presenting);
     autoInFlight.current = automaticRun;
     setError('');
     setPhase('checking');
@@ -211,10 +214,18 @@ export function DesktopUpdater({ editing }: { editing: boolean }) {
     return () => { clearTimeout(timer); clearInterval(interval); window.removeEventListener('focus', onFocus); };
   }, [automatic]);
   useEffect(() => {
-    if (phase !== 'downloaded' || !automatic || editing || postponed) { setCountdown(null); return; }
-    setOpen(true);
-    setCountdown(INSTALL_COUNTDOWN_SECONDS);
-  }, [phase, automatic, editing, postponed]);
+    if (phase !== 'downloaded' || !automatic) { setCountdown(null); return; }
+    const evaluate = () => {
+      const { idleMs, presenting } = activitySnapshot();
+      const decision = autoInstallDecision({ hasDocuments: editingNow.current, idleMs, presenting, postponedUntil: postponedUntil.current, now: Date.now() });
+      if (decision !== 'install') return;
+      setOpen(true);
+      setCountdown((value) => value ?? INSTALL_COUNTDOWN_SECONDS);
+    };
+    evaluate();
+    const poll = setInterval(evaluate, AUTO_INSTALL_POLL_MS);
+    return () => clearInterval(poll);
+  }, [phase, automatic]);
   useEffect(() => {
     if (countdown === null) return;
     if (countdown <= 0) {

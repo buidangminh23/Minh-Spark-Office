@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fix automatic updates in the desktop app: a downloaded update now installs by itself even when documents are open, once you have not typed or clicked for 2 minutes (never during a slideshow). It saves every open tab first and reopens them after the restart. Before, any open tab (and tabs are restored at every start) kept the update waiting forever. "Để sau" now postpones for 30 minutes instead of until the app is closed.
 - Fix document tabs that spun on the loading screen forever: the "Mở lại thay đổi chưa lưu?" question was drawn underneath the loading screen, so the tab waited for an answer nobody could see. The loading screen now sits below dialogs.
 - Stop asking about unsaved changes that are identical to the saved file (for example a copy kept while the app updated); the copy is dropped and the file opens straight away.
 - The desktop app no longer starts the Google sign-in popup helper, which it never uses (desktop sign-in goes through the browser); on macOS this removed an iframe load from every start and every tab.

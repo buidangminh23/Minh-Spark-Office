@@ -1,4 +1,5 @@
 import type { SlideAspect } from '../../lib/slideTypes';
+import { markPresenting } from '../../lib/userActivity';
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, type ReactNode } from 'react';
 import {
   ChevronLeft,
@@ -157,6 +158,7 @@ export function SlideShow({
   // Background Music & Smart Audio Ducking
   const [isBgmActive, setIsBgmActive] = useState(false);
   const isBgmActiveRef = useRef(isBgmActive);
+  useEffect(() => markPresenting(), []);
   useEffect(() => {
     isBgmActiveRef.current = isBgmActive;
   }, [isBgmActive]);

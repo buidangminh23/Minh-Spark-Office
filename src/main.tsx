@@ -11,6 +11,7 @@ import { startInterfaceLanguage } from './lib/i18n/language'
 import { startChromeSettings } from './lib/appChrome'
 import { getSettings } from './lib/appSettings'
 import { tabFrameId } from './lib/documentTabs'
+import { trackUserActivity } from './lib/userActivity'
 
 window.addEventListener('vite:preloadError', (event) => {
   if (reloadOnceForStaleChunk()) event.preventDefault()
@@ -19,6 +20,7 @@ window.addEventListener('vite:preloadError', (event) => {
 const MirrorWindow = lazy(() => import('./editors/doc/ui/MirrorWindow'))
 const mirrorChannel = new URLSearchParams(window.location.search).get('mirror')
 startChromeSettings()
+trackUserActivity()
 if (!mirrorChannel && !tabFrameId() && getSettings().usageStats) countThisDeviceOnce()
 
 const renderApp = () =>
