@@ -7,6 +7,8 @@ node_modules
 src-tauri
 scripts/*
 !scripts/patch-sheet-line-gap.mjs
+!scripts/template-content.mjs
+!scripts/template-content.d.mts
 tests
 release
 firebase.json
