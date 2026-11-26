@@ -1,8 +1,10 @@
+import bundledCatalog from './catalog-v1.json';
+import { parseMosCatalog, type MosCatalog } from './catalog';
 import type { FileContent } from '../storage';
-import { excelExamSuiteMeta, MOS_GENERATED_EXCEL_PROJECTS } from './excelExamBank';
+import { buildGeneratedExcelBank } from './excelExamBank';
 import { MOS_EXCEL_EXPERT_PROJECTS } from './excelExpertProjects';
 import { MOS_EXCEL_ASSOCIATE_PROJECTS } from './excelProjects';
-import { MOS_GENERATED_PPT_PROJECTS, pptExamSuiteMeta } from './pptExamBank';
+import { buildGeneratedPptBank } from './pptExamBank';
 import { MOS_PPT_EXPERT_PROJECTS } from './pptExpertProjects';
 import { MOS_PPT_ASSOCIATE_PROJECTS } from './pptProjects';
 import type {
@@ -23,13 +25,13 @@ import type {
   MosVersion,
   MosVersionMeta,
 } from './types';
-import { MOS_GENERATED_WORD_PROJECTS, wordExamSuiteMeta } from './wordExamBank';
+import { buildGeneratedWordBank } from './wordExamBank';
 import { MOS_WORD_EXPERT_PROJECTS } from './wordExpertProjects';
 import { MOS_WORD_ASSOCIATE_PROJECTS } from './wordProjects';
 
 export const MOS_MAX_SCORE = 1000;
 export const MOS_PASSING_SCORE = 700;
-export const MOS_EXAM_NUMBERS: ReadonlyArray<MosExamNumber> = [1, 2, 3, 4, 5];
+export let MOS_EXAM_NUMBERS: ReadonlyArray<MosExamNumber>;
 
 export const MOS_VERSIONS: ReadonlyArray<MosVersionMeta> = [
   {
@@ -63,8 +65,8 @@ export function versionMeta(version: MosVersion): MosVersionMeta {
 }
 
 export const MOS_LEVELS: ReadonlyArray<{ id: MosLevel; label: string; detail: string }> = [
-  { id: 'associate', label: 'Associate', detail: '5 bộ đề chuẩn · 7 dự án / 35 nhiệm vụ mỗi đề (50 phút)' },
-  { id: 'expert', label: 'Expert', detail: '5 bộ đề chuyên sâu · 5 dự án / 25 nhiệm vụ mỗi đề (50 phút)' },
+  { id: 'associate', label: 'Associate', detail: '7 dự án / 35 nhiệm vụ mỗi đề (50 phút)' },
+  { id: 'expert', label: 'Expert', detail: '5 dự án / 25 nhiệm vụ mỗi đề (50 phút)' },
 ];
 
 export const MOS_FORMAT_LABELS: Record<MosExamFormat, string> = {
@@ -164,19 +166,55 @@ function tagCanonicalExam1<T extends MosProject>(list: ReadonlyArray<T>): T[] {
   }));
 }
 
-export const ALL_MOS_PROJECTS: ReadonlyArray<MosProject> = [
-  ...tagCanonicalExam1(MOS_WORD_ASSOCIATE_PROJECTS),
-  ...tagCanonicalExam1(MOS_WORD_EXPERT_PROJECTS),
-  ...MOS_GENERATED_WORD_PROJECTS,
-  ...tagCanonicalExam1(MOS_EXCEL_ASSOCIATE_PROJECTS),
-  ...tagCanonicalExam1(MOS_EXCEL_EXPERT_PROJECTS),
-  ...MOS_GENERATED_EXCEL_PROJECTS,
-  ...tagCanonicalExam1(MOS_PPT_ASSOCIATE_PROJECTS),
-  ...tagCanonicalExam1(MOS_PPT_EXPERT_PROJECTS),
-  ...MOS_GENERATED_PPT_PROJECTS,
-];
+let activeCatalog: MosCatalog;
+export let ALL_MOS_PROJECTS: ReadonlyArray<MosProject>;
+let projectIndex: Map<string, MosProject>;
 
-const PROJECT_INDEX = new Map<string, MosProject>(ALL_MOS_PROJECTS.map((project) => [project.id, project]));
+export function prepareMosCatalog(raw: unknown) {
+  const catalog = parseMosCatalog(raw);
+  const { seeds, exams, overrides, assignments } = catalog;
+  const projects: MosProject[] = [
+    ...tagCanonicalExam1(MOS_WORD_ASSOCIATE_PROJECTS),
+    ...tagCanonicalExam1(MOS_WORD_EXPERT_PROJECTS),
+    ...buildGeneratedWordBank(seeds.word, exams, assignments),
+    ...tagCanonicalExam1(MOS_EXCEL_ASSOCIATE_PROJECTS),
+    ...tagCanonicalExam1(MOS_EXCEL_EXPERT_PROJECTS),
+    ...buildGeneratedExcelBank(seeds.excel, exams, assignments),
+    ...tagCanonicalExam1(MOS_PPT_ASSOCIATE_PROJECTS),
+    ...tagCanonicalExam1(MOS_PPT_EXPERT_PROJECTS),
+    ...buildGeneratedPptBank(seeds.powerpoint, exams, assignments),
+  ];
+  const pending = new Set(Object.keys(overrides));
+  if (pending.size) {
+    for (let i = 0; i < projects.length; i++) {
+      const project = projects[i];
+      const tasks = project.tasks.map(task => {
+        if (!pending.delete(task.id)) return task;
+        return { ...task, ...overrides[task.id] };
+      });
+      pending.delete(project.id);
+      projects[i] = { ...project, ...overrides[project.id], tasks } as MosProject;
+    }
+    if (pending.size) throw new Error('Unknown project or task in MOS catalog');
+  }
+  const index = new Map(projects.map(project => [project.id, project]));
+  if (Object.keys(assignments).some(id => !index.has(id))) throw new Error('Unknown MOS seed assignment');
+  return { catalog, projects, index };
+}
+
+export function activateMosCatalog(prepared: ReturnType<typeof prepareMosCatalog>) {
+  activeCatalog = prepared.catalog;
+  MOS_EXAM_NUMBERS = activeCatalog.exams;
+  ALL_MOS_PROJECTS = prepared.projects;
+  projectIndex = prepared.index;
+}
+
+export function currentMosCatalog() {
+  return activeCatalog;
+}
+
+export const bundledMosBank = prepareMosCatalog(bundledCatalog);
+activateMosCatalog(bundledMosBank);
 
 export function trackMeta(track: MosTrackId): MosTrackMeta {
   return MOS_TRACKS.find((item) => item.id === track) ?? MOS_TRACKS[0];
@@ -224,11 +262,7 @@ export function examSetsForSelection(
   const code = examCodeFor(track, version, level);
   return MOS_EXAM_NUMBERS.map((examNumber) => {
     const projects = projectsForExam(track, version, level, examNumber);
-    const meta = track === 'word'
-      ? wordExamSuiteMeta(version, examNumber)
-      : track === 'excel'
-        ? excelExamSuiteMeta(version, examNumber)
-        : pptExamSuiteMeta(version, examNumber);
+    const meta = activeCatalog.titles[track][version][examNumber];
     return {
       id: `${track}-${version}-${level}-e${examNumber}`,
       examNumber,
@@ -269,7 +303,7 @@ export function projectById(id: string, customProjects?: ReadonlyArray<MosProjec
     const found = customProjects.find((project) => project.id === id);
     if (found) return found;
   }
-  return PROJECT_INDEX.get(id);
+  return projectIndex.get(id);
 }
 
 export function buildPresetSession(

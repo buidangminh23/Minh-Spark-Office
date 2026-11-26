@@ -1,5 +1,6 @@
 import react from '@vitejs/plugin-react'
 import './scripts/patch-sheet-line-gap.mjs'
+import { templateContent } from './scripts/template-content.mjs'
 import { createReadStream, readFileSync } from 'node:fs'
 import { defaultClientConditions, defineConfig, type Plugin } from 'vite'
 
@@ -45,6 +46,23 @@ function officeLayoutEngine(): Plugin {
   };
 }
 
+function mosContent(): Plugin {
+  const path = '/content/mos-v1.json'
+  const source = new URL('./src/lib/mos/catalog-v1.json', import.meta.url)
+  return {
+    name: 'mos-content',
+    configureServer(server) {
+      server.middlewares.use(path, (_req, res) => {
+        res.setHeader('Content-Type', 'application/json')
+        res.end(readFileSync(source))
+      })
+    },
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: path.slice(1), source: readFileSync(source) })
+    },
+  }
+}
+
 const appBuild = `${appVersion}-${Date.now().toString(36)}`
 
 function webBuildInfo(): Plugin {
@@ -82,7 +100,7 @@ function marketApiInDev(): Plugin {
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), marketApiInDev(), officeLayoutEngine(), webBuildInfo()],
+  plugins: [react(), marketApiInDev(), mosContent(), templateContent(), officeLayoutEngine(), webBuildInfo()],
   build: { rollupOptions: { input: { index: 'index.html', layout: 'office-layout.html' } } },
   define: { __APP_VERSION__: JSON.stringify(appVersion), __APP_BUILD__: JSON.stringify(appBuild) },
   resolve: { conditions: ['onnxruntime-web-use-extern-wasm', ...defaultClientConditions] },

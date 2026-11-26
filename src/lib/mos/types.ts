@@ -3,7 +3,7 @@ import type { DocContent, FileContent, SheetContent, SlideContent } from '../sto
 export type MosTrackId = 'word' | 'excel' | 'powerpoint';
 export type MosVersion = '365' | '2019' | '2016';
 export type MosLevel = 'associate' | 'expert';
-export type MosExamNumber = 1 | 2 | 3 | 4 | 5;
+export type MosExamNumber = number;
 export type MosMode = 'training' | 'exam';
 export type MosLang = 'vi' | 'en';
 export type MosExamFormat =
@@ -216,6 +216,7 @@ export type MosDrillSummary = {
 };
 
 export type MosSavedDraft = {
+  catalog?: unknown;
   config: MosSessionConfig;
   projectIndex: number;
   activeTab: 'overview' | number;

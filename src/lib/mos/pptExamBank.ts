@@ -1,3 +1,4 @@
+import catalog from './catalog-v1.json';
 import type { PresentationData } from '../slideTypes';
 import type { SlideContent } from '../storage';
 import { baseSlide, countAnimations, foldSlide, hasAnyLink } from './pptHelpers';
@@ -26,212 +27,7 @@ type PptDeckSeed = {
   themeTarget: 'sapphire-modern' | 'emerald-executive' | 'sunset-gradient' | 'midnight-dark' | 'minimalist-ivory' | 'coral-vibrant' | 'nordic-steel';
 };
 
-const PPT_SEEDS: PptDeckSeed[] = [
-  {
-    slug: 'ai-hospital',
-    fileName: 'ChuyenDoiSo_BenhVien.pptx',
-    title: 'Trình bày Hệ sinh thái Bệnh viện Thông minh',
-    titleEn: 'Smart Hospital Ecosystem Pitch',
-    scenario: 'Hoàn thiện bài thuyết trình hội thảo y tế số với chủ đề đồng bộ, bảng phân luồng, biểu đồ thời gian chờ và chân trang.',
-    scenarioEn: 'Finalize the digital healthcare conference presentation with theme styling, triage table, wait-time chart, and footer.',
-    deckHeading: 'BỆNH VIỆN THÔNG MINH 2026',
-    deckSubtitle: 'Chẩn đoán hỗ trợ AI & Hồ sơ sức khoẻ liên thông',
-    s2Title: 'Phân luồng khám ngoại trú tự động',
-    s2Body: '• Đăng ký sinh trắc học tại Kiosk trong 18 giây\n• Điều phối phòng khám theo tải thực tế từng chuyên khoa',
-    s3Title: 'Tỷ lệ rút ngắn thời gian chờ cận lâm sàng',
-    s3Body: 'Minh hoạ tốc độ trả kết quả xét nghiệm và chẩn đoán hình ảnh qua 4 quý.',
-    s4Title: 'Phụ lục kỹ thuật PACS nội bộ',
-    s4Body: 'Thông số máy chủ lưu trữ ảnh DICOM — ẩn khi trình bày phiên toàn thể.',
-    footerBrand: 'MedTech Summit 2026',
-    speakerNote: 'Nhấn mạnh tỷ lệ hài lòng người bệnh tăng lên 96% sau 6 tháng triển khai.',
-    sectionLabel: 'Giải pháp Lâm sàng',
-    portalUrl: 'https://office.minhspark.com/medtech',
-    badgeText: 'Chuẩn HL7 FHIR',
-    themeTarget: 'sapphire-modern',
-  },
-  {
-    slug: 'green-port',
-    fileName: 'CangBien_Xanh_NetZero.pptx',
-    title: 'Lộ trình Chuyển đổi Cảng Biển Xanh Net-Zero',
-    titleEn: 'Net-Zero Green Seaport Roadmap',
-    scenario: 'Thiết kế bài báo cáo ban điều hành cảng container điện khí hoá cần cẩu bờ và cấp điện bờ cho tàu biển quốc tế.',
-    scenarioEn: 'Prepare an executive deck on electrified quay cranes and shore-power infrastructure for container terminals.',
-    deckHeading: 'CẢNG BIỂN XANH NET-ZERO 2030',
-    deckSubtitle: 'Điện khí hoá thiết bị bốc xếp & Quản lý năng lượng thông minh',
-    s2Title: 'Cơ cấu phát thải tại cầu cảng hiện hữu',
-    s2Body: '• 62% phát thải đến từ xe đầu kéo nội cảng chạy dầu diesel\n• Cần chuyển đổi 100% cẩu khung RTG sang nguồn điện lưới sạch',
-    s3Title: 'Quy trình tiếp nhận tàu xanh 4 bước',
-    s3Body: 'Trình bày sơ đồ quy trình cấp điện bờ và thông quan điện tử tự động.',
-    s4Title: 'Bảng tính chi phí khấu hao nội bộ',
-    s4Body: 'Tài liệu tham khảo riêng cho Ủy ban Đầu tư — ẩn khi trình chiếu đối ngoại.',
-    footerBrand: 'GreenPort Vietnam',
-    speakerNote: 'Trích dẫn cam kết giảm 45% lượng phát thải CO2 trên mỗi TEU trước năm 2028.',
-    sectionLabel: 'Hạ tầng Điện khí hoá',
-    portalUrl: 'https://office.minhspark.com/greenport',
-    badgeText: '-45% CO2/TEU',
-    themeTarget: 'emerald-executive',
-  },
-  {
-    slug: 'fintech-wallet',
-    fileName: 'RaMat_NganHang_So_GenZ.pptx',
-    title: 'Chiến dịch Ra mắt Ngân hàng Số Thế hệ Mới',
-    titleEn: 'Next-Gen Digital Banking Launch Deck',
-    scenario: 'Chuẩn bị bộ slide công bố tính năng quản lý tài chính cá nhân tự động, biểu đồ tăng trưởng người dùng và hoạt hình điểm nhấn.',
-    scenarioEn: 'Build the product launch deck featuring automated personal finance tools, user growth charts, and animations.',
-    deckHeading: 'SPARKBANK · NGÂN HÀNG SỐ THẾ HỆ MỚI',
-    deckSubtitle: 'Tiết kiệm mục tiêu tự động & Thanh toán đa quốc gia không phí ẩn',
-    s2Title: 'Ba trụ cột trải nghiệm người dùng trẻ',
-    s2Body: '• Mở tài khoản eKYC trong 45 giây\n• Chia hoá đơn nhóm tức thì qua mã VietQR động\n• Cảnh báo ngân sách chi tiêu thông minh',
-    s3Title: 'Tăng trưởng người dùng hoạt động tháng (MAU)',
-    s3Body: 'Trực quan hoá đà tăng trưởng MAU từ Quý I đến Quý IV bằng biểu đồ.',
-    s4Title: 'Ghi chú kiểm thử bảo mật nội bộ',
-    s4Body: 'Bản nháp dành riêng cho đội An toàn thông tin.',
-    footerBrand: 'SparkBank Launch',
-    speakerNote: 'Mời khán giả quét mã trải nghiệm tính năng Hũ Tiết Kiệm Tự Động ngay trên sân khấu.',
-    sectionLabel: 'Trải nghiệm Sản phẩm',
-    portalUrl: 'https://office.minhspark.com/fintech',
-    badgeText: '2,4 Triệu MAU',
-    themeTarget: 'midnight-dark',
-  },
-  {
-    slug: 'vietnam-craft',
-    fileName: 'XuatKhau_ThuCong_MyNghe.pptx',
-    title: 'Quảng bá Thủ công Mỹ nghệ Việt Nam Toàn cầu',
-    titleEn: 'Vietnamese Artisanal Craft Global Showcase',
-    scenario: 'Hoàn thiện hồ sơ thuyết trình tại hội chợ quốc tế giới thiệu gốm sứ, mây tre đan bền vững và mạng lưới phân phối.',
-    scenarioEn: 'Polish the international trade-fair presentation showcasing sustainable ceramics, bamboo crafts, and export channels.',
-    deckHeading: 'TINH HOA THỦ CÔNG BỀN VỮNG VIỆT NAM',
-    deckSubtitle: 'Bộ sưu tập nội thất sinh thái xuất khẩu mùa Thu – Đông 2026',
-    s2Title: 'Nguồn nguyên liệu mây tre đạt chuẩn FSC',
-    s2Body: '• Khai thác có kế hoạch gắn với tái sinh rừng tre bản địa\n• Sấy khô tự nhiên và phủ sơn gốc nước an toàn thực phẩm',
-    s3Title: 'Danh mục dòng sản phẩm xuất khẩu chủ lực',
-    s3Body: 'Chèn bảng quy cách đóng gói và số lượng đặt hàng tối thiểu (MOQ).',
-    s4Title: 'Dự thảo chiết khấu nhà nhập khẩu độc quyền',
-    s4Body: 'Chỉ hiển thị khi đàm phán trực tiếp 1-1 với đối tác phân phối.',
-    footerBrand: 'VietCraft Expo 2026',
-    speakerNote: 'Giới thiệu câu chuyện 3 thế hệ nghệ nhân tại làng gốm và làng mây tre truyền thống.',
-    sectionLabel: 'Bộ sưu tập Xuất khẩu',
-    portalUrl: 'https://office.minhspark.com/craft',
-    badgeText: '100% FSC Eco',
-    themeTarget: 'sunset-gradient',
-  },
-  {
-    slug: 'semiconductor-talent',
-    fileName: 'DaoTao_KySu_ViMach.pptx',
-    title: 'Chương trình Đào tạo Kỹ sư Thiết kế Vi mạch',
-    titleEn: 'Semiconductor IC Design Talent Program',
-    scenario: 'Trình bày đề án hợp tác đại học – doanh nghiệp đào tạo 5.000 kỹ sư thiết kế chip và kiểm thử đóng gói bán dẫn.',
-    scenarioEn: 'Present the university-industry partnership plan to train 5,000 IC design and packaging engineers.',
-    deckHeading: 'ĐÀO TẠO NHÂN LỰC VI MẠCH BÁN DẪN 2026–2030',
-    deckSubtitle: 'Liên kết phòng Lab EDA chuẩn công nghiệp & Học bổng thực tập quốc tế',
-    s2Title: 'Lộ trình 4 học kỳ chuyên sâu thiết kế RTL & Physical',
-    s2Body: '• Nền tảng kiến trúc vi xử lý RISC-V mở\n• Thực hành trực tiếp bộ công cụ mô phỏng & kiểm chứng phần cứng',
-    s3Title: 'Phân bổ chỉ tiêu đào tạo theo mảng kỹ thuật',
-    s3Body: 'Chèn biểu đồ cơ cấu kỹ sư Thiết kế mạch, Kiểm chứng và Đóng gói ATP.',
-    s4Title: 'Ngân sách tài trợ bản quyền phần mềm EDA',
-    s4Body: 'Phụ lục tài chính dành riêng cho hội đồng quản trị đại học.',
-    footerBrand: 'SemiTalent Vietnam',
-    speakerNote: 'Nhấn mạnh cam kết 100% học viên đạt chuẩn được tiếp nhận thực tập hưởng lương.',
-    sectionLabel: 'Khung Chương trình',
-    portalUrl: 'https://office.minhspark.com/semi',
-    badgeText: '5.000 Kỹ sư IC',
-    themeTarget: 'nordic-steel',
-  },
-  {
-    slug: 'aviation-cargo',
-    fileName: 'TrungTam_Logistics_HangKhong.pptx',
-    title: 'Quy hoạch Nhà ga Hàng hoá Hàng không Tự động',
-    titleEn: 'Automated Air Cargo Terminal Masterplan',
-    scenario: 'Thiết kế bài thuyết trình quy hoạch nhà ga hàng hoá sân bay tích hợp kệ lưu trữ tự động AS/RS và dây chuyền soi chiếu nhanh.',
-    scenarioEn: 'Design the air-cargo terminal masterplan presentation featuring AS/RS storage and rapid screening lanes.',
-    deckHeading: 'NHÀ GA HÀNG HOÁ HÀNG KHÔNG THẾ HỆ MỚI',
-    deckSubtitle: 'Tự động hoá xử lý ULD & Kết nối chuỗi cung ứng thương mại điện tử xuyên biên giới',
-    s2Title: 'Công suất khai thác mục tiêu 550.000 tấn/năm',
-    s2Body: '• Rút ngắn 40% thời gian luân chuyển lô hàng chuyển phát nhanh\n• Kho lạnh chuyên biệt cho dược phẩm và linh kiện điện tử nhạy nhiệt',
-    s3Title: 'Quy trình xử lý mâm hàng ULD tự động',
-    s3Body: 'Thể hiện chuỗi xử lý từ sân đỗ tàu bay tới cửa xuất xe tải bằng SmartArt.',
-    s4Title: 'Phương án phân kỳ vốn vay hợp vốn',
-    s4Body: 'Slide dự phòng cho phiên họp tổ chức tín dụng.',
-    footerBrand: 'AeroCargo Hub 2026',
-    speakerNote: 'Làm rõ khả năng kết nối trực tiếp đường cao tốc và khu thương mại tự do sân bay.',
-    sectionLabel: 'Dây chuyền Tự động',
-    portalUrl: 'https://office.minhspark.com/aerocargo',
-    badgeText: '550K Tấn/Năm',
-    themeTarget: 'coral-vibrant',
-  },
-  {
-    slug: 'renewable-storage',
-    fileName: 'HeThong_LuuTru_Pin_BESS.pptx',
-    title: 'Giải pháp Lưu trữ Năng lượng Pin BESS Công nghiệp',
-    titleEn: 'Utility-Scale BESS Energy Storage Pitch',
-    scenario: 'Xây dựng bộ slide kỹ thuật – thương mại cho hệ thống pin lưu trữ điều tần lưới điện và dịch chuyển phụ tải giờ cao điểm.',
-    scenarioEn: 'Create the commercial-technical deck for grid-scale battery storage and peak-shaving deployment.',
-    deckHeading: 'HỆ THỐNG LƯU TRỮ NĂNG LƯỢNG BESS 200 MWh',
-    deckSubtitle: 'Ổn định tần số lưới điện & Tối ưu chi phí phụ tải công nghiệp',
-    s2Title: 'Công nghệ cell pin LFP làm mát chất lỏng',
-    s2Body: '• Tuổi thọ vận hành vượt 8.000 chu kỳ nạp xả sâu\n• Hệ thống dập cháy khí dung đa tầng cách ly từng module',
-    s3Title: 'Bảng so sánh hiệu quả cắt đỉnh phụ tải',
-    s3Body: 'Chèn bảng đối chiếu chi phí điện trước và sau khi lắp đặt BESS.',
-    s4Title: 'Thông số đấu nối trạm biến áp 110kV',
-    s4Body: 'Bản vẽ đơn tuyến chi tiết dành cho kỹ sư điều độ.',
-    footerBrand: 'GridStorage 2026',
-    speakerNote: 'Giải thích cơ chế hoàn vốn trong 4,8 năm nhờ chênh lệch biểu giá điện ba thành phần.',
-    sectionLabel: 'Kiến trúc BESS',
-    portalUrl: 'https://office.minhspark.com/bess',
-    badgeText: '8.000 Chu kỳ',
-    themeTarget: 'minimalist-ivory',
-  },
-  {
-    slug: 'smart-retail',
-    fileName: 'ChuoiSieuThi_KhongTienMat.pptx',
-    title: 'Mô hình Chuỗi Siêu thị Tiện lợi Tự Thanh toán',
-    titleEn: 'Autonomous Cashless Convenience Store Deck',
-    scenario: 'Hoàn thiện bài giới thiệu mô hình cửa hàng tiện lợi dùng quầy tự quét RFID, nhãn giá điện tử ESL và tối ưu tồn kho tươi sống.',
-    scenarioEn: 'Complete the retail innovation presentation covering RFID self-checkout, electronic shelf labels, and fresh stock AI.',
-    deckHeading: 'SIÊU THỊ TIỆN LỢI TỰ ĐỘNG 24/7',
-    deckSubtitle: 'Thanh toán RFID 3 giây & Đồng bộ giá điện tử toàn hệ thống',
-    s2Title: 'Trải nghiệm mua sắm không xếp hàng chờ',
-    s2Body: '• Đặt giỏ hàng vào khay RFID tự nhận diện toàn bộ sản phẩm cùng lúc\n• Tự động áp mã ưu đãi thành viên và xuất hoá đơn điện tử tức thì',
-    s3Title: 'Biểu đồ giảm tỷ lệ huỷ hàng thực phẩm tươi',
-    s3Body: 'Chèn biểu đồ theo dõi tỷ lệ hao hụt qua 4 quý triển khai nhãn giá động.',
-    s4Title: 'Chi phí thuê mặt bằng từng quận trung tâm',
-    s4Body: 'Dữ liệu mật phòng Phát triển Mặt bằng — ẩn khi trình bày chung.',
-    footerBrand: 'SmartRetail 2026',
-    speakerNote: 'Trình diễn thực tế quy trình thanh toán giỏ 10 món hàng chỉ mất chưa tới 5 giây.',
-    sectionLabel: 'Vận hành Cửa hàng',
-    portalUrl: 'https://office.minhspark.com/retail',
-    badgeText: 'Checkout 3 Giây',
-    themeTarget: 'sapphire-modern',
-  },
-];
-
-const PPT_SUITE_TITLES: Record<MosVersion, Record<MosExamNumber, { vi: string; en: string; subVi: string; subEn: string }>> = {
-  '2016': {
-    1: { vi: 'Đề số 1 · Thiết kế & Trình bày Chuẩn 77-729', en: 'Exam 1 · Core Presentation Design 77-729', subVi: 'Chủ đề, bố cục trang chiếu, bảng biểu, biểu đồ & chuyển tiếp cổ điển', subEn: 'Themes, slide layouts, tables, charts & classic transitions' },
-    2: { vi: 'Đề số 2 · Hồ sơ Thương mại & Hội chợ Quốc tế', en: 'Exam 2 · Trade Fair & Commercial Pitch', subVi: 'Sơ đồ SmartArt, hình khối, ghi chú diễn giả & đầu chân trang chiếu', subEn: 'SmartArt diagrams, shapes, speaker notes & slide headers/footers' },
-    3: { vi: 'Đề số 3 · Báo cáo Điều hành & Quy hoạch Hạ tầng', en: 'Exam 3 · Executive & Infrastructure Briefing', subVi: 'Tỷ lệ màn hình, ẩn trang phụ lục, sắp xếp slide & hoạt hình đối tượng', subEn: 'Slide sizing, hidden appendix slides, reordering & object animations' },
-    4: { vi: 'Đề số 4 · Đào tạo Doanh nghiệp & Sản phẩm Số', en: 'Exam 4 · Corporate Training & Digital Launch', subVi: 'Slide Master, trình chiếu tuỳ chỉnh Custom Show & chia Phần (Section)', subEn: 'Slide Master branding, Custom Slide Shows & Section organization' },
-    5: { vi: 'Đề số 5 · Tổng duyệt Sát hạch MOS PowerPoint 2016', en: 'Exam 5 · Final Readiness Mock 77-729', subVi: 'Đề tổng duyệt 50 phút bao quát toàn bộ kỹ năng trọng tâm 77-729', subEn: 'Full 50-minute readiness simulation for MOS PowerPoint 2016' },
-  },
-  '2019': {
-    1: { vi: 'Đề số 1 · Chuyển cảnh Morph & Điều hướng 2019', en: 'Exam 1 · Morph Transitions & Navigation 2019', subVi: 'Bổ sung hiệu ứng Morph, liên kết chương & biểu đồ chuẩn MO-300', subEn: 'Introduces Morph transitions, slide links & charts for MO-300' },
-    2: { vi: 'Đề số 2 · Thuyết trình Sản phẩm & Ngân hàng Số', en: 'Exam 2 · Product Keynote & Digital Banking', subVi: 'Hoạt hình phối hợp With/After Previous, phần Section & chân trang', subEn: 'Coordinated animations, Sections & consistent slide footers' },
-    3: { vi: 'Đề số 3 · Năng lượng Sạch & Chuỗi Cung ứng', en: 'Exam 3 · Clean Energy & Logistics Brief', subVi: 'Biểu đồ trực quan, SmartArt quy trình, đóng dấu bảo mật & ghi chú', subEn: 'Data charts, process SmartArt, confidential watermarks & notes' },
-    4: { vi: 'Đề số 4 · Liên kết Đại học & Công nghệ Bán dẫn', en: 'Exam 4 · Academic & Semiconductor Partnership', subVi: 'Bố cục so sánh, Handout Master in tài liệu phát tay & Custom Show', subEn: 'Comparison layouts, Handout Master setup & Custom Shows' },
-    5: { vi: 'Đề số 5 · Tổng duyệt Sát hạch MO-300', en: 'Exam 5 · Final Readiness Mock MO-300', subVi: 'Đề sát hạch tổng hợp sát cấu trúc bài thi quốc tế MO-300', subEn: 'Comprehensive final simulation aligned with Certiport MO-300' },
-  },
-  '365': {
-    1: { vi: 'Đề số 1 · Bộ đề Chuẩn Quốc tế Microsoft 365', en: 'Exam 1 · Microsoft 365 Official Benchmark', subVi: 'Bộ dự án chuẩn 23 Slides: Theme, bảng, biểu đồ, Morph & Kiosk', subEn: 'Core 23 Slides benchmark: Themes, tables, charts, Morph & Kiosk' },
-    2: { vi: 'Đề số 2 · Thuyết trình Đám mây & Kiểm duyệt Nhóm', en: 'Exam 2 · Cloud Pitch & Collaborative Review', subVi: 'Nhận xét cộng tác trên slide, chuyển cảnh Morph/Zoom & đối tượng KPI', subEn: 'Collaborative slide comments, Morph/Zoom transitions & KPI badges' },
-    3: { vi: 'Đề số 3 · Kiosk Triển lãm & Tự động hoá Trình chiếu', en: 'Exam 3 · Exhibition Kiosk & Auto-Timing', subVi: 'Cấu hình Kiosk lặp vô tận, tự chuyển trang theo giây & Slide Master', subEn: 'Looping Kiosk setup, timed slide advances & Slide Master governance' },
-    4: { vi: 'Đề số 4 · Gọi vốn Công nghệ & Phát triển Bền vững', en: 'Exam 4 · Tech Fundraising & ESG Strategy', subVi: 'Kết hợp bảng dữ liệu, biểu đồ, SmartArt và chuỗi hoạt hình đa bước', subEn: 'Combines data tables, charts, SmartArt & multi-step animations' },
-    5: { vi: 'Đề số 5 · Tổng duyệt Sát hạch MO-310', en: 'Exam 5 · Final Readiness Mock MO-310', subVi: 'Đề tổng duyệt toàn diện tốc độ cao chuẩn kỳ thi MO-310 mới nhất', subEn: 'Full-length high-tempo mock exam for MO-310 certification' },
-  },
-};
-
-export function pptExamSuiteMeta(version: MosVersion, examNumber: MosExamNumber) {
-  return PPT_SUITE_TITLES[version][examNumber];
-}
+export const PPT_SEEDS: PptDeckSeed[] = catalog.seeds.powerpoint as PptDeckSeed[];
 
 function buildStarterDeck(seed: PptDeckSeed, prefix: string): SlideContent {
   const s2 = baseSlide(`${prefix}-s2`, 'title-content', seed.s2Title, seed.s2Body);
@@ -618,7 +414,97 @@ function makePptAssocTasks(prefix: string, version: MosVersion, variant: number,
   return [t1, t2, t3, t4, t5];
 }
 
-function makePptExpertTasks(prefix: string, version: MosVersion, orderIdx: number, seed: PptDeckSeed): MosPptProject['tasks'] {
+function makeInvestorBriefingTask(prefix: string, seed: PptDeckSeed): MosPptProject['tasks'][number] {
+  return {
+    id: `${prefix}-t2`,
+    domainId: 'ppt-content',
+    title: 'Minh hoạ quy trình và xu hướng cho nhà đầu tư',
+    titleEn: 'Illustrate the process and trend for investors',
+    instruction: `Chèn SmartArt Quy trình trên Slide 2. Trên Slide 3, chèn biểu đồ Đường và thêm câu sau vào ghi chú diễn giả: “${seed.speakerNote}”`,
+    instructionEn: `Insert a Process SmartArt on Slide 2. On Slide 3, insert a Line chart and add the following sentence to the speaker notes: “${seed.speakerNote}”`,
+    copyTokens: [seed.speakerNote],
+    ribbonPath: 'Chèn → SmartArt / Biểu đồ · Ghi chú',
+    hint: 'Chọn Slide 2 để minh hoạ quy trình, sau đó chọn Slide 3 để chuẩn bị phần trình bày số liệu.',
+    points: 20,
+    solution: {
+      steps: [
+        'Chọn Slide 2, vào thẻ Chèn, nhóm SmartArt và bấm Quy trình.',
+        'Chọn Slide 3, mở Chèn → Biểu đồ rồi chọn loại Đường.',
+        `Mở ngăn Ghi chú của Slide 3 và nhập “${seed.speakerNote}”.`,
+      ],
+      verifyTip: 'Slide 2 có sơ đồ quy trình. Slide 3 có biểu đồ đường và ghi chú cho người trình bày.',
+    },
+    applySampleSolution: ({ presentation }) => {
+      const [, processSlide, trendSlide] = presentation.slides;
+      processSlide.elements.push({
+        id: `${prefix}-process`, type: 'smartart', smartArtType: 'process',
+        x: 8, y: 32, width: 80, height: 48,
+        smartArtItems: [
+          { title: 'Chuẩn bị', desc: 'Xác định nguồn lực' },
+          { title: 'Triển khai', desc: 'Thực hiện kế hoạch' },
+          { title: 'Đánh giá', desc: 'Đo lường kết quả' },
+        ],
+      });
+      trendSlide.elements.push({
+        id: `${prefix}-trend`, type: 'chart', chartType: 'line',
+        x: 10, y: 36, width: 74, height: 46,
+        chartCategories: ['Q1', 'Q2', 'Q3'], chartSeries: [{ name: 'Kết quả', values: [12, 18, 26], color: '#0284C7' }],
+      });
+      trendSlide.notes = seed.speakerNote;
+    },
+    check: ({ presentation }) => {
+      const [, processSlide, trendSlide] = presentation.slides;
+      const process = processSlide?.elements.some((el) => el.type === 'smartart' && el.smartArtType === 'process');
+      const line = trendSlide?.elements.some((el) => el.type === 'chart' && el.chartType === 'line');
+      return process && line && trendSlide.notes?.includes(seed.speakerNote)
+        ? { passed: true, detail: 'Đã có sơ đồ quy trình, biểu đồ đường và ghi chú đúng trang chiếu.' }
+        : { passed: false, detail: 'Kiểm tra SmartArt Quy trình trên Slide 2, biểu đồ Đường và nội dung ghi chú trên Slide 3.' };
+    },
+  };
+}
+
+function makeReviewEvidenceTask(prefix: string, seed: PptDeckSeed): MosPptProject['tasks'][number] {
+  return {
+    id: `${prefix}-t2`,
+    domainId: 'ppt-content',
+    title: 'Lập bảng đối chiếu và liên kết nguồn minh chứng',
+    titleEn: 'Prepare an evidence table and link its source',
+    instruction: `Trên Slide 2, gắn liên kết “${seed.portalUrl}” cho hình “${seed.badgeText}”. Chèn bảng 4 hàng × 3 cột trên Slide 4 rồi thêm ghi chú diễn giả “${seed.sectionLabel}” trên chính slide này.`,
+    instructionEn: `Link the “${seed.badgeText}” shape on Slide 2 to “${seed.portalUrl}”. On Slide 4, insert a 4-row, 3-column table and add “${seed.sectionLabel}” to that slide's speaker notes.`,
+    copyTokens: [seed.portalUrl, seed.sectionLabel],
+    ribbonPath: 'Chèn → Liên kết / Bảng · Ghi chú',
+    hint: 'Chọn hình có nhãn trên Slide 2 trước khi mở Liên kết. Bảng đối chiếu và ghi chú thuộc trang phụ lục.',
+    points: 20,
+    solution: {
+      steps: [
+        `Trên Slide 2, chọn hình “${seed.badgeText}”, bấm Ctrl + K và gắn liên kết đến “${seed.portalUrl}”.`,
+        'Chọn Slide 4. Trong thẻ Chèn, mở Bảng và chọn 3 cột, 4 hàng.',
+        `Trong ngăn Ghi chú của Slide 4, nhập “${seed.sectionLabel}”.`,
+      ],
+      verifyTip: 'Kiểm tra liên kết của hình, kích thước bảng phụ lục và ghi chú ở Slide 4.',
+    },
+    applySampleSolution: ({ presentation }) => {
+      const badge = presentation.slides[1].elements.find((el) => el.id === `${prefix}-badge`);
+      if (badge) badge.link = { kind: 'url', url: seed.portalUrl };
+      const appendix = presentation.slides[3];
+      appendix.elements.push({
+        id: `${prefix}-evidence`, type: 'table', x: 8, y: 36, width: 80, height: 48,
+        tableRows: 4, tableCols: 3, tableData: Array.from({ length: 4 }, () => ['', '', '']),
+      });
+      appendix.notes = seed.sectionLabel;
+    },
+    check: ({ presentation }) => {
+      const badge = presentation.slides[1]?.elements.find((el) => el.type === 'shape' && el.text === seed.badgeText);
+      const appendix = presentation.slides[3];
+      const table = appendix?.elements.some((el) => el.type === 'table' && el.tableRows === 4 && el.tableCols === 3);
+      return badge?.link?.kind === 'url' && badge.link.url === seed.portalUrl && table && appendix.notes?.includes(seed.sectionLabel)
+        ? { passed: true, detail: 'Liên kết nguồn, bảng đối chiếu và ghi chú phụ lục đã đúng.' }
+        : { passed: false, detail: 'Kiểm tra URL trên hình ở Slide 2, bảng 4 hàng × 3 cột và ghi chú trên Slide 4.' };
+    },
+  };
+}
+
+function makePptExpertTasks(prefix: string, version: MosVersion, examNumber: MosExamNumber, orderIdx: number, seed: PptDeckSeed): MosPptProject['tasks'] {
   const t1: MosPptProject['tasks'][number] = {
     id: `${prefix}-t1`,
     domainId: 'ppt-deliver',
@@ -854,26 +740,28 @@ function makePptExpertTasks(prefix: string, version: MosVersion, orderIdx: numbe
         },
       };
 
+  if (version === '365' && examNumber === 4) return [t1, makeInvestorBriefingTask(prefix, seed), t3, t4, t5];
+  if (version === '365' && examNumber === 5) return [t1, makeReviewEvidenceTask(prefix, seed), t3, t4, t5];
   return [t1, t2, t3, t4, t5];
 }
 
-function buildGeneratedPptBank(): MosPptProject[] {
+export function buildGeneratedPptBank(seeds = PPT_SEEDS, exams: readonly MosExamNumber[] = catalog.exams, assignments: Record<string, string> = {}): MosPptProject[] {
   const out: MosPptProject[] = [];
+  const bySlug = new Map(seeds.map(seed => [seed.slug, seed]));
   const versions: MosVersion[] = ['2016', '2019', '365'];
-  const exams: MosExamNumber[] = [1, 2, 3, 4, 5];
 
   for (let vIdx = 0; vIdx < versions.length; vIdx++) {
     const version = versions[vIdx];
     for (const examNumber of exams) {
       if (version === '365' && examNumber === 1) continue;
-      const examSlot = vIdx * 5 + (examNumber - 1);
-      const assocStart = (examSlot * 3) % PPT_SEEDS.length;
-      const expStart = (examSlot * 5 + 1) % PPT_SEEDS.length;
+      const examSlot = examNumber <= 5 ? vIdx * 5 + examNumber - 1 : 15 + (examNumber - 6) * 3 + vIdx;
+      const assocStart = (examSlot * 3) % seeds.length;
+      const expStart = (examSlot * 5 + 1) % seeds.length;
 
       for (let order = 1; order <= 7; order++) {
-        const seed = PPT_SEEDS[(assocStart + order - 1) % PPT_SEEDS.length];
-        const variant = examSlot * 7 + (order - 1);
         const projId = `ppt-${version}-e${examNumber}-p${order}`;
+        const seed = bySlug.get(assignments[projId]) ?? seeds[(assocStart + order - 1) % seeds.length];
+        const variant = examSlot * 7 + (order - 1);
         const difficulties = ['Cơ bản', 'Cơ bản', 'Trung bình', 'Trung bình', 'Trung bình', 'Nâng cao', 'Nâng cao'] as const;
 
         out.push({
@@ -897,8 +785,9 @@ function buildGeneratedPptBank(): MosPptProject[] {
       }
 
       for (let order = 1; order <= 5; order++) {
-        const seed = PPT_SEEDS[(expStart + order - 1) % PPT_SEEDS.length];
         const projId = `ppt-exp-${version}-e${examNumber}-p${order}`;
+        const seed = bySlug.get(assignments[projId]) ?? seeds[(expStart + order - 1) % seeds.length];
+
         const stem = seed.fileName.replace(/\.pptx$/i, '');
 
         out.push({
@@ -917,12 +806,10 @@ function buildGeneratedPptBank(): MosPptProject[] {
           minutes: 10,
           difficulty: 'Nâng cao',
           createStarter: () => buildStarterDeck(seed, projId),
-          tasks: makePptExpertTasks(projId, version, examSlot + order - 1, seed),
+          tasks: makePptExpertTasks(projId, version, examNumber, examSlot + order - 1, seed),
         });
       }
     }
   }
   return out;
 }
-
-export const MOS_GENERATED_PPT_PROJECTS: MosPptProject[] = buildGeneratedPptBank();

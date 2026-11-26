@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { ChevronDown, Cloud, CloudCheck, CloudOff, LogOut, RefreshCw, Upload } from 'lucide-react';
 import { useAccount } from './Authentication';
+import { readTemplateAsset, type TemplateAsset } from '../lib/templateGallery';
 import { openDraftImport, useWorkspaceSync } from './WorkspaceStatus';
 import type { SyncStatus } from '../lib/syncTypes';
 
@@ -225,7 +226,25 @@ export function TemplateThumb({ variant, title }: { variant: ThumbVariant; title
   );
 }
 
-export function TemplateImageThumb({ src }: { src: string }) {
+export function TemplateImageThumb({ asset, packaged, variant, title }: { asset: TemplateAsset; packaged: boolean; variant: ThumbVariant; title: string }) {
+  const [image, setImage] = useState<{ sha256: string; url: string }>();
+  const { format, sha256 } = asset;
+  useEffect(() => {
+    let active = true;
+    let url: string | undefined;
+    void readTemplateAsset({ format, sha256 }, packaged).then(bytes => {
+      if (!active) return;
+      const type = format === 'jpg' ? 'jpeg' : format;
+      url = URL.createObjectURL(new Blob([bytes], { type: `image/${type}` }));
+      setImage({ sha256, url });
+    }).catch(() => undefined);
+    return () => {
+      active = false;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [format, sha256, packaged]);
+  if (image?.sha256 !== sha256) return <TemplateThumb variant={variant} title={title} />;
+  const src = image.url;
   return (
     <div className="tt-page tt-image" aria-hidden="true">
       <img src={src} alt="" loading="lazy" decoding="async" />

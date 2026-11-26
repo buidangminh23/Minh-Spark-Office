@@ -4,10 +4,10 @@ import type { WorkbookData } from './sheetTypes';
 
 export const blankDoc = (): JSONContent => ({ type: 'doc', content: [{ type: 'paragraph' }] });
 
-export const sampleDocHtml = () => `
+export const sampleDocHtml = (date = new Date().toLocaleDateString('vi-VN')) => `
 <p style="text-align: center"><span style="font-size: 10pt; color: #8a94a6">CÔNG TY MINH SPARK · BÁO CÁO NỘI BỘ</span></p>
 <h1 style="text-align: center">Kế hoạch hoạt động quý IV/2026</h1>
-<p style="text-align: center"><em>Ngày lập: ${new Date().toLocaleDateString('vi-VN')}</em></p>
+<p style="text-align: center"><em>Ngày lập: ${date}</em></p>
 <h2>1. Mục tiêu</h2>
 <p>Tài liệu này tổng hợp định hướng, nguồn lực và các mốc chính cho quý IV. Mọi số liệu được cập nhật từ bảng tính theo dõi chung.</p>
 <ul><li><p>Tăng trưởng doanh thu <strong>15%</strong> so với quý III.</p></li><li><p>Hoàn thiện bộ công cụ văn phòng nội bộ <mark data-color="#fff59d" style="background-color: #fff59d">Office 23</mark>.</p></li><li><p>Chuẩn hoá quy trình báo cáo tuần.</p></li></ul>
@@ -25,12 +25,12 @@ export const sampleDocHtml = () => `
 <ul data-type="taskList"><li data-type="taskItem" data-checked="true"><p>Gửi bản nháp cho ban giám đốc</p></li><li data-type="taskItem" data-checked="false"><p>Cập nhật số liệu tháng 11</p></li></ul>
 `;
 
-export const contractDocHtml = () => `
+export const contractDocHtml = (date = new Date().toLocaleDateString('vi-VN')) => `
 <p style="text-align: center"><strong>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</strong><br><em>Độc lập – Tự do – Hạnh phúc</em></p>
 <p style="text-align: center">------------------------</p>
 <h1 style="text-align: center">HỢP ĐỒNG DỊCH VỤ CÔNG NGHỆ</h1>
 <p style="text-align: center"><em>Số: 01/2026/HĐDV-MS</em></p>
-<p><em>Hôm nay, ngày ${new Date().toLocaleDateString('vi-VN')}, tại Văn phòng Công ty, chúng tôi gồm có:</em></p>
+<p><em>Hôm nay, ngày ${date}, tại Văn phòng Công ty, chúng tôi gồm có:</em></p>
 <h2>BÊN A: BÊN YÊU CẦU DỊCH VỤ (KHÁCH HÀNG)</h2>
 <ul>
   <li><strong>Đơn vị:</strong> CÔNG TY TNHH ĐẦU TƯ & THƯƠNG MẠI MINH SPARK</li>
@@ -64,9 +64,9 @@ export const contractDocHtml = () => `
 </tbody></table>
 `;
 
-export const meetingMinutesDocHtml = () => `
+export const meetingMinutesDocHtml = (date = new Date().toLocaleDateString('vi-VN')) => `
 <h1 style="text-align: center">BIÊN BẢN CUỘC HỌP GIAO BAN TUẦN</h1>
-<p style="text-align: center"><em>Thời gian: 09:00 - 11:30 | Ngày: ${new Date().toLocaleDateString('vi-VN')}</em></p>
+<p style="text-align: center"><em>Thời gian: 09:00 - 11:30 | Ngày: ${date}</em></p>
 <h2>1. Thành phần tham dự</h2>
 <ul>
   <li><strong>Chủ trì:</strong> Nguyễn Văn A</li>

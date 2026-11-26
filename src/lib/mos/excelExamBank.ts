@@ -1,6 +1,7 @@
+import catalog from './catalog-v1.json';
 import type { SheetContent } from '../storage';
 import { emptySheet, emptyWorkbook, uid } from '../workbookBasics';
-import { cellAt, findSheet, foldCell, formulaOf, primarySheet, resolveStyle } from './excelHelpers';
+import { cellAt, findSheet, formulaOf, primarySheet, resolveStyle } from './excelHelpers';
 import type { MosExamNumber, MosExcelProject, MosVersion } from './types';
 
 type ExcelDatasetSeed = {
@@ -25,316 +26,7 @@ type ExcelDatasetSeed = {
   accentBg: string;
 };
 
-const EXCEL_SEEDS: ExcelDatasetSeed[] = [
-  {
-    slug: 'electronics-chain',
-    fileName: 'DoanhSo_DienMay.xlsx',
-    title: 'Phân tích Doanh số Chuỗi Điện máy',
-    titleEn: 'Consumer Electronics Chain Sales',
-    scenario: 'Hoàn thiện bảng tính tổng hợp doanh thu, phí vận chuyển theo vùng và chỉ số hiệu quả cho chuỗi cửa hàng điện máy.',
-    scenarioEn: 'Complete the regional sales, shipping surcharge, and performance metrics workbook for an electronics chain.',
-    banner: 'BÁO CÁO DOANH SỐ CHUỖI ĐIỆN MÁY 2026',
-    rawSheetName: 'DuLieuGoc',
-    targetSheetName: 'DienMay',
-    extraSheetName: 'BaoCaoQuy',
-    refSheetName: 'PhiVung',
-    headers: ['Mã đơn', 'Thiết bị', 'Kênh bán', 'Số lượng', 'Đơn giá', 'Thành tiền', 'Phân loại', 'Phí giao'],
-    rows: [
-      ['HN-TV01', 'Tivi OLED 55 inch', 'Online', 14, 18500000],
-      ['SG-TL02', 'Tủ lạnh Inverter 420L', 'Showroom', 11, 14200000],
-      ['DN-MG03', 'Máy giặt lồng ngang', 'Online', 19, 9800000],
-      ['HN-DH04', 'Điều hoà 2 chiều 12k', 'Đại lý', 22, 11400000],
-      ['SG-LN05', 'Máy lọc nước RO nóng lạnh', 'Online', 28, 6500000],
-      ['CT-HB06', 'Robot hút bụi lau nhà', 'Showroom', 16, 7900000],
-    ],
-    refRows: [['HN', 180000], ['SG', 220000], ['DN', 200000], ['CT', 250000]],
-    targetGroup: 'Online',
-    passThreshold: 180000000,
-    passLabel: 'Chủ lực',
-    failLabel: 'Tiêu chuẩn',
-    accentBg: '#166534',
-  },
-  {
-    slug: 'cloud-subscriptions',
-    fileName: 'ThueBao_SaaS_DoanhNghiep.xlsx',
-    title: 'Quản lý Hợp đồng Thuê bao SaaS',
-    titleEn: 'Enterprise SaaS Subscription Ledger',
-    scenario: 'Tính giá trị hợp đồng năm, phân hạng khách hàng doanh nghiệp và tra cứu chiết khấu đối tác cho nền tảng phần mềm.',
-    scenarioEn: 'Calculate annual contract values, customer tiers, and partner fee lookups for an enterprise SaaS ledger.',
-    banner: 'SỔ THEO DÕI HỢP ĐỒNG THUÊ BAO SAAS 2026',
-    rawSheetName: 'Sheet1',
-    targetSheetName: 'ThueBao',
-    extraSheetName: 'GiaHan',
-    refSheetName: 'BangPhi',
-    headers: ['Mã HĐ', 'Khách hàng', 'Phân khúc', 'Số ghế', 'Phí năm/ghế', 'Giá trị HĐ', 'Hạng KH', 'Phí hỗ trợ'],
-    rows: [
-      ['MB-SA10', 'Tập đoàn Sao Việt', 'Enterprise', 120, 1800000],
-      ['MN-SA11', 'Công ty Minh Phú', 'SMB', 45, 1950000],
-      ['MT-SA12', 'Trường ĐH Đông Á', 'Education', 200, 950000],
-      ['MB-SA13', 'Ngân hàng Số Á Châu', 'Enterprise', 160, 1750000],
-      ['MN-SA14', 'Chuỗi Dược An Khang', 'Enterprise', 95, 1850000],
-      ['MB-SA15', 'Viện Thiết kế Đô thị', 'SMB', 35, 2000000],
-    ],
-    refRows: [['MB', 4500000], ['MN', 5000000], ['MT', 3800000]],
-    targetGroup: 'Enterprise',
-    passThreshold: 150000000,
-    passLabel: 'VIP',
-    failLabel: 'Thường',
-    accentBg: '#1D4ED8',
-  },
-  {
-    slug: 'port-containers',
-    fileName: 'DieuDo_Container_CangBien.xlsx',
-    title: 'Điều độ Sản lượng Container Cảng Biển',
-    titleEn: 'Seaport Container Throughput Audit',
-    scenario: 'Thống kê phí bốc xếp theo cảng đích, kiểm tra lô hàng ưu tiên thông quan và chuẩn hoá trang in điều vận.',
-    scenarioEn: 'Audit container handling fees, priority customs clearance status, and dispatch print settings.',
-    banner: 'BẢNG ĐIỀU ĐỘ SẢN LƯỢNG CONTAINER CẢNG BIỂN',
-    rawSheetName: 'DataCang',
-    targetSheetName: 'DieuDo',
-    extraSheetName: 'LichTau',
-    refSheetName: 'BieuCuoc',
-    headers: ['Mã vận đơn', 'Chủ hàng', 'Tuyến tàu', 'Số TEU', 'Đơn giá TEU', 'Tổng cước', 'Luồng thông quan', 'Phụ phí cảng'],
-    rows: [
-      ['HP-CT21', 'Thép Hòa Phát Đông Bắc', 'Nội Á', 38, 4200000],
-      ['SG-CT22', 'Thủy sản Minh Hải', 'Châu Âu', 26, 7800000],
-      ['QN-CT23', 'Gỗ Nội thất Bình Định', 'Bắc Mỹ', 30, 8400000],
-      ['HP-CT24', 'Điện tử Bắc Ninh', 'Châu Âu', 44, 7600000],
-      ['SG-CT25', 'Cà phê Xuất khẩu Đắk Lắk', 'Châu Âu', 32, 7500000],
-      ['VT-CT26', 'Hạt điều Bình Phước', 'Nội Á', 24, 4300000],
-    ],
-    refRows: [['HP', 1200000], ['SG', 1450000], ['QN', 1100000], ['VT', 1350000]],
-    targetGroup: 'Châu Âu',
-    passThreshold: 200000000,
-    passLabel: 'Luồng xanh',
-    failLabel: 'Luồng vàng',
-    accentBg: '#0F766E',
-  },
-  {
-    slug: 'clinic-pharmacy',
-    fileName: 'KiemKe_DuocPham_BenhVien.xlsx',
-    title: 'Kiểm kê Vật tư & Dược phẩm Nội viện',
-    titleEn: 'Hospital Pharmacy Inventory Valuation',
-    scenario: 'Xây dựng công thức định giá tồn kho dược phẩm, cảnh báo dự trù mua sắm và đối chiếu phụ phí bảo quản lạnh.',
-    scenarioEn: 'Build formulas for pharmacy stock valuation, reorder alerts, and cold-storage handling fees.',
-    banner: 'BẢNG KIỂM KÊ & ĐỊNH GIÁ DƯỢC PHẨM QUÝ IV',
-    rawSheetName: 'Sheet1',
-    targetSheetName: 'DuocPham',
-    extraSheetName: 'DuTruMua',
-    refSheetName: 'PhiBaoQuan',
-    headers: ['Mã thuốc', 'Hoạt chất', 'Nhóm điều trị', 'Số hộp tồn', 'Giá nhập/hộp', 'Giá trị tồn', 'Trạng thái dự trù', 'Phí kho'],
-    rows: [
-      ['KS-DP01', 'Amoxicillin 500mg', 'Kháng sinh', 420, 145000],
-      ['TM-DP02', 'Atorvastatin 20mg', 'Tim mạch', 310, 210000],
-      ['VX-DP03', 'Vắc-xin Cúm tứ giá', 'Dự phòng', 180, 390000],
-      ['KS-DP04', 'Cefuroxim 250mg', 'Kháng sinh', 260, 185000],
-      ['TM-DP05', 'Losartan 50mg', 'Tim mạch', 350, 160000],
-      ['VX-DP06', 'Huyết thanh kháng độc', 'Dự phòng', 95, 520000],
-    ],
-    refRows: [['KS', 450000], ['TM', 400000], ['VX', 1250000]],
-    targetGroup: 'Kháng sinh',
-    passThreshold: 60000000,
-    passLabel: 'Đủ định mức',
-    failLabel: 'Cần bổ sung',
-    accentBg: '#1E40AF',
-  },
-  {
-    slug: 'hotel-occupancy',
-    fileName: 'DoanhThu_ChuoiKhachSan.xlsx',
-    title: 'Hiệu suất Khai thác Chuỗi Khách sạn Nghỉ dưỡng',
-    titleEn: 'Resort & Hotel Occupancy Revenue Model',
-    scenario: 'Tổng hợp doanh thu buồng phòng theo điểm đến, đánh giá công suất khai thác và tra cứu phí dịch vụ đưa đón.',
-    scenarioEn: 'Summarize room revenue by destination, evaluate occupancy performance, and lookup transfer fees.',
-    banner: 'BÁO CÁO HIỆU SUẤT KHAI THÁC CHUỖI RESORT 2026',
-    rawSheetName: 'BookingRaw',
-    targetSheetName: 'BuongPhong',
-    extraSheetName: 'TongKetNam',
-    refSheetName: 'PhiDuaDon',
-    headers: ['Mã cơ sở', 'Tên khu nghỉ dưỡng', 'Hạng sao', 'Đêm phòng bán', 'Giá bình quân', 'Doanh thu phòng', 'Đánh giá hiệu suất', 'Phí sân bay'],
-    rows: [
-      ['PQ-RS01', 'Pearl Bay Phú Quốc', '5 sao', 640, 3200000],
-      ['DN-RS02', 'My Khe Ocean Đà Nẵng', '5 sao', 580, 2850000],
-      ['NT-RS03', 'Cam Ranh Lagoon', '4 sao', 510, 2100000],
-      ['DL-RS04', 'Pine Valley Đà Lạt', '4 sao', 490, 1950000],
-      ['HL-RS05', 'Heritage Marina Hạ Long', '5 sao', 610, 3100000],
-      ['PQ-RS06', 'Coral Reef Villas', '5 sao', 430, 3600000],
-    ],
-    refRows: [['PQ', 650000], ['DN', 450000], ['NT', 550000], ['DL', 500000], ['HL', 700000]],
-    targetGroup: '5 sao',
-    passThreshold: 1500000000,
-    passLabel: 'Vượt kế hoạch',
-    failLabel: 'Đạt chuẩn',
-    accentBg: '#7C2D12',
-  },
-  {
-    slug: 'solar-epc',
-    fileName: 'DuToan_VatTu_DienMatTroi.xlsx',
-    title: 'Quyết toán Vật tư Dự án Điện Mặt Trời',
-    titleEn: 'Solar EPC Material Settlement Workbook',
-    scenario: 'Tính giá trị quyết toán thiết bị điện mặt trời, phân nhóm gói thầu trọng điểm và kiểm soát định dạng báo cáo in.',
-    scenarioEn: 'Compute solar EPC equipment settlement totals, classify major packages, and configure print layout.',
-    banner: 'BẢNG QUYẾT TOÁN VẬT TƯ DỰ ÁN ĐIỆN MẶT TRỜI',
-    rawSheetName: 'VatTuTam',
-    targetSheetName: 'QuyetToan',
-    extraSheetName: 'BienBan',
-    refSheetName: 'DonGiaLapDat',
-    headers: ['Mã hạng mục', 'Tên vật tư thiết bị', 'Gói thầu', 'Khối lượng', 'Đơn giá vật tư', 'Thành tiền', 'Cấp phê duyệt', 'Chi phí lắp'],
-    rows: [
-      ['PV-TB01', 'Tấm pin Mono 580Wp', 'Phần điện DC', 820, 2650000],
-      ['IN-TB02', 'Biến tần chuỗi 110kW', 'Phần điện AC', 12, 68000000],
-      ['KH-TB03', 'Khung nhôm định hình', 'Kết cấu mái', 450, 1150000],
-      ['PV-TB04', 'Cáp điện DC 6mm2 chống tia UV', 'Phần điện DC', 1600, 42000],
-      ['IN-TB05', 'Tủ hòa lưới & bảo vệ rơ-le', 'Phần điện AC', 6, 95000000],
-      ['KH-TB06', 'Kẹp biên & tiếp địa mạ kẽm', 'Kết cấu mái', 900, 85000],
-    ],
-    refRows: [['PV', 3200000], ['IN', 8500000], ['KH', 2400000]],
-    targetGroup: 'Phần điện AC',
-    passThreshold: 500000000,
-    passLabel: 'HĐQT duyệt',
-    failLabel: 'Giám đốc dự án',
-    accentBg: '#0369A1',
-  },
-  {
-    slug: 'edtech-courses',
-    fileName: 'ThongKe_KhoaHoc_TrucTuyen.xlsx',
-    title: 'Báo cáo Ghi danh Học viện Trực tuyến',
-    titleEn: 'Online Academy Enrollment Analytics',
-    scenario: 'Phân tích doanh thu học phí các khoá đào tạo chứng chỉ số, thống kê nhóm kỹ năng mũi nhọn và tra cứu thù lao giảng viên.',
-    scenarioEn: 'Analyze tuition revenue across digital certification courses, track top tracks, and lookup instructor stipends.',
-    banner: 'THỐNG KÊ GHI DANH & DOANH THU HỌC VIỆN SỐ 2026',
-    rawSheetName: 'Sheet1',
-    targetSheetName: 'KhoaHoc',
-    extraSheetName: 'LichKhaiGiang',
-    refSheetName: 'ThuLaoGV',
-    headers: ['Mã khoá', 'Tên khoá đào tạo', 'Chuyên ngành', 'Học viên', 'Học phí', 'Tổng thu', 'Xếp loại lớp', 'Phụ cấp mentor'],
-    rows: [
-      ['MS-KH01', 'Luyện thi MOS Word & Excel Chuẩn', 'Tin học văn phòng', 185, 1290000],
-      ['DA-KH02', 'Phân tích dữ liệu SQL & Python', 'Dữ liệu', 142, 2490000],
-      ['AI-KH03', 'Tự động hoá quy trình với AI', 'Trí tuệ nhân tạo', 210, 1990000],
-      ['MS-KH04', 'MOS Expert Chuyên sâu Doanh nghiệp', 'Tin học văn phòng', 96, 1790000],
-      ['DA-KH05', 'Thiết kế Dashboard Quản trị KPI', 'Dữ liệu', 128, 2190000],
-      ['AI-KH06', 'Ứng dụng AI cho Nhân sự & Kế toán', 'Trí tuệ nhân tạo', 164, 1590000],
-    ],
-    refRows: [['MS', 3500000], ['DA', 5200000], ['AI', 6000000]],
-    targetGroup: 'Trí tuệ nhân tạo',
-    passThreshold: 250000000,
-    passLabel: 'Lớp đông',
-    failLabel: 'Tiêu chuẩn',
-    accentBg: '#4338CA',
-  },
-  {
-    slug: 'coffee-roastery',
-    fileName: 'SanXuat_CaPhe_RangXay.xlsx',
-    title: 'Kế hoạch Sản xuất & Xuất xưởng Cà phê Rang xay',
-    titleEn: 'Specialty Coffee Roastery Production Ledger',
-    scenario: 'Theo dõi giá trị xuất xưởng từng dòng hạt rang, phân tích kênh xuất khẩu và đối chiếu đơn giá bao bì van một chiều.',
-    scenarioEn: 'Track ex-factory values by roast batch, analyze export channels, and lookup valve-packaging costs.',
-    banner: 'SỔ THEO DÕI SẢN XUẤT & XUẤT XƯỞNG CÀ PHÊ 2026',
-    rawSheetName: 'MeRang',
-    targetSheetName: 'SanXuat',
-    extraSheetName: 'TonHatXanh',
-    refSheetName: 'PhiBaoBi',
-    headers: ['Mã lô', 'Dòng sản phẩm', 'Thị trường', 'Sản lượng (kg)', 'Giá xuất/kg', 'Doanh thu lô', 'Kiểm định', 'Chi phí túi'],
-    rows: [
-      ['AR-CF01', 'Arabica Cầu Đất Rang Vừa', 'Nhật Bản', 850, 340000],
-      ['RB-CF02', 'Fine Robusta Đắk Nông Honey', 'Nội địa', 1200, 215000],
-      ['BL-CF03', 'Espresso Signature Blend', 'Hàn Quốc', 960, 275000],
-      ['AR-CF04', 'Arabica Sơn La Sơ chế Ướt', 'Nhật Bản', 740, 310000],
-      ['CB-CF05', 'Cold Brew Túi Lọc Tiện lợi', 'Nội địa', 680, 290000],
-      ['BL-CF06', 'Pour Over Phin Giấy Đặc sản', 'Nhật Bản', 590, 360000],
-    ],
-    refRows: [['AR', 1800000], ['RB', 1400000], ['BL', 1600000], ['CB', 1950000]],
-    targetGroup: 'Nhật Bản',
-    passThreshold: 250000000,
-    passLabel: 'Ưu tiên xuất',
-    failLabel: 'Thường kỳ',
-    accentBg: '#6D28D9',
-  },
-  {
-    slug: 'fleet-ev',
-    fileName: 'VanHanh_DoiXe_Dien.xlsx',
-    title: 'Quản trị Chi phí Đội xe Giao nhận Điện',
-    titleEn: 'Electric Delivery Fleet Operations Sheet',
-    scenario: 'Tính doanh thu tuyến giao nhận xanh, theo dõi năng suất đội xe tải điện và tra cứu định mức bảo dưỡng định kỳ.',
-    scenarioEn: 'Compute green delivery route revenue, track EV van productivity, and lookup maintenance allowances.',
-    banner: 'BÁO CÁO VẬN HÀNH ĐỘI XE GIAO NHẬN ĐIỆN 2026',
-    rawSheetName: 'NhatKyXe',
-    targetSheetName: 'DoiXeDien',
-    extraSheetName: 'LichSacPin',
-    refSheetName: 'DinhMucBD',
-    headers: ['Mã đội', 'Tuyến khai thác', 'Loại xe', 'Số chuyến', 'Doanh thu/chuyến', 'Tổng thu tuyến', 'Hiệu suất', 'Định mức bảo dưỡng'],
-    rows: [
-      ['VN-EV01', 'Nội thành Hà Nội - Bắc Ninh', 'Van điện 1 tấn', 145, 1650000],
-      ['VS-EV02', 'TP.HCM - Bình Dương - Đồng Nai', 'Tải điện 2 tấn', 132, 2350000],
-      ['VD-EV03', 'Đà Nẵng - Hội An - Chu Lai', 'Van điện 1 tấn', 98, 1750000],
-      ['VN-EV04', 'Hà Nội - Hải Phòng Cao tốc', 'Tải điện 2 tấn', 118, 2600000],
-      ['VS-EV05', 'Trung tâm Quận 1 - Khu Công nghệ cao', 'Xe máy điện Cargo', 320, 480000],
-      ['VC-EV06', 'Cần Thơ - Mỹ Tho - Long Xuyên', 'Van điện 1 tấn', 105, 1820000],
-    ],
-    refRows: [['VN', 2800000], ['VS', 3100000], ['VD', 2500000], ['VC', 2600000]],
-    targetGroup: 'Tải điện 2 tấn',
-    passThreshold: 220000000,
-    passLabel: 'Hiệu suất cao',
-    failLabel: 'Ổn định',
-    accentBg: '#0F766E',
-  },
-  {
-    slug: 'textile-factory',
-    fileName: 'KeHoach_MayXuatKhau.xlsx',
-    title: 'Thống kê Đơn hàng Nhà máy May Xuất khẩu',
-    titleEn: 'Export Garment Factory Order Schedule',
-    scenario: 'Tổng hợp giá trị gia công FOB cho các chuyền may xuất khẩu, xét duyệt tiến độ giao hàng và tra cứu phí kiểm định vải.',
-    scenarioEn: 'Calculate FOB garment order values, audit delivery readiness, and lookup fabric testing fees.',
-    banner: 'BẢNG THEO DÕI ĐƠN HÀNG NHÀ MÁY MAY XUẤT KHẨU',
-    rawSheetName: 'Sheet1',
-    targetSheetName: 'DonMay',
-    extraSheetName: 'NangSuatChuyen',
-    refSheetName: 'PhiKiemVai',
-    headers: ['Mã đơn may', 'Mặt hàng', 'Khách hàng vùng', 'Số sản phẩm', 'Đơn giá FOB', 'Kim ngạch', 'Tiến độ', 'Phí test vải'],
-    rows: [
-      ['JK-GM01', 'Áo khoác chống thấm 3 lớp', 'Bắc Âu', 4200, 385000],
-      ['SH-GM02', 'Sơ mi sợi tre kháng khuẩn', 'Nhật Bản', 6500, 195000],
-      ['SP-GM03', 'Bộ đồ thể thao tái chế', 'Bắc Mỹ', 8000, 210000],
-      ['JK-GM04', 'Áo lông vũ siêu nhẹ thu đông', 'Bắc Âu', 3600, 440000],
-      ['SH-GM05', 'Quần âu co giãn công sở', 'Nhật Bản', 5400, 230000],
-      ['SP-GM06', 'Áo chạy bộ phản quang', 'Bắc Mỹ', 7200, 165000],
-    ],
-    refRows: [['JK', 4200000], ['SH', 2800000], ['SP', 3100000]],
-    targetGroup: 'Bắc Âu',
-    passThreshold: 1400000000,
-    passLabel: 'Ưu tiên chuyền',
-    failLabel: 'Theo lịch',
-    accentBg: '#1E3A8A',
-  },
-];
-
-const EXCEL_SUITE_TITLES: Record<MosVersion, Record<MosExamNumber, { vi: string; en: string; subVi: string; subEn: string }>> = {
-  '2016': {
-    1: { vi: 'Đề số 1 · Bán lẻ, Tài chính & Kho vận 2016', en: 'Exam 1 · Retail, Finance & Inventory 2016', subVi: 'SUM/AVERAGE/MAX/MIN, IF, SUMIF/COUNTIF, LEFT/PROPER & VLOOKUP chuẩn 77-727', subEn: 'Core 77-727 formulas: SUM/AVERAGE, IF, SUMIF/COUNTIF, text & VLOOKUP' },
-    2: { vi: 'Đề số 2 · Quản trị Nhân sự & Chuỗi Cửa hàng', en: 'Exam 2 · HR Payroll & Store Chain Analytics', subVi: 'Cố định dòng cột, gộp tiêu đề, định dạng phần trăm & thống kê có điều kiện', subEn: 'Freeze panes, title merges, percentage formats & conditional stats' },
-    3: { vi: 'Đề số 3 · Điều vận Cảng biển & Y tế Số', en: 'Exam 3 · Port Logistics & Healthcare Stock', subVi: 'Hàm xử lý mã chuỗi cổ điển, tra cứu bảng phụ & thiết lập trang in ngang', subEn: 'Classic string extraction, reference sheet lookups & landscape printing' },
-    4: { vi: 'Đề số 4 · Sản xuất Xuất khẩu & Du lịch', en: 'Exam 4 · Export Manufacturing & Hospitality', subVi: 'Kiểm đếm COUNTA/COUNTBLANK, hàm logic lồng & quản lý đa trang tính', subEn: 'COUNTA/COUNTBLANK auditing, logical formulas & multi-sheet management' },
-    5: { vi: 'Đề số 5 · Tổng duyệt Sát hạch 77-727 / 77-728', en: 'Exam 5 · Final Readiness Mock 77-727 / 77-728', subVi: 'Đề tổng duyệt toàn diện hàm thống kê, tra cứu và in ấn chuẩn MOS 2016', subEn: 'Full-length final readiness simulation for MOS Excel 2016' },
-  },
-  '2019': {
-    1: { vi: 'Đề số 1 · Phân tích Kinh doanh & Hàm Mới 2019', en: 'Exam 1 · Business Analytics & 2019 Functions', subVi: 'Bổ sung CONCAT, TEXTJOIN, MAXIFS, MINIFS, IFS chuẩn MO-200 / MO-201', subEn: 'Features CONCAT, TEXTJOIN, MAXIFS, MINIFS, and IFS for MO-200 / MO-201' },
-    2: { vi: 'Đề số 2 · Hợp đồng SaaS & Kiểm toán Doanh thu', en: 'Exam 2 · SaaS Contracts & Revenue Auditing', subVi: 'Ghép mã tự động TEXTJOIN, cực trị có điều kiện & kiểm soát trang in', subEn: 'TEXTJOIN code generation, conditional extrema & print scaling' },
-    3: { vi: 'Đề số 3 · Quyết toán Dự án & Chuỗi Cung ứng', en: 'Exam 3 · EPC Project Settlement & Supply Chain', subVi: 'Phân tầng IFS/SWITCH, tra cứu INDEX/MATCH & bẫy lỗi IFERROR', subEn: 'Multi-tier IFS/SWITCH logic, INDEX/MATCH lookups & IFERROR handling' },
-    4: { vi: 'Đề số 4 · Học viện Số & Vận hành Đội xe Xanh', en: 'Exam 4 · Digital Academy & EV Fleet Metrics', subVi: 'Tổng hợp đa điều kiện SUMIFS/COUNTIFS kết hợp chuẩn hoá bảng báo cáo', subEn: 'SUMIFS/COUNTIFS analytics paired with executive sheet formatting' },
-    5: { vi: 'Đề số 5 · Tổng duyệt Sát hạch MO-200 / MO-201', en: 'Exam 5 · Final Readiness Mock MO-200 / MO-201', subVi: 'Mô phỏng sát đề thi thật MO-200 / MO-201 với bộ dữ liệu doanh nghiệp', subEn: 'Full-scale MO-200 / MO-201 exam simulation on enterprise workbooks' },
-  },
-  '365': {
-    1: { vi: 'Đề số 1 · Bộ đề Chuẩn Quốc tế Microsoft 365', en: 'Exam 1 · Microsoft 365 Official Benchmark', subVi: 'Bộ dự án nền tảng 23 Sheets: thống kê, chuỗi, VLOOKUP/INDEX & kiểm toán', subEn: 'Core 23 Sheets benchmark: stats, text, VLOOKUP/INDEX & auditing' },
-    2: { vi: 'Đề số 2 · Tra cứu Hiện đại XLOOKUP & Mảng Động', en: 'Exam 2 · Modern XLOOKUP & Dynamic Arrays', subVi: 'Ứng dụng XLOOKUP, UNIQUE, MAXIFS, TEXTJOIN chuẩn MO-210 / MO-211', subEn: 'Applies XLOOKUP, UNIQUE, MAXIFS, and TEXTJOIN for MO-210 / MO-211' },
-    3: { vi: 'Đề số 3 · Tài chính Đám mây & Chuỗi Kho vận', en: 'Exam 3 · Cloud Finance & Fulfillment Modeling', subVi: 'XLOOKUP bẫy lỗi trực tiếp, FILTER/SORT & phân tích KPI đa chiều', subEn: 'Built-in XLOOKUP fallback, FILTER/SORT & multi-criteria KPI modeling' },
-    4: { vi: 'Đề số 4 · Sản xuất Thông minh & Thương mại Số', en: 'Exam 4 · Smart Manufacturing & E-Commerce', subVi: 'Kết hợp XMATCH, IFS, SUMIFS và chuẩn hoá bố cục in một trang', subEn: 'Combines XMATCH, IFS, SUMIFS, and Fit-to-Page report layouts' },
-    5: { vi: 'Đề số 5 · Tổng duyệt Sát hạch MO-210 / MO-211', en: 'Exam 5 · Final Readiness Mock MO-210 / MO-211', subVi: 'Đề tổng duyệt tốc độ 50 phút bao phủ trọn vẹn chuẩn Excel 365 mới nhất', subEn: '50-minute full-coverage mock exam for MO-210 / MO-211 certification' },
-  },
-};
-
-export function excelExamSuiteMeta(version: MosVersion, examNumber: MosExamNumber) {
-  return EXCEL_SUITE_TITLES[version][examNumber];
-}
+export const EXCEL_SEEDS: ExcelDatasetSeed[] = catalog.seeds.excel as ExcelDatasetSeed[];
 
 function buildStarterSheet(seed: ExcelDatasetSeed, idTag: string): SheetContent {
   const wb = emptyWorkbook(seed.fileName.replace(/\.xlsx$/i, ''));
@@ -486,7 +178,7 @@ function makeExcelAssocTasks(prefix: string, version: MosVersion, variant: numbe
           check: (sc) => {
             const hasExtra = Boolean(findSheet(sc.workbook, seed.extraSheetName));
             const sh = primarySheet(sc.workbook);
-            const merged = (sh?.mergeData ?? []).some((m) => m.startRow === 0 && m.startColumn === 0 && m.endColumn >= 6);
+            const merged = (sh?.mergeData ?? []).some((m) => m.startRow === 0 && m.endRow === 0 && m.startColumn === 0 && m.endColumn === 7);
             return hasExtra && merged
               ? { passed: true, detail: `Đã thêm trang “${seed.extraSheetName}” và gộp tiêu đề A1:H1.` }
               : { passed: false, detail: `Cần tạo đủ trang tính “${seed.extraSheetName}” và gộp ô vùng A1:H1.` };
@@ -527,7 +219,7 @@ function makeExcelAssocTasks(prefix: string, version: MosVersion, variant: numbe
           },
           check: (sc) => {
             const sh = primarySheet(sc.workbook);
-            const merged = (sh?.mergeData ?? []).some((m) => m.startRow === 0 && m.startColumn === 0 && m.endColumn >= 6);
+            const merged = (sh?.mergeData ?? []).some((m) => m.startRow === 0 && m.endRow === 0 && m.startColumn === 0 && m.endColumn === 7);
             const prtOk = sc.printSettings?.orientation === 'landscape' && Boolean(sc.printSettings?.fitToPage || sc.printSettings?.scaleMode === 'fit-page' || sc.printSettings?.scaleMode === 'fit-width');
             return merged && prtOk
               ? { passed: true, detail: 'Đã gộp A1:H1 và cấu hình in ngang vừa một trang.' }
@@ -785,7 +477,76 @@ function makeExcelAssocTasks(prefix: string, version: MosVersion, variant: numbe
   return [t1, t2, t3, t4, t5];
 }
 
-function makeExcelExpertTasks(prefix: string, version: MosVersion, orderIdx: number, seed: ExcelDatasetSeed): MosExcelProject['tasks'] {
+function expertAnalysisTask(prefix: string, examNumber: number, seed: ExcelDatasetSeed): MosExcelProject['tasks'][number] {
+  const group = '"' + seed.targetGroup.replaceAll('"', '""') + '"';
+  const analyses = [
+    {
+      title: 'Tính trung bình theo nhóm và tìm mục có giá trị thấp nhất',
+      titleEn: 'Calculate the group average and find the lowest-value item',
+      description: `Tại F11, dùng AVERAGEIF tính trung bình thành tiền cho nhóm “${seed.targetGroup}”. Tại F12, dùng INDEX, MATCH và MIN để tìm tên mục có thành tiền thấp nhất.`,
+      descriptionEn: `In F11, use AVERAGEIF to find the average amount for the “${seed.targetGroup}” group. In F12, use INDEX, MATCH and MIN to return the lowest-value item name.`,
+      f11: `=AVERAGEIF(C3:C8,${group},F3:F8)`,
+      f12: '=INDEX(B3:B8,MATCH(MIN(F3:F8),F3:F8,0))',
+    },
+    {
+      title: 'Đếm các dòng đạt chỉ tiêu và tìm giá trị lớn thứ hai',
+      titleEn: 'Count entries meeting the target and find the second-largest amount',
+      description: `Tại F11, dùng COUNTIFS đếm số dòng thuộc nhóm “${seed.targetGroup}” có thành tiền từ ${seed.passThreshold} trở lên. Tại F12, dùng LARGE tìm thành tiền lớn thứ hai trong cả bảng.`,
+      descriptionEn: `In F11, use COUNTIFS to count entries in the “${seed.targetGroup}” group with amounts of at least ${seed.passThreshold}. In F12, use LARGE to find the second-largest amount across all entries.`,
+      f11: `=COUNTIFS(C3:C8,${group},F3:F8,">=${seed.passThreshold}")`,
+      alternateF11: `=COUNTIFS(F3:F8,">=${seed.passThreshold}",C3:C8,${group})`,
+      f12: '=LARGE(F3:F8,2)',
+    },
+    {
+      title: 'Cộng số lượng theo nhóm và xác định trung vị thành tiền',
+      titleEn: 'Sum quantities for the target group and calculate the median amount',
+      description: `Tại F11, dùng SUMIF cộng các giá trị cột D cho nhóm “${seed.targetGroup}” ở cột C. Tại F12, dùng MEDIAN xác định trung vị của sáu giá trị thành tiền.`,
+      descriptionEn: `In F11, use SUMIF to add column D for the “${seed.targetGroup}” group in column C. In F12, use MEDIAN to calculate the median of the six amounts.`,
+      f11: `=SUMIF(C3:C8,${group},D3:D8)`,
+      f12: '=MEDIAN(F3:F8)',
+    },
+  ];
+  const analysis = analyses[(examNumber - 3) % analyses.length];
+  const canonical = (formula: string) => formula.toUpperCase()
+    .replace(/"(?:[^"]|"")*"|[\s$]|;/g, token => token.startsWith('"') ? token : token === ';' ? ',' : '');
+
+  return {
+    id: `${prefix}-t4`,
+    domainId: 'excel-formulas',
+    title: analysis.title,
+    titleEn: analysis.titleEn,
+    instruction: analysis.description,
+    instructionEn: analysis.descriptionEn,
+    copyTokens: [analysis.f11, analysis.f12],
+    ribbonPath: 'Công thức → Chèn hàm',
+    hint: `F11: ${analysis.f11} · F12: ${analysis.f12}`,
+    points: 20,
+    solution: {
+      steps: [
+        'Hoàn thành công thức thành tiền ở F3:F8.',
+        `Tại F11, nhập ${analysis.f11} rồi nhấn Enter.`,
+        `Tại F12, nhập ${analysis.f12} rồi nhấn Enter.`,
+      ],
+      formulaOrValue: `${analysis.f11} · ${analysis.f12}`,
+      verifyTip: `Kiểm tra F11 dùng nhóm “${seed.targetGroup}” và F12 tham chiếu đủ sáu dòng từ 3 đến 8.`,
+    },
+    applySampleSolution: sc => {
+      const sheet = primarySheet(sc.workbook);
+      if (!sheet) return;
+      sheet.cellData[10][5] = { ...sheet.cellData[10][5], f: analysis.f11 };
+      sheet.cellData[11][5] = { ...sheet.cellData[11][5], f: analysis.f12 };
+    },
+    check: sc => {
+      const sheet = primarySheet(sc.workbook);
+      const f11 = canonical(cellAt(sheet, 10, 5)?.f ?? '');
+      const passed = [analysis.f11, analysis.alternateF11].some(allowed => allowed && f11 === canonical(allowed))
+        && canonical(cellAt(sheet, 11, 5)?.f ?? '') === canonical(analysis.f12);
+      return { passed, detail: passed ? 'Công thức ở F11 và F12 chính xác.' : analysis.description };
+    },
+  };
+}
+
+function makeExcelExpertTasks(prefix: string, version: MosVersion, examNumber: MosExamNumber, orderIdx: number, seed: ExcelDatasetSeed): MosExcelProject['tasks'] {
   const minQty = Math.min(...seed.rows.map((r) => r[3])) + 2;
 
   const t1: MosExcelProject['tasks'][number] = {
@@ -994,7 +755,7 @@ function makeExcelExpertTasks(prefix: string, version: MosVersion, orderIdx: num
         },
       };
 
-  const t4: MosExcelProject['tasks'][number] = {
+  const t4: MosExcelProject['tasks'][number] = examNumber >= (version === '365' ? 4 : 3) ? expertAnalysisTask(prefix, examNumber, seed) : {
     id: `${prefix}-t4`,
     domainId: 'excel-formulas',
     title: 'Đếm đa điều kiện COUNTIFS (F11) và tìm tên mục dẫn đầu bằng INDEX/MATCH (F12)',
@@ -1082,8 +843,8 @@ function makeExcelExpertTasks(prefix: string, version: MosVersion, orderIdx: num
     : {
         id: `${prefix}-t5`,
         domainId: 'excel-format',
-        title: `Gộp tiêu đề A1:H1, định dạng số #,##0 cho F3:H8 và thêm trang “${seed.extraSheetName}”`,
-        titleEn: `Merge A1:H1, format F3:H8 as #,##0 & add sheet “${seed.extraSheetName}”`,
+        title: `Gộp tiêu đề A1:H1, định dạng số #,##0 cho F3:F8 và thêm trang “${seed.extraSheetName}”`,
+        titleEn: `Merge A1:H1, format F3:F8 as #,##0 & add sheet “${seed.extraSheetName}”`,
         instruction: `Gộp vùng tiêu đề A1:H1, áp dụng định dạng phân tách hàng nghìn (#,##0) cho dải F3:F8 và thêm trang tính tổng hợp “${seed.extraSheetName}”.`,
         instructionEn: `Merge A1:H1, format F3:F8 with thousands separators (#,##0), and insert a sheet named “${seed.extraSheetName}”.`,
         copyTokens: [seed.extraSheetName, 'A1:H1'],
@@ -1113,13 +874,12 @@ function makeExcelExpertTasks(prefix: string, version: MosVersion, orderIdx: num
           sc.workbook.sheets[added.id] = added;
         },
         check: (sc) => {
-          const sh = primarySheet(sc.workbook);
-          const merged = (sh?.mergeData ?? []).some((m) => m.startRow === 0 && m.startColumn === 0 && m.endColumn >= 6);
-          const fmtOk = [0, 1, 2, 3, 4, 5].some((i) => {
-            const st = resolveStyle(sc.workbook, cellAt(sh, i + 2, 5));
-            return foldCell(st?.n?.pattern ?? '').includes('#,##0') || foldCell(st?.n?.pattern ?? '').includes('0');
-          });
-          const sheetOk = Boolean(findSheet(sc.workbook, seed.extraSheetName));
+          const sh = findSheet(sc.workbook, seed.rawSheetName) ?? primarySheet(sc.workbook);
+          const merged = sh?.mergeData?.some(m => m.startRow === 0 && m.endRow === 0 && m.startColumn === 0 && m.endColumn === 7);
+          const fmtOk = [2, 3, 4, 5, 6, 7].every(row => resolveStyle(sc.workbook, cellAt(sh, row, 5))?.n?.pattern === '#,##0');
+          const addedSheet = sc.workbook.sheetOrder.map(id => sc.workbook.sheets[id])
+            .find(sheet => sheet?.name.toUpperCase() === seed.extraSheetName.toUpperCase());
+          const sheetOk = Boolean(addedSheet && addedSheet !== sh && sc.workbook.sheetOrder.length >= 3 && findSheet(sc.workbook, seed.refSheetName));
           return merged && fmtOk && sheetOk
             ? { passed: true, detail: `Đã gộp tiêu đề, định dạng số #,##0 và thêm trang “${seed.extraSheetName}”.` }
             : { passed: false, detail: `Cần gộp A1:H1, định dạng #,##0 cho F3:F8 và thêm trang “${seed.extraSheetName}”.` };
@@ -1129,23 +889,23 @@ function makeExcelExpertTasks(prefix: string, version: MosVersion, orderIdx: num
   return [t1, t2, t3, t4, t5];
 }
 
-function buildGeneratedExcelBank(): MosExcelProject[] {
+export function buildGeneratedExcelBank(seeds = EXCEL_SEEDS, exams: readonly MosExamNumber[] = catalog.exams, assignments: Record<string, string> = {}): MosExcelProject[] {
   const out: MosExcelProject[] = [];
+  const bySlug = new Map(seeds.map(seed => [seed.slug, seed]));
   const versions: MosVersion[] = ['2016', '2019', '365'];
-  const exams: MosExamNumber[] = [1, 2, 3, 4, 5];
 
   for (let vIdx = 0; vIdx < versions.length; vIdx++) {
     const version = versions[vIdx];
     for (const examNumber of exams) {
       if (version === '365' && examNumber === 1) continue;
-      const examSlot = vIdx * 5 + (examNumber - 1);
-      const assocStart = (examSlot * 3) % EXCEL_SEEDS.length;
-      const expStart = (examSlot * 5 + 2) % EXCEL_SEEDS.length;
+      const examSlot = examNumber <= 5 ? vIdx * 5 + examNumber - 1 : 15 + (examNumber - 6) * 3 + vIdx;
+      const assocStart = (examSlot * 3) % seeds.length;
+      const expStart = (examSlot * 5 + 2) % seeds.length;
 
       for (let order = 1; order <= 7; order++) {
-        const seed = EXCEL_SEEDS[(assocStart + order - 1) % EXCEL_SEEDS.length];
-        const variant = examSlot * 7 + (order - 1);
         const projId = `excel-${version}-e${examNumber}-p${order}`;
+        const seed = bySlug.get(assignments[projId]) ?? seeds[(assocStart + order - 1) % seeds.length];
+        const variant = examSlot * 7 + (order - 1);
         const difficulties = ['Cơ bản', 'Cơ bản', 'Trung bình', 'Trung bình', 'Trung bình', 'Nâng cao', 'Nâng cao'] as const;
 
         out.push({
@@ -1169,8 +929,9 @@ function buildGeneratedExcelBank(): MosExcelProject[] {
       }
 
       for (let order = 1; order <= 5; order++) {
-        const seed = EXCEL_SEEDS[(expStart + order - 1) % EXCEL_SEEDS.length];
         const projId = `excel-exp-${version}-e${examNumber}-p${order}`;
+        const seed = bySlug.get(assignments[projId]) ?? seeds[(expStart + order - 1) % seeds.length];
+
         const stem = seed.fileName.replace(/\.xlsx$/i, '');
 
         out.push({
@@ -1189,12 +950,10 @@ function buildGeneratedExcelBank(): MosExcelProject[] {
           minutes: 10,
           difficulty: 'Nâng cao',
           createStarter: () => buildStarterSheet(seed, projId),
-          tasks: makeExcelExpertTasks(projId, version, examSlot + order - 1, seed),
+          tasks: makeExcelExpertTasks(projId, version, examNumber, examSlot + order - 1, seed),
         });
       }
     }
   }
   return out;
 }
-
-export const MOS_GENERATED_EXCEL_PROJECTS: MosExcelProject[] = buildGeneratedExcelBank();

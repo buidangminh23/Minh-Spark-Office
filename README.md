@@ -144,6 +144,18 @@ Use the existing Vercel project `minh-spark-office`. Set all four Firebase varia
 
 Google button artwork is the official Firebase UI Google asset from https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg.
 
+### Publishing MOS exams and templates
+
+Edit `src/lib/mos/catalog-v1.json` to publish MOS changes. To give one generated project its own dataset, copy a seed from the same subject, give it a unique `slug`, edit its values and map the existing project ID to the new slug in `assignments`. For a wording correction, put the affected project or task ID in `overrides`. For example, `overrides["word-2016-e1-p1-t1"]` can provide `instruction` and `instructionEn`. The instructions should still describe what the existing grader checks.
+
+To add exam 6, append `6` to `exams` and add a `"6"` entry with `vi`, `en`, `subVi` and `subEn` under each subject and version in `titles`. This adds both difficulty levels for Word, Excel and PowerPoint in 2016, 2019 and 365. Assign the new project IDs to the intended seeds, following the IDs for exam 5, and keep published IDs stable for saved work.
+
+To add a document, workbook or presentation template, put the Office file and optional preview image under `public/templates/` and register their relative paths in `public/templates/catalog.json`. The array order sets the gallery order. Existing generated templates take their content from the generator named in the same catalog. Keep template IDs stable when replacing a file or updating its title.
+
+Run `npm test` and `npm run build`, then push the change to `main`. After verification, CI publishes the two manifests and template assets from that exact build to the `content/` directory of the `office-content-v1` branch. Template filenames contain the SHA-256 of their bytes, so an updated file gets a new URL and earlier catalogs can still fetch their original files. The [published MOS catalog](https://raw.githubusercontent.com/buidangminh23/Minh-Spark-Office/office-content-v1/content/mos-v1.json) and [template catalog](https://raw.githubusercontent.com/buidangminh23/Minh-Spark-Office/office-content-v1/content/templates.json) show what compatible clients can load.
+
+Publishing compatible content leaves the application version unchanged. Older installations need the release that first introduced the content reader. A new grading rule, exercise engine, or unsupported template format needs an application release before publishing content that depends on it.
+
 ## Product logos
 
 The default 23 Docs, 23 Sheets and 23 PDF identities are the approved layered PNG assets in `public/logos/`. Use `SuiteLogo` and the `suiteLogos` mapping in `src/lib/suiteBranding.ts` for product navigation, templates, file types, editor headers and browser favicons. Preserve the separate Office identity in `public/logo-icon.png`. Keep the original transparent artwork unchanged.

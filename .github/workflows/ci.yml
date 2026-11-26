@@ -34,3 +34,28 @@ jobs:
         run: npx vite build
         env:
           NODE_OPTIONS: --max-old-space-size=6144
+      - name: Save verified MOS and template content
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: office-content-v1
+          path: dist/content/
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
+
+  publish-content:
+    needs: verify
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: office-content-v1
+          path: dist/content/
+      - name: Publish verified content
+        run: bash scripts/publish-office-content.sh dist "$GITHUB_SHA"

@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from 'react';
+import { readContentManifest } from '../../lib/contentFeed';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
   Award,
@@ -22,7 +23,11 @@ import {
 import { drillsForTrack } from '../../lib/mos/drills';
 import { importMosExamPack, type ImportedExamGroup, type ImportedMosPack } from '../../lib/mos/examPackImport';
 import {
+  activateMosCatalog,
   buildPresetSession,
+  bundledMosBank,
+  currentMosCatalog,
+  prepareMosCatalog,
   domainsForTrack,
   examCodeFor,
   examSetsForSelection,
@@ -77,6 +82,31 @@ const HERO_RING_C = 2 * Math.PI * HERO_RING_R;
 
 export function MosHub() {
   const { user } = useAccount();
+  const uid = user?.uid ?? null;
+  const [readyFor, setReadyFor] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    let mounted = true;
+    async function load() {
+      let bank = bundledMosBank;
+      const draft = loadMosDraft(uid);
+      if (draft?.catalog) {
+        try { bank = prepareMosCatalog(draft.catalog); } catch { bank = bundledMosBank; }
+      } else if (!draft) {
+        bank = await readContentManifest('mos-v1', prepareMosCatalog) ?? bundledMosBank;
+      }
+      if (mounted) {
+        activateMosCatalog(bank);
+        setReadyFor(uid);
+      }
+    }
+    void load();
+    return () => { mounted = false; };
+  }, [uid]);
+  return readyFor === uid ? <MosLibrary key={uid ?? ''} /> : <p role="status">Đang mở thư viện đề MOS…</p>;
+}
+
+function MosLibrary() {
+  const { user } = useAccount();
   const storage = useWorkspace();
   const ui = useUi();
   const uid = user?.uid ?? null;
@@ -103,6 +133,7 @@ export function MosHub() {
   }));
   const savedDraft = draftStore.uid === uid ? draftStore.data : loadMosDraft(uid);
   const updateDraft = (next: MosSavedDraft | null) => {
+    if (next) next = { ...next, catalog: currentMosCatalog() };
     setDraftStore({ uid, data: next });
     if (next) saveMosDraft(uid, next);
     else clearMosDraft(uid);
@@ -299,7 +330,7 @@ export function MosHub() {
                 <span className="mos-hero-code">{examCode}</span>
               </div>
               <p>
-                {currentVersion.label} · {level === 'expert' ? 'Expert chuyên sâu' : 'Associate chuẩn'} · 5 bộ đề riêng ({versionReadiness.totalTasks} nhiệm vụ có đáp án từng bước)
+                {currentVersion.label} · {level === 'expert' ? 'Expert chuyên sâu' : 'Associate chuẩn'} · {examSets.length} bộ đề riêng ({versionReadiness.totalTasks} nhiệm vụ có đáp án từng bước)
               </p>
             </div>
           </div>
@@ -392,7 +423,7 @@ export function MosHub() {
                 <strong>{versionReadiness.bestMock !== null ? `${versionReadiness.bestMock} / 1000` : 'Chưa thi'}</strong>
               </div>
               <div>
-                <span>Tổng 5 đề ({currentVersion.short})</span>
+                <span>Tổng {examSets.length} đề ({currentVersion.short})</span>
                 <strong>{versionReadiness.passedTasks}/{versionReadiness.totalTasks} câu</strong>
               </div>
               <div>
@@ -473,7 +504,7 @@ export function MosHub() {
                   <strong>{item.title}</strong>
                   <span className="mos-code-pill">{code}</span>
                 </div>
-                <small>{item.subtitle} · 5 đề {currentVersion.short}</small>
+                <small>{item.subtitle} · {examSets.length} đề {currentVersion.short}</small>
                 <div className="mos-track-progress">
                   <div className="mos-mini-bar"><i style={{ width: `${stat.percent}%` }} /></div>
                   <span>{stat.passedTasks}/{stat.totalTasks} câu</span>
@@ -493,11 +524,11 @@ export function MosHub() {
             </p>
           </div>
           <span className="mos-exam-bank-summary">
-            Hoàn tất {versionReadiness.completedExams}/5 đề · Đang mở Đề {examNumber}
+            Hoàn tất {versionReadiness.completedExams}/{examSets.length} đề · Đang mở Đề {examNumber}
           </span>
         </div>
 
-        <div className="mos-exam-cards-grid" role="tablist" aria-label="Danh sách 5 đề thi hoàn chỉnh">
+        <div className="mos-exam-cards-grid" role="tablist" aria-label={`Danh sách ${examSets.length} đề thi hoàn chỉnh`}>
           {examSets.map((set) => {
             const setStat = examSetReadiness(progress, track, version, level, set.examNumber);
             const isSelected = set.examNumber === examNumber;
@@ -515,7 +546,7 @@ export function MosHub() {
               >
                 <div className="mos-exam-card-top">
                   <span className="mos-exam-num-pill">
-                    {lang === 'en' ? `Exam 0${set.examNumber}` : `Đề 0${set.examNumber}`}
+                    {lang === 'en' ? `Exam ${String(set.examNumber).padStart(2, '0')}` : `Đề ${String(set.examNumber).padStart(2, '0')}`}
                   </span>
                   {setStat.bestMock !== null ? (
                     <span className={`mos-exam-score-pill ${setStat.bestMock >= MOS_PASSING_SCORE ? 'is-pass' : 'is-fail'}`}>

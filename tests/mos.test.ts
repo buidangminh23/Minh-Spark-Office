@@ -33,10 +33,12 @@ import { hasAuthoredSolution, solutionForTask, totalAuthoredSolutions } from '..
 import { emptySheet } from '../src/lib/workbookBasics.ts';
 import type { DocContent, FileContent, SheetContent, SlideContent } from '../src/lib/storage.ts';
 
-test('all 90 complete MOS exams (540 projects / 2700 tasks across 2016, 2019, 365) have bilingual text, solutions, and starters score 0/5', () => {
-  assert.equal(ALL_MOS_PROJECTS.length, 540);
+test('all complete MOS exams across 2016, 2019 and 365 have bilingual text, solutions, and starters score 0/5', () => {
+  const examsPerSelection = MOS_EXAM_NUMBERS.length;
+  const totalProjects = 3 * MOS_VERSIONS.length * examsPerSelection * (7 + 5);
+  assert.equal(ALL_MOS_PROJECTS.length, totalProjects);
   assert.equal(totalAuthoredSolutions(), 180);
-  assert.equal(totalAuthoredSolutions(ALL_MOS_PROJECTS), 2700);
+  assert.equal(totalAuthoredSolutions(ALL_MOS_PROJECTS), totalProjects * 5);
 
   const projectIds = new Set<string>();
   const taskIds = new Set<string>();
@@ -47,13 +49,13 @@ test('all 90 complete MOS exams (540 projects / 2700 tasks across 2016, 2019, 36
     assert.equal(projectsForTrack(track).length, 12);
 
     for (const version of ['2016', '2019', '365'] as const) {
-      assert.equal(projectsForVersion(track, version, 'associate').length, 35);
-      assert.equal(projectsForVersion(track, version, 'expert').length, 25);
-      assert.equal(projectsForVersion(track, version).length, 60);
+      assert.equal(projectsForVersion(track, version, 'associate').length, examsPerSelection * 7);
+      assert.equal(projectsForVersion(track, version, 'expert').length, examsPerSelection * 5);
+      assert.equal(projectsForVersion(track, version).length, examsPerSelection * 12);
 
       for (const level of ['associate', 'expert'] as const) {
         const sets = examSetsForSelection(track, version, level);
-        assert.equal(sets.length, 5);
+        assert.equal(sets.length, examsPerSelection);
         for (const examNum of MOS_EXAM_NUMBERS) {
           const examProjects = projectsForExam(track, version, level, examNum);
           assert.equal(examProjects.length, level === 'associate' ? 7 : 5);
@@ -89,8 +91,76 @@ test('all 90 complete MOS exams (540 projects / 2700 tasks across 2016, 2019, 36
       `${project.id} starter had unexpected passes: ${graded.tasks.filter((t) => t.passed).map((t) => t.taskId).join(', ')}`,
     );
   }
-  assert.equal(projectIds.size, 540);
-  assert.equal(taskIds.size, 2700);
+  assert.equal(projectIds.size, totalProjects);
+  assert.equal(taskIds.size, totalProjects * 5);
+});
+
+test('all MOS exams have distinct task instructions independent of exam labels and project order', () => {
+  const examByContent = new Map<string, string>();
+  for (const track of ['word', 'excel', 'powerpoint'] as const) {
+    for (const { id: version } of MOS_VERSIONS) {
+      for (const level of ['associate', 'expert'] as const) {
+        for (const exam of examSetsForSelection(track, version, level)) {
+          const projects = exam.projects.map((project) =>
+            JSON.stringify(project.tasks.map((task) => task.instruction.trim()).sort()),
+          );
+          const content = JSON.stringify(projects.sort());
+          assert.ok(!examByContent.has(content), `${exam.id} repeats the tasks of ${examByContent.get(content)}`);
+          examByContent.set(content, exam.id);
+        }
+      }
+    }
+  }
+  assert.equal(examByContent.size, 3 * MOS_VERSIONS.length * 2 * MOS_EXAM_NUMBERS.length);
+});
+
+test('Excel Expert requires the exact title merge, thousands format on every required cell, and an added worksheet', () => {
+  let checked = 0;
+  for (const project of ALL_MOS_PROJECTS) {
+    if (project.kind !== 'sheet' || project.level !== 'expert') continue;
+    for (const task of project.tasks) {
+      if (!task.copyTokens?.includes('A1:H1') || !task.instruction.includes('#,##0')) continue;
+      const content = project.createStarter();
+      const { workbook } = content;
+      const mainSheet = workbook.sheets[workbook.sheetOrder[0]];
+      const merge = { startRow: 0, endRow: 0, startColumn: 0, endColumn: 7 };
+      mainSheet.mergeData = [merge];
+      workbook.styles.thousands = { n: { pattern: '#,##0' } };
+      for (let row = 2; row <= 7; row++) {
+        const cell = mainSheet.cellData[row][5];
+        mainSheet.cellData[row][5] = { ...cell, s: 'thousands' };
+      }
+      const sheetName = task.copyTokens[0];
+      assert.equal(task.check(content).passed, false, `${task.id}: missing worksheet`);
+      const existingName = mainSheet.name;
+      mainSheet.name = sheetName;
+      assert.equal(task.check(content).passed, false, `${task.id}: renamed the existing worksheet`);
+      mainSheet.name = existingName;
+      const added = emptySheet(sheetName);
+      workbook.sheetOrder.push(added.id);
+      workbook.sheets[added.id] = added;
+      assert.equal(task.check(content).passed, true, `${task.id}: complete answer with a shared number style`);
+
+      for (const [endColumn, endRow] of [[6, 0], [8, 0], [7, 1]]) {
+        mainSheet.mergeData = [{ ...merge, endColumn, endRow }];
+        assert.equal(task.check(content).passed, false, `${task.id}: incorrect merged extent (${endColumn}, ${endRow})`);
+      }
+      mainSheet.mergeData = [merge];
+      for (let row = 2; row <= 7; row++) {
+        const cell = mainSheet.cellData[row][5];
+        delete cell.s;
+        assert.equal(task.check(content).passed, false, `${task.id}: missing format in F${row + 1}`);
+        cell.s = { n: { pattern: row % 2 === 0 ? '0' : '#,##0.00' } };
+        assert.equal(task.check(content).passed, false, `${task.id}: wrong format in F${row + 1}`);
+        cell.s = 'thousands';
+      }
+      for (const text of [task.title, task.titleEn, task.instruction, task.instructionEn]) {
+        assert.ok(text?.includes('F3:F8'), `${task.id}: inconsistent advertised range`);
+      }
+      checked++;
+    }
+  }
+  assert.ok(checked >= 35);
 });
 
 test('all newly authored MOS 2016, 2019, and 365 exams solve cleanly to 1000/1000 with strict version boundaries', () => {
@@ -837,7 +907,7 @@ test('version profiles, drills, draft persistence, and external exam question pa
   prog = recordMosAttempt(prog, { ...e2Attempt, score: 860, passed: true });
   assert.equal(examSetReadiness(prog, 'excel', '2019', 'associate', 2).bestMock, 860);
   assert.equal(examSetReadiness(prog, 'excel', '2019', 'associate', 1).bestMock, null);
-  assert.equal(versionTrackReadiness(prog, 'excel', '2019', 'associate').totalTasks, 175);
+  assert.equal(versionTrackReadiness(prog, 'excel', '2019', 'associate').totalTasks, 35 * MOS_EXAM_NUMBERS.length);
   assert.equal(versionTrackReadiness(prog, 'excel', '2019', 'associate').bestMock, 860);
 });
 

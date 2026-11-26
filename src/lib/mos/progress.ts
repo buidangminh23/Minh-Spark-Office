@@ -89,6 +89,7 @@ export function loadMosDraft(uid: string | null): MosSavedDraft | null {
     const parsed = JSON.parse(raw) as Partial<MosSavedDraft>;
     if (!parsed.config || !Array.isArray(parsed.config.projectIds) || parsed.config.projectIds.length === 0) return null;
     return {
+      ...(parsed.catalog ? { catalog: parsed.catalog } : {}),
       config: parsed.config,
       projectIndex: typeof parsed.projectIndex === 'number' ? parsed.projectIndex : 0,
       activeTab: parsed.activeTab === 'overview' || typeof parsed.activeTab === 'number' ? parsed.activeTab : 0,

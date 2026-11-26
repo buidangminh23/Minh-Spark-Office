@@ -31,7 +31,7 @@ import { ConversionDialog } from './ConversionDialog';
 import { ConversionMenu } from './ConversionPicker';
 import { ConvertLogo } from './ConvertLogo';
 import type { ConversionPreset } from '../lib/conversionPresets';
-import { AccountMenu, Popover, SyncButton, TemplateImageThumb, TemplateThumb, type ThumbVariant } from './HomeParts';
+import { AccountMenu, Popover, SyncButton, TemplateImageThumb, TemplateThumb } from './HomeParts';
 import { useSettings } from '../lib/appSettings';
 import { updateNeedsAttention, useUpdaterStatus } from '../lib/updaterStatus';
 import './home.css';
@@ -41,21 +41,13 @@ import { INVITE_PARAM, parseInviteToken } from '../lib/teams';
 import type { SharedOpen } from './teams/TeamsPage';
 import type { WorkbookData } from '../lib/sheetTypes';
 import type { PresentationData } from '../lib/slideTypes';
-import { businessPitchPresentation, productLaunchPresentation, blankPresentation } from '../lib/slideTemplates';
+import bundledTemplates from 'virtual:office-template-catalog';
+import { readContentManifest } from '../lib/contentFeed';
+import { openGalleryTemplate, parseTemplateManifest, type GalleryTemplate } from '../lib/templateGallery';
 import { relativeTime } from '../lib/download';
 import { IMAGE_ACCEPT_STRING } from '../lib/imageFormatNames';
 import { editorIntentHandlers } from '../lib/editorModules';
 import { onShareFile, type ShareFileRequest } from '../lib/teamShare';
-import {
-  sampleDocHtml,
-  contractDocHtml,
-  meetingMinutesDocHtml,
-  sampleWorkbook,
-  payrollWorkbook,
-  cashbookWorkbook,
-  projectEstimateWorkbook,
-} from '../lib/templates';
-
 const SettingsDialog = lazy(() => import('./settings/SettingsDialog').then((module) => ({ default: module.SettingsDialog })));
 
 interface HomeProps {
@@ -109,61 +101,7 @@ const VIEW_TITLE: Record<Exclude<View, 'home'>, string> = {
 };
 const SORT_LABEL: Record<SortOrder, string> = { recent: 'Mới cập nhật', oldest: 'Cũ nhất', name: 'Tên A → Z' };
 
-type Template = { id: string; title: string; kind: FileKind; thumb: ThumbVariant; image?: string; create: (props: HomeProps) => void };
-
-const PPTX_TYPE = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
-
-function openDeckTemplate(props: HomeProps, slug: string, title: string) {
-  const url = `${import.meta.env.BASE_URL}templates/slides/${slug}.pptx`;
-  void fetch(url)
-    .then((response) => {
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      return response.blob();
-    })
-    .then((blob) => props.onImportFile(new globalThis.File([blob], `${title}.pptx`, { type: PPTX_TYPE })))
-    .catch((error) => {
-      console.error('Template download failed', url, error);
-      window.alert('Không tải được mẫu. Kiểm tra kết nối mạng rồi thử lại.');
-    });
-}
-
-const DECK_TEMPLATES: Array<[slug: string, title: string]> = [
-  ['pastel-gingham', 'Slide nhóm pastel kẻ caro'],
-  ['app-stream', 'Slide nhóm kiểu app xem phim'],
-  ['game-show', 'Slide nhóm kiểu game show'],
-  ['app-music', 'Slide nhóm kiểu app nghe nhạc'],
-  ['app-social', 'Slide nhóm kiểu mạng xã hội'],
-  ['space-crew', 'Slide nhóm không gian'],
-  ['cartoon-pop', 'Slide nhóm hoạt hình'],
-  ['vietnam-red', 'Slide nhóm Việt Nam đỏ vàng'],
-  ['minimal-bw', 'Slide nhóm tối giản đen trắng'],
-  ['business-gradient', 'Slide doanh nghiệp hiện đại'],
-  ['vintage-collage', 'Slide nhóm vintage cắt dán'],
-  ['eco-editorial', 'Slide nhóm môi trường'],
-];
-
-const TEMPLATES: Template[] = [
-  { id: 'report', title: 'Báo cáo hoạt động quý', kind: 'doc', thumb: 'report', create: (p) => p.onCreateDoc(sampleDocHtml()) },
-  { id: 'minutes', title: 'Biên bản cuộc họp', kind: 'doc', thumb: 'minutes', create: (p) => p.onCreateDoc(meetingMinutesDocHtml()) },
-  { id: 'budget', title: 'Ngân sách quý IV', kind: 'sheet', thumb: 'budget', create: (p) => p.onCreateSheet(sampleWorkbook('Báo cáo ngân sách')) },
-  { id: 'project', title: 'Kế hoạch dự án', kind: 'sheet', thumb: 'gantt', create: (p) => p.onCreateSheet(projectEstimateWorkbook()) },
-  { id: 'blank-doc', title: 'Văn bản trống', kind: 'doc', thumb: 'blank-doc', create: (p) => p.onCreateDoc() },
-  { id: 'contract', title: 'Hợp đồng kinh tế', kind: 'doc', thumb: 'contract', create: (p) => p.onCreateDoc(contractDocHtml()) },
-  { id: 'blank-sheet', title: 'Bảng tính trống', kind: 'sheet', thumb: 'blank-sheet', create: (p) => p.onCreateSheet() },
-  { id: 'payroll', title: 'Bảng lương & chấm công', kind: 'sheet', thumb: 'payroll', create: (p) => p.onCreateSheet(payrollWorkbook()) },
-  { id: 'cashbook', title: 'Sổ quỹ thu chi', kind: 'sheet', thumb: 'cashbook', create: (p) => p.onCreateSheet(cashbookWorkbook()) },
-  { id: 'pitch', title: 'Chiến lược kinh doanh 2026', kind: 'slide', thumb: 'pitch', create: (p) => p.onCreateSlide(businessPitchPresentation()) },
-  { id: 'product-launch', title: 'Ra mắt sản phẩm mới', kind: 'slide', thumb: 'product-launch', create: (p) => p.onCreateSlide(productLaunchPresentation()) },
-  { id: 'blank-slide', title: 'Bài thuyết trình trống', kind: 'slide', thumb: 'blank-slide', create: (p) => p.onCreateSlide(blankPresentation()) },
-  ...DECK_TEMPLATES.map(([slug, title]): Template => ({
-    id: `deck-${slug}`,
-    title,
-    kind: 'slide',
-    thumb: 'blank-slide',
-    image: `${import.meta.env.BASE_URL}templates/slides/${slug}.webp`,
-    create: (p) => openDeckTemplate(p, slug, title),
-  })),
-];
+const bundledById = new Map(bundledTemplates.templates.map(template => [template.id, template]));
 
 function sortFiles(files: FileMeta[], order: SortOrder) {
   const sorted = [...files];
@@ -207,6 +145,33 @@ export default function Home(props: HomeProps) {
   const [conversion, setConversion] = useState<null | 'all' | ConversionPreset>(null);
   const [conversionAnchor, setConversionAnchor] = useState<HTMLElement | null>(null);
   const [showAllTemplates, setShowAllTemplates] = useState(false);
+  const [templates, setTemplates] = useState(bundledTemplates.templates);
+  const [openingTemplate, setOpeningTemplate] = useState<string | null>(null);
+  useEffect(() => {
+    if (view !== 'home') return;
+    let active = true;
+    const refresh = () => {
+      void readContentManifest('templates', parseTemplateManifest).then(catalog => {
+        if (active && catalog) setTemplates(catalog.templates);
+      });
+    };
+    refresh();
+    window.addEventListener('online', refresh);
+    return () => {
+      active = false;
+      window.removeEventListener('online', refresh);
+    };
+  }, [view]);
+  const openTemplate = async (template: GalleryTemplate) => {
+    setOpeningTemplate(template.id);
+    try {
+      await openGalleryTemplate(template, bundledById.get(template.id), props);
+    } catch {
+      window.alert('Chưa thể mở mẫu này. Hãy kiểm tra kết nối mạng rồi thử lại.');
+    } finally {
+      setOpeningTemplate(null);
+    }
+  };
   const [isDragging, setIsDragging] = useState(false);
   const searchInput = useRef<HTMLInputElement>(null);
   const imageInput = useRef<HTMLInputElement>(null);
@@ -475,9 +440,9 @@ export default function Home(props: HomeProps) {
                     </button>
                   </div>
                   <div className="ws-templates">
-                    {(showAllTemplates ? TEMPLATES : TEMPLATES.slice(0, FEATURED_TEMPLATES)).map((template) => (
-                      <button key={template.id} className="ws-template" onClick={() => template.create(props)}>
-                        {template.image ? <TemplateImageThumb src={template.image} /> : <TemplateThumb variant={template.thumb} title={template.title} />}
+                    {(showAllTemplates ? templates : templates.slice(0, FEATURED_TEMPLATES)).map((template) => (
+                      <button key={template.id} className="ws-template" disabled={openingTemplate !== null} aria-busy={openingTemplate === template.id} onClick={() => void openTemplate(template)}>
+                        {template.image ? <TemplateImageThumb asset={template.image} packaged={bundledById.get(template.id)?.image?.sha256 === template.image.sha256} title={template.title} variant={template.thumb} /> : <TemplateThumb variant={template.thumb} title={template.title} />}
                         <span className="ws-template-meta">
                           <SuiteLogo kind={template.kind} size={32} />
                           <span><strong>{template.title}</strong><small>{KIND_LABEL[template.kind]}</small></span>
