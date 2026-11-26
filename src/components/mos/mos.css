@@ -167,6 +167,183 @@
   background: var(--mos-accent);
 }
 
+.mos-exam-bank-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 24px;
+  border: 1px solid var(--ws-line);
+  border-radius: 14px;
+  background: var(--ws-surface);
+}
+
+.mos-exam-bank-title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.mos-exam-bank-title p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ws-muted);
+}
+
+.mos-exam-bank-summary {
+  flex: none;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--ws-line);
+  background: var(--ws-page);
+  color: var(--ws-ink-2);
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.mos-exam-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.mos-exam-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 136px;
+  padding: 16px;
+  border: 1px solid var(--ws-line);
+  border-radius: 12px;
+  background: var(--ws-page);
+  text-align: left;
+  min-width: 0;
+  transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+.mos-exam-card:hover {
+  border-color: #9bb4e0;
+  background: var(--ws-surface);
+  transform: translateY(-1px);
+}
+
+.mos-exam-card.is-active {
+  border-color: color-mix(in srgb, var(--mos-accent, #2563eb) 46%, var(--ws-line));
+  background: color-mix(in srgb, var(--mos-accent, #2563eb) 6%, var(--ws-surface));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--mos-accent, #2563eb) 22%, transparent),
+    0 8px 20px color-mix(in srgb, var(--mos-accent, #2563eb) 10%, rgb(15 23 42 / 4%));
+}
+
+.mos-exam-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mos-exam-num-pill {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid var(--ws-line);
+  background: var(--ws-surface);
+  color: var(--ws-ink);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.mos-exam-card.is-active .mos-exam-num-pill {
+  background: var(--mos-accent, #2563eb);
+  border-color: var(--mos-accent, #2563eb);
+  color: #ffffff;
+}
+
+.mos-exam-active-pill,
+.mos-exam-meta-pill,
+.mos-exam-score-pill {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.mos-exam-active-pill {
+  background: color-mix(in srgb, var(--mos-accent, #2563eb) 12%, #ffffff);
+  color: var(--mos-accent, #1d4ed8);
+  border: 1px solid color-mix(in srgb, var(--mos-accent, #2563eb) 28%, transparent);
+}
+
+.mos-exam-meta-pill {
+  background: var(--ws-surface);
+  color: var(--ws-muted);
+  border: 1px solid var(--ws-line);
+}
+
+.mos-exam-score-pill.is-pass {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.mos-exam-score-pill.is-fail {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.mos-exam-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.mos-exam-card-body strong {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--ws-ink);
+}
+
+.mos-exam-card-body p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--ws-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.mos-exam-card-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ws-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.mos-exam-card-foot span {
+  flex: none;
+}
+
 .mos-launch-panel {
   display: flex;
   flex-direction: column;
@@ -3060,6 +3237,10 @@ body:has(.mos-runner) .toasts { z-index: 400; }
 .mos-track-btn:nth-child(2) { animation-delay: 65ms; }
 .mos-track-btn:nth-child(3) { animation-delay: 90ms; }
 
+.mos-exam-bank-panel {
+  animation: mosEnterUp 245ms var(--mos-ease-out) 95ms both;
+}
+
 .mos-launch-panel {
   animation: mosEnterUp 250ms var(--mos-ease-out) 110ms both;
 }
@@ -3784,8 +3965,68 @@ body:has(.mos-runner) .toasts { z-index: 400; }
   stroke: rgb(255 255 255 / 14%);
 }
 
+:root[data-theme='dark'] .mos-exam-bank-panel {
+  background: #141c2d;
+  border-color: #283652;
+}
+
+:root[data-theme='dark'] .mos-exam-bank-summary,
+:root[data-theme='dark'] .mos-exam-card {
+  background: #1a2438;
+  border-color: #2d3d5c;
+  color: #e2e8f0;
+}
+
+:root[data-theme='dark'] .mos-exam-card.is-active {
+  background: color-mix(in srgb, var(--mos-accent, #2563eb) 18%, #162033);
+  border-color: color-mix(in srgb, var(--mos-accent, #2563eb) 54%, #2d3d5c);
+}
+
+:root[data-theme='dark'] .mos-exam-card-body strong {
+  color: #f8fafc;
+}
+
+:root[data-theme='dark'] .mos-exam-card-body p,
+:root[data-theme='dark'] .mos-exam-bank-title p {
+  color: #94a3b8;
+}
+
+:root[data-theme='dark'] .mos-exam-num-pill,
+:root[data-theme='dark'] .mos-exam-meta-pill {
+  background: #0f172a;
+  border-color: #334155;
+  color: #cbd5e1;
+}
+
+:root[data-theme='dark'] .mos-exam-active-pill {
+  background: color-mix(in srgb, var(--mos-accent, #2563eb) 24%, #0f172a);
+  color: #93c5fd;
+}
+
+@media (max-width: 1240px) {
+  .mos-exam-cards-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 1080px) {
   .mos-hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 860px) {
+  .mos-exam-cards-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 540px) {
+  .mos-exam-bank-panel {
+    padding: 16px;
+  }
+
+  .mos-exam-cards-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 }
@@ -3793,6 +4034,7 @@ body:has(.mos-runner) .toasts { z-index: 400; }
 @media (prefers-reduced-motion: reduce) {
   .mos-hero,
   .mos-track-btn,
+  .mos-exam-bank-panel,
   .mos-launch-panel,
   .mos-split-cols,
   .mos-modal,
@@ -3810,6 +4052,7 @@ body:has(.mos-runner) .toasts { z-index: 400; }
   }
 
   .mos-track-btn:hover,
+  .mos-exam-card:hover,
   .mos-mode-item:hover,
   .mos-btn:active,
   .mos-real-btn:active {

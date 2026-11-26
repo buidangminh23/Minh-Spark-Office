@@ -1,6 +1,6 @@
 import { EXCEL_SOLUTIONS } from './excelSolutions';
 import { PPT_SOLUTIONS } from './pptSolutions';
-import type { MosProject, MosTask, MosTaskSolution } from './types';
+import type { MosInlineSolution, MosProject, MosTask, MosTaskSolution } from './types';
 import { WORD_SOLUTIONS, type RawSolutionEntry } from './wordSolutions';
 
 const ALL_SOLUTIONS: Record<string, RawSolutionEntry> = {
@@ -9,11 +9,19 @@ const ALL_SOLUTIONS: Record<string, RawSolutionEntry> = {
   ...PPT_SOLUTIONS,
 };
 
+export function registerMosSolutions(entries: Record<string, MosInlineSolution>): void {
+  Object.assign(ALL_SOLUTIONS, entries);
+}
+
+export function hasAuthoredSolution(task: Pick<MosTask, 'id' | 'solution'>): boolean {
+  return Boolean(task.solution || ALL_SOLUTIONS[task.id]);
+}
+
 export function solutionForTask(
-  task: Pick<MosTask, 'id' | 'ribbonPath' | 'hint' | 'copyTokens'>,
+  task: Pick<MosTask, 'id' | 'ribbonPath' | 'hint' | 'copyTokens' | 'solution'>,
   project?: Pick<MosProject, 'fileName'>,
 ): MosTaskSolution {
-  const entry = ALL_SOLUTIONS[task.id];
+  const entry = task.solution ?? ALL_SOLUTIONS[task.id];
   if (entry) {
     return {
       ribbonPath: task.ribbonPath,
@@ -38,6 +46,9 @@ export function solutionForTask(
   };
 }
 
-export function totalAuthoredSolutions(): number {
+export function totalAuthoredSolutions(projects?: ReadonlyArray<MosProject>): number {
+  if (projects) {
+    return projects.reduce((sum, project) => sum + project.tasks.filter((task) => hasAuthoredSolution(task)).length, 0);
+  }
   return Object.keys(ALL_SOLUTIONS).length;
 }

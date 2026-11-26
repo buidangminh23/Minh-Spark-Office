@@ -7,42 +7,78 @@ import {
   ALL_MOS_PROJECTS,
   buildPresetSession,
   examCodeFor,
+  examSetsForSelection,
   gradeExamAttempt,
   gradeProject,
+  MOS_EXAM_NUMBERS,
   MOS_MAX_SCORE,
   MOS_VERSIONS,
+  projectsForExam,
   projectsForTrack,
+  projectsForVersion,
   versionMeta,
 } from '../src/lib/mos/grader.ts';
 import {
   clearMosDraft,
   emptyProgress,
+  examSetReadiness,
   loadMosDraft,
   recordMosAttempt,
   recordMosDrill,
   saveMosDraft,
   trackReadiness,
+  versionTrackReadiness,
 } from '../src/lib/mos/progress.ts';
-import { solutionForTask, totalAuthoredSolutions } from '../src/lib/mos/solutions.ts';
+import { hasAuthoredSolution, solutionForTask, totalAuthoredSolutions } from '../src/lib/mos/solutions.ts';
 import { emptySheet } from '../src/lib/workbookBasics.ts';
 import type { DocContent, FileContent, SheetContent, SlideContent } from '../src/lib/storage.ts';
 
-test('all 36 built-in MOS projects (180 tasks) have bilingual text and starters score 0/5', () => {
-  assert.equal(ALL_MOS_PROJECTS.length, 36);
+test('all 90 complete MOS exams (540 projects / 2700 tasks across 2016, 2019, 365) have bilingual text, solutions, and starters score 0/5', () => {
+  assert.equal(ALL_MOS_PROJECTS.length, 540);
   assert.equal(totalAuthoredSolutions(), 180);
+  assert.equal(totalAuthoredSolutions(ALL_MOS_PROJECTS), 2700);
+
+  const projectIds = new Set<string>();
+  const taskIds = new Set<string>();
+
   for (const track of ['word', 'excel', 'powerpoint'] as const) {
     assert.equal(projectsForTrack(track, 'associate').length, 7);
     assert.equal(projectsForTrack(track, 'expert').length, 5);
     assert.equal(projectsForTrack(track).length, 12);
+
+    for (const version of ['2016', '2019', '365'] as const) {
+      assert.equal(projectsForVersion(track, version, 'associate').length, 35);
+      assert.equal(projectsForVersion(track, version, 'expert').length, 25);
+      assert.equal(projectsForVersion(track, version).length, 60);
+
+      for (const level of ['associate', 'expert'] as const) {
+        const sets = examSetsForSelection(track, version, level);
+        assert.equal(sets.length, 5);
+        for (const examNum of MOS_EXAM_NUMBERS) {
+          const examProjects = projectsForExam(track, version, level, examNum);
+          assert.equal(examProjects.length, level === 'associate' ? 7 : 5);
+          const examTitles = new Set(examProjects.map((p) => p.title));
+          const examFiles = new Set(examProjects.map((p) => p.fileName));
+          assert.equal(examTitles.size, examProjects.length, `${track} ${version} ${level} Exam ${examNum} has duplicate project titles`);
+          assert.equal(examFiles.size, examProjects.length, `${track} ${version} ${level} Exam ${examNum} has duplicate project filenames`);
+        }
+      }
+    }
   }
+
   for (const project of ALL_MOS_PROJECTS) {
+    assert.ok(!projectIds.has(project.id), `duplicate project id: ${project.id}`);
+    projectIds.add(project.id);
     assert.ok(project.titleEn && project.titleEn.length > 0, `${project.id} missing titleEn`);
     assert.ok(project.scenarioEn && project.scenarioEn.length > 0, `${project.id} missing scenarioEn`);
     const starter = project.createStarter();
     const graded = gradeProject(project, starter);
     assert.equal(graded.totalCount, 5, `${project.id} must have 5 tasks`);
     for (const task of project.tasks) {
+      assert.ok(!taskIds.has(task.id), `duplicate task id: ${task.id}`);
+      taskIds.add(task.id);
       assert.ok(task.titleEn && task.instructionEn, `${task.id} missing English translation`);
+      assert.ok(hasAuthoredSolution(task), `${task.id} missing authored solution`);
       const sol = solutionForTask(task, project);
       assert.ok(sol.steps.length >= 3, `${task.id} solution must have >= 3 steps`);
       assert.ok(sol.verifyTip.length >= 8, `${task.id} solution missing verifyTip`);
@@ -52,6 +88,55 @@ test('all 36 built-in MOS projects (180 tasks) have bilingual text and starters 
       0,
       `${project.id} starter had unexpected passes: ${graded.tasks.filter((t) => t.passed).map((t) => t.taskId).join(', ')}`,
     );
+  }
+  assert.equal(projectIds.size, 540);
+  assert.equal(taskIds.size, 2700);
+});
+
+test('all newly authored MOS 2016, 2019, and 365 exams solve cleanly to 1000/1000 with strict version boundaries', () => {
+  for (const track of ['word', 'excel', 'powerpoint'] as const) {
+    for (const version of ['2016', '2019', '365'] as const) {
+      for (const level of ['associate', 'expert'] as const) {
+        for (const examNumber of MOS_EXAM_NUMBERS) {
+          if (version === '365' && examNumber === 1) continue;
+          const examProjects = projectsForExam(track, version, level, examNumber);
+          const solvedByProject: Record<string, FileContent> = {};
+
+          for (const project of examProjects) {
+            const working = project.createStarter();
+            for (const task of project.tasks) {
+              if (version === '2016' && track === 'excel') {
+                const upper = `${task.instruction} ${task.instructionEn ?? ''}`.toUpperCase();
+                assert.ok(!upper.includes('XLOOKUP'), `${task.id} leaked XLOOKUP into Excel 2016`);
+                assert.ok(!upper.includes('MAXIFS'), `${task.id} leaked MAXIFS into Excel 2016`);
+                assert.ok(!upper.includes('TEXTJOIN'), `${task.id} leaked TEXTJOIN into Excel 2016`);
+              }
+              if (version === '2016' && track === 'powerpoint') {
+                const upper = `${task.instruction} ${task.instructionEn ?? ''}`.toUpperCase();
+                assert.ok(!upper.includes('MORPH'), `${task.id} leaked Morph into PowerPoint 2016`);
+              }
+              assert.equal(typeof task.applySampleSolution, 'function', `${task.id} missing applySampleSolution`);
+              (task.applySampleSolution as (c: FileContent) => void)(working);
+            }
+            solvedByProject[project.id] = working;
+          }
+
+          const config = buildPresetSession('certiport-exam', { track, version, level, examNumber });
+          const attempt = gradeExamAttempt({
+            config,
+            contentsByProjectId: solvedByProject,
+            durationSec: 1800,
+          });
+          assert.equal(
+            attempt.score,
+            MOS_MAX_SCORE,
+            `${track} ${version} ${level} Exam ${examNumber} failed tasks: ${attempt.projects.flatMap((p) => p.tasks.filter((t) => !t.passed).map((t) => `${t.taskId}(${t.detail})`)).join('; ')}`,
+          );
+          assert.equal(attempt.passedTasks, level === 'associate' ? 35 : 25);
+          assert.equal(attempt.examNumber, examNumber);
+        }
+      }
+    }
   }
 });
 
@@ -424,7 +509,7 @@ test('MOS Excel Associate (7 projects) and Expert (5 projects) both grade to 100
   s7.freeze = { xSplit: 0, ySplit: 2, startRow: 2, startColumn: 0 };
 
   const assocAttempt = gradeExamAttempt({
-    config: buildPresetSession('certiport-exam', { track: 'excel', version: '2019', level: 'associate' }),
+    config: buildPresetSession('certiport-exam', { track: 'excel', version: '365', level: 'associate', examNumber: 1 }),
     contentsByProjectId: {
       [assoc[0].id]: e1,
       [assoc[1].id]: e2,
@@ -438,7 +523,7 @@ test('MOS Excel Associate (7 projects) and Expert (5 projects) both grade to 100
   });
   assert.equal(assocAttempt.score, MOS_MAX_SCORE);
   assert.equal(assocAttempt.passedTasks, 35);
-  assert.equal(assocAttempt.examCode, 'MO-200');
+  assert.equal(assocAttempt.examCode, 'MO-210');
 
   const expert = projectsForTrack('excel', 'expert');
   assert.equal(expert.length, 5);
@@ -498,7 +583,7 @@ test('MOS Excel Associate (7 projects) and Expert (5 projects) both grade to 100
   x5.printSettings = { orientation: 'landscape', paperSize: 'A4', margins: 'normal', fitToPage: false, showGridlines: true };
 
   const expertAttempt = gradeExamAttempt({
-    config: buildPresetSession('certiport-exam', { track: 'excel', version: '2019', level: 'expert' }),
+    config: buildPresetSession('certiport-exam', { track: 'excel', version: '365', level: 'expert', examNumber: 1 }),
     contentsByProjectId: {
       [expert[0].id]: x1,
       [expert[1].id]: x2,
@@ -510,7 +595,7 @@ test('MOS Excel Associate (7 projects) and Expert (5 projects) both grade to 100
   });
   assert.equal(expertAttempt.score, MOS_MAX_SCORE);
   assert.equal(expertAttempt.passedTasks, 25);
-  assert.equal(expertAttempt.examCode, 'MO-201');
+  assert.equal(expertAttempt.examCode, 'MO-211');
 });
 
 test('MOS PowerPoint Associate (7 projects) and Expert (5 projects) both grade to 1000/1000', () => {
@@ -577,7 +662,7 @@ test('MOS PowerPoint Associate (7 projects) and Expert (5 projects) both grade t
   p7.presentation.slides[0].comments = [{ id: 'cm-p7', author: 'Minh', text: 'Chuẩn bị vòng Series A', createdAt: 1 }];
 
   const assocAttempt = gradeExamAttempt({
-    config: buildPresetSession('certiport-exam', { track: 'powerpoint', version: '2016', level: 'associate' }),
+    config: buildPresetSession('certiport-exam', { track: 'powerpoint', version: '365', level: 'associate', examNumber: 1 }),
     contentsByProjectId: {
       [assoc[0].id]: p1,
       [assoc[1].id]: p2,
@@ -591,7 +676,7 @@ test('MOS PowerPoint Associate (7 projects) and Expert (5 projects) both grade t
   });
   assert.equal(assocAttempt.score, MOS_MAX_SCORE);
   assert.equal(assocAttempt.passedTasks, 35);
-  assert.equal(assocAttempt.examCode, '77-729');
+  assert.equal(assocAttempt.examCode, 'MO-310');
 
   const expert = projectsForTrack('powerpoint', 'expert');
   assert.equal(expert.length, 5);
@@ -656,7 +741,7 @@ test('MOS PowerPoint Associate (7 projects) and Expert (5 projects) both grade t
   ];
 
   const expertAttempt = gradeExamAttempt({
-    config: buildPresetSession('certiport-exam', { track: 'powerpoint', version: '2016', level: 'expert' }),
+    config: buildPresetSession('certiport-exam', { track: 'powerpoint', version: '365', level: 'expert', examNumber: 1 }),
     contentsByProjectId: {
       [expert[0].id]: px1,
       [expert[1].id]: px2,
@@ -668,7 +753,7 @@ test('MOS PowerPoint Associate (7 projects) and Expert (5 projects) both grade t
   });
   assert.equal(expertAttempt.score, MOS_MAX_SCORE);
   assert.equal(expertAttempt.passedTasks, 25);
-  assert.equal(expertAttempt.examCode, '77-729+');
+  assert.equal(expertAttempt.examCode, 'MO-310+');
 });
 
 test('version profiles, drills, draft persistence, and external exam question parser work cleanly', () => {
@@ -687,6 +772,8 @@ test('version profiles, drills, draft persistence, and external exam question pa
   assert.equal(drillsForTrack('word', 'expert').length, 12);
   assert.equal(drillsForTrack('excel', 'expert').length, 12);
   assert.equal(drillsForTrack('powerpoint', 'expert').length, 12);
+  assert.equal(drillsForTrack('excel', 'associate', '365').length, 9);
+  assert.equal(drillsForTrack('excel', 'expert', '2019').length, 14);
 
   const rawQuestions = [
     'Project 1: Bicycles Overview — Prepare the cycling shop brochure.',
@@ -744,6 +831,14 @@ test('version profiles, drills, draft persistence, and external exam question pa
   const ready = trackReadiness(prog, 'word', 'associate');
   assert.equal(ready.totalTasks, 35);
   assert.equal(ready.weakTaskIds.length, 35);
+
+  const e2Cfg = buildPresetSession('certiport-exam', { track: 'excel', version: '2019', level: 'associate', examNumber: 2 });
+  const e2Attempt = gradeExamAttempt({ config: e2Cfg, contentsByProjectId: {}, durationSec: 300 });
+  prog = recordMosAttempt(prog, { ...e2Attempt, score: 860, passed: true });
+  assert.equal(examSetReadiness(prog, 'excel', '2019', 'associate', 2).bestMock, 860);
+  assert.equal(examSetReadiness(prog, 'excel', '2019', 'associate', 1).bestMock, null);
+  assert.equal(versionTrackReadiness(prog, 'excel', '2019', 'associate').totalTasks, 175);
+  assert.equal(versionTrackReadiness(prog, 'excel', '2019', 'associate').bestMock, 860);
 });
 
 test('document close registry keeps a LIFO stack so embedded MOS editors restore parent tabs closer', async () => {

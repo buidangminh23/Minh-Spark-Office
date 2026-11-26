@@ -1,6 +1,8 @@
 import type { FileContent } from '../storage';
+import { excelExamSuiteMeta, MOS_GENERATED_EXCEL_PROJECTS } from './excelExamBank';
 import { MOS_EXCEL_EXPERT_PROJECTS } from './excelExpertProjects';
 import { MOS_EXCEL_ASSOCIATE_PROJECTS } from './excelProjects';
+import { MOS_GENERATED_PPT_PROJECTS, pptExamSuiteMeta } from './pptExamBank';
 import { MOS_PPT_EXPERT_PROJECTS } from './pptExpertProjects';
 import { MOS_PPT_ASSOCIATE_PROJECTS } from './pptProjects';
 import type {
@@ -8,6 +10,8 @@ import type {
   MosDomain,
   MosDomainScore,
   MosExamFormat,
+  MosExamNumber,
+  MosExamSetMeta,
   MosLang,
   MosLevel,
   MosProject,
@@ -19,11 +23,13 @@ import type {
   MosVersion,
   MosVersionMeta,
 } from './types';
+import { MOS_GENERATED_WORD_PROJECTS, wordExamSuiteMeta } from './wordExamBank';
 import { MOS_WORD_EXPERT_PROJECTS } from './wordExpertProjects';
 import { MOS_WORD_ASSOCIATE_PROJECTS } from './wordProjects';
 
 export const MOS_MAX_SCORE = 1000;
 export const MOS_PASSING_SCORE = 700;
+export const MOS_EXAM_NUMBERS: ReadonlyArray<MosExamNumber> = [1, 2, 3, 4, 5];
 
 export const MOS_VERSIONS: ReadonlyArray<MosVersionMeta> = [
   {
@@ -57,8 +63,8 @@ export function versionMeta(version: MosVersion): MosVersionMeta {
 }
 
 export const MOS_LEVELS: ReadonlyArray<{ id: MosLevel; label: string; detail: string }> = [
-  { id: 'associate', label: 'Associate', detail: 'Đề chuẩn 7 dự án · 35 nhiệm vụ (50 phút)' },
-  { id: 'expert', label: 'Expert', detail: 'Đề chuyên sâu 5 dự án · 25 nhiệm vụ (50 phút)' },
+  { id: 'associate', label: 'Associate', detail: '5 bộ đề chuẩn · 7 dự án / 35 nhiệm vụ mỗi đề (50 phút)' },
+  { id: 'expert', label: 'Expert', detail: '5 bộ đề chuyên sâu · 5 dự án / 25 nhiệm vụ mỗi đề (50 phút)' },
 ];
 
 export const MOS_FORMAT_LABELS: Record<MosExamFormat, string> = {
@@ -150,14 +156,27 @@ export const MOS_DOMAINS: ReadonlyArray<MosDomain> = [
   { id: 'ppt-deliver', track: 'powerpoint', code: '4.0', name: 'Trình chiếu, Slide Master & kiểm duyệt', nameEn: 'Manage Slide Shows, Masters, and Review' },
 ];
 
+function tagCanonicalExam1<T extends MosProject>(list: ReadonlyArray<T>): T[] {
+  return list.map((project) => ({
+    ...project,
+    version: project.version ?? ('365' as const),
+    examNumber: project.examNumber ?? (1 as const),
+  }));
+}
+
 export const ALL_MOS_PROJECTS: ReadonlyArray<MosProject> = [
-  ...MOS_WORD_ASSOCIATE_PROJECTS,
-  ...MOS_WORD_EXPERT_PROJECTS,
-  ...MOS_EXCEL_ASSOCIATE_PROJECTS,
-  ...MOS_EXCEL_EXPERT_PROJECTS,
-  ...MOS_PPT_ASSOCIATE_PROJECTS,
-  ...MOS_PPT_EXPERT_PROJECTS,
+  ...tagCanonicalExam1(MOS_WORD_ASSOCIATE_PROJECTS),
+  ...tagCanonicalExam1(MOS_WORD_EXPERT_PROJECTS),
+  ...MOS_GENERATED_WORD_PROJECTS,
+  ...tagCanonicalExam1(MOS_EXCEL_ASSOCIATE_PROJECTS),
+  ...tagCanonicalExam1(MOS_EXCEL_EXPERT_PROJECTS),
+  ...MOS_GENERATED_EXCEL_PROJECTS,
+  ...tagCanonicalExam1(MOS_PPT_ASSOCIATE_PROJECTS),
+  ...tagCanonicalExam1(MOS_PPT_EXPERT_PROJECTS),
+  ...MOS_GENERATED_PPT_PROJECTS,
 ];
+
+const PROJECT_INDEX = new Map<string, MosProject>(ALL_MOS_PROJECTS.map((project) => [project.id, project]));
 
 export function trackMeta(track: MosTrackId): MosTrackMeta {
   return MOS_TRACKS.find((item) => item.id === track) ?? MOS_TRACKS[0];
@@ -167,11 +186,82 @@ export function domainsForTrack(track: MosTrackId): MosDomain[] {
   return MOS_DOMAINS.filter((item) => item.track === track);
 }
 
-export function projectsForTrack(track: MosTrackId, level?: MosLevel): MosProject[] {
-  const list = ALL_MOS_PROJECTS.filter((project) => project.track === track);
-  if (level === 'associate') return list.filter((project) => project.level === 'associate');
-  if (level === 'expert') return list.filter((project) => project.level === 'expert');
-  return list;
+export function projectsForExam(
+  track: MosTrackId,
+  version: MosVersion,
+  level: MosLevel,
+  examNumber: MosExamNumber,
+): MosProject[] {
+  return ALL_MOS_PROJECTS
+    .filter(
+      (project) =>
+        project.track === track &&
+        (project.version ?? '365') === version &&
+        project.level === level &&
+        (project.examNumber ?? 1) === examNumber,
+    )
+    .sort((a, b) => a.order - b.order);
+}
+
+export function projectsForVersion(
+  track: MosTrackId,
+  version: MosVersion,
+  level?: MosLevel,
+): MosProject[] {
+  return ALL_MOS_PROJECTS.filter(
+    (project) =>
+      project.track === track &&
+      (project.version ?? '365') === version &&
+      (!level || project.level === level),
+  );
+}
+
+export function examSetsForSelection(
+  track: MosTrackId,
+  version: MosVersion,
+  level: MosLevel,
+): MosExamSetMeta[] {
+  const code = examCodeFor(track, version, level);
+  return MOS_EXAM_NUMBERS.map((examNumber) => {
+    const projects = projectsForExam(track, version, level, examNumber);
+    const meta = track === 'word'
+      ? wordExamSuiteMeta(version, examNumber)
+      : track === 'excel'
+        ? excelExamSuiteMeta(version, examNumber)
+        : pptExamSuiteMeta(version, examNumber);
+    return {
+      id: `${track}-${version}-${level}-e${examNumber}`,
+      examNumber,
+      track,
+      version,
+      level,
+      examCode: code,
+      title: meta.vi,
+      titleEn: meta.en,
+      subtitle: meta.subVi,
+      subtitleEn: meta.subEn,
+      projects,
+      totalTasks: projects.reduce((sum, p) => sum + p.tasks.length, 0),
+      minutes: 50,
+    };
+  });
+}
+
+export function projectsForTrack(
+  track: MosTrackId,
+  level?: MosLevel,
+  options?: { version?: MosVersion; examNumber?: MosExamNumber | 'all' },
+): MosProject[] {
+  const targetVersion = options?.version ?? '365';
+  const targetExam = options?.examNumber ?? 1;
+  const list = ALL_MOS_PROJECTS.filter((project) => {
+    if (project.track !== track) return false;
+    if ((project.version ?? '365') !== targetVersion) return false;
+    if (targetExam !== 'all' && (project.examNumber ?? 1) !== targetExam) return false;
+    if (level && project.level !== level) return false;
+    return true;
+  });
+  return list.sort((a, b) => ((a.examNumber ?? 1) - (b.examNumber ?? 1)) || (a.order - b.order));
 }
 
 export function projectById(id: string, customProjects?: ReadonlyArray<MosProject>): MosProject | undefined {
@@ -179,7 +269,7 @@ export function projectById(id: string, customProjects?: ReadonlyArray<MosProjec
     const found = customProjects.find((project) => project.id === id);
     if (found) return found;
   }
-  return ALL_MOS_PROJECTS.find((project) => project.id === id);
+  return PROJECT_INDEX.get(id);
 }
 
 export function buildPresetSession(
@@ -188,6 +278,7 @@ export function buildPresetSession(
     track: MosTrackId;
     version: MosVersion;
     level: MosLevel;
+    examNumber?: MosExamNumber;
     lang?: MosLang;
     projectId?: string;
     domainIds?: string[];
@@ -196,15 +287,19 @@ export function buildPresetSession(
   },
 ): MosSessionConfig {
   const { track, version, level, customProjects } = options;
+  const examNumber: MosExamNumber = options.examNumber ?? 1;
   const lang: MosLang = options.lang ?? 'vi';
-  const available = projectsForTrack(track, level);
-  const allTrack = projectsForTrack(track);
+  const available = projectsForExam(track, version, level, examNumber);
+  const versionPool = projectsForVersion(track, version, level);
+  const allTrack = ALL_MOS_PROJECTS.filter((p) => p.track === track);
+  const examTag = options.examNumber ? ` · Đề ${examNumber}` : '';
 
   if (format === 'certiport-exam') {
     return {
       track,
       version,
       level,
+      examNumber,
       format,
       mode: 'exam',
       lang,
@@ -213,7 +308,7 @@ export function buildPresetSession(
       allowHints: false,
       allowLiveCheck: false,
       passingScore: MOS_PASSING_SCORE,
-      label: `${MOS_FORMAT_LABELS[format]} (${examCodeFor(track, version, level)})`,
+      label: `${MOS_FORMAT_LABELS[format]}${examTag} (${examCodeFor(track, version, level)})`,
     };
   }
 
@@ -222,6 +317,7 @@ export function buildPresetSession(
       track,
       version,
       level,
+      examNumber,
       format,
       mode: 'training',
       lang,
@@ -230,7 +326,7 @@ export function buildPresetSession(
       allowHints: true,
       allowLiveCheck: true,
       passingScore: MOS_PASSING_SCORE,
-      label: `${MOS_FORMAT_LABELS[format]} (${available.length} dự án)`,
+      label: `${MOS_FORMAT_LABELS[format]}${examTag} (${available.length} dự án)`,
     };
   }
 
@@ -240,6 +336,7 @@ export function buildPresetSession(
       track,
       version,
       level,
+      examNumber,
       format,
       mode: 'exam',
       lang,
@@ -256,12 +353,15 @@ export function buildPresetSession(
     const selectedDomains = options.domainIds && options.domainIds.length > 0 ? options.domainIds : [domainsForTrack(track)[0].id];
     const domainSet = new Set(selectedDomains);
     const matching = available.filter((project) => project.tasks.some((task) => domainSet.has(task.domainId)));
-    const source = matching.length > 0 ? matching : allTrack.filter((project) => project.tasks.some((task) => domainSet.has(task.domainId)));
+    const source = matching.length > 0
+      ? matching
+      : versionPool.filter((project) => project.tasks.some((task) => domainSet.has(task.domainId)));
     const focusTasks = source.flatMap((p) => p.tasks.filter((t) => domainSet.has(t.domainId)).map((t) => t.id));
     return {
       track,
       version,
       level,
+      examNumber,
       format,
       mode: 'training',
       lang,
@@ -272,7 +372,7 @@ export function buildPresetSession(
       passingScore: MOS_PASSING_SCORE,
       focusDomainIds: selectedDomains,
       focusTaskIds: focusTasks,
-      label: `Luyện miền kỹ năng (${focusTasks.length} câu)`,
+      label: `Luyện miền kỹ năng${examTag} (${focusTasks.length} câu)`,
     };
   }
 
@@ -288,6 +388,7 @@ export function buildPresetSession(
       track,
       version,
       level,
+      examNumber,
       format,
       mode: 'training',
       lang,
@@ -306,6 +407,7 @@ export function buildPresetSession(
     track,
     version,
     level,
+    examNumber,
     format: 'single-project',
     mode: 'training',
     lang,
@@ -411,6 +513,7 @@ export function gradeExamAttempt(params: {
     track: config.track,
     version: config.version,
     level: config.level,
+    examNumber: config.examNumber,
     format: config.format,
     formatLabel: config.label,
     mode: config.mode,

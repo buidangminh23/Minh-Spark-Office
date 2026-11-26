@@ -1,27 +1,30 @@
 import { useEffect, useState } from 'react';
 import { ArrowRight, CheckCircle2, Clock, RotateCcw, X, XCircle } from 'lucide-react';
 import { drillsForTrack } from '../../lib/mos/drills';
-import { trackMeta } from '../../lib/mos/grader';
-import type { MosDrillMode, MosDrillSummary, MosLevel, MosTrackId } from '../../lib/mos/types';
+import { trackMeta, versionMeta } from '../../lib/mos/grader';
+import type { MosDrillMode, MosDrillSummary, MosLevel, MosTrackId, MosVersion } from '../../lib/mos/types';
 
 const TIMED_DRILL_SEC = 5 * 60;
 const KEYS = ['A', 'B', 'C', 'D'] as const;
 
 export function MosDrillModal({
   track,
+  version,
   level,
   initialMode,
   onClose,
   onComplete,
 }: {
   track: MosTrackId;
+  version?: MosVersion;
   level: MosLevel;
   initialMode: MosDrillMode;
   onClose: () => void;
   onComplete: (summary: MosDrillSummary) => void;
 }) {
   const meta = trackMeta(track);
-  const questions = drillsForTrack(track, level);
+  const verInfo = version ? versionMeta(version) : null;
+  const questions = drillsForTrack(track, level, version);
   const [mode, setMode] = useState<MosDrillMode>(initialMode);
   const [index, setIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, number>>({});
@@ -83,7 +86,7 @@ export function MosDrillModal({
     <div className="mos-modal-backdrop" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <section className="mos-modal" role="dialog" aria-modal="true" aria-label={`Trắc nghiệm nhanh ${meta.title}`}>
         <header className="mos-modal-head">
-          <h2>Trắc nghiệm Ribbon & Phím tắt · {meta.title} ({level === 'expert' ? 'Expert' : 'Associate'})</h2>
+          <h2>Trắc nghiệm Ribbon & Phím tắt · {meta.title} ({verInfo ? `${verInfo.short} · ` : ''}{level === 'expert' ? 'Expert' : 'Associate'})</h2>
           <button type="button" className="mos-modal-close" aria-label="Đóng trắc nghiệm" onClick={onClose}>
             <X size={18} />
           </button>

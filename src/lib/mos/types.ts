@@ -3,6 +3,7 @@ import type { DocContent, FileContent, SheetContent, SlideContent } from '../sto
 export type MosTrackId = 'word' | 'excel' | 'powerpoint';
 export type MosVersion = '365' | '2019' | '2016';
 export type MosLevel = 'associate' | 'expert';
+export type MosExamNumber = 1 | 2 | 3 | 4 | 5;
 export type MosMode = 'training' | 'exam';
 export type MosLang = 'vi' | 'en';
 export type MosExamFormat =
@@ -18,6 +19,7 @@ export type MosSessionConfig = {
   track: MosTrackId;
   version: MosVersion;
   level: MosLevel;
+  examNumber?: MosExamNumber;
   format: MosExamFormat;
   mode: MosMode;
   lang: MosLang;
@@ -53,6 +55,14 @@ export type MosTaskSolution = {
   verifyTip: string;
 };
 
+export type MosInlineSolution = {
+  steps: string[];
+  formulaOrValue?: string;
+  shortcut?: string;
+  examTrap?: string;
+  verifyTip: string;
+};
+
 export type MosTask<C extends FileContent = FileContent> = {
   id: string;
   domainId: string;
@@ -64,12 +74,16 @@ export type MosTask<C extends FileContent = FileContent> = {
   ribbonPath: string;
   hint: string;
   points: number;
+  solution?: MosInlineSolution;
+  applySampleSolution?: (content: C) => void;
   check: (content: C) => MosTaskCheckResult;
 };
 
 export type MosProjectBase<K extends 'doc' | 'sheet' | 'slide', C extends FileContent> = {
   id: string;
   track: MosTrackId;
+  version?: MosVersion;
+  examNumber?: MosExamNumber;
   level: MosLevel;
   kind: K;
   order: number;
@@ -82,6 +96,22 @@ export type MosProjectBase<K extends 'doc' | 'sheet' | 'slide', C extends FileCo
   difficulty: 'Cơ bản' | 'Trung bình' | 'Nâng cao';
   createStarter: () => C;
   tasks: MosTask<C>[];
+};
+
+export type MosExamSetMeta = {
+  id: string;
+  examNumber: MosExamNumber;
+  track: MosTrackId;
+  version: MosVersion;
+  level: MosLevel;
+  examCode: string;
+  title: string;
+  titleEn: string;
+  subtitle: string;
+  subtitleEn: string;
+  projects: MosProject[];
+  totalTasks: number;
+  minutes: number;
 };
 
 export type MosWordProject = MosProjectBase<'doc', DocContent>;
@@ -146,6 +176,7 @@ export type MosAttemptRecord = {
   track: MosTrackId;
   version: MosVersion;
   level: MosLevel;
+  examNumber?: MosExamNumber;
   format: MosExamFormat;
   formatLabel: string;
   mode: MosMode;
@@ -166,6 +197,7 @@ export type MosDrillQuestion = {
   id: string;
   track: MosTrackId;
   level: MosLevel;
+  version?: MosVersion;
   domainId: string;
   prompt: string;
   options: [string, string, string, string];
@@ -199,5 +231,6 @@ export type MosProgress = {
   passedTaskIds: string[];
   failedTaskIds: string[];
   bestMockScore: Partial<Record<MosTrackId, number>>;
+  bestExamScore?: Record<string, number>;
   drillStats: Partial<Record<MosTrackId, { correct: number; total: number; runs: number; lastAt: number }>>;
 };

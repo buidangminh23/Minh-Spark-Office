@@ -25,30 +25,33 @@ import {
   buildPresetSession,
   domainsForTrack,
   examCodeFor,
+  examSetsForSelection,
   MOS_LEVELS,
   MOS_PASSING_SCORE,
   MOS_TRACKS,
   MOS_VERSIONS,
   projectById,
-  projectsForTrack,
+  projectsForVersion,
   trackMeta,
   versionMeta,
 } from '../../lib/mos/grader';
 import {
   clearMosDraft,
+  examSetReadiness,
   loadMosDraft,
   loadMosProgress,
   recordMosAttempt,
   recordMosDrill,
   saveMosDraft,
   saveMosProgress,
-  trackReadiness,
+  versionTrackReadiness,
 } from '../../lib/mos/progress';
 import { solutionForTask } from '../../lib/mos/solutions';
 import type {
   MosAttemptRecord,
   MosDrillMode,
   MosDrillSummary,
+  MosExamNumber,
   MosLang,
   MosLevel,
   MosMode,
@@ -81,6 +84,7 @@ export function MosHub() {
   const [track, setTrack] = useState<MosTrackId>('word');
   const [version, setVersion] = useState<MosVersion>('365');
   const [level, setLevel] = useState<MosLevel>('associate');
+  const [examNumber, setExamNumber] = useState<MosExamNumber>(1);
   const [lang, setLang] = useState<MosLang>('vi');
 
   const [progressStore, setProgressStore] = useState<{ uid: string | null; data: MosProgress }>(() => ({
@@ -131,17 +135,29 @@ export function MosHub() {
   const currentTrack = trackMeta(track);
   const currentVersion = versionMeta(version);
   const examCode = examCodeFor(track, version, level);
-  const visibleProjects = useMemo(() => projectsForTrack(track, level), [track, level]);
-  const allTrackProjects = useMemo(() => projectsForTrack(track), [track]);
+  const examSets = useMemo(() => examSetsForSelection(track, version, level), [track, version, level]);
+  const activeExamSet = useMemo(
+    () => examSets.find((item) => item.examNumber === examNumber) ?? examSets[0],
+    [examSets, examNumber],
+  );
+  const visibleProjects = activeExamSet.projects;
+  const allTrackProjects = useMemo(() => projectsForVersion(track, version), [track, version]);
   const domains = useMemo(() => domainsForTrack(track), [track]);
-  const readiness = useMemo(() => trackReadiness(progress, track, level), [progress, track, level]);
+  const versionReadiness = useMemo(
+    () => versionTrackReadiness(progress, track, version, level),
+    [progress, track, version, level],
+  );
+  const readiness = useMemo(
+    () => examSetReadiness(progress, track, version, level, examNumber),
+    [progress, track, version, level, examNumber],
+  );
   const trackAttempts = useMemo(
     () => progress.attempts.filter((item) => item.track === track).slice(0, 6),
     [progress.attempts, track],
   );
   const passedTaskSet = useMemo(() => new Set(progress.passedTaskIds), [progress.passedTaskIds]);
   const drillInfo = progress.drillStats[track];
-  const drillCount = useMemo(() => drillsForTrack(track, level).length, [track, level]);
+  const drillCount = useMemo(() => drillsForTrack(track, level, version).length, [track, level, version]);
 
   const draftPlayable = useMemo(() => {
     if (!savedDraft) return false;
@@ -242,7 +258,7 @@ export function MosHub() {
 
   const totalVisibleTasks = visibleProjects.reduce((sum, p) => sum + p.tasks.length, 0);
   const weakCount = readiness.weakTaskIds.length;
-  const heroDashOffset = HERO_RING_C * (1 - readiness.percent / 100);
+  const heroDashOffset = HERO_RING_C * (1 - versionReadiness.percent / 100);
 
   const handleSaveCopyToWorkspace = (name: string, content: FileContent) => {
     const now = Date.now();
@@ -283,7 +299,7 @@ export function MosHub() {
                 <span className="mos-hero-code">{examCode}</span>
               </div>
               <p>
-                {currentVersion.label} · {level === 'expert' ? 'Expert chuyên sâu' : 'Associate chuẩn'} · {visibleProjects.length} dự án / {totalVisibleTasks} nhiệm vụ có đáp án chi tiết từng bước
+                {currentVersion.label} · {level === 'expert' ? 'Expert chuyên sâu' : 'Associate chuẩn'} · 5 bộ đề riêng ({versionReadiness.totalTasks} nhiệm vụ có đáp án từng bước)
               </p>
             </div>
           </div>
@@ -337,26 +353,26 @@ export function MosHub() {
             <button
               type="button"
               className="mos-hero-cta-primary"
-              onClick={() => launchSession(buildPresetSession('certiport-exam', { track, version, level, lang }))}
+              onClick={() => launchSession(buildPresetSession('certiport-exam', { track, version, level, examNumber, lang }))}
             >
               <Award size={16} />
-              <span>Vào phòng thi {currentVersion.short} ({visibleProjects.length} dự án · 50p)</span>
+              <span>Vào phòng thi {currentVersion.short} · Đề {examNumber} ({visibleProjects.length} dự án · 50p)</span>
               <ArrowRight size={15} className="mos-arrow-glide" />
             </button>
             <button
               type="button"
               className="mos-hero-cta-secondary"
-              onClick={() => launchSession(buildPresetSession('guided-training', { track, version, level, lang }))}
+              onClick={() => launchSession(buildPresetSession('guided-training', { track, version, level, examNumber, lang }))}
             >
               <BookOpenCheck size={16} />
-              <span>Luyện tập + Đáp án từng bước</span>
+              <span>Luyện Đề {examNumber} + Đáp án từng bước</span>
             </button>
           </div>
         </div>
 
         <div className="mos-hero-side">
           <div className="mos-hero-readiness">
-            <div className="mos-hero-ring" aria-label={`Tiến độ ${readiness.percent}%`}>
+            <div className="mos-hero-ring" aria-label={`Tiến độ ${versionReadiness.percent}%`}>
               <svg viewBox="0 0 84 84" width="76" height="76">
                 <circle className="mos-hero-ring-track" cx="42" cy="42" r={HERO_RING_R} />
                 <circle
@@ -368,16 +384,16 @@ export function MosHub() {
                   strokeDashoffset={heroDashOffset}
                 />
               </svg>
-              <strong>{readiness.percent}%</strong>
+              <strong>{versionReadiness.percent}%</strong>
             </div>
             <div className="mos-hero-metrics">
               <div>
-                <span>Điểm cao nhất</span>
-                <strong>{readiness.bestMock !== null ? `${readiness.bestMock} / 1000` : 'Chưa thi'}</strong>
+                <span>Điểm cao nhất ({currentVersion.short})</span>
+                <strong>{versionReadiness.bestMock !== null ? `${versionReadiness.bestMock} / 1000` : 'Chưa thi'}</strong>
               </div>
               <div>
-                <span>Đã hoàn thành</span>
-                <strong>{readiness.passedTasks}/{readiness.totalTasks} câu</strong>
+                <span>Tổng 5 đề ({currentVersion.short})</span>
+                <strong>{versionReadiness.passedTasks}/{versionReadiness.totalTasks} câu</strong>
               </div>
               <div>
                 <span>Trắc nghiệm</span>
@@ -439,7 +455,7 @@ export function MosHub() {
 
       <div className="mos-tracks" role="tablist" aria-label="Chọn môn chứng chỉ MOS">
         {MOS_TRACKS.map((item) => {
-          const stat = trackReadiness(progress, item.id, level);
+          const stat = versionTrackReadiness(progress, item.id, version, level);
           const code = examCodeFor(item.id, version, level);
           return (
             <button
@@ -457,7 +473,7 @@ export function MosHub() {
                   <strong>{item.title}</strong>
                   <span className="mos-code-pill">{code}</span>
                 </div>
-                <small>{item.subtitle}</small>
+                <small>{item.subtitle} · 5 đề {currentVersion.short}</small>
                 <div className="mos-track-progress">
                   <div className="mos-mini-bar"><i style={{ width: `${stat.percent}%` }} /></div>
                   <span>{stat.passedTasks}/{stat.totalTasks} câu</span>
@@ -468,23 +484,82 @@ export function MosHub() {
         })}
       </div>
 
+      <section className="mos-exam-bank-panel" aria-label="Chọn bộ đề thi hoàn chỉnh theo phiên bản">
+        <div className="mos-panel-head">
+          <div className="mos-exam-bank-title">
+            <h3>Chọn bộ đề hoàn chỉnh · {currentVersion.short} ({examCode})</h3>
+            <p>
+              Tách biệt hoàn toàn bộ đề giữa MOS 2016, MOS 2019 và MOS 365 · Mỗi đề gồm {visibleProjects.length} dự án ({totalVisibleTasks} nhiệm vụ) chuẩn 50 phút
+            </p>
+          </div>
+          <span className="mos-exam-bank-summary">
+            Hoàn tất {versionReadiness.completedExams}/5 đề · Đang mở Đề {examNumber}
+          </span>
+        </div>
+
+        <div className="mos-exam-cards-grid" role="tablist" aria-label="Danh sách 5 đề thi hoàn chỉnh">
+          {examSets.map((set) => {
+            const setStat = examSetReadiness(progress, track, version, level, set.examNumber);
+            const isSelected = set.examNumber === examNumber;
+            const rawTitle = lang === 'en' ? set.titleEn : set.title;
+            const cleanTitle = rawTitle.replace(/^.*?·\s*/, '');
+            const cleanSub = lang === 'en' ? set.subtitleEn : set.subtitle;
+            return (
+              <button
+                key={set.id}
+                type="button"
+                role="tab"
+                aria-selected={isSelected}
+                className={`mos-exam-card ${isSelected ? 'is-active' : ''}`}
+                onClick={() => setExamNumber(set.examNumber)}
+              >
+                <div className="mos-exam-card-top">
+                  <span className="mos-exam-num-pill">
+                    {lang === 'en' ? `Exam 0${set.examNumber}` : `Đề 0${set.examNumber}`}
+                  </span>
+                  {setStat.bestMock !== null ? (
+                    <span className={`mos-exam-score-pill ${setStat.bestMock >= MOS_PASSING_SCORE ? 'is-pass' : 'is-fail'}`}>
+                      {setStat.bestMock}/1000
+                    </span>
+                  ) : isSelected ? (
+                    <span className="mos-exam-active-pill">{lang === 'en' ? 'Selected' : 'Đang chọn'}</span>
+                  ) : (
+                    <span className="mos-exam-meta-pill">{set.projects.length}P · {set.totalTasks}T</span>
+                  )}
+                </div>
+
+                <div className="mos-exam-card-body">
+                  <strong>{cleanTitle}</strong>
+                  <p>{cleanSub}</p>
+                </div>
+
+                <div className="mos-exam-card-foot">
+                  <div className="mos-mini-bar"><i style={{ width: `${setStat.percent}%` }} /></div>
+                  <span>{setStat.passedTasks}/{set.totalTasks} {lang === 'en' ? 'tasks' : 'câu'}</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
       <section className="mos-launch-panel" aria-label="Chọn hình thức ôn luyện và thi thử">
         <div className="mos-modes-grid">
           <button
             type="button"
             className="mos-mode-item is-primary"
-            onClick={() => launchSession(buildPresetSession('certiport-exam', { track, version, level, lang }))}
+            onClick={() => launchSession(buildPresetSession('certiport-exam', { track, version, level, examNumber, lang }))}
           >
             <div className="mos-mode-head">
               <span className="mos-mode-icon"><Award size={18} /></span>
-              <span className="mos-mode-tag">50 phút · {visibleProjects.length} dự án</span>
+              <span className="mos-mode-tag">Đề {examNumber} · 50 phút · {visibleProjects.length} dự án</span>
             </div>
             <div className="mos-mode-body">
-              <strong>Thi thử chuẩn Certiport</strong>
-              <p>Đề thi hoàn chỉnh {visibleProjects.length} dự án / {totalVisibleTasks} nhiệm vụ, giao diện đúng {currentVersion.short}, đếm ngược 50 phút, xuất Phiếu điểm kèm đáp án chi tiết.</p>
+              <strong>Thi thử chuẩn Certiport · Đề {examNumber}</strong>
+              <p>Đề thi hoàn chỉnh {visibleProjects.length} dự án / {totalVisibleTasks} nhiệm vụ của riêng {currentVersion.short}, đếm ngược 50 phút, xuất Phiếu điểm kèm đáp án chi tiết.</p>
             </div>
             <div className="mos-mode-foot">
-              <span>Vào phòng thi {currentVersion.short}</span>
+              <span>Vào phòng thi {currentVersion.short} · Đề {examNumber}</span>
               <ArrowRight size={15} className="mos-arrow-glide" />
             </div>
           </button>
@@ -492,18 +567,18 @@ export function MosHub() {
           <button
             type="button"
             className="mos-mode-item"
-            onClick={() => launchSession(buildPresetSession('guided-training', { track, version, level, lang }))}
+            onClick={() => launchSession(buildPresetSession('guided-training', { track, version, level, examNumber, lang }))}
           >
             <div className="mos-mode-head">
               <span className="mos-mode-icon"><BookOpen size={18} /></span>
-              <span className="mos-mode-tag">Đáp án từng bước + Chấm ngay</span>
+              <span className="mos-mode-tag">Đề {examNumber} · Đáp án + Chấm ngay</span>
             </div>
             <div className="mos-mode-body">
-              <strong>Luyện tập có hướng dẫn</strong>
+              <strong>Luyện tập có hướng dẫn · Đề {examNumber}</strong>
               <p>Không giới hạn thời gian, mở ngăn Đáp án từng bước song song tài liệu, sao chép công thức Click-to-Copy và chấm đúng/sai ngay.</p>
             </div>
             <div className="mos-mode-foot">
-              <span>Mở chế độ luyện tập</span>
+              <span>Mở chế độ luyện Đề {examNumber}</span>
               <ArrowRight size={15} className="mos-arrow-glide" />
             </div>
           </button>
@@ -511,7 +586,7 @@ export function MosHub() {
           <button
             type="button"
             className="mos-mode-item"
-            onClick={() => launchSession(buildPresetSession('speed-sprint', { track, version, level, lang, projectId: visibleProjects[0]?.id }))}
+            onClick={() => launchSession(buildPresetSession('speed-sprint', { track, version, level, examNumber, lang, projectId: visibleProjects[0]?.id }))}
           >
             <div className="mos-mode-head">
               <span className="mos-mode-icon"><Zap size={18} /></span>
@@ -627,12 +702,12 @@ export function MosHub() {
       <div className="mos-split-cols">
         <section className="mos-panel" aria-label="Danh sách dự án thực hành">
           <div className="mos-panel-head">
-            <h3>Bộ đề {level === 'expert' ? 'Expert' : 'Associate'} ({visibleProjects.length} dự án · {totalVisibleTasks} nhiệm vụ)</h3>
+            <h3>{lang === 'en' ? activeExamSet.titleEn : activeExamSet.title} ({visibleProjects.length} dự án · {totalVisibleTasks} nhiệm vụ)</h3>
             {weakCount > 0 && (
               <button
                 type="button"
                 className="mos-btn"
-                onClick={() => launchSession(buildPresetSession('weak-review', { track, version, level, lang, weakTaskIds: readiness.weakTaskIds }))}
+                onClick={() => launchSession(buildPresetSession('weak-review', { track, version, level, examNumber, lang, weakTaskIds: readiness.weakTaskIds }))}
               >
                 <RotateCcw size={14} /> Ôn {weakCount} câu chưa đạt
               </button>
@@ -678,14 +753,14 @@ export function MosHub() {
                     <button
                       type="button"
                       className="mos-btn"
-                      onClick={() => launchSession(buildPresetSession('single-project', { track, version, level, lang, projectId: project.id }))}
+                      onClick={() => launchSession(buildPresetSession('single-project', { track, version, level, examNumber, lang, projectId: project.id }))}
                     >
                       <Play size={13} /> Luyện tập
                     </button>
                     <button
                       type="button"
                       className="mos-btn mos-btn-primary"
-                      onClick={() => launchSession(buildPresetSession('speed-sprint', { track, version, level, lang, projectId: project.id }))}
+                      onClick={() => launchSession(buildPresetSession('speed-sprint', { track, version, level, examNumber, lang, projectId: project.id }))}
                     >
                       <Timer size={13} /> Thi 15p
                     </button>
@@ -719,7 +794,7 @@ export function MosHub() {
                     <button
                       type="button"
                       className="mos-domain-action"
-                      onClick={() => launchSession(buildPresetSession('domain-focus', { track, version, level, lang, domainIds: [domain.id] }))}
+                      onClick={() => launchSession(buildPresetSession('domain-focus', { track, version, level, examNumber, lang, domainIds: [domain.id] }))}
                     >
                       Luyện riêng miền này →
                     </button>
@@ -802,7 +877,7 @@ export function MosHub() {
                 onClick={() => {
                   const target = solutionModalProject;
                   setSolutionModalProject(null);
-                  launchSession(buildPresetSession('single-project', { track, version, level, lang, projectId: target.id }));
+                  launchSession(buildPresetSession('single-project', { track, version, level, examNumber, lang, projectId: target.id }));
                 }}
               >
                 <Play size={14} /> Thực hành dự án này ngay
@@ -915,7 +990,7 @@ export function MosHub() {
                 disabled={selectedDomains.length === 0}
                 onClick={() => {
                   setDomainPickerOpen(false);
-                  launchSession(buildPresetSession('domain-focus', { track, version, level, lang, domainIds: selectedDomains }));
+                  launchSession(buildPresetSession('domain-focus', { track, version, level, examNumber, lang, domainIds: selectedDomains }));
                 }}
               >
                 <GraduationCap size={15} /> Bắt đầu luyện miền đã chọn
@@ -1014,7 +1089,7 @@ export function MosHub() {
                           onChange={(e) => setCustomProjects((prev) => (e.target.checked ? [...prev, project.id] : prev.filter((id) => id !== project.id)))}
                         />
                         <div>
-                          <strong>[{project.level === 'expert' ? 'Expert' : 'Associate'}] Dự án {project.order}: {project.title}</strong>
+                          <strong>[Đề {project.examNumber ?? 1} · {project.level === 'expert' ? 'Expert' : 'Associate'}] Dự án {project.order}: {project.title}</strong>
                           <small>{project.fileName} · {project.tasks.length} nhiệm vụ · {project.difficulty}</small>
                         </div>
                       </label>
@@ -1036,6 +1111,7 @@ export function MosHub() {
       {drillModal && (
         <MosDrillModal
           track={track}
+          version={version}
           level={level}
           initialMode={drillModal}
           onClose={() => setDrillModal(null)}
@@ -1091,6 +1167,7 @@ export function MosHub() {
               track: report.track,
               version: report.version,
               level: report.level,
+              examNumber: report.examNumber ?? examNumber,
               lang,
             });
             setReport(null);
