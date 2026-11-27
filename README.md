@@ -83,7 +83,7 @@ DOCX · XLSX · XLSM · XLSB · XLS · PPTX · PPSX · POTX · PDF · CSV · TSV
 
 ## Built with
 
-React · TypeScript · Vite · Tauri · Tiptap · Univer · pdf-lib · LibreOffice WASM · Tesseract · Firebase Authentication and Cloud Firestore · Vercel
+React · TypeScript · Vite · Tauri · Tiptap · Univer · pdf-lib · LibreOffice WASM · Tesseract · Firebase Authentication and Cloud Firestore · Cloudflare Workers and R2
 
 ## Development
 
@@ -116,7 +116,7 @@ Each batch accepts up to 20 files and 200 MB total input/output. Office input is
 
 ## Google authentication
 
-Enable Google in Firebase Authentication > Sign-in method. Authorize the exact application hostname in Authentication > Settings > Authorized domains. Development uses `localhost`. Production uses `office.minhspark.com`. Configure the same variables in Vercel before building.
+Enable Google in Firebase Authentication > Sign-in method. Authorize the exact application hostname in Authentication > Settings > Authorized domains. Development uses `localhost`. Production uses `office.minhspark.com`. Put the same variables in `.env.local` before building.
 
 The app uses the Firebase SDK Google popup flow, observes authentication state, persists the session, and supports sign-out. Only standard identity scopes are requested; Gmail and Google Drive permissions are not requested. Popup cancellation, blocked popups, network failures, unauthorized domains and disabled providers show actionable messages. Missing configuration leaves local-only access available.
 
@@ -140,7 +140,9 @@ Desktop window close and application quit wait for a successful local save. Pend
 
 ## Deployment
 
-Use the existing Vercel project `minh-spark-office`. Set all four Firebase variables in the production environment. Build and deploy a clean, tested commit. Do not deploy the shared working directory while other agents have unfinished changes. This release retains the production 23 Docs feature set, all 22 export formats, approved product artwork and the canonical `office.minhspark.com` domain.
+The site runs on the Cloudflare Worker `minh-spark-office` (`wrangler.jsonc`). `worker/index.ts` serves the built `dist` as static assets, applies the response headers listed in `vercel.json`, proxies `/__/auth` and `/__/firebase` to Firebase Hosting, and routes `/api/*` to the handlers in `api/`. Static assets are limited to 25 MiB per file, so larger files (the LibreOffice WASM bundle, the VietOCR encoder and every installer) live in the R2 bucket `minh-spark-office-files` under the same path and are served from there when no static asset matches.
+
+`node scripts/deploy-cloudflare.mjs` deploys the current `dist`: it uploads files over 25 MiB to R2, excludes them from the asset upload and runs `wrangler deploy`. Add installer paths as arguments to upload them to `downloads/`; add `--skip-large` when the large assets did not change. `npm run release:desktop` does this for each release, then removes installers older than the three retained releases from R2. Worker secrets: `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_PROJECT_ID`, `RESEND_API_KEY`, plus `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` when the shared AI quota is enabled (`npx wrangler secret put <NAME>`). Deploy a clean, tested commit, never the shared working directory while other agents have unfinished changes.
 
 Google button artwork is the official Firebase UI Google asset from https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg.
 

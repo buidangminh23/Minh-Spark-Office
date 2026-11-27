@@ -73,7 +73,7 @@ export const RETAINED_RELEASES = 3;
 
 const UPDATER_SUFFIXES = ['-windows-x64-vi-Setup.exe', '-windows-x64-en-US.msi', '-macos-arm64.app.tar.gz', '-macos-x64.app.tar.gz', '-linux-x64.deb', '-linux-x64.rpm', '-linux-x64.AppImage'];
 
-const compareVersions = (a, b) => {
+export const compareVersions = (a, b) => {
   const left = a.split('.').map(Number);
   const right = b.split('.').map(Number);
   for (let index = 0; index < 3; index += 1) if (left[index] !== right[index]) return left[index] - right[index];

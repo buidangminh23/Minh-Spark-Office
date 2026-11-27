@@ -3,7 +3,7 @@ import { incrementCounter, installerCounter, isBot } from './_shared/stats.js';
 const CONFIG = {
   projectId: process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || 'minh-spark-office',
   apiKey: process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY,
-  fetch,
+  fetch: (input: RequestInfo | URL, init?: RequestInit) => fetch(input, init),
 };
 
 export async function GET(request: Request) {

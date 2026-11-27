@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { closeSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { closeSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, readdirSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
+import { deployCloudflare, deleteObject } from './deploy-cloudflare.mjs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   MAC_ARCHES,
@@ -17,12 +18,12 @@ import {
   nextPatchVersion,
   parseChecksums,
   releaseArtifactNames,
-  retainedUpdaterFiles,
+  RETAINED_RELEASES,
+  compareVersions,
 } from './release-lib.mjs';
 
 const root = resolve(fileURLToPath(new URL('../', import.meta.url)));
 const SITE = process.env.MINHSPARK_SITE || 'https://office.minhspark.com';
-const VERCEL_SCOPE = process.env.MINHSPARK_VERCEL_SCOPE || 'buidangminh23s-projects';
 const MAC_HOST = process.env.MINHSPARK_MAC_HOST || 'mac';
 const MAC_BUILD_DIR = process.env.MINHSPARK_MAC_BUILD_DIR || 'Library/Caches/minh-spark-office/build-0.2.1';
 const LOCAL_APP_DATA = process.env.LOCALAPPDATA || '';
@@ -182,7 +183,7 @@ function preflight({ checkClean }) {
   }
   if (sshCapture('echo ok', { timeout: 60_000 }) !== 'ok') throw new Error(`Mac ${MAC_HOST} unreachable`);
   run('wsl.exe', ['-d', LINUX_DISTRO, '--', 'docker', 'info', '--format', '{{.ServerVersion}}']);
-  run('npx', ['--yes', 'vercel@latest', 'whoami']);
+  run('npx', ['--yes', 'wrangler@4.168.0', 'whoami']);
   console.log('Preflight OK');
 }
 
@@ -301,44 +302,56 @@ function commitRelease(version) {
   run('git', ['commit', '-q', '-m', `release: ship desktop ${version}`]);
 }
 
-function projectLinkFile() {
-  const commonDir = resolve(root, capture('git', ['rev-parse', '--git-common-dir']));
-  return [join(root, '.vercel/project.json'), join(dirname(commonDir), '.vercel/project.json')].find((path) => existsSync(path));
+function releasedVersions() {
+  return capture('git', ['log', '--format=%s', '--grep', '^release: ship desktop '])
+    .split('\n')
+    .map((line) => /^release: ship desktop (\d+\.\d+\.\d+)$/.exec(line.trim())?.[1])
+    .filter(Boolean);
+}
+
+function pruneOldInstallers(version) {
+  const older = [...new Set(releasedVersions())].filter((candidate) => compareVersions(candidate, version) < 0).sort(compareVersions).reverse();
+  for (const expired of older.slice(RETAINED_RELEASES, RETAINED_RELEASES + 3)) {
+    for (const name of releaseArtifactNames(expired)) {
+      try {
+        deleteObject(root, `downloads/${name}`);
+      } catch (error) {
+        console.warn(`Could not delete ${name} from R2 (${error.message}); it only costs storage`);
+      }
+    }
+  }
 }
 
 function deploy(version) {
-  heading('Deploy web with installers');
-  const link = projectLinkFile();
-  if (!link) throw new Error('No .vercel/project.json found; run vercel link once in the main checkout');
+  heading('Deploy web and installers to Cloudflare');
   requireOriginMain(`origin/main gained commits that HEAD lacks; deploying now would roll production back. Rebase the release commits onto origin/main, then resume with --version ${version} --from deploy`);
+  const installers = releaseArtifactNames(version).map((name) => join(root, 'public/downloads', name));
+  const missingInstaller = installers.find((path) => !existsSync(path));
+  if (missingInstaller) throw new Error(`Missing installer ${missingInstaller}`);
+  const sums = parseChecksums(readFileSync(join(root, 'public/downloads/SHA256SUMS.txt'), 'utf8'));
+  for (const path of installers) {
+    const name = path.split(/[\\/]/).pop();
+    const entry = sums.find((row) => row.file === name);
+    if (!entry || sha256(readFileSync(path)) !== entry.hash) throw new Error(`${name} does not match SHA256SUMS.txt`);
+  }
   const site = mkdtempSync(join(tmpdir(), 'mso-site-'));
   temporaryPaths.push(site);
   const archive = join(site, '..', `${site.split(/[\\/]/).pop()}.tar`);
   temporaryPaths.push(archive);
   run('git', ['archive', '--format=tar', '-o', archive, 'HEAD']);
   run(WINDOWS_TAR, ['-xf', archive, '-C', site]);
-  for (const name of releaseArtifactNames(version)) {
-    const source = join(root, 'public/downloads', name);
-    if (!existsSync(source)) throw new Error(`Missing installer ${name}`);
-    copyFileSync(source, join(site, 'public/downloads', name));
+  for (const name of ['.env', '.env.local', '.env.production', '.env.production.local']) {
+    if (existsSync(join(root, name))) copyFileSync(join(root, name), join(site, name));
   }
-  const retained = retainedUpdaterFiles(readdirSync(join(root, 'public/downloads')), version);
-  const kept = retained.filter((name) => {
-    try {
-      copyFileSync(join(root, 'public/downloads', name), join(site, 'public/downloads', name));
-      return true;
-    } catch (error) {
-      console.warn(`Skipping unreadable earlier installer ${name} (${error.code ?? error.message}); apps that miss it re-check and fetch ${version}`);
-      return false;
-    }
-  });
-  console.log(`Keeping ${kept.length} installers of earlier versions for apps that found them before this release`);
-  for (const { hash, file } of parseChecksums(readFileSync(join(site, 'public/downloads/SHA256SUMS.txt'), 'utf8'))) {
-    if (sha256(readFileSync(join(site, 'public/downloads', file))) !== hash) throw new Error(`${file} does not match SHA256SUMS.txt`);
+  const modules = join(site, 'node_modules');
+  symlinkSync(join(root, 'node_modules'), modules, 'junction');
+  try {
+    run('npm', ['run', 'build'], { cwd: site });
+  } finally {
+    unlinkSync(modules);
   }
-  mkdirSync(join(site, '.vercel'), { recursive: true });
-  copyFileSync(link, join(site, '.vercel/project.json'));
-  run('npx', ['--yes', 'vercel@latest', 'deploy', '--prod', '--yes', '--scope', VERCEL_SCOPE], { cwd: site });
+  deployCloudflare(site, { installers });
+  pruneOldInstallers(version);
 }
 
 function sha256(buffer) {

@@ -3,7 +3,7 @@ import { incrementCounter, isBot, readStats, type Counter, type Stats } from './
 const CONFIG = {
   projectId: process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || 'minh-spark-office',
   apiKey: process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY,
-  fetch,
+  fetch: (input: RequestInfo | URL, init?: RequestInit) => fetch(input, init),
 };
 const EVENTS: Record<string, Counter> = { user: 'users' };
 const ALLOWED_ORIGINS = new Set(['https://office.minhspark.com', 'https://minh-spark-office.vercel.app', 'http://tauri.localhost', 'https://tauri.localhost', 'tauri://localhost']);
